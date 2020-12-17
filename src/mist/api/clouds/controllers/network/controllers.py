@@ -75,10 +75,10 @@ class AzureArmNetworkController(BaseNetworkController):
                 break
         subnets = self.cloud.ctl.compute.connection.ex_list_subnets(network)
         for sub in subnets:
-            if sub.id == subnet.subnet_id:
+            if sub.id == subnet.external_id:
                 return sub
-        raise SubnetNotFoundError('Subnet %s with subnet_id \
-            %s' % (subnet.name, subnet.subnet_id))
+        raise SubnetNotFoundError('Subnet %s with external_id \
+            %s' % (subnet.name, subnet.external_id))
 
     def _delete_network(self, network, libcloud_network):
         raise MistNotImplementedError()
@@ -129,12 +129,12 @@ class AmazonNetworkController(BaseNetworkController):
                                    (network.name, network.external_id))
 
     def _get_libcloud_subnet(self, subnet):
-        kwargs = {'subnet_ids': [subnet.subnet_id]}
+        kwargs = {'subnet_ids': [subnet.external_id]}
         subnets = self.cloud.ctl.compute.connection.ex_list_subnets(**kwargs)
         if subnets:
             return subnets[0]
-        raise SubnetNotFoundError('Subnet %s with subnet_id %s' %
-                                  (subnet.name, subnet.subnet_id))
+        raise SubnetNotFoundError('Subnet %s with external_id %s' %
+                                  (subnet.name, subnet.external_id))
 
 
 class GoogleNetworkController(BaseNetworkController):

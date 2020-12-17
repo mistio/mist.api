@@ -989,7 +989,7 @@ def _create_machine_ec2(conn, key_name, public_key,
             subnet_id = subnet.subnet_id
         except Subnet.DoesNotExist:
             try:
-                subnet = Subnet.objects.get(subnet_id=subnet_id)
+                subnet = Subnet.objects.get(external_id=subnet_id)
                 log.info('Got providers id instead of mist id, not \
                 doing nothing.')
             except Subnet.DoesNotExist:

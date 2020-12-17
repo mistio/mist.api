@@ -200,7 +200,7 @@ class BaseNetworkController(BaseController):
             for n in self.list_networks():
                 if n.external_id == subnet.network.external_id:
                     for s in Subnet.objects(network=n, missing_since=None):
-                        if s.subnet_id == libcloud_subnet.id:
+                        if s.external_id == libcloud_subnet.id:
                             return s
             time.sleep(1)
         raise mist.api.exceptions.SubnetListingError()
@@ -463,10 +463,10 @@ class BaseNetworkController(BaseController):
         for libcloud_subnet in libcloud_subnets:
             try:
                 subnet = Subnet.objects.get(network=network,
-                                            subnet_id=libcloud_subnet.id)
+                                            external_id=libcloud_subnet.id)
             except Subnet.DoesNotExist:
                 subnet = SUBNETS[self.provider](network=network,
-                                                subnet_id=libcloud_subnet.id)
+                                                external_id=libcloud_subnet.id)
 
             subnet.name = libcloud_subnet.name
             subnet.extra = copy.copy(libcloud_subnet.extra)
@@ -712,10 +712,10 @@ class BaseNetworkController(BaseController):
         """
         subnets = self.cloud.ctl.compute.connection.ex_list_subnets()
         for sub in subnets:
-            if sub.id == subnet.subnet_id:
+            if sub.id == subnet.external_id:
                 return sub
         raise mist.api.exceptions.SubnetNotFoundError(
-            'Subnet %s with subnet_id %s' % (subnet.name, subnet.subnet_id))
+            'Subnet %s with external_id %s' % (subnet.name, subnet.external_id))
 
     def list_vnfs(self, host=None):
         """Available only for Libvirt/KVM clouds

@@ -185,7 +185,7 @@ class AmazonComputeController(BaseComputeController):
         # Discover subnet of machine.
         from mist.api.networks.models import Subnet
         try:
-            subnet = Subnet.objects.get(subnet_id=subnet_id,
+            subnet = Subnet.objects.get(external_id=subnet_id,
                                         network=machine.network,
                                         missing_since=None)
         except Subnet.DoesNotExist:
