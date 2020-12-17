@@ -192,7 +192,7 @@ class Cloud(OwnershipMixin, me.Document):
         return self.ctl.provider
 
     @classmethod
-    def add(cls, owner, name, id='', **kwargs):
+    def add(cls, owner, name, user, id='', **kwargs):
         """Add cloud
 
         This is a class method, meaning that it is meant to be called on the
@@ -220,7 +220,7 @@ class Cloud(OwnershipMixin, me.Document):
         cloud = cls(owner=owner, name=name)
         if id:
             cloud.id = id
-        cloud.ctl.add(**kwargs)
+        cloud.ctl.add(user, **kwargs)
         return cloud
 
     def delete(self):
