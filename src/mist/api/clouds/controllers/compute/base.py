@@ -2073,7 +2073,7 @@ class BaseComputeController(BaseController):
     def generate_plan(self, auth_context, plan, image,
                       size, location='', key={},
                       networks={}, volumes=[], disks={},
-                      extra={}, scripts=[], cloudinit='',
+                      extra={}, scripts=[], schedules={}, cloudinit='',
                       fqdn='', monitoring=False, quantity=1):
         """Generate a machine creation plan.
 
@@ -2146,6 +2146,12 @@ class BaseComputeController(BaseController):
 
         extra = extra or {}
         self._generate_plan__parse_extra(extra, plan)
+
+        schedules = self._generate_plan__parse_schedules(auth_context,
+                                                         plan['machine_name'],
+                                                         schedules)
+        if schedules:
+            plan['schedules'] = schedules
 
         if cloudinit and self.cloud.ctl.has_feature('cloudinit'):
             plan['cloudinit'] = cloudinit
@@ -2382,6 +2388,71 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
         """
         pass
+
+    def _generate_plan__parse_schedules(self, auth_context,
+                                        machine_name, schedule):
+        """
+        Schedule key/value pairs:
+            type: 'one_off', 'interval', 'crontab'
+            action: 'start' 'stop', 'reboot', 'destroy'
+            script: script id or name to run (action should not be set)
+            entry: if type is one_off then time in milliseconds to run
+
+                   if type is interval then dictionary with the keys/values:
+                       'every': int , 'period': minutes,hours,days
+
+                   if type is crontab:
+                       'minute': '*/10',
+                       'hour': '*',
+                       'day_of_month': '*',
+                       'month_of_year': '*',
+                       'day_of_week': '*'}
+
+            expires: date when schedule should expire,
+            e.g '2020-12-15 22:00:00'
+
+            start_after: date when schedule should start running,
+            e.g '2020-12-15 22:00:00'
+
+            max_run_count:max number of times to run
+            task_enabled:
+            description:
+        """
+        if not schedule:
+            return
+        schedule_type = schedule.get('type')
+        if schedule_type not in ['crontab', 'interval', 'one_off']:
+            raise BadRequestError('schedule type must be one of '
+                                  'these (crontab, interval, one_off)]'
+                                  )
+        action = schedule.get('action')
+        script = schedule.get('script')
+        if action is None and script is None:
+            raise BadRequestError('Action or script not defined')
+
+        if action and action not in ['reboot', 'destroy', 'start', 'stop']:
+            raise BadRequestError("Action is not correct")
+
+        ret_schedule = {
+            'name': machine_name,
+            'schedule_type': schedule_type,
+            'description': schedule.get('description', ''),
+            'task_enabled': schedule.get('task_enabled', True),
+        }
+
+        if action:
+            ret_schedule['action'] = action
+        else:
+            # TODO list_resources script
+            ret_schedule['scipt_id'] = script
+
+        if schedule_type == 'one_off':
+            if not schedule.get('entry'):
+                raise BadRequestError('one_off schedule '
+                                      'requires date given in schedule_entry')
+            ret_schedule['schedule_entry'] = schedule['entry']
+
+        return ret_schedule
 
     def _generate_plan__post_parse_plan(self, plan):
         """Used to parse whole plan in place, instead of specific parts of it.
