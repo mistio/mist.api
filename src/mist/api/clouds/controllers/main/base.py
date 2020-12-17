@@ -147,7 +147,7 @@ class BaseMainController(object):
                               BaseObjectStorageController)
             self.objectstorage = self.ObjectStorageController(self)
 
-    def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
+    def add(self, user=None, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
 
         This is only expected to be called by `Cloud.add` classmethod to create
@@ -191,7 +191,7 @@ class BaseMainController(object):
             raise InternalServerError(exc=exc)
 
         try:
-            self.update(fail_on_error=fail_on_error,
+            self.update(user=user, fail_on_error=fail_on_error,
                         fail_on_invalid_params=fail_on_invalid_params,
                         **kwargs)
         except (CloudUnavailableError, CloudUnauthorizedError) as exc:
@@ -226,8 +226,8 @@ class BaseMainController(object):
         """
         return
 
-    def update(self, fail_on_error=True, fail_on_invalid_params=True,
-               **kwargs):
+    def update(self, user=None, fail_on_error=True,
+               fail_on_invalid_params=True, **kwargs):
         """Edit an existing Cloud
 
         Params:
@@ -307,6 +307,7 @@ class BaseMainController(object):
                         setattr(self.cloud, key, data[_key])
 
                 else:
+
                     try:
                         secret = VaultSecret.objects.get(name='%s%s' %
                                                          (config.
@@ -314,13 +315,18 @@ class BaseMainController(object):
                                                           self.cloud.title),
                                                          owner=self.cloud.
                                                          owner)
+                        secret.ctl.create_or_update_secret({key: value})
                     except me.DoesNotExist:
                         secret = VaultSecret(name='%s%s' %
                                              (config.VAULT_CLOUDS_PATH,
                                               self.cloud.title),
                                              owner=self.cloud.owner)
+                        # first store key in Vault
+                        secret.ctl.create_or_update_secret({key: value})
                         try:
                             secret.save()
+                            if user:
+                                secret.assign_to(user)
                         except me.NotUniqueError:
                             raise BadRequestError("The path `%s%s` exists on Vault. \
                                 Try changing the name of the cloud" %

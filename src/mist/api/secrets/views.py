@@ -75,7 +75,11 @@ def create_secret(request):
     # Set ownership.
     _secret.assign_to(auth_context.user)
 
-    _secret.ctl.create_or_update_secret(secret)
+    try:
+        _secret.ctl.create_or_update_secret(secret)
+    except Exception as exc:
+        _secret.delete()
+        raise exc
 
     # FIXME
     trigger_session_update(owner.id, ['secrets'])

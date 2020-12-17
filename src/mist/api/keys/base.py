@@ -28,7 +28,7 @@ class BaseKeyController(object):
         """
         self.key = key
 
-    def add(self, fail_on_invalid_params=True, **kwargs):
+    def add(self, user=None, fail_on_invalid_params=True, **kwargs):
         """Add an entry to the database
 
         This is only to be called by `Key.add` classmethod to create
@@ -74,8 +74,13 @@ class BaseKeyController(object):
                     secret = VaultSecret(name='%s%s' % (config.VAULT_KEYS_PATH,
                                                         self.key.name),
                                          owner=self.key.owner)
+                    # first store key in Vault
+                    secret.ctl.create_or_update_secret({key: value})
+                    # save the VaultSecret object and assign owner
                     try:
                         secret.save()
+                        if user:
+                            secret.assign_to(user)
                     except me.NotUniqueError:
                         raise KeyExistsError("The path `%s%s` exists on Vault. \
                             Try changing the name of the key" %

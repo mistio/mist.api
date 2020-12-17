@@ -209,6 +209,7 @@ def add_cloud(request):
     auth_context = auth_context_from_request(request)
     cloud_tags, _ = auth_context.check_perm("cloud", "add", None)
     owner = auth_context.owner
+    user = auth_context.user
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
     # when pasting keys, preventing thus succesfull connection with the
@@ -225,7 +226,7 @@ def add_cloud(request):
         raise RequiredParameterMissingError('provider')
 
     monitoring = None
-    result = add_cloud_v_2(owner, name, provider, params)
+    result = add_cloud_v_2(owner, name, provider, user, params)
     cloud_id = result['cloud_id']
     monitoring = result.get('monitoring')
     errors = result.get('errors')
