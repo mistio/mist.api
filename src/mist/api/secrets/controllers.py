@@ -31,6 +31,7 @@ class BaseSecretController(object):
         """
         self.secret = secret
 
+
 class VaultSecretController(BaseSecretController):
 
     client = hvac.Client
@@ -75,7 +76,6 @@ class VaultSecretController(BaseSecretController):
     def list_secrets(self, path='.'):
         self.check_if_secret_engine_exists()
         org = self.secret.owner
-        import ipdb; ipdb.set_trace()
         if config.VAULT_KV_VERSION == 2:
             try:
                 response = self.client.secrets.kv.list_secrets(
