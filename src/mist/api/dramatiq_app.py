@@ -6,6 +6,8 @@ import dramatiq
 from dramatiq.middleware import Middleware
 from dramatiq.brokers.rabbitmq import RabbitmqBroker
 
+from mist.api import config
+
 log = logging.getLogger(__name__)
 
 
@@ -25,7 +27,7 @@ class LoggingMiddleware(Middleware):
         try:
             delta = perf_counter() - self.state.start
             outcome = 'Task failed' if exception else 'Completed task'
-            log.info("%s: %s - %.02fms elapsed.", outcome, 
+            log.info("%s: %s - %.02fms elapsed.", outcome,
                      self.state.msg_id, delta * 1000)
             del self.state.start
             del self.state.msg_id
@@ -35,6 +37,6 @@ class LoggingMiddleware(Middleware):
     after_skip_message = after_process_message
 
 
-broker = RabbitmqBroker(url="amqp://guest:guest@rabbitmq:5672")
+broker = RabbitmqBroker(url=config.BROKER_URL)
 broker.add_middleware(LoggingMiddleware())
 dramatiq.set_broker(broker)

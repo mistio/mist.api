@@ -4,6 +4,4 @@ pip install -U 'dramatiq[rabbitmq]'
 
 dramatiq mist.api.dramatiq_tasks -Q dramatiq_create_machine \
                                     dramatiq_post_deploy_steps \
-                                    dramatiq_add_schedules \
-                                    dramatiq_add_dns_record \
                                     dramatiq_ssh_tasks
