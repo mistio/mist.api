@@ -40,7 +40,7 @@ class Zone(OwnershipMixin, me.Document):
     owner = me.ReferenceField('Organization', required=True,
                               reverse_delete_rule=me.CASCADE)
 
-    zone_id = me.StringField(required=True)
+    external_id = me.StringField(required=True)
     domain = me.StringField(required=True)
     type = me.StringField(required=True)  # TODO: Rename
     ttl = me.IntField(required=True, default=0)
@@ -55,7 +55,7 @@ class Zone(OwnershipMixin, me.Document):
         'indexes': [
             'owner',
             {
-                'fields': ['cloud', 'zone_id', 'deleted'],
+                'fields': ['cloud', 'external_id', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -147,7 +147,7 @@ class Zone(OwnershipMixin, me.Document):
         """Return a dict with the model values."""
         return {
             'id': self.id,
-            'zone_id': self.zone_id,
+            'external_id': self.external_id,
             'domain': self.domain,
             'type': self.type,
             'ttl': self.ttl,
@@ -166,8 +166,8 @@ class Zone(OwnershipMixin, me.Document):
             self.domain += "."
 
     def __str__(self):
-        return 'Zone %s (%s/%s) of %s' % (self.id, self.zone_id, self.domain,
-                                          self.owner)
+        return 'Zone %s (%s/%s) of %s' % (self.id, self.external_id,
+                                          self.domain, self.owner)
 
 
 class Record(OwnershipMixin, me.Document):
@@ -177,7 +177,7 @@ class Record(OwnershipMixin, me.Document):
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
-    record_id = me.StringField(required=True)
+    external_id = me.StringField(required=True)
     name = me.StringField(required=True)
     type = me.StringField(required=True)
     rdata = me.ListField(required=True)
@@ -197,7 +197,7 @@ class Record(OwnershipMixin, me.Document):
         'allow_inheritance': True,
         'indexes': [
             {
-                'fields': ['zone', 'record_id', 'deleted'],
+                'fields': ['zone', 'external_id', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -276,7 +276,7 @@ class Record(OwnershipMixin, me.Document):
         """ Return a dict with the model values."""
         return {
             'id': self.id,
-            'record_id': self.record_id,
+            'external_id': self.external_id,
             'name': self.name,
             'type': self.type,
             'rdata': self.rdata,
