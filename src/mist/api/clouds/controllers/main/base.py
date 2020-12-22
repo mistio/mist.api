@@ -493,7 +493,6 @@ class BaseMainController(object):
             # if dictionary is returned key is supported but not required
         else:
             if provider_dict['features']['provision']:
-                has_feature = provider_dict['features']['provision'].get(
-                                                                feature,
-                                                                False)
+                has_feature = provider_dict['features']['provision'].get(feature, False)  # noqa
+
         return has_feature

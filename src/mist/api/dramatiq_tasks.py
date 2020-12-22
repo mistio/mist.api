@@ -13,12 +13,10 @@ from paramiko.ssh_exception import SSHException
 
 from mist.api.clouds.models import Cloud, DockerCloud
 from mist.api.machines.models import Machine
-from mist.api.users.models import Owner
 from mist.api.schedules.models import Schedule
 from mist.api.keys.models import Key
 from mist.api.dns.models import RECORDS
 
-from mist.api.exceptions import MachineCreationError
 from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.methods import connect_provider, probe_ssh_only
@@ -259,15 +257,15 @@ def dramatiq_ssh_tasks(auth_context_serialized, cloud_id, key_id, host,
 
 def add_expiration_for_machine(auth_context, expiration, machine):
     params = {
-            "schedule_type": "one_off",
-            "description": "Scheduled to run when machine expires",
-            "schedule_entry": expiration.get("date"),
-            "action": expiration.get("action"),
-            "selectors": [{"type": "machines", "ids": [machine.id]}],
-            "task_enabled": True,
-            "notify": expiration.get("notify", ""),
-            "notify_msg": expiration.get("notify_msg", ""),
-        }
+        "schedule_type": "one_off",
+        "description": "Scheduled to run when machine expires",
+        "schedule_entry": expiration.get("date"),
+        "action": expiration.get("action"),
+        "selectors": [{"type": "machines", "ids": [machine.id]}],
+        "task_enabled": True,
+        "notify": expiration.get("notify", ""),
+        "notify_msg": expiration.get("notify_msg", ""),
+    }
     name = machine.name + "-expiration-" + str(randrange(1000))
     machine.expiration = Schedule.add(auth_context, name, **params)
     machine.save()
@@ -280,13 +278,9 @@ def add_schedules(auth_context, external_id, machine_id,
     if schedule and schedule.get('name'):  # ugly hack to prevent dupes
         action = schedule.get('action', '')
         try:
-            name = (
-                action
-                + '-'
-                + schedule.pop('name')
-                + '-'
-                + external_id[:4]
-            )
+            name = (action + '-' + schedule.pop('name') +
+                    '-' + external_id[:4])
+
             tmp_log("Add scheduler entry %s", name)
             schedule["selectors"] = [{"type": "machines", "ids": [machine_id]}]
             schedule_info = Schedule.add(auth_context, name, **schedule)
@@ -332,7 +326,7 @@ def cloud_post_deploy(auth_context, cloud_id, shell, key_id, external_id,
                       machine_name, username=None, password=None, port=22):
     try:
         cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(
-          cloud_id, [])
+            cloud_id, [])
     except AttributeError:
         cloud_post_deploy_steps = []
     for post_deploy_step in cloud_post_deploy_steps:
@@ -340,18 +334,18 @@ def cloud_post_deploy(auth_context, cloud_id, shell, key_id, external_id,
         if predeployed_key_id and key_id:
             # Use predeployed key to deploy the user selected key
             shell.autoconfigure(
-                        auth_context.owner, cloud_id, external_id,
-                        predeployed_key_id,
-                        username, password, port
-                    )
+                auth_context.owner, cloud_id, external_id,
+                predeployed_key_id,
+                username, password, port
+            )
             retval, output = shell.command(
-                            'echo %s >> ~/.ssh/authorized_keys'
-                            % Key.objects.get(id=key_id).public)
+                'echo %s >> ~/.ssh/authorized_keys'
+                % Key.objects.get(id=key_id).public)
             if retval > 0:
                 notify_admin('Deploy user key failed for machine %s'
                              % machine_name)
         command = post_deploy_step.get('script', '').replace(
-                        '${node.name}', machine_name)
+            '${node.name}', machine_name)
         if command and key_id:
             tmp_log('Executing cloud post deploy cmd: %s' % command)
             shell.autoconfigure(
@@ -391,9 +385,9 @@ def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
             tmp_log('will run script_id %s', script['id'])
             params = script.get('params', '')
             ret = run_script.run(
-                    auth_context.owner, script['id'], machine_id,
-                    params=params, host=host, job_id=job_id
-                )
+                auth_context.owner, script['id'], machine_id,
+                params=params, host=host, job_id=job_id
+            )
             error = ret['error']
             tmp_log('executed script_id %s', script['id'])
         elif script.get('inline'):
@@ -412,5 +406,5 @@ def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
                         retval=retval, error=retval > 0)
             log_event(action='deployment_script_finished',
                       error=retval > 0, return_value=retval,
-                      command=script,  stdout=output,
+                      command=script, stdout=output,
                       **log_dict)

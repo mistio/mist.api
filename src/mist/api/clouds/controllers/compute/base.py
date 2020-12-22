@@ -2100,9 +2100,8 @@ class BaseComputeController(BaseController):
         images = self._generate_plan__parse_image(auth_context, image)
 
         if self.cloud.ctl.has_feature('location'):
-            locations = self._generate_plan__parse_location(
-                            auth_context,
-                            location)
+            locations = self._generate_plan__parse_location(auth_context,
+                                                            location)
         else:
             locations = None
 

@@ -39,7 +39,7 @@ from html import unescape
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price, get_pricing
-from libcloud.compute.base import Node, NodeImage, NodeLocation, NodeSize
+from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
@@ -55,7 +55,6 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import PortForwardCreationError
 from mist.api.exceptions import ForbiddenError
-from mist.api.exceptions import MachineCreationError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
@@ -362,7 +361,8 @@ class AmazonComputeController(BaseComputeController):
 
     def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
         if not volume_dict.get('device'):
-            raise BadRequestError('Device is mandatory when attaching a volume')
+            raise BadRequestError('Device is mandatory'
+                                  ' when attaching a volume')
         ret_dict = {
             'id': vol_obj.id,
             'device': volume_dict['device']
@@ -406,7 +406,7 @@ class AmazonComputeController(BaseComputeController):
                 log.info('Attempting to create security group')
                 ret_dict = self.connection.ex_create_security_group(
                     name=plan['networks']['security_group']['name'],
-                    description=plan['networks']['security_group']['description']
+                    description=plan['networks']['security_group']['description'] # noqa
                 )
                 self.connection.ex_authorize_security_group_permissive(
                     name=plan['networks']['security_group']['name'])
@@ -803,37 +803,6 @@ class MaxihostComputeController(BaseComputeController):
         else:
             return 'linux'
 
-    def create_machine(self, plan):
-        from mist.api.keys.models import Key
-        key = Key.objects.get(id=plan['key'])
-
-        public_key = str(key.public.replace('\n', ''))
-        ssh_keys = []
-        server_key = ''
-        keys = self.connection.list_key_pairs()
-        for k in keys:
-            if public_key == k.public_key:
-                server_key = k
-                break
-        if not server_key:
-            server_key = self.connection.create_key_pair(
-                         name=plan['machine_name'],
-                         public_key=public_key)
-        ssh_keys.append(server_key.fingerprint)
-        # todo fix size in libcloud
-        image, location, size = self.get_libcloud_objects(plan)
-
-        try:
-            node = self.connection.create_node(plan['machine_name'],
-                                               size,
-                                               image,
-                                               location,
-                                               ssh_keys)
-        except Exception as exc:
-            raise MachineCreationError('Maxihost, exception %s' % exc)
-
-        return node
-
 
 class GigG8ComputeController(BaseComputeController):
 
@@ -1038,34 +1007,6 @@ class LinodeComputeController(BaseComputeController):
                     isinstance(image.extra['created'], datetime):
                 image.extra['created'] = image.extra['created'].isoformat()
         return images
-
-    def create_machine(self, plan):
-        """
-        plan = {
-            'name': machine_name,
-            'cloud': cloud.id,
-            'location': location.id,
-            'image': image.id,
-            'size': size.id,
-            'key': key.id
-        }
-        """
-        from mist.api.keys.models import Key
-        key = Key.objects.get(id=plan['key'])
-        image, location, size = self.get_libcloud_objects(plan)
-        auth = NodeAuthSSHKey(key.public)
-        try:
-            node = self.connection.create_node(
-                 name=plan['machine_name'],
-                 image=image,
-                 size=size,
-                 location=location,
-                 auth=auth,
-                 ex_private=True
-            )
-        except Exception as e:
-            raise MachineCreationError("Linode, got exception %s" % e, e)
-        return node
 
 
 class RackSpaceComputeController(BaseComputeController):
