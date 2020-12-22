@@ -247,6 +247,7 @@ def home(request):
         auth_context.owner.save()
 
     get_ui_template(build_path)
+    template_inputs['ugly_rbac'] = config.UGLY_RBAC
     return render_to_response('templates/ui.pt', template_inputs)
 
 
@@ -277,6 +278,7 @@ def not_found(request):
                                   request=request)
 
     get_ui_template(build_path)
+    template_inputs['ugly_rbac'] = config.UGLY_RBAC
     return render_to_response('templates/ui.pt', template_inputs,
                               request=request)
 
