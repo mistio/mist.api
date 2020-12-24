@@ -40,6 +40,7 @@ from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price, get_pricing
 from libcloud.compute.base import Node, NodeImage, NodeLocation
+from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -309,6 +310,189 @@ class AmazonComputeController(BaseComputeController):
                 return 'vyatta'
             return 'linux'
 
+    def _generate_plan__parse_networks(self, auth_context, network_dict):
+        security_group = network_dict.get('security_group')
+        subnet = network_dict.get('subnet')
+
+        networks = {}
+        sec_groups = self.connection.ex_list_security_groups()
+        if security_group:
+            for sec_group in sec_groups:
+                if (security_group == sec_group['id'] or
+                        security_group == sec_group['name']):
+                    networks['security_group'] = {
+                        'name': sec_group['name'],
+                        'id': sec_group['id']
+                    }
+                    break
+            else:
+                raise NotFoundError('Security group not found: %s'
+                                    % security_group)
+        else:
+            # check if default security_group already exists
+            for sec_group in sec_groups:
+                if sec_group['name'] == config.EC2_SECURITYGROUP.get('name',
+                                                                     ''):
+                    networks['security_group'] = {
+                        'name': sec_group['name'],
+                        'id': sec_group['id']
+                    }
+                    break
+            else:
+                networks['security_group'] = {
+                    'name': config.EC2_SECURITYGROUP.get('name', ''),
+                    'description': config.EC2_SECURITYGROUP.get('description',
+                                                                '')
+                }
+
+        if subnet:
+            # APIv1 also searches for amazon's id
+            from mist.api.methods import list_resources
+            try:
+                [sub_net], _ = list_resources(auth_context, 'subnet',
+                                              search=subnet,
+                                              limit=1)
+            except ValueError:
+                raise NotFoundError('Subnet not found %s' % subnet)
+            else:
+                networks['subnet'] = sub_net.id
+
+        return networks
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        if not volume_dict.get('device'):
+            raise BadRequestError('Device is mandatory'
+                                  ' when attaching a volume')
+        ret_dict = {
+            'id': vol_obj.id,
+            'device': volume_dict['device']
+        }
+        return ret_dict
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        size = volume_dict.get('size')
+        name = volume_dict.get('name')
+        volume_type = volume_dict.get('volume_type')
+        iops = volume_dict.get('iops')
+        delete_on_termination = volume_dict.get('delete_on_termination')
+
+        if size is None or name is None:
+            raise BadRequestError('Volume required parameter missing')
+
+        ret_dict = {
+            'size': size,
+            'name': name,
+            'volume_type': volume_type,
+            'iops': iops,
+            'delete_on_termination': delete_on_termination
+        }
+
+        return ret_dict
+
+    def _parse_volumes_from_request(self, auth_context, volumes_dict):
+        # TODO
+        pass
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        kwargs['ex_keyname'] = kwargs['auth'].name
+        kwargs['auth'] = NodeAuthSSHKey(pubkey=kwargs['auth'].public)
+
+        kwargs['ex_userdata'] = plan.get('cloudinit', '')
+        security_group = plan['networks']['security_group']
+        # if id is not given, then default security group does not exist
+        if not security_group.get('id'):
+            try:
+                log.info('Attempting to create security group')
+                ret_dict = self.connection.ex_create_security_group(
+                    name=plan['networks']['security_group']['name'],
+                    description=plan['networks']['security_group']['description'] # noqa
+                )
+                self.connection.ex_authorize_security_group_permissive(
+                    name=plan['networks']['security_group']['name'])
+            except Exception as exc:
+                raise InternalServerError(
+                    "Couldn't create security group", exc)
+            else:
+                security_group['id'] = ret_dict['group_id']
+
+        subnet_id = plan['networks'].get('subnet')
+        if subnet_id:
+            from mist.api.networks.models import Subnet
+            subnet = Subnet.objects.get(id=subnet_id)
+            subnet_external_id = subnet.subnet_id
+
+            # TODO check if the following API call is not needed
+            # and instead instantiate an EC2NetworkSubnet object
+            # libcloud.compute.drivers.ec2.EC2NetworkSubnet
+            libcloud_subnets = self.connection.ex_list_subnets()
+            for libcloud_subnet in libcloud_subnets:
+                if libcloud_subnet.id == subnet_external_id:
+                    subnet = libcloud_subnet
+                    break
+            else:
+                raise NotFoundError('Subnet specified does not exist')
+            # if subnet is specified, then security group id
+            # instead of security group name is needed
+            kwargs.update({
+                'ex_subnet': subnet,
+                'ex_security_group_ids': security_group['id']
+            })
+        else:
+            kwargs.update({
+                'ex_securitygroup': plan['networks']['security_group']['name']
+            })
+        mappings = []
+        for volume in plan.get('volumes', []):
+            # here only the mappings are handled
+            # volumes will be created and attached after machine creation
+            if not volume.get('id'):
+                mapping = {}
+                mapping.update({'Ebs':
+                                {'VolumeSize': int(volume.get('size'))}})
+                if volume.get('name'):
+                    mapping.update({'DeviceName': volume.get('name')})
+                if volume.get('volume_type'):
+                    volume_type = {'VolumeType': volume.get('volume_type')}
+                    mapping['Ebs'].update(volume_type)
+                if volume.get('iops'):
+                    mapping['Ebs'].update({'Iops': volume.get('iops')})
+                if volume.get('delete_on_termination'):
+                    delete_on_term = volume.get('delete_on_termination')
+                    mapping['Ebs'].update({
+                        'DeleteOnTermination': delete_on_term})
+                mappings.append(mapping)
+        kwargs.update({'ex_blockdevicemappings': mappings})
+        return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        volumes = []
+        for volume in plan.get('volumes', []):
+            if volume.get('id'):
+                from mist.api.volumes.models import Volume
+                from libcloud.compute.base import StorageVolume
+                vol = Volume.objects.get(id=volume['id'])
+                libcloud_vol = StorageVolume(id=vol.external_id,
+                                             name=vol.name,
+                                             size=vol.size,
+                                             driver=self.connection,
+                                             extra=vol.extra)
+                ex_vol = {
+                    'volume': libcloud_vol,
+                    'device': volume.get('device')
+                }
+                volumes.append(ex_vol)
+        if volumes:
+            ready = False
+            while not ready:
+                lib_nodes = self.connection.list_nodes()
+                for lib_node in lib_nodes:
+                    if lib_node.id == node.id and lib_node.state == 'running':
+                        ready = True
+            for volume in volumes:
+                self.connection.attach_volume(node, volume.get('volume'),
+                                              volume.get('device'))
+
 
 class AlibabaComputeController(AmazonComputeController):
 
@@ -466,6 +650,93 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
+
+    def _compute_sizes_for_location(self, location, sizes):
+        """DigitalOcean size object has a `regions` key in `extra`
+        with all available locations for given size
+        """
+        size_list = []
+        for size in sizes:
+            if location.external_id in size.extra['regions']:
+                size_list.append(size)
+        return size_list
+
+    def _compute_images_for_size_location(self, location, size, images):
+        """DigitalOcean image object has a `regions` key in `extra`
+        with all available locations for given image
+        """
+        image_list = []
+        for image in images:
+            if location.external_id in image.extra['regions']:
+                image_list.append(image)
+        return image_list
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        size = volume_dict.get('size')
+        name = volume_dict.get('name')
+        fs_type = volume_dict.get('filesystem_type', '')
+        if not size and name:
+            raise BadRequestError('Size and name are mandatory'
+                                  'for volume creation')
+        volume = {
+            'size': size,
+            'name': name,
+            'filesystem_type': fs_type
+        }
+        return volume
+
+    def _create_machine__get_key_object(self, key):
+        key_obj = super()._create_machine__get_key_object(key)
+        server_key = ''
+        libcloud_keys = self.connection.list_key_pairs()
+        for libcloud_key in libcloud_keys:
+            if libcloud_key.public_key == key_obj.public:
+                server_key = libcloud_key
+                break
+        if not server_key:
+            server_key = self.connection.create_key_pair(
+                key_obj.name, key_obj.public
+            )
+        return server_key.extra.get('id')
+
+    def _create_machine__get_size_object(self, size):
+        size_obj = super()._create_machine__get_size_object(size)
+        size_obj.name = size_obj.id
+        return size_obj
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        # apiV1 function _create_machine_digital_ocean checks for
+        # `private_networking` in location.extra but no location
+        # seems to return it.
+        kwargs['ex_create_attr'] = {
+            'private_networking': True,
+            'ssh_keys': [kwargs.pop('auth')]
+        }
+
+        volumes = []
+        from mist.api.volumes.models import Volume
+        for volume in plan.get('volumes', []):
+            if volume.get('id'):
+                try:
+                    mist_vol = Volume.objects.get(id=volume.get(volume['id']))
+                    volumes.append(mist_vol.external_id)
+                except me.DoesNotExist:
+                    # this shouldn't happen as during plan creation
+                    # volume id existed in mongo
+                    continue
+            else:
+                fs_type = volume.get('filesystem_type', '')
+                name = volume.get('name')
+                size = int(volume.get('size'))
+                location = kwargs['location']
+                # TODO create_volume might raise ValueError
+                new_volume = self.connection.create_volume(
+                    size, name, location=location, filesystem_type=fs_type)
+                volumes.append(new_volume.id)
+        kwargs['volumes'] = volumes
+
+        return kwargs
 
 
 class MaxihostComputeController(BaseComputeController):
@@ -872,6 +1143,23 @@ class SoftLayerComputeController(BaseComputeController):
 
     def _destroy_machine(self, machine, node):
         self.connection.destroy_node(node)
+
+    def _parse_networks_from_request(self, auth_context, networks_dict):
+        ret_networks = {}
+        vlan = networks_dict.get('vlan')
+        if vlan:
+            ret_networks['vlan'] = vlan
+        return ret_networks
+
+    def _parse_extra_from_request(self, extra, plan):
+        plan['metal'] = extra.get('metal', False)
+        plan['hourly'] = extra.get('hourly', False)
+
+    def _post_parse_plan(self, plan):
+        machine_name = plan.get('machine_name')
+        if '.' in machine_name:
+            plan['domain'] = '.'.join(machine_name.split('.')[1:])
+            plan['machine_name'] = machine_name.split('.')[0]
 
 
 class AzureComputeController(BaseComputeController):
@@ -1394,6 +1682,111 @@ class GoogleComputeController(BaseComputeController):
             self.connection.ex_start_node(node)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
+
+    def _generate_plan__parse_networks(self, auth_context, network_dict):
+
+        subnetwork = network_dict.get('subnetwork')
+        network = network_dict.get('network')
+        networks = {}
+
+        from mist.api.methods import list_resources
+        if network:
+            try:
+                [network] = list_resources(auth_context, 'network',
+                                           search=network,
+                                           limit=1)
+            except ValueError:
+                raise NotFoundError('Network does not exist')
+            else:
+                network = network.name
+        else:
+            network = 'default'
+
+        networks['network'] = network
+        '''
+        When creating an instance, if neither the network
+        nor the subnetwork is specified,
+        the default network global/networks/default is used;
+        if the network is not specified but the subnetwork is specified,
+        the network is inferred.
+        '''
+        if subnetwork:
+            # try:
+            try:
+                [subnet], _ = list_resources(auth_context, 'subnet',
+                                             search=subnetwork,
+                                             limit=1)
+            except ValueError:
+                raise NotFoundError('Subnet not found %s' % subnet)
+            else:
+                networks['subnet'] = subnet.name
+
+        return networks
+
+    def _generate_plan__post_parse_plan(self, plan):
+        if not plan.get('volumes'):
+            from mist.api.images.models import CloudImage
+            image = CloudImage.objects.get(id=plan['image'])
+            # get minimum disk size required from image
+            try:
+                size = image.extra.get('diskSizeGb')
+            except AttributeError:
+                size = 10
+            plan['volumes'] = [{'size': size}]
+
+    def _compute_sizes_for_location(self, location, sizes):
+        """Compute allowed sizes, given location
+
+        Subclasses that require special handling should override these, by
+        default, dummy methods.
+        """
+
+        libcloud_sizes = {libcloud_size.id for libcloud_size in
+                          self.connection.list_sizes(location=location.name)}
+
+        valid_sizes = [size for size in sizes if size.external_id in
+                       libcloud_sizes]
+
+        return valid_sizes
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        key = kwargs.pop('auth')
+        username = plan.get('username') or 'user'
+        metadata = {
+            'sshKeys': '%s:%s' % (username, key.public)
+        }
+        if plan.get('cloudinit'):
+            metadata['startup-script'] = plan('cloudinit')
+        kwargs['ex_metadata'] = metadata
+
+        volume = plan['volumes'][0]
+        if volume.get('id'):
+            from mist.api.volumes.models import Volume
+            from libcloud.compute.base import StorageVolume
+            vol = Volume.objects.get(id=volume['id'])
+            libcloud_vol = StorageVolume(id=vol.external_id,
+                                         name=vol.name,
+                                         size=vol.size,
+                                         driver=self.connection,
+                                         extra=vol.extra)
+            kwargs['ex_boot_disk'] = libcloud_vol
+        else:
+            kwargs['disk_size'] = volume.get('size')
+
+        kwargs['ex_network'] = plan['networks'].get('network')
+        kwargs['ex_subnetwork'] = plan['networks'].get('subnet')
+
+        return kwargs
+
+    def _create_machine__get_size_object(self, size):
+        # when providing a Libcloud NodeSize object
+        # gce driver tries to get `selfLink` key of size.extra
+        # dictionary. Mist sizes do not save selfLink in extra
+        # so a KeyError is thrown. Providing only size id
+        # seems to resolve this issue
+        size_obj = super()._create_machine__get_size_object(size)
+        return size_obj.id
 
 
 class HostVirtualComputeController(BaseComputeController):

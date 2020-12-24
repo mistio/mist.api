@@ -16,6 +16,7 @@ celery>=4.0,<5.0
 beautifulsoup4
 dnspython
 dateparser
+dramatiq
 elasticsearch
 elasticsearch_tornado
 flake8

@@ -459,3 +459,40 @@ class BaseMainController(object):
         """
         raise BadRequestError("Adding machines is only supported in Bare"
                               "Metal and KVM/Libvirt clouds.")
+
+    def has_feature(self, feature):
+        """Check wether a certain feature is supported by cloud
+        List of features:
+            dns
+            networks
+            storage
+            custom_size
+            cloudinit
+            location
+            key
+            custom_image
+        """
+        from mist.api.config import PROVIDERS
+        from mist.api.exceptions import NotFoundError
+        provider_dict = None
+        try:
+            provider_dict = PROVIDERS[self.provider]
+        except KeyError:
+            for value in PROVIDERS.values():
+                if self.provider == value['driver']:
+                    provider_dict = value
+                    break
+            if not provider_dict:
+                raise NotFoundError('Provider does not exist')
+
+        has_feature = False
+        if feature in ['dns', 'networks', 'storage', 'container']:
+            has_feature = provider_dict['features'].get(feature, False)
+        elif feature == 'key':
+            has_feature = provider_dict['features'].get(feature, True)
+            # if dictionary is returned key is supported but not required
+        else:
+            if provider_dict['features']['provision']:
+                has_feature = provider_dict['features']['provision'].get(feature, False)  # noqa
+
+        return has_feature

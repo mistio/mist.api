@@ -1256,7 +1256,10 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+            },
             'dns': True,
             'storage': True,
             'networks': True
@@ -1269,7 +1272,10 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+            },
             'storage': True,
             'networks': True
         }
@@ -1281,7 +1287,10 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+            },
             'dns': True,
             'storage': True,
             'networks': True
@@ -1294,10 +1303,13 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+            },
             'storage': True,
             'networks': True
-        }
+        },
     },
     'equinix': {
         'name': 'Equinix Metal',
@@ -1306,7 +1318,10 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+            },
             'storage': True,
             'networks': True,
             'metal': True
@@ -1319,7 +1334,10 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+            },
             'metal': True
         }
     },
@@ -1330,7 +1348,10 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+            },
             'storage': True,
         }
     },
@@ -1341,7 +1362,9 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+            },
             'dns': True,
             'storage': True,
         }
@@ -1353,7 +1376,9 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': False,
+            },
             'dns': True,
             'storage': True,
         }
@@ -1365,7 +1390,9 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+            },
             'metal': True,
         }
     },
@@ -1376,7 +1403,10 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+            },
         }
     },
     'g8': {
@@ -1386,7 +1416,11 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'cloudinit': True,
+                'custom_size': True,
+                'location': False,
+            },
             'storage': True,
         }
     },
@@ -1397,7 +1431,9 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': False,
+            },
             'storage': True,
         }
     },
@@ -1408,7 +1444,13 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'custom_size': True,
+                'key': {
+                    'required': False,
+                }
+            },
             'storage': False,
         }
     },
@@ -1419,7 +1461,12 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'custom_size': True,
+                'key': False,
+                'custom_image': True,
+            },
             'storage': False,
         }
     },
@@ -1430,7 +1477,9 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': False,
+            },
             'storage': False,
         }
     },
@@ -1441,7 +1490,15 @@ PROVIDERS = {
         'category': 'hypervisor',
         'features': {
             'compute': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'custom_size': True,
+                'key': {
+                    'required': False,
+                },
+                'custom_image': True,
+            },
             'storage': False,
         }
     },
@@ -1453,7 +1510,13 @@ PROVIDERS = {
         'features': {
             'compute': True,
             'container': True,
-            'provision': True,
+            'provision': {
+                'custom_size': True,
+                'location': False,
+                'key': {
+                    'required': False,
+                }
+            },
             'storage': True,
         }
     },
@@ -1465,7 +1528,13 @@ PROVIDERS = {
         'features': {
             'compute': True,
             'container': True,
-            'provision': True,
+            'provision': {
+                'location': False,
+                'key': {
+                    'required': False,
+                },
+                'custom_image': True,
+            },
             'storage': False,
         }
     },
@@ -1477,7 +1546,12 @@ PROVIDERS = {
         'features': {
             'compute': True,
             'container': True,
-            'provision': True,
+            'provision': {
+                'location': True,
+                'custom_size': True,
+                'key': False,
+                'custom_image': True,
+            },
             'storage': True,
         }
     },
