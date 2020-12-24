@@ -7,6 +7,8 @@ from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.tag.models import Tag
 from mist.api.secrets import controllers
 
+from mist.api import config
+
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +54,7 @@ class Secret(OwnershipMixin, me.Document):
                 " `_controller_cls` class attribute pointing to a "
                 "`BaseSecretController` subclass." % self
             )
+
         self.ctl = self._controller_cls(self)
 
         # Calculate and store key type specific fields.
@@ -92,6 +95,14 @@ class Secret(OwnershipMixin, me.Document):
 class VaultSecret(Secret):
     """ A Vault Secret object """
     _controller_cls = controllers.VaultSecretController
+
+    def __init__(self, *args, **kwargs):
+        if config.VAULT_KV_VERSION == 1:
+            self._controller_cls = controllers.KV1VaultSecretController
+        else:
+            self._controller_cls = controllers.KV2VaultSecretController
+
+        super(VaultSecret, self).__init__(*args, **kwargs)
 
     @property
     def data(self):
