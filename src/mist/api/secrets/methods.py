@@ -35,12 +35,6 @@ def list_secrets(owner, cached=True, path='.'):
         secret = VaultSecret(owner=owner)
         secrets = secret.ctl.list_secrets(path)
 
-        if path == '.':
-            # delete secret objects that have been removed
-            # from Vault, from mongoDB
-            VaultSecret.objects(owner=owner,
-                                id__nin=[s.id for s in secrets]).delete()
-
         # Update RBAC Mappings given the list of new secrets.
         owner.mapper.update(secrets, asynchronous=False)
 
