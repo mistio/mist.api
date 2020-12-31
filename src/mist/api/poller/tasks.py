@@ -153,7 +153,7 @@ def list_vault_secrets(schedule_id):
     from mist.api.secrets.models import VaultSecret
     # TODO: Is there a better way?
     secret = VaultSecret(owner=sched.owner)
-    secret.ctl.list_secrets()
+    secret.ctl.list_secrets(recursive=True)
 
 
 @dramatiq.actor(queue_name='ping_probe', time_limit=45_000, max_age=30_000)
