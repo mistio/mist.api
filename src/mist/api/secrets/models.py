@@ -81,20 +81,11 @@ class Secret(OwnershipMixin, me.Document):
         self.owner.mapper.remove(self)
         Tag.objects(resource_id=self.id, resource_type='secret').delete()
 
-    def as_dict(self):
-        s_dict = {
-            'id': self.id,
-            'name': self.name,
-            'tags': self.tags,
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
-        }
-        return s_dict
-
 
 class VaultSecret(Secret):
     """ A Vault Secret object """
     _controller_cls = controllers.VaultSecretController
+    is_dir = me.BooleanField(default=False)
 
     def __init__(self, *args, **kwargs):
         if config.VAULT_KV_VERSION == 1:
@@ -107,6 +98,17 @@ class VaultSecret(Secret):
     @property
     def data(self):
         return self.ctl.read_secret()
+
+    def as_dict(self):
+        s_dict = {
+            'id': self.id,
+            'name': self.name,
+            'tags': self.tags,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
+            'is_dir': self.is_dir
+        }
+        return s_dict
 
 
 class SecretValue(me.EmbeddedDocument):
