@@ -92,7 +92,10 @@ class KV1VaultSecretController(VaultSecretController):
         except hvac.exceptions.VaultDown:
             raise BadRequestError("Vault is sealed.")
 
-    def list_secrets(self, path='.'):
+    def list_secrets(self, path='.', recursive=False):
+        '''`recursive` param is meant to be True only
+            when poller calls this method
+        '''
         self.check_if_secret_engine_exists()
         org = self.secret.owner
 
@@ -112,23 +115,30 @@ class KV1VaultSecretController(VaultSecretController):
             raise BadRequestError("Make sure your Vault token has the \
                 permissions to list secrets")
 
-        path = create_secret_name(path)
+        current_path = create_secret_name(path)
         from mist.api.secrets.models import VaultSecret
         secrets = []
         for key in keys:
-            if not key.endswith('/'):  # if not a dir
-                try:
-                    secret = VaultSecret.objects.get(name=path + key,
-                                                     owner=org)
-                except me.DoesNotExist:
-                    secret = VaultSecret(name=path + key,
-                                         owner=org)
-                    secret.save()
-                secrets.append(secret)
-            else:
-                # find recursively all the secrets
-                secrets += self.list_secrets(path + key)
+            try:
+                secret = VaultSecret.objects.get(name=current_path + key,
+                                                 owner=org)
+            except me.DoesNotExist:
+                secret = VaultSecret(name=current_path + key,
+                                     owner=org)
 
+            if key.endswith('/'):
+                secret.is_dir = True
+                if recursive:
+                    secrets += self.list_secrets(current_path + key,
+                                                 recursive=True)
+            secret.save()
+            secrets.append(secret)
+
+        if path == '.' and recursive:  # this is meant for poller only
+            # delete secret objects that have been removed
+            # from Vault, from mongoDB
+            VaultSecret.objects(owner=org,
+                                id__nin=[s.id for s in secrets]).delete()
         return set(secrets)
 
     def create_or_update_secret(self, secret):
