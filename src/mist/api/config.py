@@ -2505,7 +2505,7 @@ ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
 LDAP_SETTINGS = {}
-START_SIGNIN_LDAP = False
+DEFAULT_SIGNIN_METHOD = 'email'
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -2754,7 +2754,7 @@ HOMEPAGE_INPUTS = {
         'signin_github': ALLOW_SIGNIN_GITHUB,
         'signin_ldap': ALLOW_SIGNIN_LDAP,
         'signin_ad': ALLOW_SIGNIN_AD,
-        'start_signin_ldap': START_SIGNIN_LDAP,
+        'default_signin_method': DEFAULT_SIGNIN_METHOD.lower(),
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,
