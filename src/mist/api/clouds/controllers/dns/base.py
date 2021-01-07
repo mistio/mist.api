@@ -146,7 +146,7 @@ class BaseDNSController(BaseController):
                 log.info("Zone: %s/domain: %s not in the database, creating.",
                          pr_zone.id, pr_zone.domain)
                 zone = Zone(cloud=self.cloud, owner=self.cloud.owner,
-                            zone_id=pr_zone.id)
+                            external_id=pr_zone.id)
                 new_zones.append(zone)
             zone.deleted = None
             zone.domain = pr_zone.domain
