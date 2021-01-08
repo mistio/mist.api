@@ -9,7 +9,7 @@ def migrate_record_id():
     db = c.get_database('mist2')
     db_records = db['records']
 
-    # drop index containing zone_id
+    # drop index containing record_id
     db_records.drop_index('zone_1_record_id_1_deleted_1')
 
     failed = migrated = 0
