@@ -923,6 +923,7 @@ class BaseComputeController(BaseController):
             _image.extra = copy.deepcopy(img.extra)
             _image.missing_since = None
             _image.os_type = self._list_images__get_os_type(img)
+            _image.os_distro = self._list_images_get_os_distro(img)
 
             try:
                 self._list_images__postparse_image(_image, img)
@@ -996,6 +997,31 @@ class BaseComputeController(BaseController):
             return 'vyatta'
         else:
             return 'linux'
+
+    def _list_images_get_os_distro(self, image):
+        """Get image distro from libcloud image
+
+        Subclasses MAY override this method.
+
+        Providers that return information about image distro should
+        override this method.
+        """
+        if 'ubuntu' in image.name.lower():
+            return 'ubuntu'
+        elif 'centos' in image.name.lower():
+            return 'centos'
+        elif 'fedora' in image.name.lower():
+            return 'fedora'
+        elif 'debian' in image.name.lower():
+            return 'debian'
+        elif 'suse' in image.name.lower():
+            return 'suse'
+        elif 'rhel' in image.name.lower():
+            return 'rhel'
+        elif 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'other'
 
     def image_is_default(self, image_id):
         return True
