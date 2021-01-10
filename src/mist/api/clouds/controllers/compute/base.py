@@ -1270,6 +1270,7 @@ class BaseComputeController(BaseController):
             _location.name = loc.name
             _location.extra = copy.deepcopy(loc.extra)
             _location.missing_since = None
+            _location.available_sizes = self._list_locations__get_available_sizes(_location)  # noqa
 
             try:
                 _location.save()
@@ -1304,6 +1305,16 @@ class BaseComputeController(BaseController):
         except:
             return [NodeLocation('', name='default', country='',
                                  driver=self.connection)]
+
+    def _list_locations__get_available_sizes(self, location):
+        """Find available images for the specified location.
+        Return a list of CloudImage objects
+
+        This is to be called exclusively by `self.list_locations`.
+
+        Subclasses MAY override this method.
+        """
+        return None
 
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""
