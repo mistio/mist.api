@@ -570,6 +570,11 @@ class AlibabaComputeController(AmazonComputeController):
             locations.append(location)
         return locations
 
+    def _list_locations__get_available_sizes(self, location):
+        from mist.api.clouds.models import CloudSize
+        return CloudSize.objects(cloud=self.cloud,
+                                 external_id__in=location.extra['available_instance_types'])  # noqa
+
     def _list_sizes__get_cpu(self, size):
         return size.extra['cpu_core_count']
 
@@ -746,6 +751,11 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _list_images_get_os_distro(self, image):
         return image.extra.get('distribution', '').lower()
+
+    def _list_locations__get_available_sizes(self, location):
+        from mist.api.clouds.models import CloudSize
+        return CloudSize.objects(cloud=self.cloud,
+                                 extra__regions__contains=location.external_id)
 
 
 class MaxihostComputeController(BaseComputeController):
@@ -1693,6 +1703,15 @@ class GoogleComputeController(BaseComputeController):
             extra.update({'price': size.price})
         return extra
 
+    def _list_locations__get_available_sizes(self, location):
+        libcloud_size_ids = [size.id
+                          for size in self.connection.list_sizes(location=location)]  # noqa
+
+        from mist.api.clouds.models import CloudSize
+
+        return CloudSize.objects(cloud=self.cloud,
+                                 external_id__in=libcloud_size_ids)
+
     def _resize_machine(self, machine, node, node_size, kwargs):
         # instance must be in stopped mode
         if node.state != NodeState.STOPPED:
@@ -1812,7 +1831,7 @@ class GoogleComputeController(BaseComputeController):
         return size_obj.id
 
     def _list_images_get_os_distro(self, image):
-        # gce family field 
+        # gce family field
         distro = image.extra.get('family', '').split('-')[0]
         # windows sql server
         if distro == 'sql':
@@ -1863,6 +1882,11 @@ class EquinixMetalComputeController(BaseComputeController):
     def _list_images_get_os_distro(self, image):
         return image.extra.get('distro', '').lower()
 
+    def _list_locations__get_available_sizes(self, location):
+        from mist.api.clouds.models import CloudSize
+        return CloudSize.objects(cloud=self.cloud,
+                                 extra__regions__contains=location.external_id)
+
 
 class VultrComputeController(BaseComputeController):
 
@@ -1897,6 +1921,12 @@ class VultrComputeController(BaseComputeController):
 
     def _list_images_get_os_distro(self, image):
         return image.extra.get('family', '').lower()
+
+    def _list_locations__get_available_sizes(self, location):
+        from mist.api.clouds.models import CloudSize
+        return CloudSize.objects(cloud=self.cloud,
+                                 extra__available_locations__contains=int(location.external_id))  # noqa
+
 
 class VSphereComputeController(BaseComputeController):
 
