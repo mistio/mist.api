@@ -307,6 +307,9 @@ class CloudLocation(OwnershipMixin, me.Document):
     country = me.StringField()
     missing_since = me.DateTimeField()
     extra = MistDictField()
+    available_sizes = me.ListField(
+        me.ReferenceField('CloudSize', reverse_delete_rule=me.PULL)
+    )
 
     meta = {
         'collection': 'locations',
@@ -333,7 +336,8 @@ class CloudLocation(OwnershipMixin, me.Document):
             'name': self.name,
             'country': self.country,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
-                                 if self.missing_since else '')
+                                 if self.missing_since else ''),
+            'available_sizes': self.available_sizes
         }
 
     def clean(self):
