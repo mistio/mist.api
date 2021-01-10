@@ -578,6 +578,12 @@ class AlibabaComputeController(AmazonComputeController):
             + str(size.ram / 1024) + 'Gb RAM '
         return "%s (%s)" % (size.name, specs)
 
+    def _list_images_get_os_distro(self, image):
+        distro = image.extra.get('platform', '').lower()
+        if 'windows' in distro:
+            distro = 'windows'
+        return distro
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -737,6 +743,9 @@ class DigitalOceanComputeController(BaseComputeController):
         kwargs['volumes'] = volumes
 
         return kwargs
+
+    def _list_images_get_os_distro(self, image):
+        return image.extra.get('distribution', '').lower()
 
 
 class MaxihostComputeController(BaseComputeController):
@@ -1008,6 +1017,9 @@ class LinodeComputeController(BaseComputeController):
                 image.extra['created'] = image.extra['created'].isoformat()
         return images
 
+    def _list_images_get_os_distro(self, image):
+        return image.extra.get('vendor', '').lower()
+
 
 class RackSpaceComputeController(BaseComputeController):
 
@@ -1073,6 +1085,18 @@ class RackSpaceComputeController(BaseComputeController):
             return 'windows'
         else:
             return 'linux'
+
+    def _list_images_get_os_distro(self, image):
+        distro = image.extra.get('metadata', {}).get('os_distro', '').lower()
+        # windows and other type of images do not have an os_distro field
+        if not distro:
+            if 'windows' in image.name.lower():
+                distro = 'windows'
+            elif 'fortigate' in image.name.lower():
+                distro = 'fortios'
+            elif 'ipxe' in image.name.lower():
+                distro = 'ipxe'
+        return distro
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -1711,7 +1735,6 @@ class GoogleComputeController(BaseComputeController):
         the network is inferred.
         '''
         if subnetwork:
-            # try:
             try:
                 [subnet], _ = list_resources(auth_context, 'subnet',
                                              search=subnetwork,
@@ -1788,6 +1811,14 @@ class GoogleComputeController(BaseComputeController):
         size_obj = super()._create_machine__get_size_object(size)
         return size_obj.id
 
+    def _list_images_get_os_distro(self, image):
+        # gce family field 
+        distro = image.extra.get('family', '').split('-')[0]
+        # windows sql server
+        if distro == 'sql':
+            distro = 'windows'
+        return distro
+
 
 class HostVirtualComputeController(BaseComputeController):
 
@@ -1829,6 +1860,9 @@ class EquinixMetalComputeController(BaseComputeController):
     def _list_machines__get_size(self, node_dict):
         return node_dict['extra'].get('plan')
 
+    def _list_images_get_os_distro(self, image):
+        return image.extra.get('distro', '').lower()
+
 
 class VultrComputeController(BaseComputeController):
 
@@ -1861,6 +1895,8 @@ class VultrComputeController(BaseComputeController):
         sizes = self.connection.list_sizes()
         return [size for size in sizes if not size.extra.get('deprecated')]
 
+    def _list_images_get_os_distro(self, image):
+        return image.extra.get('family', '').lower()
 
 class VSphereComputeController(BaseComputeController):
 
