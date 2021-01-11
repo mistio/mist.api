@@ -707,7 +707,7 @@ def create_machine_async(
 
     log_event(auth_context.owner.id, 'job', 'async-machine-creation-started',
               user_id=auth_context.user.id, job_id=job_id, job=job,
-              cloud=cloud_id, script=script, script=script_id,
+              cloud=cloud_id, script=script, script_id=script_id,
               script_params=script_params, monitoring=monitoring,
               persist=persist, quantity=quantity, key=key_id,
               machine_names=names, volumes=volumes)
