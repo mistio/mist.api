@@ -36,7 +36,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     trigger_session_update(machine.owner, ['monitoring'])
 
     _log = {
-        'owner_id': machine.owner.id,
+        'org': machine.owner.id,
         'cloud_id': machine.cloud.id,
         'machine_id': machine.id,
         'event_type': 'job', 'job_id': job_id or uuid.uuid4().hex, 'job': job,
@@ -106,7 +106,7 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
     error = None
 
     _log = {
-        'owner_id': machine.owner.id,
+        'org': machine.owner.id,
         'cloud_id': machine.cloud.id,
         'machine_id': machine.id,
         'event_type': 'job', 'job_id': job_id or uuid.uuid4().hex, 'job': job,

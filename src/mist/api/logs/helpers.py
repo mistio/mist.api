@@ -84,7 +84,7 @@ def _filtered_query(owner_id, close=None, error=None, range=None, type=None,
     # Fetch logs corresponding to the specified Owner.
     if owner_id:
         query["query"]["bool"]["filter"]["bool"]["must"].append(
-            {"term": {"owner_id": owner_id}}
+            {"term": {"org": owner_id}}
         )
     # Extend query based on additional terms.
     for key, value in kwargs.items():

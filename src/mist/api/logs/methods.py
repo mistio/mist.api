@@ -39,21 +39,21 @@ log = logging.getLogger(__name__)
 
 # FIXME: Once we are consistent with machine_id, external_id
 # etc, sanitize all the chaos below
-def log_observations(owner_id, cloud_id, resource_type, patch,
+def log_observations(org, cloud_id, resource_type, patch,
                      cached_resources, new_resources):
     """Log observation events.
     An observation event can be one of: create/destroy machine,
     create/delete volume, create/delete network or attach/detach
     volume.
     Arguments:
-        - owner_id
+        - org
         - cloud_id
         - resource_type: one of machine, volume, network
         - patch: the json patch produced from the diff of
             cached and new resources
     """
     log_dict = {
-        'cloud_id': cloud_id,
+        'cloud': cloud_id,
     }
 
     for _patch in patch:
@@ -76,7 +76,7 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
                 external_id = '-'.join(ids).split('attached_to')[0][:-1]
-                log_dict.update({'machine_id': _patch.get('value')})
+                log_dict.update({'machine': _patch.get('value')})
             else:
                 continue
 
@@ -91,7 +91,7 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 key = resource_id + '-' + external_id
                 name = cached_resources.get(key).get('name')
                 machine_id = cached_resources.get(key).get('attached_to')[0]
-                log_dict.update({'machine_id': machine_id})
+                log_dict.update({'machine': machine_id})
             elif len(_patch.get('path').split('/')) < 3:  # '/id-external_id'
                 if resource_type == 'machine':
                     action = 'destroy_machine'
@@ -155,7 +155,7 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
             continue
 
         log_dict.update({'resource_type': resource_type,
-                         resource_type + '_id': resource_id,
+                         resource_type: resource_id,
                          'name': name,
                          'external_id': external_id})
         if action == 'create_network':
@@ -165,11 +165,11 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 'new_resources': new_resources
             })
         log_event(action=action, event_type='observation',
-                  owner_id=owner_id, **log_dict)
+                  org=org, **log_dict)
     return
 
 
-def log_event(owner_id, event_type, action, error=None, **kwargs):
+def log_event(org, event_type, action, error=None, **kwargs):
     """Log a new event.
 
     Log a new event comprised of the arguments provided.
@@ -179,7 +179,7 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
     to RabbitMQ.
 
     Arguments:
-        - owner_id: the current Owner's ID.
+        - org: the current Owner's ID.
         - event_type: the event type - job, shell, session, request, incident.
         - action: the action described by the event, such as create_machine.
         - error: indicates the error included in the event, if one exists.
@@ -193,7 +193,7 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
     try:
         # Prepare the base event to be logged.
         event = {
-            'owner_id': owner_id or None,
+            'org': org or None,
             'log_id': uuid.uuid4().hex,
             'action': action,
             'type': event_type,
@@ -249,7 +249,7 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
         log.error('Failed to log event %s: %s', event, exc)
     else:
         # Construct RabbitMQ routing key.
-        keys = [str(owner_id), str(event_type), str(action)]
+        keys = [str(org), str(event_type), str(action)]
         keys.append('true' if error else 'false')
         routing_key = '.'.join(map(str.lower, keys))
 
@@ -262,7 +262,7 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
         return event
 
 
-def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
+def get_events(auth_context, org='', user_id='', event_type='', action='',
                limit=0, start=0, stop=0, newest=True, error=None, **kwargs):
     """Fetch logged events.
 
@@ -278,9 +278,9 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
     # Restrict access to UI logs to Admins only.
     is_admin = auth_context and auth_context.user.role == 'Admin'
 
-    # Attempt to enforce owner_id in case of non-Admins.
-    if not is_admin and not owner_id:
-        owner_id = auth_context.owner.id if auth_context else None
+    # Attempt to enforce org in case of non-Admins.
+    if not is_admin and not org:
+        org = auth_context.owner.id if auth_context else None
 
     # Construct base Elasticsearch query.
     index = "%s-logs-*" % ("*" if is_admin else "app")
@@ -319,9 +319,9 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
             {"term": {'action': action}}
         )
     # Fetch logs corresponding to the current Organization.
-    if owner_id:
+    if org:
         query["query"]["bool"]["filter"]["bool"]["must"].append(
-            {"term": {"owner_id": owner_id}}
+            {"term": {"org": org}}
         )
     # Match the user's ID, if provided.
     if user_id:
@@ -390,7 +390,7 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         yield event
 
 
-def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
+def get_stories(story_type='', org='', user_id='', sort_order=-1, limit=0,
                 error=None, range=None, pending=None, expand=False,
                 tornado_callback=None, tornado_async=False, **kwargs):
     """Fetch stories.
@@ -482,9 +482,9 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
             {"term": {"stories": story_type}}
         )
     # Fetch logs corresponding to the current Organization.
-    if owner_id:
+    if org:
         query["query"]["bool"]["filter"]["bool"]["must"].append(
-            {"term": {"owner_id": owner_id}}
+            {"term": {"org": org}}
         )
     # Fetch documents corresponding to the current user, if provided.
     if user_id:
@@ -537,7 +537,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
     # main query. If such filtering does not need to take place, the main
     # query is performed right away.
     if pending is not None or error is not None:
-        return _filtered_query(owner_id, close=pending, error=error,
+        return _filtered_query(org, close=pending, error=error,
                                range=range, type=story_type,
                                callback=_on_filters_callback,
                                tornado_async=tornado_async, **kwargs)
@@ -735,7 +735,7 @@ def close_open_incidents(event):
     if 'stories' not in event:
         event['stories'] = []
     kwargs = {
-        'owner_id': event['owner_id'],
+        'org': event['org'],
         'story_type': 'incident', 'pending': True,
     }
     for key in ('rule_id', 'cloud_id', 'machine_id', 'schedule_id',
@@ -750,10 +750,10 @@ def close_open_incidents(event):
     log.warn('%s incident(s) closed by %s', len(incidents), event['log_id'])
 
 
-def get_story(owner_id, story_id, story_type=None, expand=True):
+def get_story(org, story_id, story_type=None, expand=True):
     """Fetch a single story given its story_id."""
     assert story_id
-    story = get_stories(owner_id=owner_id, stories=story_id,
+    story = get_stories(org=org, stories=story_id,
                         story_type=story_type, expand=expand)
     if not story:
         msg = 'Story %s' % story_id
@@ -765,7 +765,7 @@ def get_story(owner_id, story_id, story_type=None, expand=True):
     return story[0]
 
 
-def delete_story(owner_id, story_id):
+def delete_story(org, story_id):
     """Delete a story."""
     index = 'app-logs-*'
     query = {
@@ -774,7 +774,7 @@ def delete_story(owner_id, story_id):
                 'filter': {
                     'bool': {
                         'must': [
-                            {'term': {'owner_id': owner_id}},
+                            {'term': {'org': org}},
                             {'term': {'story_id': story_id}},
                         ]
                     }

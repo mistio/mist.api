@@ -93,7 +93,7 @@ class AuthMiddleware(object):
                         break
                 else:
                     log_event(
-                        owner_id=session.org.id,
+                        org=session.org.id,
                         user_id=user.id,
                         email=user.email,
                         request_method=request.method,
@@ -164,7 +164,7 @@ class CsrfMiddleware(object):
                     params = params_from_request(request)
                     email = params.get('email', '')
                 log_event(
-                    owner_id=owner_id,
+                    org=owner_id,
                     user_id=user_id,
                     email=email,
                     request_method=request.method,

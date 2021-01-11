@@ -10,7 +10,7 @@ Elasticsearch, process aggregations, and associate logs into stories.
 # Event fields that should be explicitly present in a story must be added here.
 FIELDS = (
     'user_id',
-    'owner_id',
+    'org',
     'cloud_id',
     'machine_id',
     'rule_id',

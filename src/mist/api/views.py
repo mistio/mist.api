@@ -394,7 +394,7 @@ def login(request):
                           if login.get(
                               'request_ip') == ip_from_request(request)]
                 if len(logins) > max_logins:
-                    log_event(owner_id=user.id, user_id=user.id,
+                    log_event(org=user.id, user_id=user.id,
                               event_type='incident',
                               action='login_rate_limiting',
                               ip=ip_from_request(request))

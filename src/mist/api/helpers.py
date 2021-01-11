@@ -977,10 +977,10 @@ def logging_view_decorator(func):
                 log_dict['sudoer_id'] = sudoer.id
             auth_context = mist.api.auth.methods.auth_context_from_request(
                 request)
-            log_dict['owner_id'] = auth_context.owner.id
+            log_dict['org'] = auth_context.owner.id
         else:
             log_dict['user_id'] = None
-            log_dict['owner_id'] = None
+            log_dict['org'] = None
 
         if isinstance(session, ApiToken):
             if 'dummy' not in session.name:
@@ -1141,7 +1141,7 @@ def logging_view_decorator(func):
         es_dict['traceback'] = es_dict.pop('_traceback')
         es_dict['exception'] = es_dict.pop('_exc')
         es_dict['type'] = 'exception'
-        routing_key = "%s.%s" % (es_dict['owner_id'], es_dict['action'])
+        routing_key = "%s.%s" % (es_dict['org'], es_dict['action'])
         pickler = jsonpickle.pickler.Pickler()
         amqp_publish('exceptions', routing_key, pickler.flatten(es_dict),
                      ex_type='topic', ex_declare=True,

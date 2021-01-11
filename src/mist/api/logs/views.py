@@ -102,9 +102,9 @@ def get_logs(request):
     # Enforce owner_id, if necessary.
     if auth_context.user.role == 'Admin':
         if 'owner_id' in params:
-            kwargs['owner_id'] = params['owner_id']
+            kwargs['org'] = params['owner_id']
     else:
-        kwargs['owner_id'] = auth_context.owner.id
+        kwargs['org'] = auth_context.owner.id
 
     return list(get_events(auth_context, **kwargs))
 
