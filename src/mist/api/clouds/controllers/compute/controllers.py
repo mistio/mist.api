@@ -1361,6 +1361,19 @@ class AzureArmComputeController(BaseComputeController):
                          + ' cpus/' + str(size.ram / 1024) + 'GB RAM/ ' \
                          + str(size.disk) + 'GB SSD'
 
+    def _list_locations__get_available_sizes(self, location):
+        libcloud_location = NodeLocation(id=location.external_id,
+                                         name=location.name,
+                                         country=location.country,
+                                         driver=self.connection)
+        libcloud_size_ids = [size.id
+                          for size in self.connection.list_sizes(location=libcloud_location)]  # noqa
+
+        from mist.api.clouds.models import CloudSize
+
+        return CloudSize.objects(cloud=self.cloud,
+                                 external_id__in=libcloud_size_ids)
+
 
 class GoogleComputeController(BaseComputeController):
 
