@@ -21,7 +21,7 @@ from mist.api import config
 
 
 FIELDS = list(_FIELDS) + ['action', 'filter']
-FIELDS.remove('owner_id')  # SEC
+FIELDS.remove('org')  # SEC
 
 LOG_TYPES = ('ui', 'job', 'shell', 'session', 'incident', 'request', )
 
