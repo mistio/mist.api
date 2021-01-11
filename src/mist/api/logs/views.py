@@ -209,9 +209,9 @@ def end_job(request):
         log_event(
             job_id=job_id,
             workflow=workflow,
-            stack_id=stack.id,
-            owner_id=stack.owner.id,
-            template_id=stack.template.id,
+            stack=stack.id,
+            org=stack.owner.id,
+            template=stack.template.id,
             machine_name=params['machine_name'], action=params['action'],
             event_type='job', error=error,
         )

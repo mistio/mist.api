@@ -63,14 +63,14 @@ def log_observations(org, cloud_id, resource_type, patch,
             if isinstance(_patch.get('value'), dict) and \
                _patch.get('value').get('id', '') and \
                len(_patch.get('path').split('/')) <= 2:
-                action = 'create_' + resource_type
+                action = 'create-' + resource_type
                 name = _patch.get('value').get('name')
                 resource_id = _patch.get('value').get('id')
                 provider_id = 'external_id' if resource_type == 'volume' \
                     else resource_type + '_id'
                 external_id = _patch.get('value').get(provider_id)
             elif '/attached_to/' in _patch.get('path'):
-                action = 'attach_volume'
+                action = 'attach-volume'
                 key = _patch.get('path')[1:-14]  # strip '/', '/attached_to/0'
                 name = cached_resources.get(key).get('name')
                 ids = _patch.get('path').split('-')
@@ -83,7 +83,7 @@ def log_observations(org, cloud_id, resource_type, patch,
         elif _patch.get('op') == 'remove':
 
             if '/attached_to/' in _patch.get('path'):
-                action = 'detach_volume'
+                action = 'detach-volume'
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
                 external_id = '-'.join(ids).split('attached_to')[0][:-1]
@@ -94,13 +94,13 @@ def log_observations(org, cloud_id, resource_type, patch,
                 log_dict.update({'machine': machine_id})
             elif len(_patch.get('path').split('/')) < 3:  # '/id-external_id'
                 if resource_type == 'machine':
-                    action = 'destroy_machine'
+                    action = 'destroy-machine'
                 else:
-                    action = 'delete_' + resource_type
+                    action = 'delete-' + resource_type
                 key = _patch.get('path')[1:]  # strip '/'
                 if cached_resources.get(key) and \
                     cached_resources.get(key).get('state') == 'terminated' \
-                        and action == 'destroy_machine':
+                        and action == 'destroy-machine':
                     from mist.api.clouds.models import Cloud
                     try:
                         cloud = Cloud.objects.get(id=cloud_id)
@@ -121,11 +121,11 @@ def log_observations(org, cloud_id, resource_type, patch,
             if '/state' in _patch.get('path') and \
                _patch.get('value') in ['running', 'stopped', 'terminated']:
                 if _patch.get('value') == 'stopped':
-                    action = 'stop_machine'
+                    action = 'stop-machine'
                 elif _patch.get('value') == 'running':
-                    action = 'start_machine'
+                    action = 'start-machine'
                 elif _patch.get('value') == 'terminated':
-                    action = 'destroy_machine'
+                    action = 'destroy-machine'
                 if _patch['path'].endswith('/extra/state'):
                     key = _patch['path'][1:-len('/extra/state')]
                 else:
@@ -136,7 +136,7 @@ def log_observations(org, cloud_id, resource_type, patch,
                 external_id = '-'.join(ids)[:-6]  # strip '/state'
             elif '/size' in _patch.get('path') and \
                     len(_patch.get('path').split('/')) < 4:
-                action = 'resize_machine'
+                action = 'resize-machine'
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
                 key = _patch.get('path')[1:-5]  # strip '/' and '/size'
@@ -195,7 +195,7 @@ def log_event(org, event_type, action, error=None, **kwargs):
         event = {
             'org': org or None,
             'log_id': uuid.uuid4().hex,
-            'action': action,
+            'action': action.lower(),
             'type': event_type,
             'time': time.time(),
             'error': error if error else False,

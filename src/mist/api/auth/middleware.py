@@ -174,7 +174,7 @@ class CsrfMiddleware(object):
                     csrf_token=csrf_token,
                     session_csrf=session.csrf_token,
                     event_type='request',
-                    action='csrf_validation',
+                    action='csrf-validation',
                     error=True,
                 )
                 start_response('403 Forbidden',

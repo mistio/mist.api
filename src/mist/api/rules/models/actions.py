@@ -140,7 +140,7 @@ class NoDataAction(NotificationAction):
             disable_monitoring(machine.owner, machine.cloud.id,
                                machine.id, no_ssh=True)
             log_event(
-                machine.owner.id, 'incident', 'disable_monitoring',
+                machine.owner.id, 'incident', 'disable-monitoring',
                 cloud_id=machine.cloud.id, machine_id=machine.id,
                 external_id=machine.external_id, incident_id=incident_id
             )

@@ -57,7 +57,7 @@ def register_user(email, first_name, last_name, registration_method,
         if create_organization else None
 
     log_event_args = {
-        'owner_id': org and org.id or '',
+        'org': org and org.id or '',
         'user_id': user.id,
         'first_name': user.first_name,
         'last_name': user.last_name,

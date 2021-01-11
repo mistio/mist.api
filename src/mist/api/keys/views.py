@@ -218,8 +218,8 @@ def get_private_key(request):
 
     auth_context.check_perm('key', 'read_private', key.id)
     log_event(
-        auth_context.owner.id, 'request', 'read_private',
-        key_id=key.id, user_id=auth_context.user.id,
+        auth_context.owner.id, 'request', 'read-private',
+        key=key.id, user_id=auth_context.user.id,
     )
     return key.private.value
 

@@ -37,11 +37,11 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
 
     _log = {
         'org': machine.owner.id,
-        'cloud_id': machine.cloud.id,
-        'machine_id': machine.id,
+        'cloud': machine.cloud.id,
+        'machine': machine.id,
         'event_type': 'job', 'job_id': job_id or uuid.uuid4().hex, 'job': job,
     }
-    log_event(action='telegraf_deployment_started', **_log)
+    log_event(action='telegraf-deployment-started', **_log)
 
     error = None
     try:
@@ -83,17 +83,17 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
                 ret = s.ctl.deploy_and_assoc_python_plugin_from_script(machine)
             except Exception as exc:
                 failed.append(script_id)
-                log_event(action='deploy_telegraf_script', script_id=script_id,
+                log_event(action='deploy-telegraf-script', script_id=script_id,
                           error=str(exc), **_log)
             else:
-                log_event(action='deploy_telegraf_script', script_id=script_id,
+                log_event(action='deploy-telegraf-script', script_id=script_id,
                           metrics=ret['metrics'], stdout=ret['stdout'], **_log)
         if not error and failed:
             error = 'Deployment of scripts with IDs %s failed' % ','.join(
                 failed)
 
     # Log deployment's outcome.
-    log_event(action='telegraf_deployment_finished', error=str(error), **_log)
+    log_event(action='telegraf-deployment-finished', error=str(error), **_log)
 
     # Trigger UI update.
     trigger_session_update(machine.owner, ['monitoring'])
@@ -107,11 +107,11 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
 
     _log = {
         'org': machine.owner.id,
-        'cloud_id': machine.cloud.id,
-        'machine_id': machine.id,
+        'cloud': machine.cloud.id,
+        'machine': machine.id,
         'event_type': 'job', 'job_id': job_id or uuid.uuid4().hex, 'job': job,
     }
-    log_event(action='telegraf_undeployment_started', **_log)
+    log_event(action='telegraf-undeployment-started', **_log)
 
     try:
         shell = mist.api.shell.Shell(machine.ctl.get_host())
@@ -135,7 +135,7 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
         machine.save()
 
         # Log undeployment's outcome.
-        log_event(action='telegraf_undeployment_finished', error=error, **_log)
+        log_event(action='telegraf-undeployment-finished', error=error, **_log)
 
         # Trigger UI update.
         trigger_session_update(machine.owner, ['monitoring'])
