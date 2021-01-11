@@ -383,7 +383,6 @@ class CloudLocation(OwnershipMixin, me.Document):
             'country': self.country,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
-            'available_sizes': self.available_sizes
         }
 
     def clean(self):
