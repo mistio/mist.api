@@ -757,6 +757,11 @@ class DigitalOceanComputeController(BaseComputeController):
         return CloudSize.objects(cloud=self.cloud,
                                  extra__regions__contains=location.external_id)
 
+    def _list_locations__get_available_images(self, location):
+        from mist.api.images.models import CloudImage
+        return CloudImage.objects(cloud=self.cloud,
+                                  extra__regions__contains=location.external_id)  # noqa
+
 
 class MaxihostComputeController(BaseComputeController):
 
