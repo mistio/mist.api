@@ -22,6 +22,8 @@ class CloudImage(OwnershipMixin, me.Document):
     extra = MistDictField()
     os_type = me.StringField(default='linux')
     os_distro = me.StringField(default='other')
+    min_disk_size = me.FloatField()  # min disk size in GBs
+    min_memory_size = me.IntField()  # min ram size in MBs
 
     meta = {
         'collection': 'images',

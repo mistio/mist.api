@@ -924,6 +924,8 @@ class BaseComputeController(BaseController):
             _image.missing_since = None
             _image.os_type = self._list_images__get_os_type(img)
             _image.os_distro = self._list_images_get_os_distro(img)
+            _image.min_disk_size = self._list_images__get_min_disk_size(img)
+            _image.min_memory_size = self._list_images__get_min_memory_size(img)  # noqa
 
             try:
                 self._list_images__postparse_image(_image, img)
@@ -1023,6 +1025,16 @@ class BaseComputeController(BaseController):
         else:
             return 'other'
 
+    def _list_images__get_min_disk_size(self, image):
+        """Get the minimum disk size the image can be deployed in GBs.
+        """
+        return None
+
+    def _list_images__get_min_memory_size(self, image):
+        """Get the minimum RAM size in MBs required by the image.
+        """
+        return None
+
     def image_is_default(self, image_id):
         return True
 
@@ -1116,8 +1128,13 @@ class BaseComputeController(BaseController):
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
             _size.extra = self._list_sizes__get_extra(size)
-            _size.allowed_images = self._list_sizes__get_allowed_images(size)
 
+            try:
+                _size.allowed_images = self._list_sizes__get_allowed_images(size)  # noqa
+            except Exception as exc:
+                log.error('_list_sizes__get_allowed_images for cloud %s'
+                          ' failed with exception: %s'
+                          % (self.cloud, repr(exc))
             if size.ram:
                 try:
                     _size.ram = int(float(re.sub("[^\d.]+", "",
