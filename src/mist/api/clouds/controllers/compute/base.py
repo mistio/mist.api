@@ -1116,6 +1116,8 @@ class BaseComputeController(BaseController):
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
             _size.extra = self._list_sizes__get_extra(size)
+            _size.allowed_images = self._list_sizes__get_allowed_images(size)
+
             if size.ram:
                 try:
                     _size.ram = int(float(re.sub("[^\d.]+", "",
@@ -1170,6 +1172,18 @@ class BaseComputeController(BaseController):
         if size.price:
             extra.update({'price': size.price})
         return extra
+
+    def _list_sizes__get_allowed_images(self, size):
+        """Find available images for the specified NodeSize.
+        Return a list of CloudImage objects
+
+        This is to be called exclusively by `self.list_sizes`.
+        Only EquinixMetal implements this method currently.
+
+        Subclasses that have size-image constraints should override these,
+        by default, dummy methods.
+        """
+        return None
 
     def list_cached_sizes(self):
         """Return list of sizes from database for a specific cloud"""

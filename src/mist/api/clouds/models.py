@@ -308,6 +308,9 @@ class CloudSize(me.Document):
     bandwidth = me.IntField()
     missing_since = me.DateTimeField()
     extra = MistDictField()  # price info  is included here
+    allowed_images = me.ListField(
+        me.ReferenceField('CloudImage')
+    )
 
     meta = {
         'collection': 'sizes',
