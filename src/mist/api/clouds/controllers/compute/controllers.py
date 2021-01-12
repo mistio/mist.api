@@ -1905,6 +1905,11 @@ class EquinixMetalComputeController(BaseComputeController):
         return CloudSize.objects(cloud=self.cloud,
                                  extra__regions__contains=location.external_id)
 
+    def _list_sizes__get_allowed_images(self, size):
+        from mist.api.images.models import CloudImage
+        return CloudImage.objects(cloud=self.cloud,
+                                  extra__provisionable_on__contains=size.id)  # noqa
+
 
 class VultrComputeController(BaseComputeController):
 
