@@ -1271,7 +1271,7 @@ class BaseComputeController(BaseController):
             _location.extra = copy.deepcopy(loc.extra)
             _location.missing_since = None
             _location.available_sizes = self._list_locations__get_available_sizes(_location)  # noqa
-
+            _location.available_images = self._list_locations__get_available_images(_location)  # noqa
             try:
                 _location.save()
             except me.ValidationError as exc:
@@ -1307,12 +1307,24 @@ class BaseComputeController(BaseController):
                                  driver=self.connection)]
 
     def _list_locations__get_available_sizes(self, location):
-        """Find available images for the specified location.
+        """Find available sizes for the specified CloudLocation.
+        Return a list of CloudSize objects
+
+        This is to be called exclusively by `self.list_locations`.
+
+        Subclasses that have  location-size constraints should override these,
+        by default, dummy methods.
+        """
+        return None
+
+    def _list_locations__get_available_images(self, location):
+        """Find available images for the specified CloudLocation.
         Return a list of CloudImage objects
 
         This is to be called exclusively by `self.list_locations`.
 
-        Subclasses MAY override this method.
+        Subclasses that have location-image constraints should override these,
+        by default, dummy methods.
         """
         return None
 
