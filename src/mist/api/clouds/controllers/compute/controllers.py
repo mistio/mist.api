@@ -589,6 +589,9 @@ class AlibabaComputeController(AmazonComputeController):
             distro = 'windows'
         return distro
 
+    def _list_images__get_min_disk_size(self, image):
+        return image.extra.get('size')
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -761,6 +764,9 @@ class DigitalOceanComputeController(BaseComputeController):
         from mist.api.images.models import CloudImage
         return CloudImage.objects(cloud=self.cloud,
                                   extra__regions__contains=location.id)  # noqa
+
+    def _list_images__get_min_disk_size(self, image):
+        return image.extra.get('min_disk_size')
 
 
 class MaxihostComputeController(BaseComputeController):
@@ -1035,6 +1041,9 @@ class LinodeComputeController(BaseComputeController):
     def _list_images_get_os_distro(self, image):
         return image.extra.get('vendor', '').lower()
 
+    def _list_images__get_min_disk_size(self, image):
+        return image.extra.get('size') / 1000
+
 
 class RackSpaceComputeController(BaseComputeController):
 
@@ -1112,6 +1121,12 @@ class RackSpaceComputeController(BaseComputeController):
             elif 'ipxe' in image.name.lower():
                 distro = 'ipxe'
         return distro
+
+    def _list_images__get_min_disk_size(self, image):
+        return image.extra.get('minDisk')
+
+    def _list_images__get_min_memory_size(self, image):
+        return image.extra.get('minRam')
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -1725,6 +1740,9 @@ class GoogleComputeController(BaseComputeController):
 
         return CloudSize.objects(cloud=self.cloud,
                                  external_id__in=libcloud_size_ids)
+
+    def _list_images__get_min_disk_size(self, image):
+        return image.extra.get('diskSizeGb')
 
     def _resize_machine(self, machine, node, node_size, kwargs):
         # instance must be in stopped mode
@@ -3262,6 +3280,12 @@ class OnAppComputeController(BaseComputeController):
                     pass
 
         return locations
+
+    def _list_images__get_min_disk_size(self, image):
+        return image.extra.get('min_disk_size')
+
+    def _list_images__get_min_memory_size(self, image):
+        return image.extra.get('min_memory_size')
 
 
 class OtherComputeController(BaseComputeController):

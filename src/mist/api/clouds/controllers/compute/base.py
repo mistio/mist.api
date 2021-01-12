@@ -1134,7 +1134,7 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.error('_list_sizes__get_allowed_images for cloud %s'
                           ' failed with exception: %s'
-                          % (self.cloud, repr(exc))
+                          % (self.cloud, repr(exc)))
             if size.ram:
                 try:
                     _size.ram = int(float(re.sub("[^\d.]+", "",
