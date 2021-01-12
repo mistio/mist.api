@@ -755,12 +755,12 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_locations__get_available_sizes(self, location):
         from mist.api.clouds.models import CloudSize
         return CloudSize.objects(cloud=self.cloud,
-                                 extra__regions__contains=location.external_id)
+                                 extra__regions__contains=location.id)
 
     def _list_locations__get_available_images(self, location):
         from mist.api.images.models import CloudImage
         return CloudImage.objects(cloud=self.cloud,
-                                  extra__regions__contains=location.external_id)  # noqa
+                                  extra__regions__contains=location.id)  # noqa
 
 
 class MaxihostComputeController(BaseComputeController):
@@ -1367,12 +1367,8 @@ class AzureArmComputeController(BaseComputeController):
                          + str(size.disk) + 'GB SSD'
 
     def _list_locations__get_available_sizes(self, location):
-        libcloud_location = NodeLocation(id=location.external_id,
-                                         name=location.name,
-                                         country=location.country,
-                                         driver=self.connection)
         libcloud_size_ids = [size.id
-                          for size in self.connection.list_sizes(location=libcloud_location)]  # noqa
+                          for size in self.connection.list_sizes(location=location)]  # noqa
 
         from mist.api.clouds.models import CloudSize
 
@@ -1903,7 +1899,7 @@ class EquinixMetalComputeController(BaseComputeController):
     def _list_locations__get_available_sizes(self, location):
         from mist.api.clouds.models import CloudSize
         return CloudSize.objects(cloud=self.cloud,
-                                 extra__regions__contains=location.external_id)
+                                 extra__regions__contains=location.id)
 
     def _list_sizes__get_allowed_images(self, size):
         from mist.api.images.models import CloudImage
@@ -1948,7 +1944,7 @@ class VultrComputeController(BaseComputeController):
     def _list_locations__get_available_sizes(self, location):
         from mist.api.clouds.models import CloudSize
         return CloudSize.objects(cloud=self.cloud,
-                                 extra__available_locations__contains=int(location.external_id))  # noqa
+                                 extra__available_locations__contains=int(location.id))  # noqa
 
 
 class VSphereComputeController(BaseComputeController):
