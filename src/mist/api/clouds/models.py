@@ -356,6 +356,11 @@ class CloudLocation(OwnershipMixin, me.Document):
     available_sizes = me.ListField(
         me.ReferenceField('CloudSize', reverse_delete_rule=me.PULL)
     )
+    # TODO add reverse_delete_rule
+    # https://github.com/MongoEngine/mongoengine/issues/1707
+    available_images = me.ListField(
+        me.ReferenceField('CloudImage')
+    )
 
     meta = {
         'collection': 'locations',
