@@ -1152,8 +1152,6 @@ def machine_ssh(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    import xml.etree.ElementTree as ET
-    from html import unescape
     from datetime import datetime
     import hmac
     import hashlib
