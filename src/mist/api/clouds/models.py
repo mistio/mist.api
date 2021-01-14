@@ -308,6 +308,7 @@ class CloudSize(me.Document):
     bandwidth = me.IntField()
     missing_since = me.DateTimeField()
     extra = MistDictField()  # price info  is included here
+    architecture = me.StringField(default='x86', choices=('x86', 'arm'))
     allowed_images = me.ListField(
         me.ReferenceField('CloudImage')
     )
@@ -339,6 +340,7 @@ class CloudSize(me.Document):
             'bandwidth': self.bandwidth,
             'extra': self.extra,
             'disk': self.disk,
+            'architecture': self.architecture,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
