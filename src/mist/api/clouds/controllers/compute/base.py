@@ -926,7 +926,7 @@ class BaseComputeController(BaseController):
             _image.os_distro = self._list_images__get_os_distro(img)
             _image.min_disk_size = self._list_images__get_min_disk_size(img)
             _image.min_memory_size = self._list_images__get_min_memory_size(img)  # noqa
-
+            _image.architecture = self._list_images__get_architecture(img)
             try:
                 self._list_images__postparse_image(_image, img)
             except Exception as exc:
@@ -1027,13 +1027,28 @@ class BaseComputeController(BaseController):
 
     def _list_images__get_min_disk_size(self, image):
         """Get the minimum disk size the image can be deployed in GBs.
+
+        Subclasses MAY override this method.
         """
         return None
 
     def _list_images__get_min_memory_size(self, image):
         """Get the minimum RAM size in MBs required by the image.
+
+        Subclasses MAY override this method.
         """
         return None
+
+    def _list_images__get_architecture(self, image):
+        """Get cpu architecture  from NodeImage.
+        Return a list of strings containing'x86' and/or 'arm'
+        as EquinixMetal has images that can be deployed on both architectures.
+
+        Subclasses MAY override this method.
+        """
+        if 'arm' in image.name.lower():
+            return ['arm']
+        return ['x86']
 
     def image_is_default(self, image_id):
         return True
