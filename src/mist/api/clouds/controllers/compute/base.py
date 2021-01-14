@@ -1128,6 +1128,7 @@ class BaseComputeController(BaseController):
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
             _size.extra = self._list_sizes__get_extra(size)
+            _size.architecture = self._list_sizes__get_architecture(size)
 
             try:
                 _size.allowed_images = self._list_sizes__get_allowed_images(size)  # noqa
@@ -1201,6 +1202,16 @@ class BaseComputeController(BaseController):
         by default, dummy methods.
         """
         return None
+
+    def _list_sizes__get_architecture(self, size):
+        """Get cpu architecture  from NodeSize.
+        Valid return values are 'x86' or 'arm'.
+
+        Subclasses MAY override or extend this method.
+        """
+        if 'arm' in size.name.lower():
+            return 'arm'
+        return 'x86'
 
     def list_cached_sizes(self):
         """Return list of sizes from database for a specific cloud"""
