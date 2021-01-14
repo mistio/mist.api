@@ -359,10 +359,8 @@ class CloudLocation(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     extra = MistDictField()
     available_sizes = me.ListField(
-        me.ReferenceField('CloudSize', reverse_delete_rule=me.PULL)
+        me.ReferenceField('CloudSize')
     )
-    # TODO add reverse_delete_rule
-    # https://github.com/MongoEngine/mongoengine/issues/1707
     available_images = me.ListField(
         me.ReferenceField('CloudImage')
     )
