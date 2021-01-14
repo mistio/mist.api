@@ -317,6 +317,12 @@ class AmazonComputeController(BaseComputeController):
                 return 'vyatta'
             return 'linux'
 
+    def _list_images__get_architecture(self, image):
+        architecture = image.extra.get('architecture')
+        if architecture == 'arm64':
+            return ['arm']
+        return ['x86']
+
     def _generate_plan__parse_networks(self, auth_context, network_dict):
         security_group = network_dict.get('security_group')
         subnet = network_dict.get('subnet')
@@ -1930,6 +1936,15 @@ class EquinixMetalComputeController(BaseComputeController):
         from mist.api.images.models import CloudImage
         return CloudImage.objects(cloud=self.cloud,
                                   extra__provisionable_on__contains=size.id)  # noqa
+
+    def _list_images__get_architecture(self, image):
+        ret_list = []
+        sizes = image.extra.get('provisionable_on', [])
+        if any('arm' in size for size in sizes):
+            ret_list.append('arm')
+        if any('x86' in size for size in sizes):
+            ret_list.append('x86')
+        return ret_list or ['x86']
 
 
 class VultrComputeController(BaseComputeController):
