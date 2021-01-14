@@ -292,6 +292,13 @@ class AmazonComputeController(BaseComputeController):
     def _list_sizes__get_name(self, size):
         return '%s - %s' % (size.id, size.name)
 
+    def _list_sizes__get_architecture(self, size):
+        """Arm-based sizes use Amazon's Graviton processor
+        """
+        if 'graviton' in size.extra.get('physicalProcessor', '').lower():
+            return 'arm'
+        return 'x86'
+
     def _list_images__get_os_type(self, image):
         # os_type is needed for the pricing per VM
         if image.name:
