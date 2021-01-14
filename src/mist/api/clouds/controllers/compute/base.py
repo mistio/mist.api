@@ -923,7 +923,7 @@ class BaseComputeController(BaseController):
             _image.extra = copy.deepcopy(img.extra)
             _image.missing_since = None
             _image.os_type = self._list_images__get_os_type(img)
-            _image.os_distro = self._list_images_get_os_distro(img)
+            _image.os_distro = self._list_images__get_os_distro(img)
             _image.min_disk_size = self._list_images__get_min_disk_size(img)
             _image.min_memory_size = self._list_images__get_min_memory_size(img)  # noqa
 
@@ -1000,7 +1000,7 @@ class BaseComputeController(BaseController):
         else:
             return 'linux'
 
-    def _list_images_get_os_distro(self, image):
+    def _list_images__get_os_distro(self, image):
         """Get image distro from libcloud image
 
         Subclasses MAY override this method.
@@ -1207,7 +1207,7 @@ class BaseComputeController(BaseController):
         """Get cpu architecture  from NodeSize.
         Valid return values are 'x86' or 'arm'.
 
-        Subclasses MAY override or extend this method.
+        Subclasses MAY override this method.
         """
         if 'arm' in size.name.lower():
             return 'arm'

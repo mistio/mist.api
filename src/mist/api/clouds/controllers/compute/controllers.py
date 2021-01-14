@@ -590,7 +590,7 @@ class AlibabaComputeController(AmazonComputeController):
             + str(size.ram / 1024) + 'Gb RAM '
         return "%s (%s)" % (size.name, specs)
 
-    def _list_images_get_os_distro(self, image):
+    def _list_images__get_os_distro(self, image):
         distro = image.extra.get('platform', '').lower()
         if 'windows' in distro:
             distro = 'windows'
@@ -759,7 +759,7 @@ class DigitalOceanComputeController(BaseComputeController):
 
         return kwargs
 
-    def _list_images_get_os_distro(self, image):
+    def _list_images__get_os_distro(self, image):
         return image.extra.get('distribution', '').lower()
 
     def _list_locations__get_available_sizes(self, location):
@@ -1045,7 +1045,7 @@ class LinodeComputeController(BaseComputeController):
                 image.extra['created'] = image.extra['created'].isoformat()
         return images
 
-    def _list_images_get_os_distro(self, image):
+    def _list_images__get_os_distro(self, image):
         return image.extra.get('vendor', '').lower()
 
     def _list_images__get_min_disk_size(self, image):
@@ -1117,7 +1117,7 @@ class RackSpaceComputeController(BaseComputeController):
         else:
             return 'linux'
 
-    def _list_images_get_os_distro(self, image):
+    def _list_images__get_os_distro(self, image):
         distro = image.extra.get('metadata', {}).get('os_distro', '').lower()
         # windows and other type of images do not have an os_distro field
         if not distro:
@@ -1869,7 +1869,7 @@ class GoogleComputeController(BaseComputeController):
         size_obj = super()._create_machine__get_size_object(size)
         return size_obj.id
 
-    def _list_images_get_os_distro(self, image):
+    def _list_images__get_os_distro(self, image):
         # gce family field
         distro = image.extra.get('family', '').split('-')[0]
         # windows sql server
@@ -1918,7 +1918,7 @@ class EquinixMetalComputeController(BaseComputeController):
     def _list_machines__get_size(self, node_dict):
         return node_dict['extra'].get('plan')
 
-    def _list_images_get_os_distro(self, image):
+    def _list_images__get_os_distro(self, image):
         return image.extra.get('distro', '').lower()
 
     def _list_locations__get_available_sizes(self, location):
@@ -1963,7 +1963,7 @@ class VultrComputeController(BaseComputeController):
         sizes = self.connection.list_sizes()
         return [size for size in sizes if not size.extra.get('deprecated')]
 
-    def _list_images_get_os_distro(self, image):
+    def _list_images__get_os_distro(self, image):
         return image.extra.get('family', '').lower()
 
     def _list_locations__get_available_sizes(self, location):
