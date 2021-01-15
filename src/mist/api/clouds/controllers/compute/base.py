@@ -941,6 +941,7 @@ class BaseComputeController(BaseController):
                 log.error("Error adding %s: %s", _image.name, exc.to_dict())
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
+            self._list_images__get_available_locations(_image)
             images.append(_image)
 
         # update missing_since for images not returned by libcloud
@@ -999,6 +1000,18 @@ class BaseComputeController(BaseController):
             return 'vyatta'
         else:
             return 'linux'
+
+    def _list_images__get_available_locations(self, mist_image):
+        """Find available locations for CloudImage.
+
+        This method along with `_list_locations__get_available_images`
+        are used to find the constraints between locations and images and
+        save them in CloudLocation's availabe_images list field.
+
+        Providers that return information about these constraints on images,
+        should override this method.
+        """
+        return None
 
     def _list_images__get_os_distro(self, image):
         """Get image distro from libcloud image
@@ -1329,18 +1342,22 @@ class BaseComputeController(BaseController):
             _location.missing_since = None
 
             try:
-                _location.available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
+                available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
                 log.error('_list_locations__get_available_sizes for cloud %s'
                           ' failed with exception: %s'
                           % (self.cloud, repr(exc)))
+            if available_sizes:
+                _location.available_sizes = available_sizes
 
             try:
-                _location.available_images = self._list_locations__get_available_images(loc)  # noqa
+                available_images = self._list_locations__get_available_images(loc)  # noqa
             except Exception as exc:
                 log.error('_list_locations__get_available_images for cloud %s'
                           ' failed with exception: %s'
                           % (self.cloud, repr(exc)))
+            if available_images:
+                _location.available_images = available_images
 
             try:
                 _location.save()
@@ -1388,13 +1405,15 @@ class BaseComputeController(BaseController):
         return None
 
     def _list_locations__get_available_images(self, location):
-        """Find available images for the specified NodeLocation.
+        """Find available images for NodeLocation.
         Return a list of CloudImage objects
 
-        This is to be called exclusively by `self.list_locations`.
+        This method along with `_list_images__get_available_locations`
+        are used to find the constraints between locations and images and
+        save them in CloudLocation's availabe_images list field.
 
-        Subclasses that have location-image constraints should override these,
-        by default, dummy methods.
+        Providers that return information about these constraints on locations,
+        should override this method.
         """
         return None
 
