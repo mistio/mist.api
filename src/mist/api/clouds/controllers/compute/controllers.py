@@ -773,10 +773,12 @@ class DigitalOceanComputeController(BaseComputeController):
         return CloudSize.objects(cloud=self.cloud,
                                  extra__regions__contains=location.id)
 
-    def _list_locations__get_available_images(self, location):
-        from mist.api.images.models import CloudImage
-        return CloudImage.objects(cloud=self.cloud,
-                                  extra__regions__contains=location.id)  # noqa
+    def _list_images__get_available_locations(self, mist_image):
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(
+            cloud=self.cloud,
+            external_id__in=mist_image.extra.get('regions', [])
+        ).update(add_to_set__available_images=mist_image)
 
     def _list_images__get_min_disk_size(self, image):
         return int(image.extra.get('min_disk_size'))
