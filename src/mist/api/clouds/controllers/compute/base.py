@@ -944,7 +944,7 @@ class BaseComputeController(BaseController):
             try:
                 self._list_images__get_available_locations(_image)
             except Exception as exc:
-                log.error('Error while adding location-image constraints: %s'
+                log.error('Error adding location-image constraint: %s'
                           % repr(exc))
             images.append(_image)
 
@@ -1165,9 +1165,8 @@ class BaseComputeController(BaseController):
             try:
                 _size.allowed_images = self._list_sizes__get_allowed_images(size)  # noqa
             except Exception as exc:
-                log.error('_list_sizes__get_allowed_images for cloud %s'
-                          ' failed with exception: %s'
-                          % (self.cloud, repr(exc)))
+                log.error('Error adding size-image constraint: %s'
+                          % repr(exc))
             if size.ram:
                 try:
                     _size.ram = int(float(re.sub("[^\d.]+", "",
@@ -1188,7 +1187,11 @@ class BaseComputeController(BaseController):
                 log.error("Error adding %s: %s", size.name, exc.to_dict())
                 raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
-
+            try:
+                self._list_sizes__get_available_locations(_size)
+            except Exception as exc:
+                log.error("Error adding size-location constraint: %s"
+                          % repr(exc))
         # Update missing_since for sizes not returned by libcloud
         CloudSize.objects(
             cloud=self.cloud, missing_since=None,
@@ -1222,6 +1225,18 @@ class BaseComputeController(BaseController):
         if size.price:
             extra.update({'price': size.price})
         return extra
+
+    def _list_sizes__get_available_locations(self, mist_size):
+        """Find available locations for CloudSize.
+
+        This method along with `_list_locations__get_available_sizes`
+        are used to find the constraints between locations and sizes and
+        save them in CloudLocation availabe_images list field.
+
+        Providers that return information about these constraints on sizes,
+        should override this method.
+        """
+        return None
 
     def _list_sizes__get_allowed_images(self, size):
         """Find available images for the specified NodeSize.
@@ -1348,18 +1363,16 @@ class BaseComputeController(BaseController):
             try:
                 available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
-                log.error('_list_locations__get_available_sizes for cloud %s'
-                          ' failed with exception: %s'
-                          % (self.cloud, repr(exc)))
+                log.error('Error adding location-size constraint: %s'
+                          % repr(exc))
             if available_sizes:
                 _location.available_sizes = available_sizes
 
             try:
                 available_images = self._list_locations__get_available_images(loc)  # noqa
             except Exception as exc:
-                log.error('_list_locations__get_available_images for cloud %s'
-                          ' failed with exception: %s'
-                          % (self.cloud, repr(exc)))
+                log.error('Error adding location-image constraint: %s'
+                          % repr(exc))
             if available_images:
                 _location.available_images = available_images
 
