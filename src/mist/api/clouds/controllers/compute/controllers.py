@@ -768,10 +768,12 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_images__get_os_distro(self, image):
         return image.extra.get('distribution', '').lower()
 
-    def _list_locations__get_available_sizes(self, location):
-        from mist.api.clouds.models import CloudSize
-        return CloudSize.objects(cloud=self.cloud,
-                                 extra__regions__contains=location.id)
+    def _list_sizes__get_available_locations(self, mist_size):
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(
+            cloud=self.cloud,
+            external_id__in=mist_size.extra.get('regions', [])
+        ).update(add_to_set__available_sizes=mist_size)
 
     def _list_images__get_available_locations(self, mist_image):
         from mist.api.clouds.models import CloudLocation
@@ -1929,10 +1931,12 @@ class EquinixMetalComputeController(BaseComputeController):
     def _list_images__get_os_distro(self, image):
         return image.extra.get('distro', '').lower()
 
-    def _list_locations__get_available_sizes(self, location):
-        from mist.api.clouds.models import CloudSize
-        return CloudSize.objects(cloud=self.cloud,
-                                 extra__regions__contains=location.id)
+    def _list_sizes__get_available_locations(self, mist_size):
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(
+            cloud=self.cloud,
+            external_id__in=mist_size.extra.get('regions', [])
+        ).update(add_to_set__available_sizes=mist_size)
 
     def _list_sizes__get_allowed_images(self, size):
         from mist.api.images.models import CloudImage
@@ -1983,10 +1987,14 @@ class VultrComputeController(BaseComputeController):
     def _list_images__get_os_distro(self, image):
         return image.extra.get('family', '').lower()
 
-    def _list_locations__get_available_sizes(self, location):
-        from mist.api.clouds.models import CloudSize
-        return CloudSize.objects(cloud=self.cloud,
-                                 extra__available_locations__contains=int(location.id))  # noqa
+    def _list_sizes__get_available_locations(self, mist_size):
+        avail_locations = [str(loc)
+                           for loc in mist_size.extra.get('available_locations', [])]  # noqa
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(
+            cloud=self.cloud,
+            external_id__in=avail_locations
+        ).update(add_to_set__available_sizes=mist_size)
 
 
 class VSphereComputeController(BaseComputeController):
