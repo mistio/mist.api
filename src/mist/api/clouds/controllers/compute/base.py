@@ -941,7 +941,11 @@ class BaseComputeController(BaseController):
                 log.error("Error adding %s: %s", _image.name, exc.to_dict())
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
-            self._list_images__get_available_locations(_image)
+            try:
+                self._list_images__get_available_locations(_image)
+            except Exception as exc:
+                log.error('Error while adding location-image constraints: %s'
+                          % repr(exc))
             images.append(_image)
 
         # update missing_since for images not returned by libcloud
