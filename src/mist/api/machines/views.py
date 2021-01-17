@@ -1168,13 +1168,16 @@ def machine_ssh(request):
                          machine.hostname,
                          key_associations[0].port)
     expiry = int(datetime.now().timestamp()) + 100
-    msg = '%s,%s,%s' % (host, key_id, expiry)
+    msg = '%s,%s,%s,%s,%s' % (key_associations[0].ssh_user,
+                              machine.hostname,
+                              key_associations[0].port, key_id, expiry)
     mac = hmac.new(
         config.SECRET.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
-    proxy_uri = '%s/proxy/%s/%s/%s/%s' % (
-        base_ws_uri, host, key_id, expiry, mac)
+    proxy_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri, key_associations[0].ssh_user,
+        machine.hostname, key_associations[0].port, key_id, expiry, mac)
     from pyramid.httpexceptions import HTTPFound
     return HTTPFound(location=proxy_uri)
