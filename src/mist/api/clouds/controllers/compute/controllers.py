@@ -1938,10 +1938,12 @@ class EquinixMetalComputeController(BaseComputeController):
             external_id__in=mist_size.extra.get('regions', [])
         ).update(add_to_set__available_sizes=mist_size)
 
-    def _list_sizes__get_allowed_images(self, size):
-        from mist.api.images.models import CloudImage
-        return CloudImage.objects(cloud=self.cloud,
-                                  extra__provisionable_on__contains=size.id)  # noqa
+    def _list_images__get_allowed_sizes(self, mist_image):
+        from mist.api.clouds.models import CloudSize
+        CloudSize.objects(
+            cloud=self.cloud,
+            external_id__in=mist_image.extra.get('provisionable_on', [])
+        ).update(add_to_set__allowed_images=mist_image.external_id)
 
     def _list_images__get_architecture(self, image):
         ret_list = []

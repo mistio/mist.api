@@ -944,8 +944,14 @@ class BaseComputeController(BaseController):
             try:
                 self._list_images__get_available_locations(_image)
             except Exception as exc:
-                log.error('Error adding location-image constraint: %s'
+                log.error('Error adding image-location constraint: %s'
                           % repr(exc))
+            try:
+                self._list_images__get_allowed_sizes(_image)
+            except Exception as exc:
+                log.error('Error adding image-size constraint: %s'
+                          % repr(exc))
+
             images.append(_image)
 
         # update missing_since for images not returned by libcloud
@@ -1015,7 +1021,19 @@ class BaseComputeController(BaseController):
         Providers that return information about these constraints on images,
         should override this method.
         """
-        return None
+        return
+
+    def _list_images__get_allowed_sizes(self, mist_image):
+        """Find allowed sizes for CloudImage.
+
+        This method along with `_list_sizes__get_allowed_images`
+        are used to find the constraints between sizes and images and
+        save them in CloudSize's allowed_images list field.
+
+        Providers that return information about these constraints on images,
+        should override this method.
+        """
+        return
 
     def _list_images__get_os_distro(self, image):
         """Get image distro from libcloud image
@@ -1047,14 +1065,14 @@ class BaseComputeController(BaseController):
 
         Subclasses MAY override this method.
         """
-        return None
+        return
 
     def _list_images__get_min_memory_size(self, image):
         """Get the minimum RAM size in MBs required by the image.
 
         Subclasses MAY override this method.
         """
-        return None
+        return
 
     def _list_images__get_architecture(self, image):
         """Get cpu architecture  from NodeImage.
@@ -1163,10 +1181,13 @@ class BaseComputeController(BaseController):
             _size.architecture = self._list_sizes__get_architecture(size)
 
             try:
-                _size.allowed_images = self._list_sizes__get_allowed_images(size)  # noqa
+                allowed_images = self._list_sizes__get_allowed_images(size)  # noqa
             except Exception as exc:
                 log.error('Error adding size-image constraint: %s'
                           % repr(exc))
+            if allowed_images:
+                _size.allowed_images = allowed_images
+
             if size.ram:
                 try:
                     _size.ram = int(float(re.sub("[^\d.]+", "",
@@ -1231,24 +1252,25 @@ class BaseComputeController(BaseController):
 
         This method along with `_list_locations__get_available_sizes`
         are used to find the constraints between locations and sizes and
-        save them in CloudLocation availabe_images list field.
+        save them in CloudLocation availabe_sizes list field.
 
         Providers that return information about these constraints on sizes,
         should override this method.
         """
-        return None
+        return
 
     def _list_sizes__get_allowed_images(self, size):
         """Find available images for the specified NodeSize.
         Return a list of CloudImage objects
 
-        This is to be called exclusively by `self.list_sizes`.
-        Only EquinixMetal implements this method currently.
+        This method along with `_list_images__get_allowed_sizes`
+        are used to find the constraints between images and sizes and
+        save them in CloudSize allowed_images list field.
 
-        Subclasses that have size-image constraints should override these,
-        by default, dummy methods.
+        Providers that return information about these constraints on sizes,
+        should override this method.
         """
-        return None
+        return
 
     def _list_sizes__get_architecture(self, size):
         """Get cpu architecture  from NodeSize.
@@ -1411,15 +1433,17 @@ class BaseComputeController(BaseController):
                                  driver=self.connection)]
 
     def _list_locations__get_available_sizes(self, location):
-        """Find available sizes for the specified NodeLocation.
-        Return a list of CloudSize objects
+        """Find available sizes for NodeLocation.
+        Return a list of CloudSize objects.
 
-        This is to be called exclusively by `self.list_locations`.
+        This method along with `_list_sizes__get_available_locations`
+        are used to find the constraints between locations and sizes and
+        save them in CloudLocation availabe_sizes list field.
 
-        Subclasses that have  location-size constraints should override these,
-        by default, dummy methods.
+        Providers that return information about these constraints on locations,
+        should override this method.
         """
-        return None
+        return
 
     def _list_locations__get_available_images(self, location):
         """Find available images for NodeLocation.
@@ -1432,7 +1456,7 @@ class BaseComputeController(BaseController):
         Providers that return information about these constraints on locations,
         should override this method.
         """
-        return None
+        return
 
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""
