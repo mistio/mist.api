@@ -60,6 +60,7 @@ class CloudImage(OwnershipMixin, me.Document):
             'extra': self.extra,
             'os_type': self.os_type,
             'os_distro': self.os_distro,
+            'architecture': self.architecture,
             'tags': self.tags,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')

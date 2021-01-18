@@ -295,6 +295,59 @@ class Cloud(OwnershipMixin, me.Document):
                                            self.id, self.owner)
 
 
+class CloudLocation(OwnershipMixin, me.Document):
+    """A base Cloud Location Model."""
+    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    cloud = me.ReferenceField('Cloud', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    external_id = me.StringField(required=True)
+    name = me.StringField()
+    country = me.StringField()
+    missing_since = me.DateTimeField()
+    extra = MistDictField()
+    available_sizes = me.ListField(
+        me.ReferenceField('CloudSize')
+    )
+    available_images = me.ListField(
+        me.ReferenceField('CloudImage')
+    )
+
+    meta = {
+        'collection': 'locations',
+        'indexes': [
+            {
+                'fields': ['cloud', 'external_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ]
+    }
+
+    def __str__(self):
+        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        return name
+
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'extra': self.extra,
+            'cloud': self.cloud.id,
+            'external_id': self.external_id,
+            'name': self.name,
+            'country': self.country,
+            'missing_since': str(self.missing_since.replace(tzinfo=None)
+                                 if self.missing_since else '')
+        }
+
+    def clean(self):
+        # Populate owner field based on self.cloud.owner
+        if not self.owner:
+            self.owner = self.cloud.owner
+
+
 class CloudSize(me.Document):
     """A base Cloud Size Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
@@ -344,59 +397,6 @@ class CloudSize(me.Document):
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
-
-
-class CloudLocation(OwnershipMixin, me.Document):
-    """A base Cloud Location Model."""
-    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    cloud = me.ReferenceField('Cloud', required=True,
-                              reverse_delete_rule=me.CASCADE)
-    owner = me.ReferenceField('Organization', required=True,
-                              reverse_delete_rule=me.CASCADE)
-    external_id = me.StringField(required=True)
-    name = me.StringField()
-    country = me.StringField()
-    missing_since = me.DateTimeField()
-    extra = MistDictField()
-    available_sizes = me.ListField(
-        me.ReferenceField('CloudSize')
-    )
-    available_images = me.ListField(
-        me.ReferenceField('CloudImage')
-    )
-
-    meta = {
-        'collection': 'locations',
-        'indexes': [
-            {
-                'fields': ['cloud', 'external_id'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ]
-    }
-
-    def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
-        return name
-
-    def as_dict(self):
-        return {
-            'id': self.id,
-            'extra': self.extra,
-            'cloud': self.cloud.id,
-            'external_id': self.external_id,
-            'name': self.name,
-            'country': self.country,
-            'missing_since': str(self.missing_since.replace(tzinfo=None)
-                                 if self.missing_since else ''),
-        }
-
-    def clean(self):
-        # Populate owner field based on self.cloud.owner
-        if not self.owner:
-            self.owner = self.cloud.owner
 
 
 class AmazonCloud(Cloud):
