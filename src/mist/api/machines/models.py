@@ -101,7 +101,7 @@ class Monitoring(me.EmbeddedDocument):
 
     def get_commands(self):
         if self.method in ('telegraf-influxdb', 'telegraf-graphite',
-                           'telegraf-tsfdb'):
+                           'telegraf-tsfdb', 'telegraf-victoriametrics'):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             from mist.api.monitoring.commands import windows_install
