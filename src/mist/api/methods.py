@@ -569,12 +569,14 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     result = resource_model.objects(**query)
 
     if only:
-        only_list = only.split(',')
+        only_list = [field for field in only.split(',')
+                     if field in resource_model._fields]
         result = result.only(*only_list)
 
     if not result.count() and query.get('id'):
         # Try searching for name or title field
-        if getattr(resource_model, 'name', None):
+        if getattr(resource_model, 'name', None) and \
+                not isinstance(getattr(resource_model, 'name'), property):
             field_name = 'name'
         else:
             field_name = 'title'

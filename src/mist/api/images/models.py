@@ -57,3 +57,23 @@ class CloudImage(OwnershipMixin, me.Document):
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
+
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'external_id', 'starred', 'os_type', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value for tag in Tag.objects(
+                    resource_id=self.id, resource_type='machine').only(
+                        'key', 'value')}
+
+        return ret

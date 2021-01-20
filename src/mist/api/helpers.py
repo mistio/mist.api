@@ -1473,6 +1473,10 @@ def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
             ret[field] = getattr(obj, field)
 
     for k, v in deref_map.items():
-        ref = getattr(obj, k)
-        ret[k] = getattr(ref, v, '')
+        # If we have a list, derefence its contents
+        if isinstance(getattr(obj, k), list):
+            ret[k] = [getattr(item, v, '') for item in getattr(obj, k)]
+        else:
+            ref = getattr(obj, k)
+            ret[k] = getattr(ref, v, '')
     return ret
