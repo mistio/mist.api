@@ -132,6 +132,5 @@ class Volume(OwnershipMixin, me.Document):
 
         return ret
 
-
     def __str__(self):
         return '%s "%s" (%s)' % (self.__class__.__name__, self.name, self.id)
