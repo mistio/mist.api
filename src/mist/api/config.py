@@ -477,7 +477,9 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "A",
-                    "target": urllib.parse.quote("\"system_load1\", \"system_load5\", \"system_load15\"")
+                    "target": urllib.parse.quote("\"system_load1\"," +
+                                                 " \"system_load5\"," +
+                                                 " \"system_load15\"")
                 }],
                 "x-axis": True,
                 "y-axis": True
@@ -490,7 +492,10 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "B",
-                    "target": urllib.parse.quote("\"mem_free\", \"mem_used\", \"mem_cached\", \"mem_buffered\"")
+                    "target": urllib.parse.quote("\"mem_free\"," +
+                                                 " \"mem_used\"," +
+                                                 " \"mem_cached\"," +
+                                                 " \"mem_buffered\"")
                 }, ],
                 "yaxes": [{
                     "label": "B"

@@ -49,9 +49,12 @@ from mist.api.monitoring.foundationdb.methods import get_cores as fdb_get_cores
 from mist.api.monitoring.foundationdb.methods \
     import find_metrics as fdb_find_metrics
 
-from mist.api.monitoring.victoriametrics.methods import get_stats as victoria_get_stats
-from mist.api.monitoring.victoriametrics.methods import get_load as victoria_get_load
-from mist.api.monitoring.victoriametrics.methods import get_cores as victoria_get_cores
+from mist.api.monitoring.victoriametrics.methods \
+    import get_stats as victoria_get_stats
+from mist.api.monitoring.victoriametrics.methods \
+    import get_load as victoria_get_load
+from mist.api.monitoring.victoriametrics.methods \
+    import get_cores as victoria_get_cores
 from mist.api.monitoring.victoriametrics.methods \
     import find_metrics as victoria_find_metrics
 
@@ -255,10 +258,16 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
         for machine in machines
         if machine.monitoring.method.endswith("-tsfdb")
     ]
+    victoria_uuids = [
+        machine.id
+        for machine in machines
+        if machine.monitoring.method.endswith("-victoriametrics")
+    ]
 
     graphite_data = {}
     influx_data = {}
     fdb_data = {}
+    victoria_data = {}
 
     if graphite_uuids:
         graphite_data = graphite_get_cores(
@@ -280,11 +289,16 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
     if fdb_uuids:
         fdb_data = fdb_get_cores(owner, fdb_uuids, start, stop, step)
 
+    if victoria_uuids:
+        victoria_data = victoria_get_cores(
+            owner, victoria_uuids, start, stop, step)
+
     if graphite_data or influx_data or fdb_data:
         return dict(
             list(graphite_data.items()) +
             list(influx_data.items()) +
-            list(fdb_data.items())
+            list(fdb_data.items()) +
+            list(victoria_data.items())
         )
     else:
         raise NotFoundError("No machine has monitoring enabled")
