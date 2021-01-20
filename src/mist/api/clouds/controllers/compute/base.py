@@ -927,6 +927,8 @@ class BaseComputeController(BaseController):
             _image.min_disk_size = self._list_images__get_min_disk_size(img)
             _image.min_memory_size = self._list_images__get_min_memory_size(img)  # noqa
             _image.architecture = self._list_images__get_architecture(img)
+            _image.public = self._list_images__is_public(img)
+
             try:
                 self._list_images__postparse_image(_image, img)
             except Exception as exc:
@@ -1084,6 +1086,13 @@ class BaseComputeController(BaseController):
         if 'arm' in image.name.lower():
             return ['arm']
         return ['x86']
+
+    def _list_images__is_public(self, image):
+        """Check if the image is public.
+        Return a boolean value that indicates whether the image in question
+        is public or not.
+        """
+        return True
 
     def image_is_default(self, image_id):
         return True
