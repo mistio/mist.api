@@ -324,7 +324,9 @@ class AmazonComputeController(BaseComputeController):
         return ['x86']
 
     def _list_images__is_public(self, image):
-        return image.extra.get('is_public', True)
+        if image.extra.get('is_public', 'true').lower() == 'true':
+            return True
+        return False
 
     def _generate_plan__parse_networks(self, auth_context, network_dict):
         security_group = network_dict.get('security_group')
