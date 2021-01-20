@@ -1,7 +1,6 @@
 import logging
 import requests
 import time
-import urllib.parse
 import json
 import re
 import ast
