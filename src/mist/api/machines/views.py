@@ -4,6 +4,7 @@ import urllib
 
 from pyramid.response import Response
 from pyramid.renderers import render_to_response
+from pyramid.httpexceptions import HTTPFound
 
 import mist.api.machines.methods as methods
 
@@ -1152,32 +1153,5 @@ def machine_ssh(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    from datetime import datetime
-    import hmac
-    import hashlib
-
-    from mongoengine import Q
-    # Get key associations, prefer root or sudoer ones
-    key_associations = KeyMachineAssociation.objects(
-        Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
-        or KeyMachineAssociation.objects(machine=machine)
-    if not key_associations:
-        raise ForbiddenError()
-    key_id = key_associations[0].key.id
-    host = '%s@%s:%d' % (key_associations[0].ssh_user,
-                         machine.hostname,
-                         key_associations[0].port)
-    expiry = int(datetime.now().timestamp()) + 100
-    msg = '%s,%s,%s,%s,%s' % (key_associations[0].ssh_user,
-                              machine.hostname,
-                              key_associations[0].port, key_id, expiry)
-    mac = hmac.new(
-        config.SECRET.encode(),
-        msg=msg.encode(),
-        digestmod=hashlib.sha256).hexdigest()
-    base_ws_uri = config.CORE_URI.replace('http', 'ws')
-    proxy_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
-        base_ws_uri, key_associations[0].ssh_user,
-        machine.hostname, key_associations[0].port, key_id, expiry, mac)
-    from pyramid.httpexceptions import HTTPFound
-    return HTTPFound(location=proxy_uri)
+    ssh_uri = methods.prepare_ssh_uri(machine)
+    return HTTPFound(location=ssh_uri)
