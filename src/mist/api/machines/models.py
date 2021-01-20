@@ -6,7 +6,7 @@ import logging
 import datetime
 import mongoengine as me
 
-import mist.api.tag.models
+from mist.api.tag.models import Tag
 
 from future.utils import string_types
 
@@ -390,7 +390,7 @@ class Machine(OwnershipMixin, me.Document):
         if self.expiration:
             self.expiration.delete()
         super(Machine, self).delete()
-        mist.api.tag.models.Tag.objects(
+        Tag.objects(
             resource_id=self.id, resource_type='machine').delete()
         try:
             self.owner.mapper.remove(self)
@@ -434,7 +434,7 @@ class Machine(OwnershipMixin, me.Document):
 
         if 'tags' in only or not only:
             ret['tags'] = {
-                tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
+                tag.key: tag.value for tag in Tag.objects(
                     resource_id=self.id, resource_type='machine').only(
                         'key', 'value')}
 
@@ -496,7 +496,7 @@ class Machine(OwnershipMixin, me.Document):
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
-        tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
+        tags = {tag.key: tag.value for tag in Tag.objects(
             resource_id=self.id, resource_type='machine'
         ).only('key', 'value')}
         try:
@@ -612,3 +612,10 @@ class KeyMachineAssociation(me.Document):
 
     def as_dict(self):
         return json.loads(self.to_json())
+
+    def as_dict_v2(self):
+        return {
+            'machine': self.machine.id,
+            'user': self.ssh_user,
+            'port': self.port
+        }
