@@ -1055,10 +1055,13 @@ class BaseComputeController(BaseController):
             return 'debian'
         elif 'suse' in image.name.lower():
             return 'suse'
-        elif 'rhel' in image.name.lower():
+        elif 'rhel' in image.name.lower() or \
+             'red hat enterprise linux' in image.name.lower():
             return 'rhel'
         elif 'windows' in image.name.lower():
             return 'windows'
+        elif 'amazon linux' in image.name.lower():
+            return 'amazon_linux'
         else:
             return 'other'
 
