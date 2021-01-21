@@ -21,12 +21,12 @@ class CloudImage(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     extra = MistDictField()
     os_type = me.StringField(default='linux')
-    os_distro = me.StringField(default='other')
-    architecture = me.ListField(me.StringField(choices=('x86', 'arm'),
-                                null=False, default=lambda: ['x86']))
+    os_distro = me.StringField(default='other', null=False)
+    architecture = me.ListField(me.StringField(choices=('x86', 'arm')),
+                                null=False, default=lambda: ['x86'])
     min_disk_size = me.FloatField()  # min disk size in GBs
     min_memory_size = me.IntField()  # min ram size in MBs
-    public = me.BooleanField(default=True)
+    public = me.BooleanField(default=True, null=False)
 
     meta = {
         'collection': 'images',
