@@ -1787,7 +1787,11 @@ class GoogleComputeController(BaseComputeController):
                                  external_id__in=libcloud_size_ids)
 
     def _list_images__get_min_disk_size(self, image):
-        return int(image.extra.get('diskSizeGb'))
+        try:
+            min_disk_size = int(image.extra.get('diskSizeGb'))
+        except TypeError:
+            return None
+        return min_disk_size
 
     def _resize_machine(self, machine, node, node_size, kwargs):
         # instance must be in stopped mode
@@ -1909,7 +1913,10 @@ class GoogleComputeController(BaseComputeController):
 
     def _list_images__get_os_distro(self, image):
         # gce family field
-        distro = image.extra.get('family', '').split('-')[0]
+        try:
+            distro = image.extra.get('family', '').split('-')[0]
+        except AttributeError:
+            return 'other'
         # windows sql server
         if distro == 'sql':
             distro = 'windows'
