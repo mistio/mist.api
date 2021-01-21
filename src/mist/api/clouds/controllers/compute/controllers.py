@@ -602,13 +602,21 @@ class AlibabaComputeController(AmazonComputeController):
         return "%s (%s)" % (size.name, specs)
 
     def _list_images__get_os_distro(self, image):
-        distro = image.extra.get('platform', '').lower()
-        if 'windows' in distro:
-            distro = 'windows'
-        return distro
+        try:
+            os_distro = image.extra.get('platform').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+
+        if 'windows' in os_distro:
+            os_distro = 'windows'
+        return os_distro
 
     def _list_images__get_min_disk_size(self, image):
-        return int(image.extra.get('size'))
+        try:
+            min_disk_size = int(image.extra.get('size'))
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
 
     def _list_images__is_public(self, image):
         """ `image_owner_alias` valid values are:
@@ -784,7 +792,11 @@ class DigitalOceanComputeController(BaseComputeController):
         return kwargs
 
     def _list_images__get_os_distro(self, image):
-        return image.extra.get('distribution', '').lower()
+        try:
+            os_distro = image.extra.get('distribution').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
 
     def _list_sizes__get_available_locations(self, mist_size):
         from mist.api.clouds.models import CloudLocation
@@ -801,7 +813,11 @@ class DigitalOceanComputeController(BaseComputeController):
         ).update(add_to_set__available_images=mist_image)
 
     def _list_images__get_min_disk_size(self, image):
-        return int(image.extra.get('min_disk_size'))
+        try:
+            min_disk_size = int(image.extra.get('min_disk_size'))
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
 
     def _list_images__is_public(self, image):
         return image.extra.get('public', True)
@@ -1077,14 +1093,18 @@ class LinodeComputeController(BaseComputeController):
         return images
 
     def _list_images__get_os_distro(self, image):
-        os_distro = image.extra.get('vendor', '')
-        # in case of custom image, `vendor` field is None
-        if os_distro is not None:
-            return os_distro.lower()
-        return 'other'
+        try:
+            os_distro = image.extra.get('vendor').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
 
     def _list_images__get_min_disk_size(self, image):
-        return int(image.extra.get('size')) / 1000
+        try:
+            min_disk_size = int(image.extra.get('size')) / 1000
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
 
     def _list_images__is_public(self, image):
         return image.extra.get('is_public', True)
@@ -1156,22 +1176,25 @@ class RackSpaceComputeController(BaseComputeController):
             return 'linux'
 
     def _list_images__get_os_distro(self, image):
-        distro = image.extra.get('metadata', {}).get('os_distro', '').lower()
-        # windows and other type of images do not have an os_distro field
-        if not distro:
-            if 'windows' in image.name.lower():
-                distro = 'windows'
-            elif 'fortigate' in image.name.lower():
-                distro = 'fortios'
-            elif 'ipxe' in image.name.lower():
-                distro = 'ipxe'
-        return distro
+        try:
+            os_distro = image.extra.get('metadata', {}).get('os_distro').lower()  # noqa
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
 
     def _list_images__get_min_disk_size(self, image):
-        return int(image.extra.get('minDisk'))
+        try:
+            min_disk_size = int(image.extra.get('minDisk'))
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
 
     def _list_images__get_min_memory_size(self, image):
-        return int(image.extra.get('minRam'))
+        try:
+            min_memory_size = int(image.extra.get('minRam'))
+        except (TypeError, ValueError):
+            return None
+        return min_memory_size
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -1789,7 +1812,7 @@ class GoogleComputeController(BaseComputeController):
     def _list_images__get_min_disk_size(self, image):
         try:
             min_disk_size = int(image.extra.get('diskSizeGb'))
-        except TypeError:
+        except (TypeError, ValueError):
             return None
         return min_disk_size
 
@@ -1912,15 +1935,14 @@ class GoogleComputeController(BaseComputeController):
         return size_obj.id
 
     def _list_images__get_os_distro(self, image):
-        # gce family field
         try:
-            distro = image.extra.get('family', '').split('-')[0]
+            os_distro = image.extra.get('family').split('-')[0]
         except AttributeError:
-            return 'other'
+            return super()._list_images__get_os_distro(image)
         # windows sql server
-        if distro == 'sql':
-            distro = 'windows'
-        return distro
+        if os_distro == 'sql':
+            os_distro = 'windows'
+        return os_distro
 
 
 class HostVirtualComputeController(BaseComputeController):
@@ -1964,7 +1986,11 @@ class EquinixMetalComputeController(BaseComputeController):
         return node_dict['extra'].get('plan')
 
     def _list_images__get_os_distro(self, image):
-        return image.extra.get('distro', '').lower()
+        try:
+            os_distro = image.extra.get('distro').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
 
     def _list_sizes__get_available_locations(self, mist_size):
         from mist.api.clouds.models import CloudLocation
@@ -2022,7 +2048,11 @@ class VultrComputeController(BaseComputeController):
         return [size for size in sizes if not size.extra.get('deprecated')]
 
     def _list_images__get_os_distro(self, image):
-        return image.extra.get('family', '').lower()
+        try:
+            os_distro = image.extra.get('family').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
 
     def _list_sizes__get_available_locations(self, mist_size):
         avail_locations = [str(loc)
@@ -3351,10 +3381,18 @@ class OnAppComputeController(BaseComputeController):
         return locations
 
     def _list_images__get_min_disk_size(self, image):
-        return int(image.extra.get('min_disk_size'))
+        try:
+            min_disk_size = int(image.extra.get('min_disk_size'))
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
 
     def _list_images__get_min_memory_size(self, image):
-        return int(image.extra.get('min_memory_size'))
+        try:
+            min_memory_size = int(image.extra.get('min_memory_size'))
+        except (TypeError, ValueError):
+            return None
+        return min_memory_size
 
 
 class OtherComputeController(BaseComputeController):
