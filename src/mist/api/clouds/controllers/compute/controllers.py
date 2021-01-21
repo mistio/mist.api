@@ -1077,7 +1077,11 @@ class LinodeComputeController(BaseComputeController):
         return images
 
     def _list_images__get_os_distro(self, image):
-        return image.extra.get('vendor', '').lower()
+        os_distro = image.extra.get('vendor', '')
+        # in case of custom image, `vendor` field is None
+        if os_distro is not None:
+            return os_distro.lower()
+        return 'other'
 
     def _list_images__get_min_disk_size(self, image):
         return int(image.extra.get('size')) / 1000
