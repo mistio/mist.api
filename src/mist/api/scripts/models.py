@@ -228,6 +228,27 @@ class Script(OwnershipMixin, me.Document):
             'created_by': self.created_by.id if self.created_by else '',
         }
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'description', 'exec_type']
+        deref_map = {
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+        if 'location' in only or not only:
+            ret['tags'] = self.location.as_dict()
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
+                    resource_id=self.id, resource_type='machine').only(
+                        'key', 'value')}
+
+        return ret
+
     def __str__(self):
         return 'Script %s (%s) of %s' % (self.name, self.id, self.owner)
 
