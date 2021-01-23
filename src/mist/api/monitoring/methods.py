@@ -371,6 +371,14 @@ def check_monitoring(owner):
                 # "builtin_metrics_tsfdb": config.FDB_BUILTIN_METRICS,
             }
         )
+    elif config.DEFAULT_MONITORING_METHOD.endswith("victoriametrics"):
+        ret.update(
+            {
+                # Keep for backwards compatibility
+                "builtin_metrics": {},
+                # "builtin_metrics_tsfdb": config.FDB_BUILTIN_METRICS,
+            }
+        )
     for key in ("rules", "builtin_metrics", "custom_metrics"):
         for id in ret[key]:
             ret[key][id]["id"] = id

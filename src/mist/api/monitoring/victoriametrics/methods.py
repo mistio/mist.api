@@ -17,11 +17,9 @@ def round_base(x, precision, base):
     return round(base * round(float(x) / base), precision)
 
 
-def generate_metric(metric_dict, name):
+def generate_metric(metric_dict):
     keys_ignore = set(['db', 'host', 'machine_id', '__name__'])
-    metric = metric_dict.get('__name__')
-    if not metric:
-        metric = name
+    metric = metric_dict.get('__name__', "")
     for key, value in metric_dict.items():
         if key in keys_ignore:
             continue
@@ -104,6 +102,10 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
                       raw_machine_data.status_code, raw_machine_data.content)
             raise ServiceUnavailableError()
         raw_machine_data = raw_machine_data.json()
+        for result in raw_machine_data.get("data", {}).get("result", []):
+            if result.get("metric"):
+                if not result["metric"].get("__name__"):
+                    result["metric"]["__name__"] = name
         print(raw_machine_data)
         raw_machine_data_list.append(raw_machine_data)
 
@@ -127,7 +129,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         if not istatus.activated_at:
             for val in (point[0] for item in list(data.values())
                         for point in item['datapoints']
-                        if point[1] >= istatus.started_at):
+                        if int(point[1]) >= istatus.started_at):
                 if val is not None:
                     if not istatus.finished_at:
                         istatus.finished_at = time.time()
