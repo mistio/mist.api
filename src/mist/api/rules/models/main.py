@@ -419,6 +419,8 @@ class NoDataRule(MachineMetricRule):
             return InfluxDBNoDataPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
             return FoundationDBNoDataPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-victoriametrics'):
+            return VictoriaMetricsNoDataPlugin
         raise Exception()
 
     # FIXME All following properties are for backwards compatibility.
