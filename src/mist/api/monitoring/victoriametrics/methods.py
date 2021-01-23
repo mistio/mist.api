@@ -106,12 +106,11 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             if result.get("metric"):
                 if not result["metric"].get("__name__"):
                     result["metric"]["__name__"] = name
-        print(raw_machine_data)
         raw_machine_data_list.append(raw_machine_data)
 
     for raw_machine_data in raw_machine_data_list:
         for result in raw_machine_data.get('data', {}).get('result', {}):
-            metric = generate_metric(result.get("metric", {}), name)
+            metric = generate_metric(result.get("metric", {}))
             data[metric] = {
                 "name": metric,
                 "datapoints": [[parse_value(val),
