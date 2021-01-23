@@ -27,6 +27,8 @@ from mist.api.rules.plugins import InfluxDBBackendPlugin
 from mist.api.rules.plugins import ElasticSearchBackendPlugin
 from mist.api.rules.plugins import FoundationDBNoDataPlugin
 from mist.api.rules.plugins import FoundationDBBackendPlugin
+from mist.api.rules.plugins import VictoriaMetricsNoDataPlugin
+from mist.api.rules.plugins import VictoriaMetricsBackendPlugin
 
 
 class Rule(me.Document):
@@ -393,6 +395,8 @@ class MachineMetricRule(ResourceRule):
             return InfluxDBBackendPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
             return FoundationDBBackendPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-victoriametrics'):
+            return VictoriaMetricsBackendPlugin
         raise Exception()
 
     def clean(self):
