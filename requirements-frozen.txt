@@ -17,7 +17,7 @@ Chameleon==3.6.2
 chardet==3.0.4
 configparser==3.8.1
 coverage==4.5.4
-cryptography==2.8
+cryptography==3.2
 dateparser==0.7.4
 decorator==4.4.2
 dnspython==1.16.0
