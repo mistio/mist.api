@@ -75,5 +75,6 @@ class VictoriaMetricsBackendPlugin(base.BaseBackendPlugin):
         return '%d%s' % (self.rule.window.stop, self.rule.window.period_short)
 
 
-class VictoriaMetricsNoDataPlugin(base.NoDataMixin, VictoriaMetricsBackendPlugin):
+class VictoriaMetricsNoDataPlugin(base.NoDataMixin,
+                                  VictoriaMetricsBackendPlugin):
     pass
