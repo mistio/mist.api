@@ -927,7 +927,7 @@ class BaseComputeController(BaseController):
             _image.min_disk_size = self._list_images__get_min_disk_size(img)
             _image.min_memory_size = self._list_images__get_min_memory_size(img)  # noqa
             _image.architecture = self._list_images__get_architecture(img)
-            _image.owner = self._list_images__get_owner(img)
+            _image.origin = self._list_images__get_origin(img)
 
             try:
                 self._list_images__postparse_image(_image, img)
@@ -1094,10 +1094,13 @@ class BaseComputeController(BaseController):
             return ['arm']
         return ['x86']
 
-    def _list_images__get_owner(self, image):
-        """Check if the image is public.
-        Return a boolean value that indicates whether the image in question
-        is public or not.
+    def _list_images__get_origin(self, image):
+        """
+        Return one of the following values: 'system', 'marketplace', 'custom'.
+
+        'custom' for images made by the user
+        'marketplace' for  marketplace images
+        'system' for the standard images returned by provider
         """
         return 'system'
 

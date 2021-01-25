@@ -323,10 +323,10 @@ class AmazonComputeController(BaseComputeController):
             return ['arm']
         return ['x86']
 
-    def _list_images__get_owner(self, image):
+    def _list_images__get_origin(self, image):
         if image.extra.get('is_public', 'true').lower() == 'true':
             return 'system'
-        return 'account'
+        return 'custom'
 
     def _generate_plan__parse_networks(self, auth_context, network_dict):
         security_group = network_dict.get('security_group')
@@ -616,7 +616,7 @@ class AlibabaComputeController(AmazonComputeController):
             return None
         return min_disk_size
 
-    def _list_images__get_owner(self, image):
+    def _list_images__get_origin(self, image):
         """ `image_owner_alias` valid values are:
 
             system: public images provided by alibaba
@@ -630,7 +630,7 @@ class AlibabaComputeController(AmazonComputeController):
         elif owner == 'marketplace':
             return 'marketplace'
         else:
-            return 'account'
+            return 'custom'
 
 
 class DigitalOceanComputeController(BaseComputeController):
@@ -820,10 +820,10 @@ class DigitalOceanComputeController(BaseComputeController):
             return None
         return min_disk_size
 
-    def _list_images__get_owner(self, image):
+    def _list_images__get_origin(self, image):
         if image.extra.get('public'):
             return 'system'
-        return 'account'
+        return 'custom'
 
 
 class MaxihostComputeController(BaseComputeController):
@@ -1109,10 +1109,10 @@ class LinodeComputeController(BaseComputeController):
             return None
         return min_disk_size
 
-    def _list_images__get_owner(self, image):
+    def _list_images__get_origin(self, image):
         if image.extra.get('public'):
             return 'system'
-        return 'account'
+        return 'custom'
 
 
 class RackSpaceComputeController(BaseComputeController):
