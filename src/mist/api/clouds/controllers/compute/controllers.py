@@ -323,10 +323,10 @@ class AmazonComputeController(BaseComputeController):
             return ['arm']
         return ['x86']
 
-    def _list_images__is_public(self, image):
+    def _list_images__get_owner(self, image):
         if image.extra.get('is_public', 'true').lower() == 'true':
-            return True
-        return False
+            return 'system'
+        return 'account'
 
     def _generate_plan__parse_networks(self, auth_context, network_dict):
         security_group = network_dict.get('security_group')
@@ -616,7 +616,7 @@ class AlibabaComputeController(AmazonComputeController):
             return None
         return min_disk_size
 
-    def _list_images__is_public(self, image):
+    def _list_images__get_owner(self, image):
         """ `image_owner_alias` valid values are:
 
             system: public images provided by alibaba
@@ -625,10 +625,12 @@ class AlibabaComputeController(AmazonComputeController):
             marketplace: alibaba marketplace images
         """
         owner = image.extra.get('image_owner_alias', 'system')
-        if owner == 'system' or owner == 'marketplace':
-            return True
-        return False
-
+        if owner == 'system':
+            return 'system'
+        elif owner == 'marketplace':
+            return 'marketplace'
+        else:
+            return 'account'
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -817,8 +819,10 @@ class DigitalOceanComputeController(BaseComputeController):
             return None
         return min_disk_size
 
-    def _list_images__is_public(self, image):
-        return image.extra.get('public', True)
+    def _list_images__get_owner(self, image):
+        if image.extra.get('public'):
+            return 'system'
+        return 'account'
 
 
 class MaxihostComputeController(BaseComputeController):
@@ -1104,8 +1108,10 @@ class LinodeComputeController(BaseComputeController):
             return None
         return min_disk_size
 
-    def _list_images__is_public(self, image):
-        return image.extra.get('is_public', True)
+    def _list_images__get_owner(self, image):
+        if image.extra.get('public'):
+            return 'system'
+        return 'account'
 
 
 class RackSpaceComputeController(BaseComputeController):

@@ -26,7 +26,8 @@ class CloudImage(OwnershipMixin, me.Document):
                                 null=False, default=lambda: ['x86'])
     min_disk_size = me.FloatField()  # min disk size in GBs
     min_memory_size = me.IntField()  # min ram size in MBs
-    public = me.BooleanField(default=True, null=False)
+    owner = me.StringField(default='system', null=False,
+                           choices=('system', 'marketplace', 'account'))
 
     meta = {
         'collection': 'images',
@@ -63,7 +64,7 @@ class CloudImage(OwnershipMixin, me.Document):
             'os_distro': self.os_distro,
             'architecture': self.architecture,
             'tags': self.tags,
-            'public': self.public,
+            'owner': self.owner,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
