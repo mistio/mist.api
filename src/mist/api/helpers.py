@@ -742,6 +742,8 @@ rtype_to_classpath = {
     'volume': 'mist.api.volumes.models.Volume',
     'location': 'mist.api.clouds.models.CloudLocation',
     'image': 'mist.api.images.models.CloudImage',
+    'rule': 'mist.api.rules.models.Rule',
+    'size': 'mist.api.clouds.models.CloudSize',
 }
 
 if config.HAS_VPN:
@@ -1003,7 +1005,7 @@ def logging_view_decorator(func):
 
         # Attempt to hide passwords, API keys, certificates, etc.
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
-                    'cert_file', 'key_file'):
+                    'cert_file', 'key_file', 'token'):  # FIXME
             if params.get(key):
                 params[key] = '***CENSORED***'
 
@@ -1443,4 +1445,38 @@ def node_to_dict(node):
     if 'extra' in ret:
         ret['extra'] = json.loads(json.dumps(
             ret['extra'], default=node_to_dict))
+    return ret
+
+
+def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
+    only_fields = [f for f in only.split(',') if f]
+    deref = deref.replace(' ', '')
+    if not deref or deref == 'none':
+        deref_map = {k: 'id' for k in deref_map.keys()}
+    elif deref != 'auto':
+        deref_split = [f for f in deref.split(',') if f]
+        for f in deref_split:
+            if ':' in f:
+                k, v = f.split(':')
+                deref_map[k] = v
+            else:
+                deref_map[k] = 'name' if k != 'cloud' else 'title'
+
+    if only_fields:
+        deref_map = {
+            k: v for k, v in deref_map.items() if k in only_fields}
+
+    ret = {}
+
+    for field in standard_fields:
+        if field in only_fields or not only_fields:
+            ret[field] = getattr(obj, field)
+
+    for k, v in deref_map.items():
+        # If we have a list, derefence its contents
+        if isinstance(getattr(obj, k), list):
+            ret[k] = [getattr(item, v, '') for item in getattr(obj, k)]
+        else:
+            ref = getattr(obj, k)
+            ret[k] = getattr(ref, v, '')
     return ret

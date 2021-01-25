@@ -60,6 +60,11 @@ def _populate_clouds():
             value = globals()[key]
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
+    CLOUDS['amazon'] = CLOUDS['ec2']
+    CLOUDS['kvm'] = CLOUDS['libvirt']
+    CLOUDS['other'] = CLOUDS['bare_metal']
+    CLOUDS['google'] = CLOUDS['gce']
+    CLOUDS['ibm'] = CLOUDS['softlayer']
 
 
 class Cloud(OwnershipMixin, me.Document):
@@ -167,6 +172,14 @@ class Cloud(OwnershipMixin, me.Document):
         self._cloud_specific_fields = [field for field in type(self)._fields
                                        if field not in Cloud._fields]
 
+    @property
+    def name(self):
+        return self.title
+
+    @property
+    def provider(self):
+        return self.ctl.provider
+
     @classmethod
     def add(cls, owner, title, id='', **kwargs):
         """Add cloud
@@ -241,6 +254,42 @@ class Cloud(OwnershipMixin, me.Document):
                       if key not in self._private_fields})
         return cdict
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['id', 'name', 'provider']
+        deref_map = {
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
+            }
+
+        if 'features' in only or not only:
+            ret['features'] = {
+                'compute': self.enabled,
+                'dns': self.dns_enabled,
+                'observations': self.observation_logs_enabled,
+                'polling': self.polling_interval
+            }
+
+        if 'config' in only or not only:
+            ret['config'] = {}
+            ret['config'].update({
+                key: getattr(self, key)
+                for key in self._cloud_specific_fields
+                if key not in self._private_fields
+            })
+        return ret
+
     def __str__(self):
         return '%s cloud %s (%s) of %s' % (type(self), self.title,
                                            self.id, self.owner)
@@ -258,6 +307,12 @@ class CloudLocation(OwnershipMixin, me.Document):
     country = me.StringField()
     missing_since = me.DateTimeField()
     extra = MistDictField()
+    available_sizes = me.ListField(
+        me.ReferenceField('CloudSize')
+    )
+    available_images = me.ListField(
+        me.ReferenceField('CloudImage')
+    )
 
     meta = {
         'collection': 'locations',
@@ -306,6 +361,10 @@ class CloudSize(me.Document):
     bandwidth = me.IntField()
     missing_since = me.DateTimeField()
     extra = MistDictField()  # price info  is included here
+    architecture = me.StringField(default='x86', choices=('x86', 'arm'))
+    allowed_images = me.ListField(
+        me.ReferenceField('CloudImage')
+    )
 
     meta = {
         'collection': 'sizes',
@@ -334,6 +393,7 @@ class CloudSize(me.Document):
             'bandwidth': self.bandwidth,
             'extra': self.extra,
             'disk': self.disk,
+            'architecture': self.architecture,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
@@ -383,7 +443,7 @@ class GigG8Cloud(Cloud):
 class LinodeCloud(Cloud):
 
     apikey = me.StringField(required=True)
-
+    apiversion = me.StringField(null=True, default=None)
     _private_fields = ('apikey', )
     _controller_cls = controllers.LinodeMainController
 

@@ -3,12 +3,13 @@
 ## direct dependecies and their dependencies and so on. This ensures that
 ## builds wont start failing just because of a new release of some dependency.
 
-amqp==2.5.2
+amqp==2.6.1
 asn1crypto==1.3.0
 atomicwrites==1.3.0
 attrs==19.3.0
 bcrypt==3.1.7
 billiard==3.6.3.0
+beautifulsoup4==4.9.3
 celery==4.4.4
 kombu==4.6.10
 certifi==2019.11.28

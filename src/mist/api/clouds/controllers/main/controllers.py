@@ -133,6 +133,13 @@ class LinodeMainController(BaseMainController):
     provider = 'linode'
     ComputeController = compute_ctls.LinodeComputeController
     DnsController = dns_ctls.LinodeDNSController
+    StorageController = storage_ctls.LinodeStorageController
+
+    def _update__preparse_kwargs(self, kwargs):
+        apikey = kwargs.get('apikey')
+        if apikey is not None:
+            # Update API Version to 4
+            kwargs['apiversion'] = None
 
 
 class OnAppMainController(BaseMainController):

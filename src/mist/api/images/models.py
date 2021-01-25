@@ -21,6 +21,14 @@ class CloudImage(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     extra = MistDictField()
     os_type = me.StringField(default='linux')
+    os_distro = me.StringField(default='other', null=False)
+    architecture = me.ListField(me.StringField(choices=('x86', 'arm')),
+                                null=False, default=lambda: ['x86'])
+    min_disk_size = me.FloatField()  # min disk size in GBs
+    min_memory_size = me.IntField()  # min ram size in MBs
+    origin = me.StringField(default='system', null=False,
+                            choices=('system', 'marketplace', 'custom'))
+
     meta = {
         'collection': 'images',
         'indexes': [
@@ -53,7 +61,30 @@ class CloudImage(OwnershipMixin, me.Document):
             'starred': self.starred,
             'extra': self.extra,
             'os_type': self.os_type,
+            'os_distro': self.os_distro,
+            'architecture': self.architecture,
             'tags': self.tags,
+            'origin': self.origin,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
+
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'external_id', 'starred', 'os_type', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value for tag in Tag.objects(
+                    resource_id=self.id, resource_type='machine').only(
+                        'key', 'value')}
+
+        return ret

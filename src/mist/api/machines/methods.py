@@ -4,12 +4,16 @@ import base64
 import mongoengine as me
 import time
 import requests
-import datetime
 import json
+import hmac
+import hashlib
 
 from random import randrange
+from datetime import datetime
 
 from future.utils import string_types
+
+from mongoengine import Q
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.base import StorageVolume
@@ -28,7 +32,7 @@ from tempfile import NamedTemporaryFile
 import mist.api.tasks
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
@@ -39,6 +43,7 @@ from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import InternalServerError
+from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
@@ -2210,20 +2215,37 @@ def _create_machine_linode(conn, key_name, public_key,
     sanitized by create_machine.
 
     """
+    from libcloud.compute.drivers.linode import LinodeNodeDriverV4
+    from libcloud.utils.misc import get_secure_random_string
 
-    auth = NodeAuthSSHKey(public_key)
+    if isinstance(conn, LinodeNodeDriverV4):
+        root_pass = get_secure_random_string(size=10)
+        try:
+            node = conn.create_node(
+                location=location,
+                size=size,
+                name=machine_name,
+                image=image,
+                ex_authorized_keys=[public_key],
+                root_pass=root_pass,
+                ex_private_ip=True
+            )
+        except Exception as e:
+            raise MachineCreationError("Linode, got exception %s" % e, e)
 
-    try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            size=size,
-            location=location,
-            auth=auth,
-            ex_private=True
-        )
-    except Exception as e:
-        raise MachineCreationError("Linode, got exception %s" % e, e)
+    else:
+        auth = NodeAuthSSHKey(public_key)
+        try:
+            node = conn.create_node(
+                name=machine_name,
+                image=image,
+                size=size,
+                location=location,
+                auth=auth,
+                ex_private=True
+            )
+        except Exception as e:
+            raise MachineCreationError("Linode, got exception %s" % e, e)
     return node
 
 
@@ -2313,7 +2335,6 @@ def destroy_machine(user, cloud_id, machine_id):
 
 # SEC
 def filter_machine_ids(auth_context, cloud_id, machine_ids):
-
     if not isinstance(machine_ids, set):
         machine_ids = set(machine_ids)
 
@@ -2462,3 +2483,29 @@ def machine_safe_expire(owner_id, machine):
     machine.expiration = Schedule.add(auth_context, _name,
                                       **params)
     machine.save()
+
+
+def prepare_ssh_uri(machine):
+    # Get key associations, prefer root or sudoer ones
+    key_associations = KeyMachineAssociation.objects(
+        Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
+        or KeyMachineAssociation.objects(machine=machine)
+    if not key_associations:
+        raise ForbiddenError()
+    key_id = key_associations[0].key.id
+    host = '%s@%s:%d' % (key_associations[0].ssh_user,
+                         machine.hostname,
+                         key_associations[0].port)
+    expiry = int(datetime.now().timestamp()) + 100
+    msg = '%s,%s,%s,%s,%s' % (key_associations[0].ssh_user,
+                              machine.hostname,
+                              key_associations[0].port, key_id, expiry)
+    mac = hmac.new(
+        config.SECRET.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256).hexdigest()
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri, key_associations[0].ssh_user,
+        machine.hostname, key_associations[0].port, key_id, expiry, mac)
+    return ssh_uri
