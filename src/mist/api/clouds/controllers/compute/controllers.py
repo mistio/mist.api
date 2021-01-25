@@ -632,6 +632,7 @@ class AlibabaComputeController(AmazonComputeController):
         else:
             return 'account'
 
+
 class DigitalOceanComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
