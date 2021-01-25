@@ -564,17 +564,24 @@ def list_resources(auth_context, resource_type, search='', cloud='',
                 v = CLOUDS[v]()._cls
             # TODO: only allow terms on indexed fields
             # TODO: support OR keyword
-            query[k] = v
+            if k == 'cloud':
+                clouds, _ = list_resources(auth_context, 'cloud', search=v,
+                                           only='id')
+                query['cloud__in'] = clouds
+            else:
+                query[k] = v
 
     result = resource_model.objects(**query)
 
     if only:
-        only_list = only.split(',')
+        only_list = [field for field in only.split(',')
+                     if field in resource_model._fields]
         result = result.only(*only_list)
 
     if not result.count() and query.get('id'):
         # Try searching for name or title field
-        if getattr(resource_model, 'name', None):
+        if getattr(resource_model, 'name', None) and \
+                not isinstance(getattr(resource_model, 'name'), property):
             field_name = 'name'
         else:
             field_name = 'title'

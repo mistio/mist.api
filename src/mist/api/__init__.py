@@ -94,7 +94,9 @@ def main(global_config, **settings):
                                     'SOCIAL_AUTH_GITHUB_KEY',
                                     'SOCIAL_AUTH_GITHUB_SECRET',
                                     'SOCIAL_AUTH_INTRALOT_OAUTH2_KEY',
-                                    'SOCIAL_AUTH_INTRALOT_OAUTH2_SECRET')}
+                                    'SOCIAL_AUTH_INTRALOT_OAUTH2_SECRET',
+                                    'SOCIAL_AUTH_AZUREAD_OAUTH2_KEY',
+                                    'SOCIAL_AUTH_AZUREAD_OAUTH2_SECRET')}
     configurator.registry.settings.update(social_auth_keys)
     configurator.registry.settings.update(getattr(config,
                                                   'SOCIAL_AUTH_SETTINGS', {}))
@@ -212,6 +214,9 @@ def add_routes(configurator):
     )
     configurator.add_route('api_v1_machine_console',
                            '/api/v1/machines/{machine_uuid}/console')
+
+    configurator.add_route('api_v1_machine_ssh',
+                           '/api/v1/machines/{machine_uuid}/ssh')
 
     configurator.add_route('api_v1_machine_tags',
                            '/api/v1/clouds/{cloud}/machines/{machine}/tags')

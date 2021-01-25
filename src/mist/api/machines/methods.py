@@ -4,12 +4,16 @@ import base64
 import mongoengine as me
 import time
 import requests
-import datetime
 import json
+import hmac
+import hashlib
 
 from random import randrange
+from datetime import datetime
 
 from future.utils import string_types
+
+from mongoengine import Q
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.base import StorageVolume
@@ -28,7 +32,7 @@ from tempfile import NamedTemporaryFile
 import mist.api.tasks
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
@@ -39,6 +43,7 @@ from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import InternalServerError
+from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
@@ -2478,3 +2483,29 @@ def machine_safe_expire(owner_id, machine):
     machine.expiration = Schedule.add(auth_context, _name,
                                       **params)
     machine.save()
+
+
+def prepare_ssh_uri(machine):
+    # Get key associations, prefer root or sudoer ones
+    key_associations = KeyMachineAssociation.objects(
+        Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
+        or KeyMachineAssociation.objects(machine=machine)
+    if not key_associations:
+        raise ForbiddenError()
+    key_id = key_associations[0].key.id
+    host = '%s@%s:%d' % (key_associations[0].ssh_user,
+                         machine.hostname,
+                         key_associations[0].port)
+    expiry = int(datetime.now().timestamp()) + 100
+    msg = '%s,%s,%s,%s,%s' % (key_associations[0].ssh_user,
+                              machine.hostname,
+                              key_associations[0].port, key_id, expiry)
+    mac = hmac.new(
+        config.SECRET.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256).hexdigest()
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri, key_associations[0].ssh_user,
+        machine.hostname, key_associations[0].port, key_id, expiry, mac)
+    return ssh_uri

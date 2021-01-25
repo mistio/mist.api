@@ -4,6 +4,7 @@ import urllib
 
 from pyramid.response import Response
 from pyramid.renderers import render_to_response
+from pyramid.httpexceptions import HTTPFound
 
 import mist.api.machines.methods as methods
 
@@ -1099,3 +1100,58 @@ def machine_console(request):
             machine.machine_id
         )
     raise RedirectError(console_url)
+
+
+@view_config(route_name='api_v1_machine_ssh',
+             request_method='GET', renderer='json')
+def machine_ssh(request):
+    """
+    Tags: machines
+    ---
+    Open SSH console.
+    Generate and return an URI to open an SSH connection to target machine
+    READ permission required on cloud.
+    READ permission required on machine.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    machine:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict.get('cloud')
+
+    auth_context = auth_context_from_request(request)
+
+    if cloud_id:
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine_uuid']
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    auth_context.check_perm("machine", "read", machine.id)
+
+    ssh_uri = methods.prepare_ssh_uri(machine)
+    return HTTPFound(location=ssh_uri)
