@@ -607,8 +607,6 @@ class AlibabaComputeController(AmazonComputeController):
         except AttributeError:
             return super()._list_images__get_os_distro(image)
 
-        if 'windows' in os_distro:
-            os_distro = 'windows'
         return os_distro
 
     def _list_images__get_min_disk_size(self, image):
@@ -1939,9 +1937,10 @@ class GoogleComputeController(BaseComputeController):
             os_distro = image.extra.get('family').split('-')[0]
         except AttributeError:
             return super()._list_images__get_os_distro(image)
-        # windows sql server
-        if os_distro == 'sql':
-            os_distro = 'windows'
+
+        # in case of windows use the full distribution name
+        if os_distro == 'sql' or os_distro == 'windows':
+            os_distro = image.extra.get('family')
         return os_distro
 
 

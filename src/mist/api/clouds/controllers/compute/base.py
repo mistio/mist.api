@@ -1062,6 +1062,10 @@ class BaseComputeController(BaseController):
             return 'windows'
         elif 'amazon linux' in image.name.lower():
             return 'amazon_linux'
+        elif 'cloudlinux' in image.name.lower():
+            return 'cloud_linux'
+        elif 'freebsd' in image.name.lower():
+            return 'freebsd'
         else:
             return 'other'
 
