@@ -417,19 +417,19 @@ class BaseMainController(object):
         schedule = ListLocationsPollingSchedule.add(
             cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
-        schedule.add_interval(60, ttl=300)
+        schedule.add_interval(90, ttl=270)
         schedule.save()
 
         schedule = ListSizesPollingSchedule.add(
             cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
-        schedule.add_interval(60, ttl=300)
+        schedule.add_interval(90, ttl=270)
         schedule.save()
 
         schedule = ListImagesPollingSchedule.add(
             cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
-        schedule.add_interval(60, ttl=300)
+        schedule.add_interval(90, ttl=270)
         schedule.save()
 
     def delete(self, expire=False):
