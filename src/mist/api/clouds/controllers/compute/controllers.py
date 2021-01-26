@@ -2012,7 +2012,7 @@ class EquinixMetalComputeController(BaseComputeController):
         CloudSize.objects(
             cloud=self.cloud,
             external_id__in=mist_image.extra.get('provisionable_on', [])
-        ).update(add_to_set__allowed_images=mist_image.external_id)
+        ).update(add_to_set__allowed_images=mist_image)
 
     def _list_images__get_architecture(self, image):
         ret_list = []
