@@ -2046,6 +2046,16 @@ class EquinixMetalComputeController(BaseComputeController):
                 )
         plan['project'] = project_id
 
+    def _compute_sizes_for_location(self, location, sizes):
+        available_sizes = [size for size in sizes
+                           if size in location.available_sizes]
+        return available_sizes
+
+    def _compute_images_for_size_location(self, location, size, images):
+        allowed_images = [image for image in images
+                          if image in size.allowed_images]
+        return allowed_images
+
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
         key = kwargs.pop('auth')
