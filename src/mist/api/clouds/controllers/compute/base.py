@@ -2497,8 +2497,8 @@ class BaseComputeController(BaseController):
         default, dummy methods.
         """
         if not combination_list:
-            raise NotFoundError('No available plan exists for given'
-                                'image, size, location')
+            raise NotFoundError('No available plan exists for given '
+                                'images, sizes, locations')
         return combination_list[0]
 
     def _generate_plan__parse_key(self, auth_context, key_dict):

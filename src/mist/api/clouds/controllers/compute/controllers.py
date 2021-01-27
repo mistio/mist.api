@@ -2012,7 +2012,7 @@ class EquinixMetalComputeController(BaseComputeController):
         CloudSize.objects(
             cloud=self.cloud,
             external_id__in=mist_image.extra.get('provisionable_on', [])
-        ).update(add_to_set__allowed_images=mist_image.external_id)
+        ).update(add_to_set__allowed_images=mist_image)
 
     def _list_images__get_architecture(self, image):
         ret_list = []
@@ -2022,6 +2022,51 @@ class EquinixMetalComputeController(BaseComputeController):
         if any('x86' in size for size in sizes):
             ret_list.append('x86')
         return ret_list or ['x86']
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        project_id = extra.get('project')
+        if not project_id:
+            if self.connection.project_id:
+                project_id = self.connection.project_id
+            else:
+                try:
+                    project_id = self.connection.projects[0].id
+                except IndexError:
+                    raise BadRequestError(
+                        "You don't have any projects on Equinix Metal"
+                    )
+        else:
+            for project in self.connection.projects:
+                if project_id in (project.name, project.id):
+                    project_id = project.id
+                    break
+            else:
+                raise BadRequestError(
+                    "Project does not exist"
+                )
+        plan['project'] = project_id
+
+    def _compute_sizes_for_location(self, location, sizes):
+        available_sizes = [size for size in sizes
+                           if size in location.available_sizes]
+        return available_sizes
+
+    def _compute_images_for_size_location(self, location, size, images):
+        allowed_images = [image for image in images
+                          if image in size.allowed_images]
+        return allowed_images
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        key = kwargs.pop('auth')
+        try:
+            self.connection.create_key_pair('mistio', key.public)
+        except Exception:
+            # key exists and will be deployed
+            pass
+        kwargs['ex_project_id'] = plan['project']
+        kwargs['cloud_init'] = plan.get('cloudinit')
+        return kwargs
 
 
 class VultrComputeController(BaseComputeController):

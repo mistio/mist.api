@@ -65,6 +65,7 @@ def _populate_clouds():
     CLOUDS['other'] = CLOUDS['bare_metal']
     CLOUDS['google'] = CLOUDS['gce']
     CLOUDS['ibm'] = CLOUDS['softlayer']
+    CLOUDS['equinix'] = CLOUDS['equinixmetal']
 
 
 class Cloud(OwnershipMixin, me.Document):
