@@ -669,4 +669,14 @@ class KubeVirtCloud(Cloud):
     _controller_cls = controllers.KubeVirtMainController
 
 
+class CloudSigmaCloud(Cloud):
+
+    username = me.StringField(required=True)
+    password = me.StringField(required=True)
+    region = me.StringField(required=True)
+
+    _private_fields = ('password', )
+    _controller_cls = controllers.CloudSigmaMainController
+
+
 _populate_clouds()

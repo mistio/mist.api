@@ -3664,3 +3664,10 @@ class KubeVirtComputeController(BaseComputeController):
                                               'cluster_ip', None),
                                           load_balancer_ip=data.get(
                                               'load_balancer_ip', None))
+
+
+class CloudSigmaComputeController(BaseComputeController):
+    def _connect(self, **kwargs):
+        return get_driver(Provider.CLOUDSIGMA)(key=self.cloud.username,
+                                               secret=self.cloud.password,
+                                               region=self.cloud.region)
