@@ -3686,7 +3686,18 @@ class CloudSigmaComputeController(BaseComputeController):
         This method is expected to return a tuple of two values:
             (cost_per_hour, cost_per_month)
         """
-        return 0, 0
+        # cloudsigma returns MHz as cpu but pricing uses GHz/hour
+        cpus = machine.extra['cpu'] / 1000
+        # machine memory in GBs as pricing uses GB/hour
+        memory = machine.extra['mem'] / 1024 / 1024 / 1024
+        try:
+            pricing = machine.location.extra['pricing']
+        except KeyError:
+            return 0, 0
+        cost_per_hour = ((cpus * float(pricing['intel_cpu']['price'])) +
+                         (memory * float(pricing['intel_mem']['price'])))
+        cost_per_month = cost_per_hour * 24 * 30
+        return cost_per_hour, cost_per_month
 
     def _list_machines__get_location(self, node):
         return self.connection.region
@@ -3694,8 +3705,16 @@ class CloudSigmaComputeController(BaseComputeController):
     def _list_locations__fetch_locations(self):
         from libcloud.common.cloudsigma import API_ENDPOINTS_2_0
         attributes = API_ENDPOINTS_2_0[self.connection.region]
+        pricing = self.connection.ex_get_pricing()
+        # get only the default burst level pricing for resources in USD
+        pricing = {item.pop('resource'): item for item in pricing['objects']
+                   if item['level'] == 0 and item['currency'] == 'USD'}
+
         location = NodeLocation(id=self.connection.region,
                                 name=attributes['name'],
                                 country=attributes['country'],
-                                driver=self.connection)
+                                driver=self.connection,
+                                extra={
+                                    'pricing': pricing,
+                                })
         return [location]
