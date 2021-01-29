@@ -3682,18 +3682,38 @@ class CloudSigmaComputeController(BaseComputeController):
             machine.actions.destroy = False
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        # cloudsigma returns MHz as cpu but pricing uses GHz/hour
-        cpus = node_dict['extra']['cpu'] / 1000
-        # machine memory in GBs as pricing uses GB/hour
-        memory = node_dict['extra']['mem'] / 1024 / 1024 / 1024
+        from mist.api.volumes.models import Volume
         try:
             pricing = machine.location.extra['pricing']
         except KeyError:
             return 0, 0
-        cost_per_hour = ((cpus * float(pricing['intel_cpu']['price'])) +
-                         (memory * float(pricing['intel_mem']['price'])))
-        cost_per_month = cost_per_hour * 24 * 30
-        return cost_per_hour, cost_per_month
+
+        # cloudsigma returns MHz as cpu but pricing uses GHz/hour
+        cpus = node_dict['extra']['cpu'] / 1000
+        # machine memory in GBs as pricing uses GB/hour
+        memory = node_dict['extra']['mem'] / 1024 / 1024 / 1024
+
+        volume_uuids = [item['drive']['uuid'] for item
+                        in node_dict['extra']['drives']]
+        volumes = Volume.objects(cloud=self.cloud,
+                                 missing_since=None,
+                                 external_id__in=volume_uuids)
+        ssd_size = 0
+        hdd_size = 0
+        for volume in volumes:
+            if volume.extra['storage_type'] == 'dssd':
+                ssd_size += volume.size
+            else:
+                hdd_size += volume.size
+        # cpu and memory pricing per hour
+        cpu_price = cpus * float(pricing['intel_cpu']['price'])
+        memory_price = memory * float(pricing['intel_mem']['price'])
+        # disk pricing per month
+        ssd_price = ssd_size * float(pricing['dssd']['price'])
+        hdd_price = hdd_size * float(pricing['zadara']['price'])
+        cost_per_month = ((24 * 30 * (cpu_price + memory_price)) +
+                          ssd_price + hdd_price)
+        return 0, cost_per_month
 
     def _list_machines__get_location(self, node):
         return self.connection.region
