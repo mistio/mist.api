@@ -812,3 +812,4 @@ class KubeVirtMainController(BaseMainController):
 class CloudSigmaMainController(BaseMainController):
     provider = 'cloudsigma'
     ComputeController = compute_ctls.CloudSigmaComputeController
+    StorageController = storage_ctls.CloudSigmaStorageController

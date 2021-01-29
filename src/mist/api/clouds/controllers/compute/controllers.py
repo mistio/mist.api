@@ -3682,14 +3682,10 @@ class CloudSigmaComputeController(BaseComputeController):
             machine.actions.destroy = False
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        """
-        This method is expected to return a tuple of two values:
-            (cost_per_hour, cost_per_month)
-        """
         # cloudsigma returns MHz as cpu but pricing uses GHz/hour
-        cpus = machine.extra['cpu'] / 1000
+        cpus = node_dict['extra']['cpu'] / 1000
         # machine memory in GBs as pricing uses GB/hour
-        memory = machine.extra['mem'] / 1024 / 1024 / 1024
+        memory = node_dict['extra']['mem'] / 1024 / 1024 / 1024
         try:
             pricing = machine.location.extra['pricing']
         except KeyError:
