@@ -3671,3 +3671,31 @@ class CloudSigmaComputeController(BaseComputeController):
         return get_driver(Provider.CLOUDSIGMA)(key=self.cloud.username,
                                                secret=self.cloud.password,
                                                region=self.cloud.region)
+
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        if node_dict['extra'].get('runtime'):
+            return node_dict['extra']['runtime'].get('active_since')
+
+    def _list_machines__machine_actions(self, machine, node_dict):
+        super()._list_machines__machine_actions(machine, node_dict)
+        if node_dict['state'] is NodeState.RUNNING.value:
+            machine.actions.destroy = False
+
+    def _list_machines__cost_machine(self, machine, node_dict):
+        """
+        This method is expected to return a tuple of two values:
+            (cost_per_hour, cost_per_month)
+        """
+        return 0, 0
+
+    def _list_machines__get_location(self, node):
+        return self.connection.region
+
+    def _list_locations__fetch_locations(self):
+        from libcloud.common.cloudsigma import API_ENDPOINTS_2_0
+        attributes = API_ENDPOINTS_2_0[self.connection.region]
+        location = NodeLocation(id=self.connection.region,
+                                name=attributes['name'],
+                                country=attributes['country'],
+                                driver=self.connection)
+        return [location]
