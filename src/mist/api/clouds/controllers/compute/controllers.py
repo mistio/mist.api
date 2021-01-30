@@ -292,6 +292,13 @@ class AmazonComputeController(BaseComputeController):
     def _list_sizes__get_name(self, size):
         return '%s - %s' % (size.id, size.name)
 
+    def _list_sizes__get_architecture(self, size):
+        """Arm-based sizes use Amazon's Graviton processor
+        """
+        if 'graviton' in size.extra.get('physicalProcessor', '').lower():
+            return 'arm'
+        return 'x86'
+
     def _list_images__get_os_type(self, image):
         # os_type is needed for the pricing per VM
         if image.name:
@@ -309,6 +316,17 @@ class AmazonComputeController(BaseComputeController):
             if 'vyatta' in image.name.lower():
                 return 'vyatta'
             return 'linux'
+
+    def _list_images__get_architecture(self, image):
+        architecture = image.extra.get('architecture')
+        if architecture == 'arm64':
+            return ['arm']
+        return ['x86']
+
+    def _list_images__get_origin(self, image):
+        if image.extra.get('is_public', 'true').lower() == 'true':
+            return 'system'
+        return 'custom'
 
     def _generate_plan__parse_networks(self, auth_context, network_dict):
         security_group = network_dict.get('security_group')
@@ -570,6 +588,11 @@ class AlibabaComputeController(AmazonComputeController):
             locations.append(location)
         return locations
 
+    def _list_locations__get_available_sizes(self, location):
+        from mist.api.clouds.models import CloudSize
+        return CloudSize.objects(cloud=self.cloud,
+                                 external_id__in=location.extra['available_instance_types'])  # noqa
+
     def _list_sizes__get_cpu(self, size):
         return size.extra['cpu_core_count']
 
@@ -577,6 +600,39 @@ class AlibabaComputeController(AmazonComputeController):
         specs = str(size.extra['cpu_core_count']) + ' cpus/ ' \
             + str(size.ram / 1024) + 'Gb RAM '
         return "%s (%s)" % (size.name, specs)
+
+    def _list_images__get_os_distro(self, image):
+        try:
+            os_distro = image.extra.get('platform').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+
+        if 'windows' in os_distro:
+            os_distro = 'windows'
+        return os_distro
+
+    def _list_images__get_min_disk_size(self, image):
+        try:
+            min_disk_size = int(image.extra.get('size'))
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
+
+    def _list_images__get_origin(self, image):
+        """ `image_owner_alias` valid values are:
+
+            system: public images provided by alibaba
+            self: account's custom images
+            others: shared images from other accounts
+            marketplace: alibaba marketplace images
+        """
+        owner = image.extra.get('image_owner_alias', 'system')
+        if owner == 'system':
+            return 'system'
+        elif owner == 'marketplace':
+            return 'marketplace'
+        else:
+            return 'custom'
 
 
 class DigitalOceanComputeController(BaseComputeController):
@@ -737,6 +793,39 @@ class DigitalOceanComputeController(BaseComputeController):
         kwargs['volumes'] = volumes
 
         return kwargs
+
+    def _list_images__get_os_distro(self, image):
+        try:
+            os_distro = image.extra.get('distribution').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
+
+    def _list_sizes__get_available_locations(self, mist_size):
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(
+            cloud=self.cloud,
+            external_id__in=mist_size.extra.get('regions', [])
+        ).update(add_to_set__available_sizes=mist_size)
+
+    def _list_images__get_available_locations(self, mist_image):
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(
+            cloud=self.cloud,
+            external_id__in=mist_image.extra.get('regions', [])
+        ).update(add_to_set__available_images=mist_image)
+
+    def _list_images__get_min_disk_size(self, image):
+        try:
+            min_disk_size = int(image.extra.get('min_disk_size'))
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
+
+    def _list_images__get_origin(self, image):
+        if image.extra.get('public'):
+            return 'system'
+        return 'custom'
 
 
 class MaxihostComputeController(BaseComputeController):
@@ -1008,6 +1097,25 @@ class LinodeComputeController(BaseComputeController):
                 image.extra['created'] = image.extra['created'].isoformat()
         return images
 
+    def _list_images__get_os_distro(self, image):
+        try:
+            os_distro = image.extra.get('vendor').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
+
+    def _list_images__get_min_disk_size(self, image):
+        try:
+            min_disk_size = int(image.extra.get('size')) / 1000
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
+
+    def _list_images__get_origin(self, image):
+        if image.extra.get('public'):
+            return 'system'
+        return 'custom'
+
 
 class RackSpaceComputeController(BaseComputeController):
 
@@ -1073,6 +1181,27 @@ class RackSpaceComputeController(BaseComputeController):
             return 'windows'
         else:
             return 'linux'
+
+    def _list_images__get_os_distro(self, image):
+        try:
+            os_distro = image.extra.get('metadata', {}).get('os_distro').lower()  # noqa
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
+
+    def _list_images__get_min_disk_size(self, image):
+        try:
+            min_disk_size = int(image.extra.get('minDisk'))
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
+
+    def _list_images__get_min_memory_size(self, image):
+        try:
+            min_memory_size = int(image.extra.get('minRam'))
+        except (TypeError, ValueError):
+            return None
+        return min_memory_size
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -1326,6 +1455,15 @@ class AzureArmComputeController(BaseComputeController):
         return size.name + ' ' + str(size.extra['numberOfCores']) \
                          + ' cpus/' + str(size.ram / 1024) + 'GB RAM/ ' \
                          + str(size.disk) + 'GB SSD'
+
+    def _list_locations__get_available_sizes(self, location):
+        libcloud_size_ids = [size.id
+                          for size in self.connection.list_sizes(location=location)]  # noqa
+
+        from mist.api.clouds.models import CloudSize
+
+        return CloudSize.objects(cloud=self.cloud,
+                                 external_id__in=libcloud_size_ids)
 
 
 class GoogleComputeController(BaseComputeController):
@@ -1669,6 +1807,22 @@ class GoogleComputeController(BaseComputeController):
             extra.update({'price': size.price})
         return extra
 
+    def _list_locations__get_available_sizes(self, location):
+        libcloud_size_ids = [size.id
+                          for size in self.connection.list_sizes(location=location)]  # noqa
+
+        from mist.api.clouds.models import CloudSize
+
+        return CloudSize.objects(cloud=self.cloud,
+                                 external_id__in=libcloud_size_ids)
+
+    def _list_images__get_min_disk_size(self, image):
+        try:
+            min_disk_size = int(image.extra.get('diskSizeGb'))
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
+
     def _resize_machine(self, machine, node, node_size, kwargs):
         # instance must be in stopped mode
         if node.state != NodeState.STOPPED:
@@ -1711,7 +1865,6 @@ class GoogleComputeController(BaseComputeController):
         the network is inferred.
         '''
         if subnetwork:
-            # try:
             try:
                 [subnet], _ = list_resources(auth_context, 'subnet',
                                              search=subnetwork,
@@ -1788,6 +1941,17 @@ class GoogleComputeController(BaseComputeController):
         size_obj = super()._create_machine__get_size_object(size)
         return size_obj.id
 
+    def _list_images__get_os_distro(self, image):
+        try:
+            os_distro = image.extra.get('family').split('-')[0]
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+
+        # windows sql server
+        if os_distro == 'sql':
+            os_distro = 'windows'
+        return os_distro
+
 
 class HostVirtualComputeController(BaseComputeController):
 
@@ -1829,6 +1993,81 @@ class EquinixMetalComputeController(BaseComputeController):
     def _list_machines__get_size(self, node_dict):
         return node_dict['extra'].get('plan')
 
+    def _list_images__get_os_distro(self, image):
+        try:
+            os_distro = image.extra.get('distro').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
+
+    def _list_sizes__get_available_locations(self, mist_size):
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(
+            cloud=self.cloud,
+            external_id__in=mist_size.extra.get('regions', [])
+        ).update(add_to_set__available_sizes=mist_size)
+
+    def _list_images__get_allowed_sizes(self, mist_image):
+        from mist.api.clouds.models import CloudSize
+        CloudSize.objects(
+            cloud=self.cloud,
+            external_id__in=mist_image.extra.get('provisionable_on', [])
+        ).update(add_to_set__allowed_images=mist_image)
+
+    def _list_images__get_architecture(self, image):
+        ret_list = []
+        sizes = image.extra.get('provisionable_on', [])
+        if any('arm' in size for size in sizes):
+            ret_list.append('arm')
+        if any('x86' in size for size in sizes):
+            ret_list.append('x86')
+        return ret_list or ['x86']
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        project_id = extra.get('project')
+        if not project_id:
+            if self.connection.project_id:
+                project_id = self.connection.project_id
+            else:
+                try:
+                    project_id = self.connection.projects[0].id
+                except IndexError:
+                    raise BadRequestError(
+                        "You don't have any projects on Equinix Metal"
+                    )
+        else:
+            for project in self.connection.projects:
+                if project_id in (project.name, project.id):
+                    project_id = project.id
+                    break
+            else:
+                raise BadRequestError(
+                    "Project does not exist"
+                )
+        plan['project'] = project_id
+
+    def _compute_sizes_for_location(self, location, sizes):
+        available_sizes = [size for size in sizes
+                           if size in location.available_sizes]
+        return available_sizes
+
+    def _compute_images_for_size_location(self, location, size, images):
+        allowed_images = [image for image in images
+                          if image in size.allowed_images]
+        return allowed_images
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        key = kwargs.pop('auth')
+        try:
+            self.connection.create_key_pair('mistio', key.public)
+        except Exception:
+            # key exists and will be deployed
+            pass
+        kwargs['ex_project_id'] = plan['project']
+        kwargs['cloud_init'] = plan.get('cloudinit')
+        return kwargs
+
 
 class VultrComputeController(BaseComputeController):
 
@@ -1860,6 +2099,22 @@ class VultrComputeController(BaseComputeController):
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes()
         return [size for size in sizes if not size.extra.get('deprecated')]
+
+    def _list_images__get_os_distro(self, image):
+        try:
+            os_distro = image.extra.get('family').lower()
+        except AttributeError:
+            return super()._list_images__get_os_distro(image)
+        return os_distro
+
+    def _list_sizes__get_available_locations(self, mist_size):
+        avail_locations = [str(loc)
+                           for loc in mist_size.extra.get('available_locations', [])]  # noqa
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(
+            cloud=self.cloud,
+            external_id__in=avail_locations
+        ).update(add_to_set__available_sizes=mist_size)
 
 
 class VSphereComputeController(BaseComputeController):
@@ -3177,6 +3432,20 @@ class OnAppComputeController(BaseComputeController):
                     pass
 
         return locations
+
+    def _list_images__get_min_disk_size(self, image):
+        try:
+            min_disk_size = int(image.extra.get('min_disk_size'))
+        except (TypeError, ValueError):
+            return None
+        return min_disk_size
+
+    def _list_images__get_min_memory_size(self, image):
+        try:
+            min_memory_size = int(image.extra.get('min_memory_size'))
+        except (TypeError, ValueError):
+            return None
+        return min_memory_size
 
 
 class OtherComputeController(BaseComputeController):

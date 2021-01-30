@@ -564,7 +564,12 @@ def list_resources(auth_context, resource_type, search='', cloud='',
                 v = CLOUDS[v]()._cls
             # TODO: only allow terms on indexed fields
             # TODO: support OR keyword
-            query[k] = v
+            if k == 'cloud':
+                clouds, _ = list_resources(auth_context, 'cloud', search=v,
+                                           only='id')
+                query['cloud__in'] = clouds
+            else:
+                query[k] = v
 
     result = resource_model.objects(**query)
 

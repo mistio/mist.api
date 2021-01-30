@@ -923,6 +923,11 @@ class BaseComputeController(BaseController):
             _image.extra = copy.deepcopy(img.extra)
             _image.missing_since = None
             _image.os_type = self._list_images__get_os_type(img)
+            _image.os_distro = self._list_images__get_os_distro(img)
+            _image.min_disk_size = self._list_images__get_min_disk_size(img)
+            _image.min_memory_size = self._list_images__get_min_memory_size(img)  # noqa
+            _image.architecture = self._list_images__get_architecture(img)
+            _image.origin = self._list_images__get_origin(img)
 
             try:
                 self._list_images__postparse_image(_image, img)
@@ -938,6 +943,17 @@ class BaseComputeController(BaseController):
                 log.error("Error adding %s: %s", _image.name, exc.to_dict())
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
+            try:
+                self._list_images__get_available_locations(_image)
+            except Exception as exc:
+                log.error('Error adding image-location constraint: %s'
+                          % repr(exc))
+            try:
+                self._list_images__get_allowed_sizes(_image)
+            except Exception as exc:
+                log.error('Error adding image-size constraint: %s'
+                          % repr(exc))
+
             images.append(_image)
 
         # update missing_since for images not returned by libcloud
@@ -996,6 +1012,97 @@ class BaseComputeController(BaseController):
             return 'vyatta'
         else:
             return 'linux'
+
+    def _list_images__get_available_locations(self, mist_image):
+        """Find available locations for CloudImage.
+
+        This method along with `_list_locations__get_available_images`
+        are used to find the constraints between locations and images and
+        save them in CloudLocation's availabe_images list field.
+
+        Providers that return information about these constraints on images,
+        should override this method.
+        """
+        return
+
+    def _list_images__get_allowed_sizes(self, mist_image):
+        """Find allowed sizes for CloudImage.
+
+        This method along with `_list_sizes__get_allowed_images`
+        are used to find the constraints between sizes and images and
+        save them in CloudSize's allowed_images list field.
+
+        Providers that return information about these constraints on images,
+        should override this method.
+        """
+        return
+
+    def _list_images__get_os_distro(self, image):
+        """Get image distro from libcloud image
+
+        Subclasses MAY override this method.
+
+        Providers that return information about image distro should
+        override this method.
+        """
+        if 'ubuntu' in image.name.lower():
+            return 'ubuntu'
+        elif 'centos' in image.name.lower():
+            return 'centos'
+        elif 'fedora' in image.name.lower():
+            return 'fedora'
+        elif 'debian' in image.name.lower():
+            return 'debian'
+        elif 'suse' in image.name.lower():
+            return 'suse'
+        elif 'rhel' in image.name.lower() or \
+             'red hat enterprise linux' in image.name.lower():
+            return 'rhel'
+        elif 'windows' in image.name.lower():
+            return 'windows'
+        elif 'amazon linux' in image.name.lower():
+            return 'amazon_linux'
+        elif 'cloudlinux' in image.name.lower():
+            return 'cloud_linux'
+        elif 'freebsd' in image.name.lower():
+            return 'freebsd'
+        else:
+            return 'other'
+
+    def _list_images__get_min_disk_size(self, image):
+        """Get the minimum disk size the image can be deployed in GBs.
+
+        Subclasses MAY override this method.
+        """
+        return
+
+    def _list_images__get_min_memory_size(self, image):
+        """Get the minimum RAM size in MBs required by the image.
+
+        Subclasses MAY override this method.
+        """
+        return
+
+    def _list_images__get_architecture(self, image):
+        """Get cpu architecture  from NodeImage.
+        Return a list of strings containing'x86' and/or 'arm'
+        as EquinixMetal has images that can be deployed on both architectures.
+
+        Subclasses MAY override this method.
+        """
+        if 'arm' in image.name.lower():
+            return ['arm']
+        return ['x86']
+
+    def _list_images__get_origin(self, image):
+        """
+        Return one of the following values: 'system', 'marketplace', 'custom'.
+
+        'custom' for images made by the user
+        'marketplace' for  marketplace images
+        'system' for the standard images returned by provider
+        """
+        return 'system'
 
     def image_is_default(self, image_id):
         return True
@@ -1090,6 +1197,16 @@ class BaseComputeController(BaseController):
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
             _size.extra = self._list_sizes__get_extra(size)
+            _size.architecture = self._list_sizes__get_architecture(size)
+
+            try:
+                allowed_images = self._list_sizes__get_allowed_images(size)  # noqa
+            except Exception as exc:
+                log.error('Error adding size-image constraint: %s'
+                          % repr(exc))
+            if allowed_images:
+                _size.allowed_images = allowed_images
+
             if size.ram:
                 try:
                     _size.ram = int(float(re.sub("[^\d.]+", "",
@@ -1110,7 +1227,11 @@ class BaseComputeController(BaseController):
                 log.error("Error adding %s: %s", size.name, exc.to_dict())
                 raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
-
+            try:
+                self._list_sizes__get_available_locations(_size)
+            except Exception as exc:
+                log.error("Error adding size-location constraint: %s"
+                          % repr(exc))
         # Update missing_since for sizes not returned by libcloud
         CloudSize.objects(
             cloud=self.cloud, missing_since=None,
@@ -1144,6 +1265,41 @@ class BaseComputeController(BaseController):
         if size.price:
             extra.update({'price': size.price})
         return extra
+
+    def _list_sizes__get_available_locations(self, mist_size):
+        """Find available locations for CloudSize.
+
+        This method along with `_list_locations__get_available_sizes`
+        are used to find the constraints between locations and sizes and
+        save them in CloudLocation availabe_sizes list field.
+
+        Providers that return information about these constraints on sizes,
+        should override this method.
+        """
+        return
+
+    def _list_sizes__get_allowed_images(self, size):
+        """Find available images for the specified NodeSize.
+        Return a list of CloudImage objects
+
+        This method along with `_list_images__get_allowed_sizes`
+        are used to find the constraints between images and sizes and
+        save them in CloudSize allowed_images list field.
+
+        Providers that return information about these constraints on sizes,
+        should override this method.
+        """
+        return
+
+    def _list_sizes__get_architecture(self, size):
+        """Get cpu architecture  from NodeSize.
+        Valid return values are 'x86' or 'arm'.
+
+        Subclasses MAY override this method.
+        """
+        if 'arm' in size.name.lower():
+            return 'arm'
+        return 'x86'
 
     def list_cached_sizes(self):
         """Return list of sizes from database for a specific cloud"""
@@ -1246,6 +1402,22 @@ class BaseComputeController(BaseController):
             _location.missing_since = None
 
             try:
+                available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
+            except Exception as exc:
+                log.error('Error adding location-size constraint: %s'
+                          % repr(exc))
+            if available_sizes:
+                _location.available_sizes = available_sizes
+
+            try:
+                available_images = self._list_locations__get_available_images(loc)  # noqa
+            except Exception as exc:
+                log.error('Error adding location-image constraint: %s'
+                          % repr(exc))
+            if available_images:
+                _location.available_images = available_images
+
+            try:
                 _location.save()
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", loc.name, exc.to_dict())
@@ -1278,6 +1450,32 @@ class BaseComputeController(BaseController):
         except:
             return [NodeLocation('', name='default', country='',
                                  driver=self.connection)]
+
+    def _list_locations__get_available_sizes(self, location):
+        """Find available sizes for NodeLocation.
+        Return a list of CloudSize objects.
+
+        This method along with `_list_sizes__get_available_locations`
+        are used to find the constraints between locations and sizes and
+        save them in CloudLocation availabe_sizes list field.
+
+        Providers that return information about these constraints on locations,
+        should override this method.
+        """
+        return
+
+    def _list_locations__get_available_images(self, location):
+        """Find available images for NodeLocation.
+        Return a list of CloudImage objects
+
+        This method along with `_list_images__get_available_locations`
+        are used to find the constraints between locations and images and
+        save them in CloudLocation's availabe_images list field.
+
+        Providers that return information about these constraints on locations,
+        should override this method.
+        """
+        return
 
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""
@@ -2299,8 +2497,8 @@ class BaseComputeController(BaseController):
         default, dummy methods.
         """
         if not combination_list:
-            raise NotFoundError('No available plan exists for given'
-                                'image, size, location')
+            raise NotFoundError('No available plan exists for given '
+                                'images, sizes, locations')
         return combination_list[0]
 
     def _generate_plan__parse_key(self, auth_context, key_dict):
