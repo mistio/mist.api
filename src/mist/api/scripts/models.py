@@ -236,11 +236,13 @@ class Script(OwnershipMixin, me.Document):
         standard_fields = ['id', 'name', 'description', 'exec_type']
         deref_map = {
             'owned_by': 'email',
-            'created_by': 'email',
-            'location': 'type'
+            'created_by': 'email'
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
+
+        if 'location' in only or not only:
+            ret['location'] = self.location.as_dict()
 
         if 'tags' in only or not only:
             ret['tags'] = {
