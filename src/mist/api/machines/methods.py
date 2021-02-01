@@ -601,7 +601,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                         port_forwards=port_forwards)
     elif cloud.ctl.provider == Provider.CLOUDSIGMA.value:
         node = _create_machine_cloudsigma(conn, machine_name, image=image,
-                                          size=size, public_key=public_key)
+                                          cpu=size_cpu, ram=size_ram,
+                                          disk=size_disk_primary,
+                                          public_key=public_key)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -2310,8 +2312,8 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
     return node
 
 
-def _create_machine_cloudsigma(conn, machine_name, image, size,
-                               public_key=None):
+def _create_machine_cloudsigma(conn, machine_name, image,
+                               cpu, ram, disk, public_key=None):
 
     # check if key already exists in cloudsigma
     key_uuid = None
@@ -2319,20 +2321,20 @@ def _create_machine_cloudsigma(conn, machine_name, image, size,
         keys = conn.list_key_pairs()
         for key in keys:
             if key.public_key == public_key:
-                key_uuid = key.extra['uuid']
+                key_uuid = [key.extra['uuid']]
                 break
         else:
             key = conn.import_key_pair_from_string('mistio', public_key)
-            key_uuid = key.extra['uuid']
-
-    libcloud_sizes = conn.list_sizes()
-    for libcloud_size in libcloud_sizes:
-        if libcloud_size.name == size.name:
-            size = libcloud_size
-
+            key_uuid = [key.extra['uuid']]
+    # cloudsigma expects cpu as MHZ where 1 cpu core = 2000MHz
+    cpu = cpu * 2000
+    from libcloud.compute.drivers.cloudsigma import CloudSigmaNodeSize
+    size = CloudSigmaNodeSize(id='', name='', cpu=cpu,
+                              ram=ram, disk=disk, bandwidth=None,
+                              price=None, driver=conn)
     try:
         node = conn.create_node(machine_name, size, image,
-                                public_keys=[key_uuid])
+                                public_keys=key_uuid)
     except Exception as exc:
         raise MachineCreationError("CloudSigma, got exception %s" % exc, exc)
 

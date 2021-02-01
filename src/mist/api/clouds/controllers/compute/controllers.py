@@ -3734,3 +3734,12 @@ class CloudSigmaComputeController(BaseComputeController):
                                     'pricing': pricing,
                                 })
         return [location]
+
+    def _list_sizes__get_cpu(self, size):
+        # cloudsigma returns cpus as MHz where 1 core = 2000 MHz
+        # any value between 1000MHz and 100000MHz is accepted
+        # so we round the number to the nearest integer
+        cpus = int(round(size.cpu / 2000))
+        if cpus == 0:
+            cpus = 1
+        return cpus
