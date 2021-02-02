@@ -3688,10 +3688,11 @@ class CloudSigmaComputeController(BaseComputeController):
         except KeyError:
             return 0, 0
 
-        # cloudsigma returns MHz as cpu but pricing uses GHz/hour
-        cpus = node_dict['extra']['cpu'] / 1000
+        # cloudsigma calculates pricing using GHz/hour
+        # where 2 GHz = 1 core
+        cpus = node_dict['extra']['cpus'] * 2
         # machine memory in GBs as pricing uses GB/hour
-        memory = node_dict['extra']['mem'] / 1024 / 1024 / 1024
+        memory = node_dict['extra']['memory'] / 1024
 
         volume_uuids = [item['drive']['uuid'] for item
                         in node_dict['extra']['drives']]
