@@ -2328,8 +2328,6 @@ def _create_machine_cloudsigma(conn, machine_name, image,
         else:
             key = conn.import_key_pair_from_string('mistio', public_key)
             key_uuid = [key.extra['uuid']]
-    # cloudsigma expects cpu as MHZ where 1 cpu core = 2000MHz
-    cpu = cpu * 2000
     from libcloud.compute.drivers.cloudsigma import CloudSigmaNodeSize
     size = CloudSigmaNodeSize(id='', name='', cpu=cpu,
                               ram=ram, disk=disk, bandwidth=None,

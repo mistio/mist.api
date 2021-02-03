@@ -3740,7 +3740,40 @@ class CloudSigmaComputeController(BaseComputeController):
         # cloudsigma returns cpus as MHz where 1 core = 2000 MHz
         # any value between 1000MHz and 100000MHz is accepted
         # so we round the number to the nearest integer
-        cpus = int(round(size.cpu / 2000))
+        cpus = int(round(size.cpu))
         if cpus == 0:
             cpus = 1
         return cpus
+
+    def _list_machines__get_size(self, node):
+        return node['size'].get('id')
+
+    def _list_machines__get_custom_size(self, node_dict):
+        from mist.api.clouds.models import CloudSize
+        updated = False
+
+        try:
+            _size = CloudSize.objects.get(
+                cloud=self.cloud,
+                external_id=str(node_dict['size'].get('id')))
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=str(node_dict['size'].get('id')))
+            updated = True
+
+        if _size.ram != node_dict['size'].get('ram'):
+            _size.ram = node_dict['size'].get('ram')
+            updated = True
+        if _size.cpus != node_dict['size'].get('cpus'):
+            _size.cpus = node_dict['size'].get('cpus')
+            updated = True
+        if _size.disk != node_dict['size'].get('disk'):
+            _size.disk = node_dict['size'].get('disk')
+            updated = True
+        if _size.name != node_dict['size'].get('name'):
+            _size.name = node_dict['size'].get('name')
+            updated = True
+
+        if updated:
+            _size.save()
+        return _size
