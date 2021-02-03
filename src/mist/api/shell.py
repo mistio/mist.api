@@ -327,6 +327,7 @@ class ParamikoShell(object):
                             if key_assoc.ssh_user != ssh_user:
                                 key_assoc.ssh_user = ssh_user
                                 trigger_session_update_flag = True
+                                key_assoc.save()
                             break
                     else:
                         trigger_session_update_flag = True
