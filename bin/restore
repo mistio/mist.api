@@ -40,7 +40,7 @@ def main():
                 dump_path, influx_backup_host, db,
                 db, db)
             os.system(cmd)
-            resp = raw_input("Move data from %s_bak to %s? [y/n] " % (db, db))
+            resp = input("Move data from %s_bak to %s? [y/n] " % (db, db))
             if resp.lower() == 'y':
                 requests.post('%s?q=CREATE database %s' % (url, db))
                 query = "SELECT * INTO %s..:MEASUREMENT FROM /.*/ GROUP BY *;"
