@@ -3676,11 +3676,6 @@ class CloudSigmaComputeController(BaseComputeController):
         if node_dict['extra'].get('runtime'):
             return node_dict['extra']['runtime'].get('active_since')
 
-    def _list_machines__machine_actions(self, machine, node_dict):
-        super()._list_machines__machine_actions(machine, node_dict)
-        if node_dict['state'] is NodeState.RUNNING.value:
-            machine.actions.destroy = False
-
     def _list_machines__cost_machine(self, machine, node_dict):
         from mist.api.volumes.models import Volume
         try:
@@ -3719,6 +3714,53 @@ class CloudSigmaComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return self.connection.region
 
+    def _list_machines__get_size(self, node):
+        return node['size'].get('id')
+
+    def _list_machines__get_custom_size(self, node_dict):
+        from mist.api.clouds.models import CloudSize
+        updated = False
+        try:
+            _size = CloudSize.objects.get(
+                cloud=self.cloud,
+                external_id=str(node_dict['size'].get('id')))
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=str(node_dict['size'].get('id')))
+            updated = True
+
+        if _size.ram != node_dict['size'].get('ram'):
+            _size.ram = node_dict['size'].get('ram')
+            updated = True
+        if _size.cpus != node_dict['size'].get('cpu'):
+            _size.cpus = node_dict['size'].get('cpu')
+            updated = True
+        if _size.disk != node_dict['size'].get('disk'):
+            _size.disk = node_dict['size'].get('disk')
+            updated = True
+        if _size.name != node_dict['size'].get('name'):
+            _size.name = node_dict['size'].get('name')
+            updated = True
+
+        if updated:
+            _size.save()
+        return _size
+
+    def _destroy_machine(self, machine, node):
+        if node.state == NodeState.RUNNING.value:
+            self.connection.ex_stop_node(node)
+        ret_val = False
+        for _ in range(10):
+            try:
+                self.connection.destroy_node(node)
+            except Exception:
+                sleep(1)
+                continue
+            else:
+                ret_val = True
+                break
+        return ret_val
+
     def _list_locations__fetch_locations(self):
         from libcloud.common.cloudsigma import API_ENDPOINTS_2_0
         attributes = API_ENDPOINTS_2_0[self.connection.region]
@@ -3737,43 +3779,7 @@ class CloudSigmaComputeController(BaseComputeController):
         return [location]
 
     def _list_sizes__get_cpu(self, size):
-        # cloudsigma returns cpus as MHz where 1 core = 2000 MHz
-        # any value between 1000MHz and 100000MHz is accepted
-        # so we round the number to the nearest integer
         cpus = int(round(size.cpu))
         if cpus == 0:
             cpus = 1
         return cpus
-
-    def _list_machines__get_size(self, node):
-        return node['size'].get('id')
-
-    def _list_machines__get_custom_size(self, node_dict):
-        from mist.api.clouds.models import CloudSize
-        updated = False
-
-        try:
-            _size = CloudSize.objects.get(
-                cloud=self.cloud,
-                external_id=str(node_dict['size'].get('id')))
-        except me.DoesNotExist:
-            _size = CloudSize(cloud=self.cloud,
-                              external_id=str(node_dict['size'].get('id')))
-            updated = True
-
-        if _size.ram != node_dict['size'].get('ram'):
-            _size.ram = node_dict['size'].get('ram')
-            updated = True
-        if _size.cpus != node_dict['size'].get('cpus'):
-            _size.cpus = node_dict['size'].get('cpus')
-            updated = True
-        if _size.disk != node_dict['size'].get('disk'):
-            _size.disk = node_dict['size'].get('disk')
-            updated = True
-        if _size.name != node_dict['size'].get('name'):
-            _size.name = node_dict['size'].get('name')
-            updated = True
-
-        if updated:
-            _size.save()
-        return _size
