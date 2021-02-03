@@ -685,3 +685,7 @@ class CloudSigmaStorageController(BaseStorageController):
             assert 1 <= int(kwargs['size']) <= 100000
         except AssertionError:
             raise BadRequestError('Valid size values are 1-100000 GB')
+
+    def _detach_volume(self, libcloud_volume, libcloud_node):
+        self.cloud.ctl.compute.connection.detach_volume(libcloud_node,
+                                                        libcloud_volume)
