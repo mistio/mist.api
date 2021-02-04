@@ -33,7 +33,7 @@ import mist.api.tasks
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine, KeyMachineAssociation
-from mist.api.keys.models import Key
+from mist.api.keys.models import Key, SignedSSHKey
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
 from mist.api.users.models import Owner, Organization
@@ -49,8 +49,10 @@ from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import MistNotImplementedError
+from mist.api.exceptions import MachineUnauthorizedError
 
 from mist.api.helpers import check_host
+from mist.api.helpers import trigger_session_update
 
 from mist.api.methods import connect_provider
 from mist.api.methods import notify_admin
@@ -64,6 +66,13 @@ from mist.api.tag.methods import get_tags_for_resource
 from mist.api.tag.methods import remove_tags_from_resource
 
 from mist.api import config
+
+from mist.api.shell import ParamikoShell
+
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
+else:
+    from mist.api.dummy.methods import dnat
 
 import logging
 
@@ -2485,27 +2494,120 @@ def machine_safe_expire(owner_id, machine):
     machine.save()
 
 
-def prepare_ssh_uri(machine):
+def valid_ssh_creds(machine, key_associations):
+    if key_associations[0].ssh_user == 'root' and \
+            int(datetime.now().timestamp()) - key_associations[0].last_used <= 30 * 24 * 60 * 60:
+        return key_associations[0].key, key_associations[0].ssh_user, key_associations[0].port
+    keys = [key_association.key
+            for key_association in key_associations
+            if isinstance(key_association.key, Key)]
+    if not keys:
+        raise ForbiddenError()
+
+    users = list(set([key_association.ssh_user
+                      for key_association in key_associations
+                      if key_association.ssh_user]))
+    if not users:
+        users = ['root', 'ubuntu', 'ec2-user', 'user', 'azureuser',
+                 'core', 'centos', 'cloud-user', 'fedora']
+
+    ports = list(set([22] + [key_association.port
+                             for key_association in key_associations]))
+    for key in keys:
+        for ssh_user in users:
+            for port in ports:
+                shell = ParamikoShell(machine.hostname)
+                try:
+                    # store the original ssh port in case of NAT
+                    # by the OpenVPN server
+                    ssh_port = port
+                    host, port = dnat(machine.owner, machine.hostname, port)
+                    log.info("ssh -i %s %s@%s:%s",
+                             key.name, ssh_user, host, port)
+                    cert_file = ''
+                    if isinstance(key, SignedSSHKey):
+                        cert_file = key.certificate
+
+                    shell.connect(ssh_user, key=key, port=port)
+                except MachineUnauthorizedError:
+                    continue
+                retval, resp = shell.command('uptime')
+                new_ssh_user = None
+                if 'Please login as the user ' in resp:
+                    new_ssh_user = resp.split()[5].strip('"')
+                elif 'Please login as the' in resp:
+                    # for EC2 Amazon Linux machines, usually with ec2-user
+                    new_ssh_user = resp.split()[4].strip('"')
+                if new_ssh_user:
+                    log.info("retrying as %s", new_ssh_user)
+                    try:
+                        shell.disconnect()
+                        cert_file = ''
+                        if isinstance(key, SignedSSHKey):
+                            cert_file = key.certificate
+                        shell.connect(ssh_user, key=key,
+                                      port=port, cert_file=cert_file)
+                        ssh_user = new_ssh_user
+                    except MachineUnauthorizedError:
+                        continue
+                # we managed to connect successfully, return
+                # but first update key
+                trigger_session_update_flag = False
+                for key_assoc in KeyMachineAssociation.objects(
+                        machine=machine):
+                    if key_assoc.key == key:
+                        if key_assoc.ssh_user != ssh_user:
+                            key_assoc.ssh_user = ssh_user
+                            trigger_session_update_flag = True
+                            key_assoc.save()
+                        break
+                else:
+                    trigger_session_update_flag = True
+                    # in case of a private host do NOT update the key
+                    # associations with the port allocated by the OpenVPN
+                    # server, instead use the original ssh_port
+                    key_assoc = KeyMachineAssociation(
+                        key=key, machine=machine, ssh_user=ssh_user,
+                        port=ssh_port, sudo=shell.check_sudo())
+                    key_assoc.save()
+                machine.save()
+                if trigger_session_update_flag:
+                    trigger_session_update(machine.owner.id, ['keys'])
+                return key, ssh_user, port
+
+
+# SEC
+def prepare_ssh_uri(auth_context, machine):
     # Get key associations, prefer root or sudoer ones
     key_associations = KeyMachineAssociation.objects(
         Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
         or KeyMachineAssociation.objects(machine=machine)
     if not key_associations:
         raise ForbiddenError()
-    key_id = key_associations[0].key.id
-    host = '%s@%s:%d' % (key_associations[0].ssh_user,
-                         machine.hostname,
-                         key_associations[0].port)
+    key_associations = sorted(
+        key_associations, key=lambda a: a.last_used, reverse=True)
+    permitted_key_associations = []
+    for key_association in key_associations:
+        try:
+            auth_context.check_perm("key", "read", key_association.key.id)
+        except PolicyUnauthorizedError:
+            continue
+        permitted_key_associations.append(key_association)
+
+    if not permitted_key_associations:
+        raise ForbiddenError()
+
+    key, user, port = valid_ssh_creds(machine, permitted_key_associations)
     expiry = int(datetime.now().timestamp()) + 100
-    msg = '%s,%s,%s,%s,%s' % (key_associations[0].ssh_user,
+    msg = '%s,%s,%s,%s,%s' % (user,
                               machine.hostname,
-                              key_associations[0].port, key_id, expiry)
+                              port, key.id, expiry)
     mac = hmac.new(
         config.SECRET.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
     ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
-        base_ws_uri, key_associations[0].ssh_user,
-        machine.hostname, key_associations[0].port, key_id, expiry, mac)
+        base_ws_uri, user,
+        machine.hostname, port, key.id, expiry, mac)
     return ssh_uri

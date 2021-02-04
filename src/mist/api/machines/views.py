@@ -1153,5 +1153,5 @@ def machine_ssh(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    ssh_uri = methods.prepare_ssh_uri(machine)
+    ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
     return HTTPFound(location=ssh_uri)
