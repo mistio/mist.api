@@ -2495,12 +2495,13 @@ def machine_safe_expire(owner_id, machine):
 
 
 def valid_ssh_creds(machine, key_associations):
-    if key_associations[0].ssh_user == 'root' and \
-        int(datetime.now().timestamp()) - key_associations[0].last_used \
-            <= 30 * 24 * 60 * 60:
-        return key_associations[0].key, \
-            key_associations[0].ssh_user, \
-            key_associations[0].port
+    for key_association in key_associations:
+        if key_association.ssh_user == 'root' and \
+            int(datetime.now().timestamp()) - key_association.last_used \
+                <= 30 * 24 * 60 * 60:
+            return key_association.key, \
+                key_association.ssh_user, \
+                key_association.port
     keys = [key_association.key
             for key_association in key_associations
             if isinstance(key_association.key, Key)]
