@@ -2496,8 +2496,11 @@ def machine_safe_expire(owner_id, machine):
 
 def valid_ssh_creds(machine, key_associations):
     if key_associations[0].ssh_user == 'root' and \
-            int(datetime.now().timestamp()) - key_associations[0].last_used <= 30 * 24 * 60 * 60:
-        return key_associations[0].key, key_associations[0].ssh_user, key_associations[0].port
+        int(datetime.now().timestamp()) - key_associations[0].last_used \
+            <= 30 * 24 * 60 * 60:
+        return key_associations[0].key, \
+            key_associations[0].ssh_user, \
+            key_associations[0].port
     keys = [key_association.key
             for key_association in key_associations
             if isinstance(key_association.key, Key)]
@@ -2559,7 +2562,9 @@ def valid_ssh_creds(machine, key_associations):
                         if key_assoc.ssh_user != ssh_user:
                             key_assoc.ssh_user = ssh_user
                             trigger_session_update_flag = True
-                            key_assoc.save()
+                        key_assoc.last_used = int(
+                            datetime.now().timestamp())
+                        key_assoc.save()
                         break
                 else:
                     trigger_session_update_flag = True
@@ -2568,7 +2573,8 @@ def valid_ssh_creds(machine, key_associations):
                     # server, instead use the original ssh_port
                     key_assoc = KeyMachineAssociation(
                         key=key, machine=machine, ssh_user=ssh_user,
-                        port=ssh_port, sudo=shell.check_sudo())
+                        port=ssh_port, sudo=shell.check_sudo(), last_used=int(
+                            datetime.now().timestamp()))
                     key_assoc.save()
                 machine.save()
                 if trigger_session_update_flag:
@@ -2585,7 +2591,10 @@ def prepare_ssh_uri(auth_context, machine):
     if not key_associations:
         raise ForbiddenError()
     key_associations = sorted(
-        key_associations, key=lambda a: a.last_used, reverse=True)
+        key_associations, key=lambda k: k.last_used, reverse=True)
+    key_associations = [
+        key_association for key_association in key_associations
+        if key_association.last_used > 0]
     permitted_key_associations = []
     for key_association in key_associations:
         try:
