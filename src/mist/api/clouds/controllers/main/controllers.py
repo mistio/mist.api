@@ -807,3 +807,9 @@ class KubeVirtMainController(BaseMainController):
         if host:
             host = sanitize_host(host)
             check_host(host)
+
+
+class CloudSigmaMainController(BaseMainController):
+    provider = 'cloudsigma'
+    ComputeController = compute_ctls.CloudSigmaComputeController
+    StorageController = storage_ctls.CloudSigmaStorageController

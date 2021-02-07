@@ -3664,3 +3664,122 @@ class KubeVirtComputeController(BaseComputeController):
                                               'cluster_ip', None),
                                           load_balancer_ip=data.get(
                                               'load_balancer_ip', None))
+
+
+class CloudSigmaComputeController(BaseComputeController):
+    def _connect(self, **kwargs):
+        return get_driver(Provider.CLOUDSIGMA)(key=self.cloud.username,
+                                               secret=self.cloud.password,
+                                               region=self.cloud.region)
+
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        if node_dict['extra'].get('runtime'):
+            return node_dict['extra']['runtime'].get('active_since')
+
+    def _list_machines__cost_machine(self, machine, node_dict):
+        from mist.api.volumes.models import Volume
+        try:
+            pricing = machine.location.extra['pricing']
+        except KeyError:
+            return 0, 0
+
+        # cloudsigma calculates pricing using GHz/hour
+        # where 2 GHz = 1 core
+        cpus = node_dict['extra']['cpus'] * 2
+        # machine memory in GBs as pricing uses GB/hour
+        memory = node_dict['extra']['memory'] / 1024
+
+        volume_uuids = [item['drive']['uuid'] for item
+                        in node_dict['extra']['drives']]
+        volumes = Volume.objects(cloud=self.cloud,
+                                 missing_since=None,
+                                 external_id__in=volume_uuids)
+        ssd_size = 0
+        hdd_size = 0
+        for volume in volumes:
+            if volume.extra['storage_type'] == 'dssd':
+                ssd_size += volume.size
+            else:
+                hdd_size += volume.size
+        # cpu and memory pricing per hour
+        cpu_price = cpus * float(pricing['intel_cpu']['price'])
+        memory_price = memory * float(pricing['intel_mem']['price'])
+        # disk pricing per month
+        ssd_price = ssd_size * float(pricing['dssd']['price'])
+        hdd_price = hdd_size * float(pricing['zadara']['price'])
+        cost_per_month = ((24 * 30 * (cpu_price + memory_price)) +
+                          ssd_price + hdd_price)
+        return 0, cost_per_month
+
+    def _list_machines__get_location(self, node):
+        return self.connection.region
+
+    def _list_machines__get_size(self, node):
+        return node['size'].get('id')
+
+    def _list_machines__get_custom_size(self, node_dict):
+        from mist.api.clouds.models import CloudSize
+        updated = False
+        try:
+            _size = CloudSize.objects.get(
+                cloud=self.cloud,
+                external_id=str(node_dict['size'].get('id')))
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=str(node_dict['size'].get('id')))
+            updated = True
+
+        if _size.ram != node_dict['size'].get('ram'):
+            _size.ram = node_dict['size'].get('ram')
+            updated = True
+        if _size.cpus != node_dict['size'].get('cpu'):
+            _size.cpus = node_dict['size'].get('cpu')
+            updated = True
+        if _size.disk != node_dict['size'].get('disk'):
+            _size.disk = node_dict['size'].get('disk')
+            updated = True
+        if _size.name != node_dict['size'].get('name'):
+            _size.name = node_dict['size'].get('name')
+            updated = True
+
+        if updated:
+            _size.save()
+        return _size
+
+    def _destroy_machine(self, machine, node):
+        if node.state == NodeState.RUNNING.value:
+            self.connection.ex_stop_node(node)
+        ret_val = False
+        for _ in range(10):
+            try:
+                self.connection.destroy_node(node)
+            except Exception:
+                sleep(1)
+                continue
+            else:
+                ret_val = True
+                break
+        return ret_val
+
+    def _list_locations__fetch_locations(self):
+        from libcloud.common.cloudsigma import API_ENDPOINTS_2_0
+        attributes = API_ENDPOINTS_2_0[self.connection.region]
+        pricing = self.connection.ex_get_pricing()
+        # get only the default burst level pricing for resources in USD
+        pricing = {item.pop('resource'): item for item in pricing['objects']
+                   if item['level'] == 0 and item['currency'] == 'USD'}
+
+        location = NodeLocation(id=self.connection.region,
+                                name=attributes['name'],
+                                country=attributes['country'],
+                                driver=self.connection,
+                                extra={
+                                    'pricing': pricing,
+                                })
+        return [location]
+
+    def _list_sizes__get_cpu(self, size):
+        cpus = int(round(size.cpu))
+        if cpus == 0:
+            cpus = 1
+        return cpus

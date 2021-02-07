@@ -599,6 +599,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                         memory=size_ram, cpu=size_cpu,
                                         network=network,
                                         port_forwards=port_forwards)
+    elif cloud.ctl.provider == Provider.CLOUDSIGMA.value:
+        node = _create_machine_cloudsigma(conn, machine_name, image=image,
+                                          cpu=size_cpu, ram=size_ram,
+                                          disk=size_disk_primary,
+                                          public_key=public_key,
+                                          cloud_init=cloud_init)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -2304,6 +2310,41 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
                                service_type=data['service_type'],
                                cluster_ip=data['cluster_ip'],
                                load_balancer_ip=data['load_balancer_ip'])
+    return node
+
+
+def _create_machine_cloudsigma(conn, machine_name, image,
+                               cpu, ram, disk, public_key=None,
+                               cloud_init=None):
+
+    # check if key already exists in cloudsigma
+    key_uuid = None
+    if public_key:
+        keys = conn.list_key_pairs()
+        for key in keys:
+            if key.public_key == public_key:
+                key_uuid = [key.extra['uuid']]
+                break
+        else:
+            key = conn.import_key_pair_from_string('mistio', public_key)
+            key_uuid = [key.extra['uuid']]
+    from libcloud.compute.drivers.cloudsigma import CloudSigmaNodeSize
+    size = CloudSigmaNodeSize(id='', name='', cpu=cpu,
+                              ram=ram, disk=disk, bandwidth=None,
+                              price=None, driver=conn)
+    ex_metadata = None
+    if cloud_init:
+        ex_metadata = {
+            'base64_fields': 'cloudinit-user-data',
+            'cloudinit-user-data': base64.b64encode(cloud_init.encode('utf-8')).decode('utf-8')  # noqa
+        }
+    try:
+        node = conn.create_node(machine_name, size, image,
+                                public_keys=key_uuid, ex_metadata=ex_metadata)
+    except Exception as exc:
+        raise MachineCreationError("CloudSigma, got exception %s" % exc, exc)
+
+    node.extra['username'] = 'cloudsigma'
     return node
 
 
