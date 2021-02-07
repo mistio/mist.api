@@ -49,13 +49,17 @@ class CloudImage(OwnershipMixin, me.Document):
                                        resource_type='image')}
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        # this is for mongo medthod objects.only('id') to work..
+        if self.cloud:
+            name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        else:
+            name = f"{self.name}, None, {self.external_id}"
         return name
 
     def as_dict(self):
         return {
             'id': self.id,
-            'cloud': self.cloud.id,
+            'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
             'starred': self.starred,
