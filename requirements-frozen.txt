@@ -35,6 +35,7 @@ ipdb==0.13.2
 ipython==7.13.0
 ipython-genutils==0.2.0
 iso8601==0.1.12
+jedi==0.17.2
 Jinja2==2.11.1
 jsonpatch==1.25
 jsonpickle==1.3
