@@ -4,14 +4,14 @@ import mongoengine as me
 class MistDictField(me.DictField):
     def validate(self, value):
         assert isinstance(value, dict), (type(value), value)
-        escape_dots_and_dollars_from_dict(value)
+        value = escape_dots_and_dollars_from_dict(value)
         super(MistDictField, self).validate(value)
 
 
 class MistListField(me.ListField):
     def validate(self, value):
         assert isinstance(value, list), (type(value), value)
-        escape_dots_and_dollars_from_dict(value)
+        value = escape_dots_and_dollars_from_dict(value)
         super(MistListField, self).validate(value)
 
 
