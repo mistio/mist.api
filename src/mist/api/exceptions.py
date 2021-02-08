@@ -245,6 +245,8 @@ class RecordExistsError(ConflictError):
 class VolumeExistsError(ConflictError):
     msg = "Volume already exists"
 
+class ObjectStorageExistsError(ConflictError):
+    msg = "Object storage already exists"
 
 #  Rate Limit Error (translated as 429 in views)
 class RateLimitError(MistError):
@@ -307,6 +309,10 @@ class VolumeListingError(InternalServerError):
     msg = "Error while getting a volume listing"
 
 
+class ObjectstorageListingError(InternalServerError):
+    msg = "Error while getting a Object storage listing"
+
+
 class VolumeCreationError(InternalServerError):
     msg = "Volume creation failed"
 
@@ -317,10 +323,6 @@ class VolumeDeletionError(InternalServerError):
 
 class VolumeAttachmentError(InternalServerError):
     msg = "Volume attachment failed"
-
-
-class ObjectstorageListingError(InternalServerError):
-    msg = "Error while getting a Object storage listing"
 
 
 # LDAP related exceptions

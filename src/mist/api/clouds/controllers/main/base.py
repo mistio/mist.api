@@ -128,7 +128,7 @@ class BaseMainController(object):
             assert issubclass(self.StorageController, BaseStorageController)
             self.storage = self.StorageController(self)
 
-        # Initialize Object storage controller.
+        # Initialize Object store controller.
         if self.ObjectStorageController is not None:
             assert issubclass(self.ObjectStorageController, BaseObjectStorageController)
             self.objectstorage = self.ObjectStorageController(self)
@@ -399,7 +399,6 @@ class BaseMainController(object):
         from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
         from mist.api.poller.models import ListObjectStoragePollingSchedule
-
 
         # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(

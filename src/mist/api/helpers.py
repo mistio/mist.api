@@ -730,6 +730,8 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
 rtype_to_classpath = {
     'cloud': 'mist.api.clouds.models.Cloud',
     'clouds': 'mist.api.clouds.models.Cloud',
+    'objectstorage': 'mist.api.objectstorages.models.ObjectStorage',
+    'objectstorages': 'mist.api.objectstorages.models.ObjectStorage',
     'machine': 'mist.api.machines.models.Machine',
     'machines': 'mist.api.machines.models.Machine',
     'zone': 'mist.api.dns.models.Zone',
@@ -973,7 +975,7 @@ def logging_view_decorator(func):
 
         # log matchdict and params
         params = dict(params_from_request(request))
-        for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
+        for key in ['email', 'cloud', 'machine', 'objectstorage', 'rule', 'script_id',
                     'tunnel_id', 'story_id', 'stack_id', 'template_id',
                     'zone', 'record', 'network', 'subnet', 'volume', 'key']:
             if key != 'email' and key in request.matchdict:
@@ -1052,7 +1054,7 @@ def logging_view_decorator(func):
                 log_dict['machine_id'] = bdict['machine']
             # Match resource type based on the action performed.
             for rtype in ['cloud', 'machine', 'key', 'script', 'tunnel',
-                          'stack', 'template', 'schedule', 'volume']:
+                          'stack', 'template', 'schedule', 'volume', 'objectstorage']:
                 if rtype in log_dict['action']:
                     if 'id' in bdict and '%s_id' % rtype not in log_dict:
                         log_dict['%s_id' % rtype] = bdict['id']
@@ -1480,7 +1482,6 @@ def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
             ref = getattr(obj, k)
             ret[k] = getattr(ref, v, '')
     return ret
-
 
 def objectstorage_to_dict(node):
     if isinstance(node, str):

@@ -4,8 +4,6 @@ import uuid
 import logging
 import mongoengine as me
 
-
-from mist.api.objectstorage import controllers
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
 
@@ -14,12 +12,16 @@ log = logging.getLogger(__name__)
 
 
 class ObjectStorageItem(me.EmbeddedDocument):
-    name = me.StringField()
+    name = me.StringField(required=True)
     size = me.IntField()
-    hash = me.StringField()
+    hash = me.StringField(required=True)
+    type = me.StringField()
     container = MistDictField()
     extra = MistDictField()
     meta_data = MistDictField()
+
+    def clean(self):
+        self.type = 'folder' if self.name.endswith('/') else 'file'
 
 
 class ObjectStorage(OwnershipMixin, me.Document):
@@ -40,10 +42,8 @@ class ObjectStorage(OwnershipMixin, me.Document):
     extra = MistDictField()
     missing_since = me.DateTimeField()
 
-
     def __init__(self, *args, **kwargs):
         super(ObjectStorage, self).__init__(*args, **kwargs)
-        self.ctl = controllers.ObjectStorageController(self)
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
@@ -59,8 +59,8 @@ class ObjectStorage(OwnershipMixin, me.Document):
             'extra': self.extra
         }
 
-    def get_content(self):
+    def get_content(self, path):
         return {
             **self.as_dict(),
-            'content': self.content
+            'content': {c.name: c.to_mongo() for c in self.content}
         }

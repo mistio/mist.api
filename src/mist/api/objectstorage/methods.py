@@ -28,7 +28,7 @@ def list_storage(owner, cloud_id, cached=True):
 
 def list_storage_content(owner, storage_id, path='', cached=True):
     if cached:
-        storage = ObjectStorage.objects(
+        storage = ObjectStorage.objects.get(
             owner=owner,
             id=storage_id,
             missing_since=None
@@ -42,7 +42,7 @@ def list_storage_content(owner, storage_id, path='', cached=True):
         # Update RBAC Mappings given the list of new secrets.
         owner.mapper.update(storage, asynchronous=False)
 
-    return [_store.get_content() for _store in storage]
+    return storage.get_content(path)
 
 
 def filter_list_object_storage(auth_context, cloud_id, cached=True, perm='read'):
@@ -55,11 +55,5 @@ def filter_list_object_storage(auth_context, cloud_id, cached=True, perm='read')
     return storage
 
 
-def filter_list_storage_content(auth_context, storage_id, path='', cached=True, perm='read'):
-    content = list_storage_content(auth_context.owner, storage_id, path, cached)
-    if not auth_context.is_owner():
-        allowed_resources = auth_context.get_allowed_resources(perm)
-        for i in range(len(content) - 1, -1, -1):
-            if content[i]['id'] not in allowed_resources['objectstorage']:
-                content.pop(i)
-    return content
+def filter_list_storage_content(auth_context, storage_id, path='', cached=True):
+    return list_storage_content(auth_context.owner, storage_id, path, cached)

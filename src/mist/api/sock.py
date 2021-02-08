@@ -474,6 +474,15 @@ class MainConnection(MistConnection):
                         {'cloud_id': cloud_id, 'volumes': volumes}
                     ),
                 )
+            if cloud.ctl.ObjectStorageController:
+                self.internal_request(
+                    'api/v1/clouds/%s/objectstorage' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda objectstorage, cloud_id=cloud.id: self.send(
+                        'list_objectstorage',
+                        {'cloud_id': cloud_id, 'objectstorage': objectstorage}
+                    ),
+                )
 
     def update_notifications(self):
         notifications = [ntf.as_dict() for ntf in InAppNotification.objects(
@@ -576,7 +585,7 @@ class MainConnection(MistConnection):
                 self.send('patch_notifications', result)
 
         elif routing_key in ['patch_machines', 'patch_networks',
-                             'patch_volumes', 'patch_zones']:
+                             'patch_volumes', 'patch_zones', 'patch_objectstorage']:
             cloud_id = result['cloud_id']
             patch = result['patch']
             rtype = routing_key.replace('patch_', '')

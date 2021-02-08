@@ -73,8 +73,7 @@ class AmazonMainController(BaseMainController):
     StorageController = storage_ctls.AmazonStorageController
     ObjectStorageController = objectstorage_ctls.AmazonS3ObjectStorageController
 
-
-def _add__preparse_kwargs(self, kwargs):
+    def _add__preparse_kwargs(self, kwargs):
         # Autofill apisecret from other Amazon Cloud.
         apikey = kwargs.get('apikey')
         apisecret = kwargs.get('apisecret')
@@ -277,8 +276,7 @@ class OpenStackMainController(BaseMainController):
     StorageController = storage_ctls.OpenstackStorageController
     ObjectStorageController = objectstorage_ctls.OpenstackObjectStorageController
 
-
-def _update__preparse_kwargs(self, kwargs):
+    def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
         rename_kwargs(kwargs, 'tenant_name', 'tenant')
         rename_kwargs(kwargs, 'domain_name', 'domain')
