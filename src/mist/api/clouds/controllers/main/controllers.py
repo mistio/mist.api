@@ -52,6 +52,7 @@ from mist.api.clouds.controllers.compute import controllers as compute_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
 from mist.api.clouds.controllers.storage import controllers as storage_ctls
+from mist.api.clouds.controllers.objectstorage import controllers as objectstorage_ctls
 
 from mist.api import config
 
@@ -70,8 +71,10 @@ class AmazonMainController(BaseMainController):
     NetworkController = network_ctls.AmazonNetworkController
     DnsController = dns_ctls.AmazonDNSController
     StorageController = storage_ctls.AmazonStorageController
+    ObjectStorageController = objectstorage_ctls.AmazonS3ObjectStorageController
 
-    def _add__preparse_kwargs(self, kwargs):
+
+def _add__preparse_kwargs(self, kwargs):
         # Autofill apisecret from other Amazon Cloud.
         apikey = kwargs.get('apikey')
         apisecret = kwargs.get('apisecret')
@@ -272,8 +275,10 @@ class OpenStackMainController(BaseMainController):
     ComputeController = compute_ctls.OpenStackComputeController
     NetworkController = network_ctls.OpenStackNetworkController
     StorageController = storage_ctls.OpenstackStorageController
+    ObjectStorageController = objectstorage_ctls.OpenstackObjectStorageController
 
-    def _update__preparse_kwargs(self, kwargs):
+
+def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
         rename_kwargs(kwargs, 'tenant_name', 'tenant')
         rename_kwargs(kwargs, 'domain_name', 'domain')

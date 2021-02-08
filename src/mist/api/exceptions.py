@@ -319,6 +319,10 @@ class VolumeAttachmentError(InternalServerError):
     msg = "Volume attachment failed"
 
 
+class ObjectstorageListingError(InternalServerError):
+    msg = "Error while getting a Object storage listing"
+
+
 # LDAP related exceptions
 class LDAPServerUnreachableError(ServiceUnavailableError):
     msg = "LDAP Server Unreachable"

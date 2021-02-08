@@ -1480,3 +1480,23 @@ def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
             ref = getattr(obj, k)
             ret[k] = getattr(ref, v, '')
     return ret
+
+
+def objectstorage_to_dict(node):
+    if isinstance(node, str):
+        return node
+    elif isinstance(node, datetime.datetime):
+        return node.isoformat()
+    elif not getattr(node, "__dict__"):
+        return str(node)
+    ret = node.__dict__
+    if ret.get('driver'):
+        ret.pop('driver')
+    if ret.get('container'):
+        ret['container'] = objectstorage_to_dict(ret['container'])
+    if ret.get('state'):
+        ret['state'] = str(ret['state'])
+    if 'extra' in ret:
+        ret['extra'] = json.loads(json.dumps(
+            ret['extra'], default=objectstorage_to_dict))
+    return ret

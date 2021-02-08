@@ -33,6 +33,7 @@ from mist.api.clouds.controllers.network.base import BaseNetworkController
 from mist.api.clouds.controllers.compute.base import BaseComputeController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.clouds.controllers.storage.base import BaseStorageController
+from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController
 
 
 log = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ class BaseMainController(object):
     NetworkController = None
     DnsController = None
     StorageController = None
+    ObjectStorageController = None
 
     def __init__(self, cloud):
         """Initialize main cloud controller given a cloud
@@ -125,6 +127,11 @@ class BaseMainController(object):
         if self.StorageController is not None:
             assert issubclass(self.StorageController, BaseStorageController)
             self.storage = self.StorageController(self)
+
+        # Initialize Object storage controller.
+        if self.ObjectStorageController is not None:
+            assert issubclass(self.ObjectStorageController, BaseObjectStorageController)
+            self.objectstorage = self.ObjectStorageController(self)
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
@@ -391,6 +398,8 @@ class BaseMainController(object):
         from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
+        from mist.api.poller.models import ListObjectStoragePollingSchedule
+
 
         # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(
@@ -430,6 +439,11 @@ class BaseMainController(object):
             cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.add_interval(90, ttl=270)
+        schedule.save()
+
+        schedule = ListObjectStoragePollingSchedule.add(
+            cloud=self.cloud, run_immediately=True)
+        schedule.set_default_interval(60 * 60 * 24)
         schedule.save()
 
     def delete(self, expire=False):
