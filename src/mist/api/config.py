@@ -1246,7 +1246,7 @@ LINODE_DATACENTERS = {
 }
 
 PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
-                               'kubevirt']
+                               'kubevirt', 'cloudsigma']
 
 PROVIDERS = {
     'amazon': {
