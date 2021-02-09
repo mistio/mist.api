@@ -2636,7 +2636,7 @@ def prepare_ssh_uri(auth_context, machine):
         key_associations, key=lambda k: k.last_used, reverse=True)
     key_associations = [
         key_association for key_association in key_associations
-        if key_association.last_used > 0]
+        if key_association.last_used >= 0]
     permitted_key_associations = []
     for key_association in key_associations:
         try:
