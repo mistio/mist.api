@@ -45,7 +45,10 @@ def list_storage_content(owner, storage_id, path='', cached=True):
     return storage.get_content(path)
 
 
-def filter_list_object_storage(auth_context, cloud_id, cached=True, perm='read'):
+def filter_list_object_storage(auth_context,
+                               cloud_id,
+                               cached=True,
+                               perm='read'):
     storage = list_storage(auth_context.owner, cloud_id, cached)
     if not auth_context.is_owner():
         allowed_resources = auth_context.get_allowed_resources(perm)
@@ -55,5 +58,8 @@ def filter_list_object_storage(auth_context, cloud_id, cached=True, perm='read')
     return storage
 
 
-def filter_list_storage_content(auth_context, storage_id, path='', cached=True):
+def filter_list_storage_content(auth_context,
+                                storage_id,
+                                path='',
+                                cached=True):
     return list_storage_content(auth_context.owner, storage_id, path, cached)

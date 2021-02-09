@@ -10,7 +10,7 @@ from libcloud.storage.providers import get_driver
 from libcloud.storage.types import Provider
 
 
-from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController
+from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
 
 from mist.api import config
 

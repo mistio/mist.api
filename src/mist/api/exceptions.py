@@ -245,8 +245,10 @@ class RecordExistsError(ConflictError):
 class VolumeExistsError(ConflictError):
     msg = "Volume already exists"
 
+
 class ObjectStorageExistsError(ConflictError):
     msg = "Object storage already exists"
+
 
 #  Rate Limit Error (translated as 429 in views)
 class RateLimitError(MistError):

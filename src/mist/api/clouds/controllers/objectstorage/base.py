@@ -64,15 +64,17 @@ class BaseObjectStorageController(BaseController):
     def _list_storage(self):
         """Lists all object storage present on the Cloud.
 
-        Fetches all ObjectStorage via libcloud, applies cloud-specific processing,
-        and syncs the state of the database with the state of the Cloud.
+        Fetches all ObjectStorage via libcloud, applies
+        cloud-specific processing, and syncs the state of the database
+        with the state of the Cloud.
 
         Subclasses SHOULD NOT override or extend this method.
 
 
-        There are instead a number of methods that are called from this method,
-        to allow subclasses to modify the data according to the specific of
-        their cloud type. These methods currently are:
+        There are instead a number of methods that are called
+        from this method, to allow subclasses to modify
+        the data according to the specific of their cloud type.
+        These methods currently are:
 
             `self._list_storage__fetch_storage_content`
             `self._list_storage__append_content`
@@ -91,14 +93,15 @@ class BaseObjectStorageController(BaseController):
         except ConnectionError as e:
             raise mist.api.exceptions.CloudUnavailableError(e)
         except Exception as exc:
-            log.exception("Error while running list_storages on %s", self.cloud)
+            log.exception("Error while running list_storages on %s",
+                          self.cloud)
             raise mist.api.exceptions.CloudUnavailableError(exc)
 
         storage, new_storage = [], []
         for libcloud_store in libcloud_storage:
             try:
                 store = ObjectStorage.objects.get(cloud=self.cloud,
-                                                  name=libcloud_store.name)
+                                        name=libcloud_store.name)
             except ObjectStorage.DoesNotExist:
                 store = ObjectStorage(cloud=self.cloud,
                                         name=libcloud_store.name)
@@ -109,8 +112,10 @@ class BaseObjectStorageController(BaseController):
             # Attach storage content
             try:
                 """
-                self._list_storage__fetch_storage returns all storage regardless their location
-                whereas self._list_storage__fetch_storage_content throws an error when the location of the storage
+                self._list_storage__fetch_storage returns all storage
+                regardless their location whereas 
+                self._list_storage__fetch_storage_content throws
+                an error when the location of the storage
                 does not match the connection location. So skip this storage
                 and do not show it in the list of the storages
                 """
@@ -183,7 +188,6 @@ class BaseObjectStorageController(BaseController):
             return [c.__dict__ for c in content]
 
     def _list_storage__postparse_store(self, store, libcloud_store):
-        #TODO
         """Parses a libcloud storage object on behalf of `self._list_storage`.
 
         Any subclass that needs to perform custom parsing of a storage object

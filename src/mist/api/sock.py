@@ -478,10 +478,11 @@ class MainConnection(MistConnection):
                 self.internal_request(
                     'api/v1/clouds/%s/objectstorage' % cloud.id,
                     params={'cached': True},
-                    callback=lambda objectstorage, cloud_id=cloud.id: self.send(
-                        'list_objectstorage',
-                        {'cloud_id': cloud_id, 'objectstorage': objectstorage}
-                    ),
+                    callback=lambda objectstorage, cloud_id=cloud.id:
+                        self.send(
+                            'list_objectstorage',
+                            {'cloud_id': cloud_id, 'objectstorage': objectstorage}
+                        ),
                 )
 
     def update_notifications(self):
