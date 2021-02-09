@@ -707,26 +707,6 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
 
-    def _compute_sizes_for_location(self, location, sizes):
-        """DigitalOcean size object has a `regions` key in `extra`
-        with all available locations for given size
-        """
-        size_list = []
-        for size in sizes:
-            if location.external_id in size.extra['regions']:
-                size_list.append(size)
-        return size_list
-
-    def _compute_images_for_size_location(self, location, size, images):
-        """DigitalOcean image object has a `regions` key in `extra`
-        with all available locations for given image
-        """
-        image_list = []
-        for image in images:
-            if location.external_id in image.extra['regions']:
-                image_list.append(image)
-        return image_list
-
     def _generate_plan__parse_custom_volume(self, volume_dict):
         size = volume_dict.get('size')
         name = volume_dict.get('name')
@@ -1887,21 +1867,6 @@ class GoogleComputeController(BaseComputeController):
                 size = 10
             plan['volumes'] = [{'size': size}]
 
-    def _compute_sizes_for_location(self, location, sizes):
-        """Compute allowed sizes, given location
-
-        Subclasses that require special handling should override these, by
-        default, dummy methods.
-        """
-
-        libcloud_sizes = {libcloud_size.id for libcloud_size in
-                          self.connection.list_sizes(location=location.name)}
-
-        valid_sizes = [size for size in sizes if size.external_id in
-                       libcloud_sizes]
-
-        return valid_sizes
-
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
         key = kwargs.pop('auth')
@@ -2045,16 +2010,6 @@ class EquinixMetalComputeController(BaseComputeController):
                     "Project does not exist"
                 )
         plan['project'] = project_id
-
-    def _compute_sizes_for_location(self, location, sizes):
-        available_sizes = [size for size in sizes
-                           if size in location.available_sizes]
-        return available_sizes
-
-    def _compute_images_for_size_location(self, location, size, images):
-        allowed_images = [image for image in images
-                          if image in size.allowed_images]
-        return allowed_images
 
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
