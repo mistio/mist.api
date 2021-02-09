@@ -33,7 +33,7 @@ from mist.api.clouds.controllers.network.base import BaseNetworkController
 from mist.api.clouds.controllers.compute.base import BaseComputeController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.clouds.controllers.storage.base import BaseStorageController
-from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController
+from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
 
 
 log = logging.getLogger(__name__)
@@ -130,7 +130,8 @@ class BaseMainController(object):
 
         # Initialize Object store controller.
         if self.ObjectStorageController is not None:
-            assert issubclass(self.ObjectStorageController, BaseObjectStorageController)
+            assert issubclass(self.ObjectStorageController,
+                              BaseObjectStorageController)
             self.objectstorage = self.ObjectStorageController(self)
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):

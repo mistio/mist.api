@@ -52,7 +52,7 @@ from mist.api.clouds.controllers.compute import controllers as compute_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
 from mist.api.clouds.controllers.storage import controllers as storage_ctls
-from mist.api.clouds.controllers.objectstorage import controllers as objectstorage_ctls # noqa: E501
+from mist.api.clouds.controllers.objectstorage import controllers as objectstorage_ctls  # noqa: E501
 
 from mist.api import config
 
@@ -71,7 +71,7 @@ class AmazonMainController(BaseMainController):
     NetworkController = network_ctls.AmazonNetworkController
     DnsController = dns_ctls.AmazonDNSController
     StorageController = storage_ctls.AmazonStorageController
-    ObjectStorageController = objectstorage_ctls.AmazonS3ObjectStorageController    # noqa: E501
+    ObjectStorageController = objectstorage_ctls.AmazonS3ObjectStorageController  # noqa: E501
 
     def _add__preparse_kwargs(self, kwargs):
         # Autofill apisecret from other Amazon Cloud.

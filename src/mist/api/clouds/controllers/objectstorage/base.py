@@ -100,11 +100,13 @@ class BaseObjectStorageController(BaseController):
         storage, new_storage = [], []
         for libcloud_store in libcloud_storage:
             try:
-                store = ObjectStorage.objects.get(cloud=self.cloud,
-                                        name=libcloud_store.name)
+                store = ObjectStorage.objects.get(
+                    cloud=self.cloud,
+                    name=libcloud_store.name)
             except ObjectStorage.DoesNotExist:
-                store = ObjectStorage(cloud=self.cloud,
-                                        name=libcloud_store.name)
+                store = ObjectStorage(
+                    cloud=self.cloud,
+                    name=libcloud_store.name)
                 new_storage.append(store)
 
             store.extra = copy.copy(libcloud_store.extra)
@@ -113,13 +115,14 @@ class BaseObjectStorageController(BaseController):
             try:
                 """
                 self._list_storage__fetch_storage returns all storage
-                regardless their location whereas 
+                regardless their location whereas
                 self._list_storage__fetch_storage_content throws
                 an error when the location of the storage
                 does not match the connection location. So skip this storage
                 and do not show it in the list of the storages
                 """
-                content = self._list_storage__fetch_storage_content(libcloud_store)
+                content = self._list_storage__fetch_storage_content(
+                    libcloud_store)
                 self._list_storage__append_content(store, content)
 
             except LibcloudError:
@@ -172,7 +175,9 @@ class BaseObjectStorageController(BaseController):
     def _list_storage__fetch_storage_content(self, storage, path=''):
         """Perform the actual libcloud call to get the content of the node"""
         return [objectstorage_to_dict(store_content)
-                for store_content in self.connection.list_container_objects(storage, path)]
+                for store_content in self.connection.list_container_objects(
+                    storage,
+                    path)]
 
     def list_cached_storage(self):
         """Returns storage stored in database for a specific cloud"""
@@ -182,10 +187,10 @@ class BaseObjectStorageController(BaseController):
         return ObjectStorage.objects(cloud=self.cloud, missing_since=None)
 
     def list_storage_content(self, name, path):
-            container = self.connection.get_container(name)
-            content = self.connection.list_container_objects(container, path)
+        container = self.connection.get_container(name)
+        content = self.connection.list_container_objects(container, path)
 
-            return [c.__dict__ for c in content]
+        return [c.__dict__ for c in content]
 
     def _list_storage__postparse_store(self, store, libcloud_store):
         """Parses a libcloud storage object on behalf of `self._list_storage`.

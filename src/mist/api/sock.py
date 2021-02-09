@@ -480,9 +480,10 @@ class MainConnection(MistConnection):
                     params={'cached': True},
                     callback=lambda objectstorage, cloud_id=cloud.id:
                         self.send(
-                            'list_objectstorage',
-                            {'cloud_id': cloud_id, 'objectstorage': objectstorage}
-                        ),
+                            'list_objectstorage', {
+                                'cloud_id': cloud_id,
+                                'objectstorage': objectstorage
+                            }),
                 )
 
     def update_notifications(self):
@@ -586,7 +587,8 @@ class MainConnection(MistConnection):
                 self.send('patch_notifications', result)
 
         elif routing_key in ['patch_machines', 'patch_networks',
-                             'patch_volumes', 'patch_zones', 'patch_objectstorage']:
+                             'patch_volumes', 'patch_zones',
+                             'patch_objectstorage']:
             cloud_id = result['cloud_id']
             patch = result['patch']
             rtype = routing_key.replace('patch_', '')
