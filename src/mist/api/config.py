@@ -1259,6 +1259,11 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'dns': True,
             'storage': True,
@@ -1275,6 +1280,11 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': True,
+                    'location-image': False,
+                },
             },
             'storage': True,
             'networks': True
@@ -1290,6 +1300,11 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': True,
+                    'location-image': False,
+                },
             },
             'dns': True,
             'storage': True,
@@ -1306,6 +1321,11 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': True,
+                    'location-image': False,
+                },
             },
             'storage': True,
             'networks': True
@@ -1321,6 +1341,11 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'constraints': {
+                    'size-image': True,
+                    'location-size': True,
+                    'location-image': False,
+                },
             },
             'storage': True,
             'networks': True,
@@ -1337,6 +1362,11 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'metal': True
         }
@@ -1351,6 +1381,11 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': True,
+                    'location-image': True,
+                },
             },
             'storage': True,
         }
@@ -1364,6 +1399,11 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'dns': True,
             'storage': True,
@@ -1378,6 +1418,11 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': False,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'dns': True,
             'storage': True,
@@ -1392,6 +1437,11 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'metal': True,
         }
@@ -1406,6 +1456,11 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': True,
+                    'location-image': False,
+                },
             },
         }
     },
@@ -1420,6 +1475,11 @@ PROVIDERS = {
                 'cloudinit': True,
                 'custom_size': True,
                 'location': False,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'storage': True,
         }
@@ -1433,6 +1493,11 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': False,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'storage': True,
         }
@@ -1449,7 +1514,12 @@ PROVIDERS = {
                 'custom_size': True,
                 'key': {
                     'required': False,
-                }
+                },
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'storage': False,
         }
@@ -1466,6 +1536,11 @@ PROVIDERS = {
                 'custom_size': True,
                 'key': False,
                 'custom_image': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'storage': False,
         }
@@ -1479,6 +1554,11 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': False,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'storage': False,
         }
@@ -1498,6 +1578,11 @@ PROVIDERS = {
                     'required': False,
                 },
                 'custom_image': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'storage': False,
         }
@@ -1515,7 +1600,12 @@ PROVIDERS = {
                 'location': False,
                 'key': {
                     'required': False,
-                }
+                },
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'storage': True,
         }
@@ -1532,6 +1622,11 @@ PROVIDERS = {
                 'location': False,
                 'key': {
                     'required': False,
+                },
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
                 },
                 'custom_image': True,
             },
@@ -1551,6 +1646,11 @@ PROVIDERS = {
                 'custom_size': True,
                 'key': False,
                 'custom_image': True,
+                'constraints': {
+                    'size-image': False,
+                    'location-size': False,
+                    'location-image': False,
+                },
             },
             'storage': True,
         }
