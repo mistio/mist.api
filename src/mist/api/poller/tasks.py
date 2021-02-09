@@ -105,7 +105,10 @@ def list_volumes(schedule_id):
 
 @app.task(time_limit=60, soft_time_limit=55)
 def list_object_storage(schedule_id):
-    """Perform list object storage. Cloud controller stores results in mongodb."""
+    """
+    Perform list object storage.
+    Cloud controller stores results in mongodb.
+    """
 
     from mist.api.poller.models import ListObjectStoragePollingSchedule
     sched = ListObjectStoragePollingSchedule.objects.get(id=schedule_id)

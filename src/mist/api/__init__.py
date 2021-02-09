@@ -309,8 +309,6 @@ def add_routes(configurator):
     configurator.add_route('api_v1_cloud_objectstorage',
                            '/api/v1/clouds/{cloud}/objectstorage')
 
-    configurator.add_route('api_v1_cloud_objectstorage_content',
-                           '/api/v1/clouds/{cloud}/objectstorage/{storage}')
     configurator.add_route('api_v1_objectstorage_content',
                            '/api/v1/objectstorage/{storage}')
 
