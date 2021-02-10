@@ -4,7 +4,6 @@ import urllib
 
 from pyramid.response import Response
 from pyramid.renderers import render_to_response
-from pyramid.httpexceptions import HTTPFound
 
 import mist.api.machines.methods as methods
 
@@ -1103,7 +1102,7 @@ def machine_console(request):
 
 
 @view_config(route_name='api_v1_machine_ssh',
-             request_method='GET', renderer='json')
+             request_method='POST', renderer='json')
 def machine_ssh(request):
     """
     Tags: machines
@@ -1123,9 +1122,7 @@ def machine_ssh(request):
       type: string
     """
     cloud_id = request.matchdict.get('cloud')
-
     auth_context = auth_context_from_request(request)
-
     if cloud_id:
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
@@ -1153,5 +1150,5 @@ def machine_ssh(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    ssh_uri = methods.prepare_ssh_uri(machine)
-    return HTTPFound(location=ssh_uri)
+    ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
+    return {"location": ssh_uri}
