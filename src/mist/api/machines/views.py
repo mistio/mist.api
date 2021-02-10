@@ -4,7 +4,6 @@ import urllib
 
 from pyramid.response import Response
 from pyramid.renderers import render_to_response
-from pyramid.httpexceptions import HTTPFound
 
 import mist.api.machines.methods as methods
 

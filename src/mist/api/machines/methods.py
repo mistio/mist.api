@@ -2572,20 +2572,25 @@ def find_best_ssh_params(auth_context, machine):
                 key_association.ssh_user, \
                 port
 
-    key_associations_sudo_old = [key_association for key_association in key_associations if (
-        key_association.ssh_user == 'root' or key_association.sudo == True)
+    key_associations_sudo_old = [
+        key_association for key_association
+        in key_associations if (
+            key_association.ssh_user == 'root' or key_association.sudo)
         and key_association.last_used >= 0]
 
-    key_associations_non_sudo_old = [key_association for key_association in key_associations if not (
-        key_association.ssh_user == 'root' or key_association.sudo == True)
+    key_associations_non_sudo_old = [
+        key_association for key_association in key_associations if not (
+            key_association.ssh_user == 'root' or key_association.sudo)
         and key_association.last_used >= 0]
 
-    key_associations_sudo_failed = [key_association for key_association in key_associations if (
-        key_association.ssh_user == 'root' or key_association.sudo == True)
+    key_associations_sudo_failed = [
+        key_association for key_association in key_associations if (
+            key_association.ssh_user == 'root' or key_association.sudo)
         and key_association.last_used < 0]
 
-    key_associations_non_sudo_failed = [key_association for key_association in key_associations if not (
-        key_association.ssh_user == 'root' or key_association.sudo == True)
+    key_associations_non_sudo_failed = [
+        key_association for key_association in key_associations if not (
+            key_association.ssh_user == 'root' or key_association.sudo)
         and key_association.last_used < 0]
 
     # Use the default org keys as a last measure
