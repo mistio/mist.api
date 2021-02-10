@@ -2535,33 +2535,93 @@ def machine_safe_expire(owner_id, machine):
     machine.save()
 
 
-def valid_ssh_creds(machine, key_associations):
+def find_best_ssh_params(auth_context, machine):
+    # Get key associations, prefer root or sudoer ones
+    key_associations = KeyMachineAssociation.objects(
+        Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
+        or KeyMachineAssociation.objects(machine=machine)
+    if not key_associations:
+        raise ForbiddenError()
+    permitted_key_associations = []
     for key_association in key_associations:
-        if key_association.ssh_user == 'root' and \
-            int(datetime.now().timestamp()) - key_association.last_used \
-                <= 30 * 24 * 60 * 60:
-            return key_association.key, \
-                key_association.ssh_user, \
-                key_association.port
-    keys = [key_association.key
-            for key_association in key_associations
-            if isinstance(key_association.key, Key)]
-    if not keys:
+        try:
+            auth_context.check_perm("key", "read", key_association.key.id)
+        except PolicyUnauthorizedError:
+            continue
+        permitted_key_associations.append(key_association)
+    if not permitted_key_associations:
+        raise ForbiddenError()
+    key_associations = permitted_key_associations
+    key_associations = [key_association
+                        for key_association in key_associations
+                        if isinstance(key_association.key, Key)]
+    if not key_associations:
         raise ForbiddenError()
 
-    users = list(set([key_association.ssh_user
-                      for key_association in key_associations
-                      if key_association.ssh_user]))
+    key_associations = sorted(
+        key_associations, key=lambda k: k.last_used, reverse=True)
+
+    for key_association in key_associations:
+        if (key_association.ssh_user == 'root' or key_association.sudo == True) and \
+            int(datetime.now().timestamp()) - key_association.last_used \
+                <= 30 * 24 * 60 * 60:
+            hostname, port = dnat(
+                machine.owner, machine.hostname, key_association.port)
+            return key_association.id, \
+                hostname, \
+                key_association.ssh_user, \
+                port
+
+    key_associations_sudo_old = [key_association for key_association in key_associations if (
+        key_association.ssh_user == 'root' or key_association.sudo == True)
+        and key_association.last_used >= 0]
+
+    key_associations_non_sudo_old = [key_association for key_association in key_associations if not (
+        key_association.ssh_user == 'root' or key_association.sudo == True)
+        and key_association.last_used >= 0]
+
+    key_associations_sudo_failed = [key_association for key_association in key_associations if (
+        key_association.ssh_user == 'root' or key_association.sudo == True)
+        and key_association.last_used < 0]
+
+    key_associations_non_sudo_failed = [key_association for key_association in key_associations if not (
+        key_association.ssh_user == 'root' or key_association.sudo == True)
+        and key_association.last_used < 0]
+
+    # Use the default org keys as a last measure
+    default_keys = Key.objects(
+        owner=auth_context.org, default=True, deleted=None)
+    key_associations_default = []
+    for key in default_keys:
+        try:
+            auth_context.check_perm("key", "read", key.id)
+        except PolicyUnauthorizedError:
+            continue
+        key_associations_default.append(KeyMachineAssociation(
+            key=key, machine=machine))
+
+    key_associations = key_associations_sudo_old + key_associations_non_sudo_old + \
+        key_associations_sudo_failed + \
+        key_associations_non_sudo_failed + key_associations_default
+
+    users = list({key_association.ssh_user
+                  for key_association in key_associations
+                  if key_association.ssh_user})
     if not users:
         users = ['root', 'ubuntu', 'ec2-user', 'user', 'azureuser',
                  'core', 'centos', 'cloud-user', 'fedora']
 
-    ports = list(set([22] + [key_association.port
-                             for key_association in key_associations]))
-    for key in keys:
+    ports = list({key_association.port
+                  for key_association in key_associations})
+
+    if 22 not in ports:
+        ports.append(22)
+
+    for key_association in key_associations:
         for ssh_user in users:
             for port in ports:
                 shell = ParamikoShell(machine.hostname)
+                key = key_association.key
                 try:
                     # store the original ssh port in case of NAT
                     # by the OpenVPN server
@@ -2598,61 +2658,36 @@ def valid_ssh_creds(machine, key_associations):
                 # we managed to connect successfully, return
                 # but first update key
                 trigger_session_update_flag = False
-                for key_assoc in KeyMachineAssociation.objects(
-                        machine=machine):
-                    if key_assoc.key == key:
-                        if key_assoc.ssh_user != ssh_user:
-                            key_assoc.ssh_user = ssh_user
-                            trigger_session_update_flag = True
-                        key_assoc.last_used = int(
-                            datetime.now().timestamp())
-                        key_assoc.save()
-                        break
-                else:
+                if key_association.ssh_user != ssh_user:
+                    key_association.ssh_user = ssh_user
                     trigger_session_update_flag = True
-                    # in case of a private host do NOT update the key
-                    # associations with the port allocated by the OpenVPN
-                    # server, instead use the original ssh_port
-                    key_assoc = KeyMachineAssociation(
-                        key=key, machine=machine, ssh_user=ssh_user,
-                        port=ssh_port, sudo=shell.check_sudo(), last_used=int(
-                            datetime.now().timestamp()))
-                    key_assoc.save()
+                if key_association.port != ssh_port:
+                    key_association.port = ssh_port
+                    trigger_session_update_flag = True
+                if key_association.sudo == False:
+                    # Check if user has access to passwordless sudo
+                    retval, resp = shell.command(
+                        'sudo -n true &>/dev/null ; echo $?')
+                    if '0' in resp:
+                        key_association.sudo = True
+                        trigger_session_update_flag = True
+                key_association.last_used = int(
+                    datetime.now().timestamp())
+                key_association.save()
                 machine.save()
                 if trigger_session_update_flag:
                     trigger_session_update(machine.owner.id, ['keys'])
-                return key, ssh_user, port
+                return key_association.id, host, ssh_user, port
 
 
 # SEC
 def prepare_ssh_uri(auth_context, machine):
-    # Get key associations, prefer root or sudoer ones
-    key_associations = KeyMachineAssociation.objects(
-        Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
-        or KeyMachineAssociation.objects(machine=machine)
-    if not key_associations:
-        raise ForbiddenError()
-    key_associations = sorted(
-        key_associations, key=lambda k: k.last_used, reverse=True)
-    key_associations = [
-        key_association for key_association in key_associations
-        if key_association.last_used >= 0]
-    permitted_key_associations = []
-    for key_association in key_associations:
-        try:
-            auth_context.check_perm("key", "read", key_association.key.id)
-        except PolicyUnauthorizedError:
-            continue
-        permitted_key_associations.append(key_association)
-
-    if not permitted_key_associations:
-        raise ForbiddenError()
-
-    key, user, port = valid_ssh_creds(machine, permitted_key_associations)
+    key_association_id, hostname, user, port = find_best_ssh_params(
+        auth_context, machine)
     expiry = int(datetime.now().timestamp()) + 100
     msg = '%s,%s,%s,%s,%s' % (user,
-                              machine.hostname,
-                              port, key.id, expiry)
+                              hostname,
+                              port, key_association_id, expiry)
     mac = hmac.new(
         config.SECRET.encode(),
         msg=msg.encode(),
@@ -2660,5 +2695,5 @@ def prepare_ssh_uri(auth_context, machine):
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
     ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
         base_ws_uri, user,
-        machine.hostname, port, key.id, expiry, mac)
+        hostname, port, key_association_id, expiry, mac)
     return ssh_uri
