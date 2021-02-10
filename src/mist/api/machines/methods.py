@@ -2562,7 +2562,7 @@ def find_best_ssh_params(auth_context, machine):
         key_associations, key=lambda k: k.last_used, reverse=True)
 
     for key_association in key_associations:
-        if (key_association.ssh_user == 'root' or key_association.sudo == True) and \
+        if (key_association.ssh_user == 'root' or key_association.sudo) and \
             int(datetime.now().timestamp()) - key_association.last_used \
                 <= 30 * 24 * 60 * 60:
             hostname, port = dnat(
@@ -2575,23 +2575,23 @@ def find_best_ssh_params(auth_context, machine):
     key_associations_sudo_old = [
         key_association for key_association
         in key_associations if (
-            key_association.ssh_user == 'root' or key_association.sudo)
-        and key_association.last_used >= 0]
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used >= 0]
 
     key_associations_non_sudo_old = [
         key_association for key_association in key_associations if not (
-            key_association.ssh_user == 'root' or key_association.sudo)
-        and key_association.last_used >= 0]
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used >= 0]
 
     key_associations_sudo_failed = [
         key_association for key_association in key_associations if (
-            key_association.ssh_user == 'root' or key_association.sudo)
-        and key_association.last_used < 0]
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used < 0]
 
     key_associations_non_sudo_failed = [
         key_association for key_association in key_associations if not (
-            key_association.ssh_user == 'root' or key_association.sudo)
-        and key_association.last_used < 0]
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used < 0]
 
     # Use the default org keys as a last measure
     default_keys = Key.objects(
@@ -2605,7 +2605,8 @@ def find_best_ssh_params(auth_context, machine):
         key_associations_default.append(KeyMachineAssociation(
             key=key, machine=machine))
 
-    key_associations = key_associations_sudo_old + key_associations_non_sudo_old + \
+    key_associations = key_associations_sudo_old + \
+        key_associations_non_sudo_old + \
         key_associations_sudo_failed + \
         key_associations_non_sudo_failed + key_associations_default
 
@@ -2669,7 +2670,7 @@ def find_best_ssh_params(auth_context, machine):
                 if key_association.port != ssh_port:
                     key_association.port = ssh_port
                     trigger_session_update_flag = True
-                if key_association.sudo == False:
+                if not key_association.sudo:
                     # Check if user has access to passwordless sudo
                     retval, resp = shell.command(
                         'sudo -n true &>/dev/null ; echo $?')
