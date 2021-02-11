@@ -340,8 +340,8 @@ class ListVolumesPollingSchedule(CloudPollingSchedule):
                 hasattr(self.cloud.ctl, 'storage'))
 
 
-class ListObjectStoragePollingSchedule(CloudPollingSchedule):
-    task = 'mist.api.poller.tasks.list_object_storage'
+class ListBucketsPollingSchedule(CloudPollingSchedule):
+    task = 'mist.api.poller.tasks.list_buckets'
 
 
 class MachinePollingSchedule(PollingSchedule):

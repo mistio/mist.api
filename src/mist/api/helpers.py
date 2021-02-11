@@ -730,8 +730,8 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
 rtype_to_classpath = {
     'cloud': 'mist.api.clouds.models.Cloud',
     'clouds': 'mist.api.clouds.models.Cloud',
-    'objectstorage': 'mist.api.objectstorages.models.ObjectStorage',
-    'objectstorages': 'mist.api.objectstorages.models.ObjectStorage',
+    'bucket': 'mist.api.objectstorages.models.Bucket',
+    'buckets': 'mist.api.objectstorages.models.Bucket',
     'machine': 'mist.api.machines.models.Machine',
     'machines': 'mist.api.machines.models.Machine',
     'zone': 'mist.api.dns.models.Zone',
@@ -979,7 +979,7 @@ def logging_view_decorator(func):
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
                     'tunnel_id', 'story_id', 'stack_id', 'template_id',
                     'zone', 'record', 'network', 'subnet', 'volume', 'key',
-                    'objectstorage']:
+                    'buckets']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -1057,7 +1057,7 @@ def logging_view_decorator(func):
             # Match resource type based on the action performed.
             for rtype in ['cloud', 'machine', 'key', 'script', 'tunnel',
                           'stack', 'template', 'schedule', 'volume',
-                          'objectstorage']:
+                          'buckets']:
                 if rtype in log_dict['action']:
                     if 'id' in bdict and '%s_id' % rtype not in log_dict:
                         log_dict['%s_id' % rtype] = bdict['id']
@@ -1487,7 +1487,7 @@ def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
     return ret
 
 
-def objectstorage_to_dict(node):
+def bucket_to_dict(node):
     if isinstance(node, str):
         return node
     elif isinstance(node, datetime.datetime):
@@ -1498,10 +1498,10 @@ def objectstorage_to_dict(node):
     if ret.get('driver'):
         ret.pop('driver')
     if ret.get('container'):
-        ret['container'] = objectstorage_to_dict(ret['container'])
+        ret['container'] = bucket_to_dict(ret['container'])
     if ret.get('state'):
         ret['state'] = str(ret['state'])
     if 'extra' in ret:
         ret['extra'] = json.loads(json.dumps(
-            ret['extra'], default=objectstorage_to_dict))
+            ret['extra'], default=bucket_to_dict))
     return ret

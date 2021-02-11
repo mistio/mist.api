@@ -399,7 +399,7 @@ class BaseMainController(object):
         from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
-        from mist.api.poller.models import ListObjectStoragePollingSchedule
+        from mist.api.poller.models import ListBucketsPollingSchedule
 
         # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(
@@ -441,7 +441,7 @@ class BaseMainController(object):
         schedule.add_interval(90, ttl=270)
         schedule.save()
 
-        schedule = ListObjectStoragePollingSchedule.add(
+        schedule = ListBucketsPollingSchedule.add(
             cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.save()

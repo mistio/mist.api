@@ -104,15 +104,15 @@ def list_volumes(schedule_id):
 
 
 @app.task(time_limit=60, soft_time_limit=55)
-def list_object_storage(schedule_id):
+def list_buckets(schedule_id):
     """
-    Perform list object storage.
+    Perform list buckets.
     Cloud controller stores results in mongodb.
     """
 
-    from mist.api.poller.models import ListObjectStoragePollingSchedule
-    sched = ListObjectStoragePollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.objectstorage.list_storage(persist=False)
+    from mist.api.poller.models import ListBucketsPollingSchedule
+    sched = ListBucketsPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.objectstorage.list_buckets(persist=False)
 
 
 @app.task(time_limit=45, soft_time_limit=40)

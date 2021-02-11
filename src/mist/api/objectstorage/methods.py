@@ -1,14 +1,14 @@
 import logging
 
-from mist.api.objectstorage.models import ObjectStorage
+from mist.api.objectstorage.models import Bucket
 
 
 log = logging.getLogger(__name__)
 
 
-def list_storage(owner, cloud_id, cached=True):
+def list_buckets(owner, cloud_id, cached=True):
     if cached:
-        storage = ObjectStorage.objects(
+        buckets = Bucket.objects(
             owner=owner,
             cloud=cloud_id,
             missing_since=None
@@ -16,50 +16,48 @@ def list_storage(owner, cloud_id, cached=True):
 
     else:
         log.error('Not cached request')
-        # TODO: is there a better way?
-        store = ObjectStorage(owner=owner)
-        storage = store.ctl.objectstorage.list_storage()
+        bucket = Bucket(owner=owner)
+        buckets = bucket.ctl.objectstorage.list_buckets()
 
         # Update RBAC Mappings given the list of new secrets.
-        owner.mapper.update(storage, asynchronous=False)
+        owner.mapper.update(buckets, asynchronous=False)
 
-    return [_store.as_dict() for _store in storage]
+    return [_bucket.as_dict() for _bucket in buckets]
 
 
-def list_storage_content(owner, storage_id, path='', cached=True):
+def list_bucket_content(owner, storage_id, path='', cached=True):
     if cached:
-        storage = ObjectStorage.objects.get(
+        buckets = Bucket.objects.get(
             owner=owner,
             id=storage_id,
             missing_since=None
         )
 
     else:
-        # TODO: is there a better way?
-        store = ObjectStorage(owner=owner)
-        storage = store.ctl.objectstorage.list_storage()
+        bucket = Bucket(owner=owner)
+        buckets = bucket.ctl.objectstorage.list_buckets()
 
         # Update RBAC Mappings given the list of new secrets.
-        owner.mapper.update(storage, asynchronous=False)
+        owner.mapper.update(buckets, asynchronous=False)
 
-    return storage.get_content(path)
+    return buckets.get_content(path)
 
 
-def filter_list_object_storage(auth_context,
-                               cloud_id,
-                               cached=True,
-                               perm='read'):
-    storage = list_storage(auth_context.owner, cloud_id, cached)
+def filter_list_buckets(auth_context,
+                        cloud_id,
+                        cached=True,
+                        perm='read'):
+    buckets = list_buckets(auth_context.owner, cloud_id, cached)
     if not auth_context.is_owner():
         allowed_resources = auth_context.get_allowed_resources(perm)
-        for i in range(len(storage) - 1, -1, -1):
-            if storage[i]['id'] not in allowed_resources['objectstorage']:
-                storage.pop(i)
-    return storage
+        for i in range(len(buckets) - 1, -1, -1):
+            if buckets[i]['id'] not in allowed_resources['buckets']:
+                buckets.pop(i)
+    return buckets
 
 
-def filter_list_storage_content(auth_context,
-                                storage_id,
+def filter_list_bucket_content(auth_context,
+                                bucket_id,
                                 path='',
                                 cached=True):
-    return list_storage_content(auth_context.owner, storage_id, path, cached)
+    return list_bucket_content(auth_context.owner, bucket_id, path, cached)

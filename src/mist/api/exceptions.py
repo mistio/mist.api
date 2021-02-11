@@ -246,8 +246,8 @@ class VolumeExistsError(ConflictError):
     msg = "Volume already exists"
 
 
-class ObjectStorageExistsError(ConflictError):
-    msg = "Object storage already exists"
+class BucketExistsError(ConflictError):
+    msg = "Bucket already exists"
 
 
 #  Rate Limit Error (translated as 429 in views)
@@ -311,8 +311,8 @@ class VolumeListingError(InternalServerError):
     msg = "Error while getting a volume listing"
 
 
-class ObjectstorageListingError(InternalServerError):
-    msg = "Error while getting a Object storage listing"
+class BucketListingError(InternalServerError):
+    msg = "Error while getting a bucket listing"
 
 
 class VolumeCreationError(InternalServerError):

@@ -143,7 +143,7 @@ def add_routes(configurator):
                        'templates', 'stacks', 'teams', 'networks', 'volumes',
                        'tunnels', 'members', 'insights', 'my-account',
                        'schedules', 'zones', 'rules', 'incidents',
-                       'objectstorage']
+                       'buckets']
         landing_sections = ['sign-up', 'sign-in', 'forgot-password', 'about',
                             'product', 'buy-license', 'request-pricing',
                             'get-started', 'privacy-policy', 'pledge', 'tos',
@@ -303,15 +303,15 @@ def add_routes(configurator):
     configurator.add_route('api_v1_storage_classes',
                            '/api/v1/clouds/{cloud}/storage-classes')
 
-    # Object storages
-    configurator.add_route('api_v1_objectstorage',
-                           '/api/v1/objectstorage')
+    # Object storage
+    configurator.add_route('api_v1_buckets',
+                           '/api/v1/buckets')
 
-    configurator.add_route('api_v1_cloud_objectstorage',
-                           '/api/v1/clouds/{cloud}/objectstorage')
+    configurator.add_route('api_v1_cloud_buckets',
+                           '/api/v1/clouds/{cloud}/buckets')
 
-    configurator.add_route('api_v1_objectstorage_content',
-                           '/api/v1/objectstorage/{storage}')
+    configurator.add_route('api_v1_bucket_content',
+                           '/api/v1/buckets/{bucket}')
 
     configurator.add_route('api_v1_keys', '/api/v1/keys')
     configurator.add_route('api_v1_key_action', '/api/v1/keys/{key}')

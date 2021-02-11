@@ -476,13 +476,13 @@ class MainConnection(MistConnection):
                 )
             if cloud.ctl.ObjectStorageController:
                 self.internal_request(
-                    'api/v1/clouds/%s/objectstorage' % cloud.id,
+                    'api/v1/clouds/%s/buckets' % cloud.id,
                     params={'cached': True},
-                    callback=lambda objectstorage, cloud_id=cloud.id:
+                    callback=lambda buckets, cloud_id=cloud.id:
                         self.send(
-                            'list_objectstorage', {
+                            'list_buckets', {
                                 'cloud_id': cloud_id,
-                                'objectstorage': objectstorage
+                                'buckets': buckets
                             }),
                 )
 
@@ -588,7 +588,7 @@ class MainConnection(MistConnection):
 
         elif routing_key in ['patch_machines', 'patch_networks',
                              'patch_volumes', 'patch_zones',
-                             'patch_objectstorage']:
+                             'patch_buckets']:
             cloud_id = result['cloud_id']
             patch = result['patch']
             rtype = routing_key.replace('patch_', '')

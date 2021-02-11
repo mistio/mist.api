@@ -1,4 +1,4 @@
-"""Object Storage entity model."""
+""" Bucket entity model."""
 
 import uuid
 import logging
@@ -11,7 +11,7 @@ from mist.api.mongoengine_extras import MistDictField
 log = logging.getLogger(__name__)
 
 
-class ObjectStorageItem(me.EmbeddedDocument):
+class BucketItem(me.EmbeddedDocument):
     name = me.StringField(required=True)
     size = me.IntField()
     hash = me.StringField(required=True)
@@ -24,8 +24,8 @@ class ObjectStorageItem(me.EmbeddedDocument):
         self.type = 'folder' if self.name.endswith('/') else 'file'
 
 
-class ObjectStorage(OwnershipMixin, me.Document):
-    """The basic object storage model"""
+class Bucket(OwnershipMixin, me.Document):
+    """The basic bucket model"""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
@@ -37,13 +37,13 @@ class ObjectStorage(OwnershipMixin, me.Document):
                                  reverse_delete_rule=me.DENY)
     name = me.StringField(required=True)
 
-    content = me.EmbeddedDocumentListField(ObjectStorageItem)
+    content = me.EmbeddedDocumentListField(BucketItem)
 
     extra = MistDictField()
     missing_since = me.DateTimeField()
 
     def __init__(self, *args, **kwargs):
-        super(ObjectStorage, self).__init__(*args, **kwargs)
+        super(Bucket, self).__init__(*args, **kwargs)
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
