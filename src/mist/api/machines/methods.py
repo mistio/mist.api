@@ -2567,6 +2567,9 @@ def find_best_ssh_params(auth_context, machine):
                 <= 30 * 24 * 60 * 60:
             hostname, port = dnat(
                 machine.owner, machine.hostname, key_association.port)
+            key_association.last_used = int(
+                datetime.now().timestamp())
+            key_association.save()
             return key_association.id, \
                 hostname, \
                 key_association.ssh_user, \
