@@ -1132,9 +1132,8 @@ def update_poller(org_id):
                                      ttl=120)
         ListImagesPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
                                       ttl=120)
-        ListBucketsPollingSchedule.add(cloud=cloud,
-                                             interval=60 * 60 * 24,
-                                             ttl=120)
+        ListBucketsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                       ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:

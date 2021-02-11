@@ -56,8 +56,5 @@ def filter_list_buckets(auth_context,
     return buckets
 
 
-def filter_list_bucket_content(auth_context,
-                                bucket_id,
-                                path='',
-                                cached=True):
+def filter_list_bucket_content(auth_context, bucket_id, path='', cached=True):
     return list_bucket_content(auth_context.owner, bucket_id, path, cached)
