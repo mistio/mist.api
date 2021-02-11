@@ -1158,7 +1158,7 @@ def machine_ssh(request):
 @view_config(route_name='api_v1_machine_ssh',
              request_method='GET', renderer='json')
 def render_machine_terminal(request):
-  here = os.path.dirname(__file__)
-  parent = os.path.abspath(os.path.join(here, os.pardir))
-  ssh = os.path.join(parent, "templates", "xterm.html")
-  return FileResponse(ssh, request=request)
+    here = os.path.dirname(__file__)
+    parent = os.path.abspath(os.path.join(here, os.pardir))
+    ssh = os.path.join(parent, "templates", "xterm.html")
+    return FileResponse(ssh, request=request)
