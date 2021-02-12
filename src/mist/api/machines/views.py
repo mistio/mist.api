@@ -1,8 +1,9 @@
+import os
 import uuid
 import logging
 import urllib
 
-from pyramid.response import Response
+from pyramid.response import Response, FileResponse
 from pyramid.renderers import render_to_response
 
 import mist.api.machines.methods as methods
@@ -1152,3 +1153,12 @@ def machine_ssh(request):
 
     ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
     return {"location": ssh_uri}
+
+
+@view_config(route_name='api_v1_machine_ssh',
+             request_method='GET', renderer='json')
+def render_machine_terminal(request):
+    here = os.path.dirname(__file__)
+    parent = os.path.abspath(os.path.join(here, os.pardir))
+    ssh = os.path.join(parent, "templates", "xterm.html")
+    return FileResponse(ssh, request=request)
