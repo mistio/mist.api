@@ -209,6 +209,7 @@
             fitAddon = new FitAddon.FitAddon();
             term.loadAddon(fitAddon);
             term.open(terminalContainer);
+            terminalContainer.term = term;
             term.onData((data, _e) => {
                 const msg = new TextEncoder().encode(`\x00${data}`);
                 socket.send(msg);
