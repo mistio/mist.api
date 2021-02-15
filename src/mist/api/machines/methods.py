@@ -2173,6 +2173,8 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
     if cloud_init:
         metadata['startup-script'] = cloud_init
 
+    if isinstance(network, list) and network:
+        network = network[0]
     try:
         network = Network.objects.get(id=network).name
     except me.DoesNotExist:
