@@ -111,7 +111,6 @@ class Zone(OwnershipMixin, me.Document):
                 for tag in Tag.objects(
                     resource_id=self.id, resource_type='zone')}
 
-
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
