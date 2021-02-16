@@ -335,6 +335,22 @@ class CloudLocation(OwnershipMixin, me.Document):
             name = f"{self.name}, None, {self.external_id}"
         return name
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'external_id', 'country', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'owned_by': 'email',
+            'created_by': 'email',
+            'available_sizes': 'name',
+            'available_images': 'name',
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        return ret
+
     def as_dict(self):
         return {
             'id': self.id,
@@ -390,6 +406,19 @@ class CloudSize(me.Document):
         else:
             name = f"{self.name}, None, {self.external_id}"
         return name
+
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'external_id', 'cpus', 'ram', 'bandwidth', 'disk',
+            'architecture', 'allowed_images', 'extra']
+        deref_map = {
+            'cloud': 'title'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        return ret
 
     def as_dict(self):
         return {
