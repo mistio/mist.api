@@ -26,6 +26,7 @@ from mist.api.helpers import dirty_cow, parse_os_release
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+from mist.api.users.models import User
 
 from mist.api import config
 
@@ -545,6 +546,7 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     search = search or ''
     sort = sort or ''
     only = only or ''
+    postfilters = []
     # search filter is either an id or a space separated key/value terms
     if search and ':' not in search and '=' not in search:
         query['id'] = search
@@ -564,15 +566,43 @@ def list_resources(auth_context, resource_type, search='', cloud='',
                 v = CLOUDS[v]()._cls
             # TODO: only allow terms on indexed fields
             # TODO: support OR keyword
+            # TODO: support additional operators: >, <, !=, ~
             if k == 'cloud':
                 clouds, _ = list_resources(auth_context, 'cloud', search=v,
                                            only='id')
                 query['cloud__in'] = clouds
+            elif k == 'location':
+                locations, _ = list_resources(auth_context, 'location',
+                                              search=v, only='id')
+                query['location__in'] = locations
+            elif k == 'owned_by':
+                if not v or v.lower() in ['none', 'nobody']:
+                    query['owned_by'] = None
+                    continue
+                try:
+                    user = User.objects.get(
+                        id__in=[m.id for m in auth_context.org.members],
+                        email=v)
+                    query['owned_by'] = user.id
+                except User.DoesNotExist:
+                    query['owned_by'] = v
+            elif k == 'created_by':
+                if not v or v.lower() in ['none', 'nobody']:
+                    query['created_by'] = None
+                    continue
+                try:
+                    user = User.objects.get(
+                        id__in=[m.id for m in auth_context.org.members],
+                        email=v)
+                    query['created_by'] = user.id
+                except User.DoesNotExist:
+                    query['created_by'] = v
+            elif k in ['key_associations', ]:  # Looks like a postfilter
+                postfilters.append((k, v))
             else:
                 query[k] = v
 
     result = resource_model.objects(**query)
-
     if only:
         only_list = [field for field in only.split(',')
                      if field in resource_model._fields]
@@ -587,6 +617,28 @@ def list_resources(auth_context, resource_type, search='', cloud='',
             field_name = 'title'
         query[field_name] = query.pop('id')
         result = resource_model.objects(**query)
+
+    for (k, v) in postfilters:
+        if k == 'key_associations':
+            from mist.api.machines.models import KeyMachineAssociation
+            if not v or v.lower() in ['0', 'false', 'none']:
+                ids = [machine.id for machine in result
+                       if not KeyMachineAssociation.objects(
+                           machine=machine).count()]
+            elif v.lower() in ['sudo']:
+                ids = [machine.id for machine in result
+                       if KeyMachineAssociation.objects(
+                           machine=machine, sudo=True).count()]
+            elif v.lower() in ['root']:
+                ids = [machine.id for machine in result
+                       if KeyMachineAssociation.objects(
+                           machine=machine, ssh_user='root').count()]
+            else:
+                ids = [machine.id for machine in result
+                       if KeyMachineAssociation.objects(
+                           machine=machine).count()]
+            query['id__in'] = ids
+            result = resource_model.objects(**query)
 
     if result.count():
         if not auth_context.is_owner():
