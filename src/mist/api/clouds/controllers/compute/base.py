@@ -2436,24 +2436,30 @@ class BaseComputeController(BaseController):
                                                       locations,
                                                       sizes):
         """ Find all possible combinations of images, locations and sizes
-        based on provider constraints.
+        based on provider restrictions.
         """
         ret_list = []
         for location in locations:
             available_sizes = sizes
-            if self.cloud.ctl.has_feature('location-size'):
+            if self.cloud.ctl.has_feature('location-size-restriction'):
                 available_sizes = set(location.available_sizes).intersection(set(available_sizes))  # noqa
             for size in available_sizes:
                 available_images = images
-                if self.cloud.ctl.has_feature('location-image'):
+                if self.cloud.ctl.has_feature('location-image-restriction'):
                     available_images = set(location.available_images).intersection(set(available_images))  # noqa
-                if self.cloud.ctl.has_feature('size-image'):
+                if self.cloud.ctl.has_feature('size-image-restriction'):
                     available_images = set(size.allowed_images).intersection(set(available_images))  # noqa
                 for image in available_images:
-                    if image.min_disk_size and size.disk \
+                    # Some sizes in azure, ec2, gce and rackspace
+                    # support only volumes, so size.disk could be 0,
+                    # thus we intentionally skip checking the disk restriction
+                    # in these sizes.
+                    if image.min_disk_size is not None \
+                            and size.disk \
                             and image.min_disk_size > size.disk:
                         continue
-                    if image.min_memory_size and size.ram \
+                    if image.min_memory_size is not None \
+                            and size.ram is not None \
                             and image.min_memory_size > size.ram:
                         continue
                     if size.architecture not in image.architecture:
