@@ -470,10 +470,13 @@ class BaseMainController(object):
             networks
             storage
             custom_size
+            custom_image
             cloudinit
             location
             key
-            custom_image
+            size-image-restriction
+            location-size-restriction
+            location-image-restriction
         """
         from mist.api.config import PROVIDERS
         from mist.api.exceptions import NotFoundError
@@ -494,6 +497,8 @@ class BaseMainController(object):
         elif feature == 'key':
             has_feature = provider_dict['features'].get(feature, True)
             # if dictionary is returned key is supported but not required
+        elif feature in ['size-image-restriction', 'location-size-restriction', 'location-image-restriction']:  # noqa
+            has_feature = provider_dict['features']['provision']['restrictions'].get(feature, False)  # noqa
         else:
             if provider_dict['features']['provision']:
                 has_feature = provider_dict['features']['provision'].get(feature, False)  # noqa
