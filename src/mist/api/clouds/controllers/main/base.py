@@ -497,8 +497,8 @@ class BaseMainController(object):
         elif feature == 'key':
             has_feature = provider_dict['features'].get(feature, True)
             # if dictionary is returned key is supported but not required
-        elif feature in ['size-image', 'location-size', 'location-image']:
-            has_feature = provider_dict['features']['provision']['constraints'].get(feature, False)  # noqa
+        elif feature in ['size-image-restriction', 'location-size-restriction', 'location-image-restriction']:  # noqa
+            has_feature = provider_dict['features']['provision']['restrictions'].get(feature, False)  # noqa
         else:
             if provider_dict['features']['provision']:
                 has_feature = provider_dict['features']['provision'].get(feature, False)  # noqa

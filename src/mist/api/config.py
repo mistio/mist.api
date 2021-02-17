@@ -1259,10 +1259,10 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'dns': True,
@@ -1280,10 +1280,10 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': True,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
                 },
             },
             'storage': True,
@@ -1300,10 +1300,10 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': True,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
                 },
             },
             'dns': True,
@@ -1321,10 +1321,10 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': True,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
                 },
             },
             'storage': True,
@@ -1341,10 +1341,10 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
-                'constraints': {
-                    'size-image': True,
-                    'location-size': True,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': True,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
                 },
             },
             'storage': True,
@@ -1362,10 +1362,10 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'metal': True
@@ -1381,10 +1381,10 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': True,
-                    'location-image': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': True,
                 },
             },
             'storage': True,
@@ -1399,10 +1399,10 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'dns': True,
@@ -1418,10 +1418,10 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': False,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'dns': True,
@@ -1437,10 +1437,10 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'metal': True,
@@ -1456,10 +1456,10 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': True,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
                 },
             },
         }
@@ -1475,10 +1475,10 @@ PROVIDERS = {
                 'cloudinit': True,
                 'custom_size': True,
                 'location': False,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'storage': True,
@@ -1493,10 +1493,10 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': False,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'storage': True,
@@ -1515,13 +1515,33 @@ PROVIDERS = {
                 'key': {
                     'required': False,
                 },
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'storage': False,
+        }
+    },
+    'cloudsigma': {
+        'name': 'CloudSigma',
+        'aliases': [],
+        'driver': 'cloudsigma',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'cloudinit': True,
+                'custom_size': True,
+                'location': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
         }
     },
     'vsphere': {
@@ -1536,10 +1556,10 @@ PROVIDERS = {
                 'custom_size': True,
                 'key': False,
                 'custom_image': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'storage': False,
@@ -1554,10 +1574,10 @@ PROVIDERS = {
             'compute': True,
             'provision': {
                 'location': False,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'storage': False,
@@ -1578,10 +1598,10 @@ PROVIDERS = {
                     'required': False,
                 },
                 'custom_image': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'storage': False,
@@ -1601,10 +1621,10 @@ PROVIDERS = {
                 'key': {
                     'required': False,
                 },
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'storage': True,
@@ -1623,10 +1643,10 @@ PROVIDERS = {
                 'key': {
                     'required': False,
                 },
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
                 'custom_image': True,
             },
@@ -1646,10 +1666,10 @@ PROVIDERS = {
                 'custom_size': True,
                 'key': False,
                 'custom_image': True,
-                'constraints': {
-                    'size-image': False,
-                    'location-size': False,
-                    'location-image': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
                 },
             },
             'storage': True,
