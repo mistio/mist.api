@@ -474,9 +474,9 @@ class BaseMainController(object):
             cloudinit
             location
             key
-            size-image
-            location-size
-            location-image
+            size-image-restriction
+            location-size-restriction
+            location-image-restriction
         """
         from mist.api.config import PROVIDERS
         from mist.api.exceptions import NotFoundError
