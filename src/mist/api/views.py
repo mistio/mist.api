@@ -699,6 +699,11 @@ def confirm(request):
         url = '/social_auth/login/google-oauth2?key=%s' % key
     elif config.ALLOW_SIGNIN_GITHUB:
         url = '/social_auth/login/github-oauth2?key=%s' % key
+    elif config.ALLOW_SIGNIN_MS365:
+        url = '/social_auth/login/azuread-oauth2?key=%s' % key
+    else:
+        log.error('Confirm invitation attempt with sign-in disabled')
+        raise ForbiddenError("No sign-in method configured.")
 
     if invitoken:
         try:
