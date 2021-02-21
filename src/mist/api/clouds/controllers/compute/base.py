@@ -2382,7 +2382,7 @@ class BaseComputeController(BaseController):
                 return [image]
             else:
                 raise NotFoundError('Image does not exist')
-        return list(images)
+        return images
 
     def _generate_plan__parse_custom_image(self, image_dict):
         """Get an image that is not saved in mongo.
@@ -2402,7 +2402,7 @@ class BaseComputeController(BaseController):
         # TODO add perimissions other than read to list_resources
         # auth_context.check_perm('location', 'create_resources',
         #                        location.id)
-        return list(locations)
+        return locations
 
     def _generate_plan__parse_size(self, auth_context, size_dict):
         if self.cloud.ctl.has_feature('custom_size'):
@@ -2421,7 +2421,7 @@ class BaseComputeController(BaseController):
             except ValueError:
                 raise NotFoundError('Size does not exist')
 
-            return list(sizes)
+            return sizes
 
     def _generate_plan__parse_custom_size(self, size_dict):
         """Providers with custom sizes SHOULD override/extend this method
@@ -2436,34 +2436,36 @@ class BaseComputeController(BaseController):
                                                       locations,
                                                       sizes):
         """ Find all possible combinations of images, locations and sizes
-        based on provider constraints.
+        based on provider restrictions.
         """
         ret_list = []
         for location in locations:
-            available_sizes = self._compute_sizes_for_location(location,
-                                                               sizes)
+            available_sizes = sizes
+            if self.cloud.ctl.has_feature('location-size-restriction'):
+                available_sizes = set(location.available_sizes).intersection(set(available_sizes))  # noqa
             for size in available_sizes:
-                available_images = self._compute_images_for_size_location(
-                    location, size, images)
+                available_images = images
+                if self.cloud.ctl.has_feature('location-image-restriction'):
+                    available_images = set(location.available_images).intersection(set(available_images))  # noqa
+                if self.cloud.ctl.has_feature('size-image-restriction'):
+                    available_images = set(size.allowed_images).intersection(set(available_images))  # noqa
                 for image in available_images:
+                    # Some sizes in azure, ec2, gce and rackspace
+                    # support only volumes, so size.disk could be 0,
+                    # thus we intentionally skip checking the disk restriction
+                    # in these sizes.
+                    if image.min_disk_size is not None \
+                            and size.disk \
+                            and image.min_disk_size > size.disk:
+                        continue
+                    if image.min_memory_size is not None \
+                            and size.ram is not None \
+                            and image.min_memory_size > size.ram:
+                        continue
+                    if size.architecture not in image.architecture:
+                        continue
                     ret_list.append((image, size, location))
         return ret_list
-
-    def _compute_sizes_for_location(self, location, sizes):
-        """Compute allowed sizes, given location
-
-        Subclasses that require special handling should override these, by
-        default, dummy methods.
-        """
-        return sizes
-
-    def _compute_images_for_size_location(self, location, size, images):
-        """Compute allowed images, given size and location
-
-        Subclasses that require special handling should override these, by
-        default, dummy methods.
-        """
-        return images
 
     def _generate_plan__parse_scripts(self, auth_context, scripts):
         ret_scripts = []
