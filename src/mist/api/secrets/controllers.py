@@ -162,7 +162,7 @@ class KV1VaultSecretController(VaultSecretController):
             raise BadRequestError("Make sure your Vault token has the \
                 permissions to create secret")
         # list secrets so is_dir property can be properly set
-        self.list_secrets(path='.')
+        self.list_secrets(path='.', recursive=True)
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
@@ -191,7 +191,7 @@ class KV1VaultSecretController(VaultSecretController):
                 permissions to delete secret")
 
         # list all secrets
-        self.list_secrets(path='.')
+        self.list_secrets(path='.', recursive=True)
 
 
 class KV2VaultSecretController(VaultSecretController):
@@ -287,7 +287,7 @@ class KV2VaultSecretController(VaultSecretController):
                 secret=secret
             )
         # list secrets so is_dir property can be properly set
-        self.list_secrets(path='.')
+        self.list_secrets(path='.', recursive=True)
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
@@ -316,4 +316,4 @@ class KV2VaultSecretController(VaultSecretController):
                 permissions to delete secret")
 
         # list all secrets
-        self.list_secrets(path='.')
+        self.list_secrets(path='.', recursive=True)
