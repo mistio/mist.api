@@ -454,6 +454,8 @@ def run_script(request):
                                     id=script_id, deleted=None)
     except me.DoesNotExist:
         raise NotFoundError('Script id not found')
+    # Adding the code below
+    # docker_run(name, env=None, command=None)
     job_id = job_id or uuid.uuid4().hex
     tasks.run_script.delay(auth_context.owner.id, script.id,
                            machine.id, params=script_params,
