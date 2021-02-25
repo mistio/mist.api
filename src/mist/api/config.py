@@ -2459,10 +2459,10 @@ EC2_IMAGES = {
     },
     'af-south-1': {
         'ami-03dd45f91b6676f74': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
-        'ami-0950dcf60f02f2731': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',
-        'ami-0f072aafc9dfcb24f': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',
-        'ami-0fcf986c07ff1a0c2': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',
-        'ami-0f4b49fefef9be45a': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',
+        'ami-0950dcf60f02f2731': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-0f072aafc9dfcb24f': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0fcf986c07ff1a0c2': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0f4b49fefef9be45a': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
     },
 }
 
