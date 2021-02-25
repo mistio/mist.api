@@ -342,7 +342,8 @@ class BaseMainController(object):
                         #     if user:
                         #         secret.assign_to(user)
                         # except me.NotUniqueError:
-                        #     raise BadRequestError("The path `%s%s` exists on Vault. \
+                        #     raise BadRequestError("
+                        # The path `%s%s` exists on Vault. \
                         #         Try changing the name of the cloud" %
                         #                           (config.VAULT_CLOUDS_PATH,
                         #                            self.cloud.title))
