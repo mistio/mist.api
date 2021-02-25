@@ -51,7 +51,7 @@ def migrate_clouds():
                         private_field: cloud[private_field]
                     }
 
-                    secret.ctl.create_or_update_secret(owner.name, secret_dict)
+                    secret.ctl.create_or_update_secret(secret_dict)
         except Exception:
             print('*** WARNING ** Could not migrate cloud %s' % cloud['_id'])
             traceback.print_exc()
