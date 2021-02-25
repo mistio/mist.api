@@ -8,7 +8,7 @@ from mist.api.secrets.models import VaultSecret
 from mist.api.users.models import Owner
 
 from mist.api.clouds.models import *  # noqa
-from mist.api.clouds.models import PacketCloud
+from mist.api.clouds.models import PacketCloud # noqa
 
 
 def migrate_clouds():
