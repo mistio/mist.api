@@ -14,8 +14,6 @@ from functools import cmp_to_key
 
 import mongoengine as me
 
-import dsl_parser.parser as parser
-
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.base import ContainerImage
