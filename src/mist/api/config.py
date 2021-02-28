@@ -2233,126 +2233,237 @@ SUPPORTED_PROVIDERS = [
 EC2_IMAGES = {
     'eu-central-1': {
         'ami-e4c63e8b': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
-        'ami-060cde69': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-009b16df9fcaac611': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-2eaeb342': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-09e8a19c9eda495b3': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-ba68bad5': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-b968bad6': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-02f9ea74050d6f812': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-c425e4ab': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-25a97a4a': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-060cde69': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-0932440befd74cdba': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
     },
     'eu-west-1': {
         'ami-02ace471': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
-        'ami-a8d2d7ce': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-032e5b6af8a711f30': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-fa7cdd89': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-d1c0c4b7': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-01ccc867': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-096f43ef67d75e998': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-9186a1e2': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-00b5dfb1b867959fd': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-09447c6f': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-a8d2d7ce': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-0e5657f6d3c3ea350': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-022e8cc8f0d3c52fd': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
     },
     'eu-west-2': {
         'ami-9c363cf8': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
-        'ami-f1d7c395': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-06178cf087598769c': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-63342007': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-f1d7c395': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-09b984029e6b0326b': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-005383956f2e5fb96': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-b6daced2': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-0ffd774e02309201f': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-a9eae0cd': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-9fc7cdfb': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',  # noqa
+        'ami-0d7db5fc4b5075b0d': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+    },
+    'eu-west-3': {
+        'ami-0ec28fc9814fce254': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-0f79604849d0fcaab': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-00f6fe7d6cbb56a78': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-021a167711a65e911': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0ba7c4110ca9bfe0b': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+    },
+    'eu-north-1': {
+        'ami-02a6bfdcf8224bd77': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-00d7bb1aabce7d22c': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-09b44b5f46219ee86': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0b10b3680c5d18124': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-08bc26bf92a90ba04': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type ',  # noqa
+    },
+    'eu-south-1': {
+        'ami-00adf9322be77b621': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-08cef65729b7c8850': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-0e0812e2467b24796': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0ae9d70d4429d6724': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-04684e5a51afd7579': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
     },
     'ca-central-1': {
         'ami-9062d0f4': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-08523c5075ba75813': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-b3d965d7': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-beea56da': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-04b46a87fa4d13308': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0df58bd52157c6e83': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-0bd66a6f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-0df612970f825f04c': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-14368470': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-1562d071': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',  # noqa
+        'ami-0d8c9795f4f9f51c0': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
     },
     'us-east-1': {
         'ami-b63769a1': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-096fda3c22c1c990a': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+        'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-80861296': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-02fe94dee086c0c37': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-03d315ad33b9d49c4': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-70065467': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-668f1e70': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-c58c1dd3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-0915bcb5fa77e4892': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-fde4ebea': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0fde50fcbcd46f2f7': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8fb03898': 'ClearOS 7.2.0',
         'ami-0397f56a': 'ClearOS Community 6.4.0 ',
         'ami-ff9af896': 'ClearOS Professional 6.4.0'
     },
     'us-east-2': {
         'ami-0932686c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-03d64741867e7bb94': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+        'ami-0996d3051b72b5b2c': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-02aa7f3de34db391a': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-618fab04': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-8fab8fea': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-4191b524': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-09246ddb00c7c4fef': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-61a7fd04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-4af2a92f': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',  # noqa
+        'ami-0f052119b3c7e61d1': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
     },
     'us-west-1': {
+        'ami-09d9c5cdcfb8fc655': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-2cade64c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0ebef2838fb2605b7': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0d9b7049d327ec00d': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-2afbde4a': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-1da8f27d': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-e7a4cc87': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-066c82dabe6dd7f73': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-0f85a06f': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-7a85a01a': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-05c558c169cfe8d99': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-e09acc80': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-1da8f27d': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'us-west-2': {
+        'ami-01e78c5619c5e68b4': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-6f68cf0f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0928f4202481dfdf6': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-025102f49d03bec05': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-efd0428f': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-7c22b41c': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0174313b5af8423d7': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-baab0fda': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-09c5e030f74651050': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-c737a5a7': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-4836a428': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e4a30084': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-7c22b41c': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-northeast-1': {
+        'ami-0dc185deadd3ac449': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-5de0433c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0e039c7d64008bd84': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-09dac16017637391f': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-afb09dc8': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-d85e7fbf': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0cbc0209196a8063b': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-27fed749': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-09d28faae2e9e7138': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-30391657': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-923d12f5': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e21c7285': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-d85e7fbf': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-northeast-2': {
+        'ami-07270d166cdf39adc': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-44db152a': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
+        'ami-067abcae434ee508b': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0b50511490117e709': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-66e33108': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-9d15c7f3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-15d5077b': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-006e2f9fa7597680a': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-9d15c7f3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-097fc5cd098dd20d5': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
     },
     'sa-east-1': {
+        'ami-079b1541b6dc958ca': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-7de77b11': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0e765cee959bcbfce': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-06a550af32c7dda36': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-4090f22c': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-02777cd0ce58a1847': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-029a1e6e': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-0a0bc0fa94d632c94': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-36cfad5a': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-37cfad5b': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e1cd558d': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8df695e1': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-southeast-1': {
+        'ami-0f86a70488991335e': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-2c95344f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-09a6a7e49bd29554b': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0ae3e6717dc99c62b': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-8fcc75ec': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-0a19a669': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-1a5f9f79': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-0d06583a13678c938': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-ab5ce5c8': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-fc5ae39f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-03e8d3c5c16f119bb': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-67b21d04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-0a19a669': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-southeast-2': {
+        'ami-044c46b1952ad5861': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-39ac915a': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0d767dd04ac152743': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-080b87fdc6d5ca853': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-96666ff5': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-807876e3': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0e413a9954960d83a': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8ea3fbed': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-075a72b1992cb0687': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-af2128cc': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-162c2575': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-527b4031': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-807876e3': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-south-1': {
+        'ami-0a9d27a9f4f5c0efc': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-cdbdd7a2': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
+        'ami-073c8c0760395aab8': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0e8710d48cc4ea8dd': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-c2ee9dad': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-83a8dbec': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0eeb03e72075b9bcc': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-52c7b43d': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-8f8afde0': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-83a8dbec': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-    }
+        'ami-0b3acf3edf2397475': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+    },
+    'ap-east-1': {
+      'ami-04864d873127e4b0a': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+      'ami-0a3a9dd4bc68bae02': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+      'ami-0b4017973f2328b15': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+      'ami-015e90097eca079a6': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+      'ami-f4fab885': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',
+    },
+    'me-south-1': {
+        'ami-0e3fd15abd8ba3d3c': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-095711532f1d50122': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-07bf297712e054a41': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0c288c79750011574': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0b41a37a62a4296fc': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+    },
+    'af-south-1': {
+        'ami-03dd45f91b6676f74': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-0950dcf60f02f2731': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-0f072aafc9dfcb24f': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0fcf986c07ff1a0c2': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0f4b49fefef9be45a': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+    },
 }
 
 DOCKER_IMAGES = {
