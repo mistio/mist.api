@@ -10,38 +10,38 @@ import logging
 
 import requests
 
-from functools import cmp_to_key
+# from functools import cmp_to_key
 
-import mongoengine as me
+# import mongoengine as me
 
-from libcloud.container.types import Provider as Container_Provider
-from libcloud.container.providers import get_driver as get_container_driver
-from libcloud.container.base import ContainerImage
+# from libcloud.container.types import Provider as Container_Provider
+# from libcloud.container.providers import get_driver as get_container_driver
+# from libcloud.container.base import ContainerImage
 
-from mist.api import helpers as io_helpers
+# from mist.api import helpers as io_helpers
 
-from mist.api.mongoengine_extras import escape_dots_and_dollars_from_dict
+# from mist.api.mongoengine_extras import escape_dots_and_dollars_from_dict
 
-from mist.api.auth.models import ApiToken
+# from mist.api.auth.models import ApiToken
 
-from mist.api.tag.methods import add_tags_to_resource, get_tags_for_resource
+# from mist.api.tag.methods import add_tags_to_resource, get_tags_for_resource
 
-from mist.orchestration.helpers import download, unpack, find_path
-from mist.orchestration.models import Template, Stack
-from mist.orchestration.exceptions import WorkflowExecutionError
+# from mist.orchestration.helpers import download, unpack, find_path
+# from mist.orchestration.models import Template, Stack
+# from mist.orchestration.exceptions import WorkflowExecutionError
 
-from mist.api.exceptions import BadRequestError
-from mist.api.exceptions import ConflictError
-from mist.api.exceptions import RequiredParameterMissingError
+# from mist.api.exceptions import BadRequestError
+# from mist.api.exceptions import ConflictError
+# from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.api.logs.methods import log_event
+# from mist.api.logs.methods import log_event
 
-from mist.api import config
+# from mist.api import config
 
-if config.HAS_RBAC:
-    from mist.rbac.tokens import SuperToken
+# if config.HAS_RBAC:
+#     from mist.rbac.tokens import SuperToken
 
-log = logging.getLogger(__name__)
+# log = logging.getLogger(__name__)
 
 
 def list_scripts(owner):
