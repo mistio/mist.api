@@ -38,4 +38,38 @@ def docker_run(name, env=None, command=None, script_id):
     from mist.api.methos import notify_admin, notify_user
     from mist.api.machines.methos import list_machines
     print(script_id)
+    try:
+        if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
+            # tls auth, needs to pass the key and cert as files
+            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            key_temp_file.write(config.DOCKER_TLS_KEY.encode())
+            key_temp_file.close()
+            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            cert_temp_file.write(config.DOCKER_TLS_CERT.encode())
+            cert_temp_file.close()
+            if config.DOCKER_TLS_CA:
+                # docker started with tlsverify
+                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+                ca_cert_temp_file.write(config.DOCKER_TLS_CA.encode())
+                ca_cert_temp_file.close()
+            driver = get_container_driver(Container_Provider.DOCKER)
+            conn = driver(host=config.DOCKER_IP,
+                          port=config.DOCKER_PORT,
+                          key_file=key_temp_file.name,
+                          cert_file=cert_temp_file.name,
+                          ca_cert=ca_cert_temp_file.name)
+        else:
+            driver = get_container_driver(Container_Provider.DOCKER)
+            conn = driver(host=config.DOCKER_IP, port=config.DOCKER_PORT)
+        image_id = "achilleasein/anisble4mist:latest"
+        image = ContainerImage(id=image_id, name=image_id,
+                               extra={}, driver=conn, path=None,
+                               version=None)
+        node = conn.deploy_container(name, image, environment=env,
+                                     command=command, tty=True)
+    except Exception as err:
+        raise WorkflowExecutionError(str(err))
+
+    return node
+
 
