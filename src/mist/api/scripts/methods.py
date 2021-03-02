@@ -33,7 +33,7 @@ def filter_list_scripts(auth_context, perm='read'):
                    auth_context.get_allowed_resources(rtype='scripts')]
     return scripts
 
-def docker_run(name, env=None, command=None, script_id):
+def docker_run(name, script_id, env=None, command=None):
     import mist.api.shell
     from mist.api.methos import notify_admin, notify_user
     from mist.api.machines.methos import list_machines
