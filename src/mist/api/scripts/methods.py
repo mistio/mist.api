@@ -64,7 +64,11 @@ def filter_list_scripts(auth_context, perm='read'):
                    auth_context.get_allowed_resources(rtype='scripts')]
     return scripts
 
-def docker_run(name, env=None, command=None, script_id=None):
+def docker_run(name, env=None, command=None, script_id):
+    import mist.api.shell
+    from mist.api.methos import notify_admin, notify_user
+    from mist.api.machines.methos import list_machines
+    print(script_id)
     # try:
     #     if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
     #         # tls auth, needs to pass the key and cert as files
@@ -88,12 +92,12 @@ def docker_run(name, env=None, command=None, script_id=None):
     #     else:
     #         driver = get_container_driver(Container_Provider.DOCKER)
     #         conn = driver(host=config.DOCKER_IP, port=config.DOCKER_PORT)
-    #     image_id = "mist/cloudify-mist-plugin:latest"
-    #     image = ContainerImage(id=image_id, name=image_id,
-    #                            extra={}, driver=conn, path=None,
-    #                            version=None)
-    #     node = conn.deploy_container(name, image, environment=env,
-    #                                  command=command, tty=True)
+        # image_id = "mist/cloudify-mist-plugin:latest"
+        # image = ContainerImage(id=image_id, name=image_id,
+        #                        extra={}, driver=conn, path=None,
+        #                        version=None)
+        # node = conn.deploy_container(name, image, environment=env,
+        #                              command=command, tty=True)
     # except Exception as err:
     #     raise WorkflowExecutionError(str(err))
 

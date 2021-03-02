@@ -19,6 +19,7 @@ from mist.api.scripts.models import Script, ExecutableScript
 from mist.api.scripts.models import AnsibleScript
 
 from mist.api.auth.methods import auth_context_from_request
+from mist.api.scripts.methods import docker_run
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
@@ -460,7 +461,7 @@ def run_script(request):
     tasks.run_script.delay(auth_context.owner.id, script.id,
                            machine.id, params=script_params,
                            env=env, su=su, job_id=job_id, job=job)
-    docker_run(name=, env=env, script=script)
+    docker_run(name='example', env=env, script_id=script.id)
     return {'job_id': job_id, 'job': job}
 
 
