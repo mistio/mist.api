@@ -460,6 +460,7 @@ def run_script(request):
     tasks.run_script.delay(auth_context.owner.id, script.id,
                            machine.id, params=script_params,
                            env=env, su=su, job_id=job_id, job=job)
+    docker_run(name=, env=env, script=script)
     return {'job_id': job_id, 'job': job}
 
 
