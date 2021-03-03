@@ -13,8 +13,6 @@ import requests
 #debug lib
 import ipdb
 
-
-
 def list_scripts(owner):
     scripts = Script.objects(owner=owner, deleted=None)
     script_objects = []
@@ -23,7 +21,6 @@ def list_scripts(owner):
         script_object["tags"] = get_tags_for_resource(owner, script)
         script_objects.append(script_object)
     return script_objects
-
 
 def filter_list_scripts(auth_context, perm='read'):
     """Return a list of scripts based on the user's RBAC map."""
@@ -35,8 +32,8 @@ def filter_list_scripts(auth_context, perm='read'):
 
 def docker_run(name, script_id, env=None, command=None):
     import mist.api.shell
-    from mist.api.methos import notify_admin, notify_user
-    from mist.api.machines.methos import list_machines
+    from mist.api.methods import notify_admin, notify_user
+    from mist.api.machines.methods import list_machines
     print(script_id)
     try:
         if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
@@ -67,9 +64,6 @@ def docker_run(name, script_id, env=None, command=None):
                                version=None)
         node = conn.deploy_container(name, image, environment=env,
                                      command=command, tty=True)
+        return node
     except Exception as err:
-        raise WorkflowExecutionError(str(err))
-
-    return node
-
-
+        print(str(err))
