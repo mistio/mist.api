@@ -10,10 +10,8 @@ from libcloud.container.base import ContainerImage
 # Added by achilleas, require cleanup
 import tempfile
 
-import requests
-
 # debug lib
-import ipdb
+# import ipdb
 
 
 def list_scripts(owner):
@@ -35,7 +33,7 @@ def filter_list_scripts(auth_context, perm='read'):
     return scripts
 
 
-def docker_run(name, script_id, env=None, command=None):
+def docker_run(name, script_id, env=None, command=None, container_image_prov="achilleasein/ansible4mist:latest"):
     print(script_id)
     try:
         if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
@@ -60,7 +58,7 @@ def docker_run(name, script_id, env=None, command=None):
         else:
             driver = get_container_driver(Container_Provider.DOCKER)
             conn = driver(host=config.DOCKER_IP, port=config.DOCKER_PORT)
-        image_id = "achilleasein/anisble4mist:latest"
+        image_id = container_image_prov
         image = ContainerImage(id=image_id, name=image_id,
                                extra={}, driver=conn, path=None,
                                version=None)
@@ -69,4 +67,3 @@ def docker_run(name, script_id, env=None, command=None):
         return node
     except Exception as err:
         print(str(err))
-        
