@@ -3,6 +3,10 @@ from mist.api.scripts.models import Script
 from mist.api.tag.methods import get_tags_for_resource
 from mist.api import config
 
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.container.providers import get_driver as get_container_driver
+from libcloud.container.base import ContainerImage
+
 # Added by achilleas, require cleanup
 import tempfile
 
@@ -10,6 +14,7 @@ import requests
 
 # debug lib
 import ipdb
+
 
 def list_scripts(owner):
     scripts = Script.objects(owner=owner, deleted=None)
@@ -20,6 +25,7 @@ def list_scripts(owner):
         script_objects.append(script_object)
     return script_objects
 
+
 def filter_list_scripts(auth_context, perm='read'):
     """Return a list of scripts based on the user's RBAC map."""
     scripts = list_scripts(auth_context.owner)
@@ -27,6 +33,7 @@ def filter_list_scripts(auth_context, perm='read'):
         scripts = [script for script in scripts if script['id'] in
                    auth_context.get_allowed_resources(rtype='scripts')]
     return scripts
+
 
 def docker_run(name, script_id, env=None, command=None):
     print(script_id)
