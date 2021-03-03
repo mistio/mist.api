@@ -1,16 +1,14 @@
 # Default
 from mist.api.scripts.models import Script
 from mist.api.tag.methods import get_tags_for_resource
+from mist.api import config
 
 # Added by achilleas, require cleanup
-import os
-import uuid
 import tempfile
-import logging
 
 import requests
 
-#debug lib
+# debug lib
 import ipdb
 
 def list_scripts(owner):
@@ -31,9 +29,6 @@ def filter_list_scripts(auth_context, perm='read'):
     return scripts
 
 def docker_run(name, script_id, env=None, command=None):
-    import mist.api.shell
-    from mist.api.methods import notify_admin, notify_user
-    from mist.api.machines.methods import list_machines
     print(script_id)
     try:
         if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
@@ -67,3 +62,4 @@ def docker_run(name, script_id, env=None, command=None):
         return node
     except Exception as err:
         print(str(err))
+        
