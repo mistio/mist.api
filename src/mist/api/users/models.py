@@ -102,7 +102,7 @@ class SocialAuthUser(me.Document):
 
     # This is the unique id that the authentication provider uses to
     # identify a user
-    uid = me.StringField(required=True, unique=True)
+    uid = me.StringField(required=True)
 
     # The id of the user that has connected with this account
     user_id = me.StringField(required=True)
