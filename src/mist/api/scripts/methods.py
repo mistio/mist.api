@@ -33,7 +33,7 @@ def filter_list_scripts(auth_context, perm='read'):
     return scripts
 
 
-def docker_run(name, script_id, env=None, command=None, container_image_prov="achilleasein/ansible4mist:latest"):
+def docker_run(name, script_id, env=None, command=None, container_image_prov="achilleasein/ansible4mist:latest", container_name='ansible4mist'):
     print(script_id)
     try:
         if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
@@ -58,12 +58,15 @@ def docker_run(name, script_id, env=None, command=None, container_image_prov="ac
         else:
             driver = get_container_driver(Container_Provider.DOCKER)
             conn = driver(host=config.DOCKER_IP, port=config.DOCKER_PORT)
-        image_id = container_image_prov
-        image = ContainerImage(id=image_id, name=image_id,
+        image = ContainerImage(id=container_image_prov, name=container_image_prov,
                                extra={}, driver=conn, path=None,
                                version=None)
-        node = conn.deploy_container(name, image, environment=env,
+        # Note: try-catch is bad here, need to change to if
+        try:
+            node = conn.deploy_container(name, image, environment=env,
                                      command=command, tty=True)
+        except:
+            node = conn.start_container(container_name)
         return node
     except Exception as err:
-        print(str(err))
+        print('THATS MY ERROR: ' + str(err))
