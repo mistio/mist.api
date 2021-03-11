@@ -209,8 +209,14 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_images__fetch_images(self, search=None):
         if not search:
+            import os
+            import json
             from mist.api.images.models import CloudImage
-            default_images = config.EC2_IMAGES[self.cloud.region]
+            images_file = os.path.join(config.MIST_API_DIR,
+                                       config.EC2_IMAGES_FILE)
+            with open(images_file, 'r') as f:
+                default_images = json.load(f)[self.cloud.region]
+
             image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images

@@ -2229,6 +2229,8 @@ SUPPORTED_PROVIDERS = [
     },
 ]
 
+EC2_IMAGES_FILE = 'aws_default_images.json'
+
 # Base AMIs
 EC2_IMAGES = {
     'eu-central-1': {
