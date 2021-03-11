@@ -30,6 +30,8 @@ import tempfile
 import iso8601
 import pytz
 import asyncio
+import os
+import json
 
 import mongoengine as me
 
@@ -209,8 +211,6 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_images__fetch_images(self, search=None):
         if not search:
-            import os
-            import json
             from mist.api.images.models import CloudImage
             images_file = os.path.join(config.MIST_API_DIR,
                                        config.EC2_IMAGES_FILE)
@@ -1418,10 +1418,13 @@ class AzureArmComputeController(BaseComputeController):
         return node['extra'].get('size')
 
     def _list_images__fetch_images(self, search=None):
-        # Fetch mist's recommended images
+        images_file = os.path.join(config.MIST_API_DIR,
+                                   config.AZURE_IMAGES_FILE)
+        with open(images_file, 'r') as f:
+            default_images = json.load(f)
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
-                  for image, name in list(config.AZURE_ARM_IMAGES.items())]
+                  for image, name in list(default_images.items())]
         return images
 
     def _reboot_machine(self, machine, node):
