@@ -3,7 +3,7 @@
 Takes approximately 8 minutes to run.
 
 Usage asssuming on api directory:
-    ./bin/get_aws_default_images Username Password IAM-account-url aws_default_images.json  # noqa
+    ./bin/get-ec2-images Username Password IAM-account-url aws_default_images.json  # noqa
 
 Requires selenium-wire to run.
 Install it with `pip install selenium-wire`
