@@ -126,9 +126,9 @@ class AmazonComputeController(BaseComputeController):
             network_interfaces = node_dict['extra'].get(
                 'network_interfaces', [])
             network_interfaces = [{
-                'id': network_interface.id,
-                'state': network_interface.state,
-                'extra': network_interface.extra
+                'id': network_interface['id'],
+                'state': network_interface['state'],
+                'extra': network_interface['extra']
             } for network_interface in network_interfaces]
         except Exception as exc:
             log.warning("Cannot parse net ifaces for machine %s/%s/%s: %r" % (
