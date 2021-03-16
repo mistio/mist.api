@@ -3218,6 +3218,62 @@ class LibvirtComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
 
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        """
+        Parse network interfaces.
+        - If networks_dict is empty, no network interface will be configured.
+        - If only `id` or `name` is given, the interface will be
+        configured by DHCP.
+        - If `ip` is given, it will be statically assigned to the interface and
+          optionally `gateway` and `primary` attributes will be used.
+        """
+        from mist.api.methods import list_resources
+        from libcloud.utils.networking import is_valid_ip_address
+
+        if not networks_dict:
+            return None
+
+        network_id = networks_dict.get('id') or networks_dict.get('name')
+
+        if not network_id:
+            raise BadRequestError('network id or name is required')
+
+        try:
+            [network], _ = list_resources(auth_context, 'network',
+                                          search=network_id,
+                                          cloud=self.cloud.id,
+                                          limit=1)
+        except ValueError:
+            raise NotFoundError('Network does not exist')
+
+        nid = {
+            'network_name': network.name
+        }
+
+        if networks_dict.get('ip'):
+            if is_valid_ip_address(networks_dict['ip']):
+                nid['ip'] = networks_dict['ip']
+            else:
+                raise BadRequestError('IP given is invalid')
+            if networks_dict.get('gateway'):
+                if is_valid_ip_address(networks_dict['gateway']):
+                    nid['gateway'] = networks_dict['gateway']
+                else:
+                    raise BadRequestError('Gateway IP given is invalid')
+            if networks_dict.get('primary'):
+                nid['primary'] = networks_dict['primary']
+
+        return [nid]
+
+    def _generate_plan__parse_disks(self, auth_context, disks_dict):
+        ret_dict = {
+            'disk_size': disks_dict.get('disk_size', 4),
+        }
+        if disks_dict.get('disk_path'):
+            ret_dict['disk_path'] = disks_dict.get('disk_path')
+
+        return ret_dict
+
 
 class OnAppComputeController(BaseComputeController):
 

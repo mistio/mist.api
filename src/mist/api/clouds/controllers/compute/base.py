@@ -2290,7 +2290,6 @@ class BaseComputeController(BaseController):
             `self._generate_plan__parse_key`
             `self._generate_plan__parse_networks`
             `self._generate_plan__parse_volumes`
-            `self._generate_plan__parse_networks`
             `self._generate_plan__parse_disks`
             `self._generate_plan__parse_extra`
             `self._generate_plan__post_parse_plan`
@@ -2312,7 +2311,10 @@ class BaseComputeController(BaseController):
         if location:
             plan['location'] = location.id
         if size:
-            plan['size'] = size.id
+            if isinstance(size, dict):
+                plan['size'] = size
+            else:
+                plan['size'] = size.id
         if image:
             plan['image'] = image.id
 
@@ -2320,11 +2322,10 @@ class BaseComputeController(BaseController):
         if key:
             plan['key'] = key
 
-        if self.cloud.ctl.has_feature('networks'):
-            networks = self._generate_plan__parse_networks(auth_context,
-                                                           networks)
-            if networks:
-                plan['networks'] = networks
+        networks = self._generate_plan__parse_networks(auth_context,
+                                                       networks)
+        if networks:
+            plan['networks'] = networks
 
         if self.cloud.ctl.has_feature('storage'):
             volumes = self._generate_plan__parse_volumes(auth_context,
@@ -2405,30 +2406,31 @@ class BaseComputeController(BaseController):
         return locations
 
     def _generate_plan__parse_size(self, auth_context, size_dict):
-        if self.cloud.ctl.has_feature('custom_size'):
-            size = self._generate_plan__parse_custom_size(size_dict)
-            return [size]
-        else:
-            from mist.api.methods import list_resources
-            size_search = size_dict.get('id', '') or size_dict.get('name', '')
-            # if not size_search:
-            #    raise BadRequestError('Size id or name is required')
-            try:
-                sizes, _ = list_resources(
-                    auth_context, 'size', search=size_search,
-                    cloud=self.cloud.id
-                )
-            except ValueError:
+        from mist.api.methods import list_resources
+        size_search = size_dict.get('id') or size_dict.get('name')
+        if size_search:
+            sizes, count = list_resources(
+                auth_context, 'size', search=size_search,
+                cloud=self.cloud.id
+            )
+            if not count:
                 raise NotFoundError('Size does not exist')
 
             return sizes
+        else:
+            if self.cloud.ctl.has_feature('custom_size'):
+                size = self._generate_plan__parse_custom_size(size_dict)
+                return [size]
+            else:
+                raise BadRequestError('Size id or name is required')
 
     def _generate_plan__parse_custom_size(self, size_dict):
         """Providers with custom sizes SHOULD override/extend this method
         """
-        size = {}
-        size['cpu'] = size_dict.get('cpu', 1)
-        size['ram'] = size_dict.get('ram', 256)
+        size = {
+            'cpus': size_dict.get('cpus', 1),
+            'ram': size_dict.get('ram', 256),
+        }
 
         return size
 
@@ -2438,6 +2440,7 @@ class BaseComputeController(BaseController):
         """ Find all possible combinations of images, locations and sizes
         based on provider restrictions.
         """
+        custom_size = isinstance(sizes[0], dict)
         ret_list = []
         for location in locations:
             available_sizes = sizes
@@ -2447,22 +2450,26 @@ class BaseComputeController(BaseController):
                 available_images = images
                 if self.cloud.ctl.has_feature('location-image-restriction'):
                     available_images = set(location.available_images).intersection(set(available_images))  # noqa
-                if self.cloud.ctl.has_feature('size-image-restriction'):
+                if self.cloud.ctl.has_feature('size-image-restriction') \
+                        and custom_size is False:
                     available_images = set(size.allowed_images).intersection(set(available_images))  # noqa
                 for image in available_images:
                     # Some sizes in azure, ec2, gce and rackspace
                     # support only volumes, so size.disk could be 0,
                     # thus we intentionally skip checking the disk restriction
                     # in these sizes.
-                    if image.min_disk_size is not None \
+                    if custom_size is False \
+                            and image.min_disk_size is not None \
                             and size.disk \
                             and image.min_disk_size > size.disk:
                         continue
-                    if image.min_memory_size is not None \
+                    if custom_size is False \
+                            and image.min_memory_size is not None \
                             and size.ram is not None \
                             and image.min_memory_size > size.ram:
                         continue
-                    if size.architecture not in image.architecture:
+                    if custom_size is False \
+                            and size.architecture not in image.architecture:
                         continue
                     ret_list.append((image, size, location))
         return ret_list
@@ -2507,7 +2514,6 @@ class BaseComputeController(BaseController):
         feature = self.cloud.ctl.has_feature('key')
         if feature is False:
             return None
-
         key_search = key_dict.get('id', '') or key_dict.get('name', '')
         #  key is not required and a key attribute was not given
         if isinstance(feature, dict) \
