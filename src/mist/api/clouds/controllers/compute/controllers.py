@@ -30,6 +30,8 @@ import tempfile
 import iso8601
 import pytz
 import asyncio
+import os
+import json
 
 import mongoengine as me
 
@@ -124,9 +126,9 @@ class AmazonComputeController(BaseComputeController):
             network_interfaces = node_dict['extra'].get(
                 'network_interfaces', [])
             network_interfaces = [{
-                'id': network_interface.id,
-                'state': network_interface.state,
-                'extra': network_interface.extra
+                'id': network_interface['id'],
+                'state': network_interface['state'],
+                'extra': network_interface['extra']
             } for network_interface in network_interfaces]
         except Exception as exc:
             log.warning("Cannot parse net ifaces for machine %s/%s/%s: %r" % (
@@ -210,7 +212,11 @@ class AmazonComputeController(BaseComputeController):
     def _list_images__fetch_images(self, search=None):
         if not search:
             from mist.api.images.models import CloudImage
-            default_images = config.EC2_IMAGES[self.cloud.region]
+            images_file = os.path.join(config.MIST_API_DIR,
+                                       config.EC2_IMAGES_FILE)
+            with open(images_file, 'r') as f:
+                default_images = json.load(f)[self.cloud.region]
+
             image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images
@@ -1412,10 +1418,13 @@ class AzureArmComputeController(BaseComputeController):
         return node['extra'].get('size')
 
     def _list_images__fetch_images(self, search=None):
-        # Fetch mist's recommended images
+        images_file = os.path.join(config.MIST_API_DIR,
+                                   config.AZURE_IMAGES_FILE)
+        with open(images_file, 'r') as f:
+            default_images = json.load(f)
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
-                  for image, name in list(config.AZURE_ARM_IMAGES.items())]
+                  for image, name in list(default_images.items())]
         return images
 
     def _reboot_machine(self, machine, node):
