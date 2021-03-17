@@ -477,9 +477,13 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "A",
-                    "target": urllib.parse.quote("\"system_load1\"," +
-                                                 " \"system_load5\"," +
-                                                 " \"system_load15\"")
+                    "target": 
+                    # 'system_load[1-9]{1,2}'
+                    # urllib.parse.quote("\"system_load1\"," +
+                    #                              " \"system_load5\"," +
+                    #                              " \"system_load15\"")
+                #    "{VICTORIA_URI}/api/v1/query_range?query={{__name__=~'(system_load15)|(system_load1)|(system_load5)'"+",machine_id=\"{machine_id}\"}}"
+                "{{__name__=~'(system_load15)|(system_load1)|(system_load5)',machine_id=\"{machine_id}\"}}"
                 }],
                 "x-axis": True,
                 "y-axis": True
@@ -492,10 +496,14 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "B",
-                    "target": urllib.parse.quote("\"mem_free\"," +
-                                                 " \"mem_used\"," +
-                                                 " \"mem_cached\"," +
-                                                 " \"mem_buffered\"")
+                    "target": 
+                    # 'mem_[fucb][a-z]{3,}'
+                    # urllib.parse.quote("\"mem_free\"," +
+                    #                              " \"mem_used\"," +
+                    #                              " \"mem_cached\"," +
+                    #                              " \"mem_buffered\"")
+                    # "{VICTORIA_URI}/api/v1/query_range?query={{__name__=~'mem_[fucb][a-z]{{3,}}'"+",machine_id=\"{machine_id}\"}}"
+                "{{__name__=~'(mem_free)|(mem_used)|(mem_cached)|(mem_buffered)',machine_id=\"{machine_id}\"}}"
                 }, ],
                 "yaxes": [{
                     "label": "B"
@@ -509,8 +517,9 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "C",
-                    # something something idle needs to be gone
-                    "target": urllib.parse.quote("\"*.cpu=cpu-total\",")
+                    # something something idle needs to be gone (a note from inluxdb). 
+                    #If one needs to remove cpu_usage_idle total, just set __name__=~'cpu_usage_.*[^(idle)]'
+                    "target": "{{cpu='cpu-total',__name__=~'cpu_usage_.*',machine_id=\"{machine_id}\"}}"
                 }],
                 "yaxes": [{
                     "label": "%"
@@ -524,7 +533,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "Z",
-                    "target": urllib.parse.quote("\"cpu_usage_idle\",")
+                    "target": "{{__name__=~'cpu_usage_idle',machine_id=\"{machine_id}\"}}"
                 }],
                 "yaxes": [{
                     "label": "%"
@@ -538,7 +547,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "G",
-                    "target": urllib.parse.quote("\"net_bytes_recv\",")
+                    "target": "rate({{interface=~'.*',__name__='net_bytes_recv',machine_id=\"{machine_id}\"}})"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -552,7 +561,8 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "H",
-                    "target": urllib.parse.quote("\"net_bytes_sent\",")
+                    "target": "rate({{__name__=~'net_bytes_sent',machine_id=\"{machine_id}\"}})"
+                
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -566,7 +576,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "I",
-                    "target": urllib.parse.quote("\"diskio_read_bytes\",")
+                    "target": "rate({{__name__=~'diskio_read_bytes',machine_id=\"{machine_id}\"}})"
                 }],
                 "x-axis": True,
                 "y-axis": True,
@@ -582,7 +592,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "J",
-                    "target": urllib.parse.quote("\"diskio_write_bytes\",")
+                    "target": "rate({{__name__=~'diskio_write_bytes',machine_id=\"{machine_id}\"}})"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -595,9 +605,9 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "height": 400,
                 "stack": False,
                 "datasource": "mist.monitor",
-                "targets": [{
+                "targets": [{ 
                     "refId": "D",
-                    "target": urllib.parse.quote("\"disk_free\",")
+                    "target": "{{__name__=~'disk_free',device=~'(root)|(loop[0-9]+)|(overlay)',machine_id=\'{machine_id}\'}}"
                 }],
                 "yaxes": [{
                     "label": "B"

@@ -4,7 +4,6 @@ import time
 import json
 import re
 import ast
-
 from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api import config
@@ -20,10 +19,13 @@ def round_base(x, precision, base):
 def generate_metric(metric_dict):
     keys_ignore = set(['db', 'host', 'machine_id', '__name__'])
     metric = metric_dict.get('__name__', "")
-    for key, value in metric_dict.items():
-        if key in keys_ignore:
-            continue
-        metric += f".{str(key)}={str(value)}"
+    keys_all = set(metric_dict.keys())
+    keys_loop = keys_all - keys_ignore
+    if len(keys_loop) != 0:
+        metric += "{"
+        for key in list(keys_loop):
+            metric += f"{str(key)}='{str(metric_dict[key])}',"
+        metric = metric.strip(',') + '}'
     return metric
 
 
@@ -48,6 +50,13 @@ def parse_relative_time(dt):
 
 
 def get_stats(machine, start="", stop="", step="", metrics=None):
+    """
+    TODO: If the number of data points requested is larger than N_max = 30000,
+    the request to the database returns Error 422. Thus, for large Dt = |stop-start|, the
+    step must be large enough so Dt/step < N_max. Currently, if one asks for data from 1year
+    before via the UI, get_stats is not working.
+    """
+    querries = metrics
     data = {}
     time_arguments = ""
     if start != "":
@@ -58,56 +67,31 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         time_arguments += "&step=5s"
     else:
         time_arguments += f"&step={parse_relative_time(step)}"
-
-    processed_metrics = []
-    for metric_query in metrics:
-        processed_metrics += ast.literal_eval(metric_query)
-    metrics = processed_metrics
-    if not metrics:
-        metrics = ["", ]
     raw_machine_data_list = []
-    use_deriv = False
-    if set(["net_bytes_recv", "net_bytes_sent",
-            "diskio_read_bytes", "diskio_write_bytes"]) & set(metrics):
-        use_deriv = True
-    for metric in metrics:
-        metrics_query = ""
-        if metric:
-            name, *labels = metric.split('.')
-            if name == "*":
-                name = ".*"
-            metrics_query = f"__name__=~\"{name}\","
-            for label in labels:
-                key, value = label.split('=')
-                metrics_query += f"{key}=\"{value}\","
+    for querry in querries:
         try:
-            if use_deriv:
-                raw_machine_data = requests.get(
-                    f"{config.VICTORIAMETRICS_URI}/api/v1/query_range"
-                    f"?query=rate({{{metrics_query}machine_id=\""
-                    f"{machine.id}\"}}){time_arguments}", timeout=20)
-            else:
-                raw_machine_data = requests.get(
-                    f"{config.VICTORIAMETRICS_URI}/api/v1/query_range?query="
-                    f"{{{metrics_query}machine_id=\"{machine.id}\"}}"
-                    f"{time_arguments}", timeout=20)
+            proc_quer = querry.format(machine_id=machine.id)
+            url = "{VICTORIA_URI}/api/v1/query_range?query={querry}"
+            url = url.format(VICTORIA_URI=config.VICTORIAMETRICS_URI,querry=proc_quer)+time_arguments
+        except Exception as exc:
+            log.error(
+                'Got %r on get_stats for resource %s'
+                % (exc, machine.id))
+        try:
+            # It is recommended to use 'post' intead of 'get' to avoid length limitations on the querries
+            # Ref: https://github.com/prometheus/client_golang/issues/801
+            raw_machine_data = requests.post(url, timeout=20)
         except Exception as exc:
             log.error(
                 'Got %r on get_stats for resource %s'
                 % (exc, machine.id))
             raise ServiceUnavailableError()
-
         if not raw_machine_data.ok:
             log.error('Got %d on get_stats: %s',
                       raw_machine_data.status_code, raw_machine_data.content)
             raise ServiceUnavailableError()
         raw_machine_data = raw_machine_data.json()
-        for result in raw_machine_data.get("data", {}).get("result", []):
-            if result.get("metric"):
-                if not result["metric"].get("__name__"):
-                    result["metric"]["__name__"] = name
         raw_machine_data_list.append(raw_machine_data)
-
     for raw_machine_data in raw_machine_data_list:
         for result in raw_machine_data.get('data', {}).get('result', {}):
             metric = generate_metric(result.get("metric", {}))
@@ -117,7 +101,6 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
                                 str(round_base(int(dt), 1, 5))]
                                for dt, val in result.get("values")]
             }
-
     if not isinstance(machine, str):
         # set activated_at for collectd/telegraf installation status
         # if no data previously received for machine
@@ -141,9 +124,10 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
 
     return data
 
-
 def get_load(org, machines, start, stop, step):
-    data = {}
+    ''' 
+    Arguments 'org' and 'machines' are not used.
+    '''
     time_arguments = ""
     if start != "":
         time_arguments += f"&start={parse_relative_time(start)}"
@@ -162,22 +146,22 @@ def get_load(org, machines, start, stop, step):
             'Got %r on get_load for org %s'
             % (exc, org))
         raise ServiceUnavailableError()
-
     if not raw_load_data.ok:
         log.error('Got %d on get_load: %s',
                   raw_load_data.status_code, raw_load_data.content)
         raise ServiceUnavailableError()
 
-    raw_load_data = raw_load_data.json()
-    for result in raw_load_data.get('data', {}).get('result', {}):
-        machine_id = result.get("metric", {}).get("machine_id")
-        metric = "system_load1"
+    load_data = raw_load_data.json().get('data', {}).get('result')
+    data = {}
+    for point in load_data:
+        machine_id = point.get('metric')['machine_id']
+        metric = point.get('metric')['__name__']
         data[machine_id] = {
-            "id": "system_load1",
+            "id": metric,
             "name": machine_id,
             "datapoints": [[parse_value(val),
                             round_base(int(dt), 1, 5)]
-                           for dt, val in result.get("values")]
+                           for dt, val in point.get("values")]
         }
 
     return data
