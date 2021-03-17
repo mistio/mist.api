@@ -2568,7 +2568,7 @@ class BaseComputeController(BaseController):
         """Create and return a dictionary with all of the provider's
         attributes necessary to attach the volume to a machine.
 
-        Subclasses that require special handling should override this
+        Subclasses that require special handling SHOULD override this
         by default, dummy method
         """
         return {'id': vol_obj.id}
@@ -2683,19 +2683,30 @@ class BaseComputeController(BaseController):
     def _generate_plan__post_parse_plan(self, plan):
         """Used to parse whole plan in place, instead of specific parts of it.
         For example a provider could have some parameters from extra and
-        networks that need to be processed together
+        networks that need to be processed together.
+
+        Subclasses that require special handling SHOULD override this method.
         """
         pass
 
     def create_machine(self, plan):
+        """Create and return a node
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        There are instead a number of methods that are called from this method,
+        to allow subclasses to modify the data according to the specifics of
+        their cloud type. These methods are:
+
+            `self._create_machine__compute_kwargs`
+            `self._create_machine__create_node`
+            `self._create_machine__handle_exception`
+            `self._create_machine__post_machine_creation_steps`
+        """
         kwargs = self._create_machine__compute_kwargs(plan)
 
         try:
-            if self.cloud.ctl.has_feature('container'):
-                # TODO this will not work for kubevirt
-                node = self.connection.deploy_container(**kwargs)
-            else:
-                node = self.connection.create_node(**kwargs)
+            node = self._create_machine__create_node(kwargs)
         except Exception as exc:
             # TODO docker tries to pull image
             # when exception occurs
@@ -2706,7 +2717,12 @@ class BaseComputeController(BaseController):
         return node
 
     def _create_machine__compute_kwargs(self, plan):
-        """
+        """Extract items from plan and prepare kwargs
+        that will be passed to `create_node`/`deploy_container`.
+
+        This is to be called exclusively by `self.create_machine`.
+
+        Subclasses MAY override/extend this method.
         """
         kwargs = {
             'name': plan['machine_name']
@@ -2732,17 +2748,45 @@ class BaseComputeController(BaseController):
         # TODO post parse
         return kwargs
 
+    def _create_machine__create_node(self, kwargs):
+        """Wrapper method for libcloud's `create_node`/`deploy_container`
+
+        This is to be called exclusively by `self.create_machine`.
+
+        Most subclasses shouldn't need to override or extend this method.
+
+        Subclasses MAY override this method.
+        """
+        if self.cloud.ctl.has_feature('container'):
+            node = self.connection.deploy_container(**kwargs)
+        else:
+            node = self.connection.create_node(**kwargs)
+        return node
+
     def _create_machine__handle_exception(self, exc, kwargs):
+        """Handle exception in `create_node` method
+
+        This is to be called exclusively by `self.create_machine`.
+
+        Subclasses that require special handling SHOULD override this method.
+        """
         raise MachineCreationError("%s, got exception %s"
                                    % (self.cloud.title, exc), exc)
 
     def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
-        """
+        """Post create machine actions.
+
+        This is to be called exclusively by `self.create_machine`.
+
+        Subclasses that require special handling, e.g attach a volume,
+        MAY override this method.
         """
         pass
 
     def _create_machine__get_key_object(self, key):
-        """
+        """Retrieve Key object from mongo.
+
+        Subclasses that require special handling MAY override this method.
         """
         if key and self.cloud.ctl.has_feature('key'):
             from mist.api.keys.models import Key
@@ -2754,6 +2798,10 @@ class BaseComputeController(BaseController):
             return key_obj
 
     def _create_machine__get_image_object(self, image):
+        """Retrieve CloudImage object from mongo.
+
+        Subclasses that require special handling MAY override this method.
+        """
         if image:
             from mist.api.images.models import CloudImage
             try:
@@ -2770,6 +2818,10 @@ class BaseComputeController(BaseController):
             return image_obj
 
     def _create_machine__get_location_object(self, location):
+        """Retrieve CloudLocation object from mongo.
+
+        Subclasses that require special handling MAY override this method.
+        """
         if location and self.cloud.ctl.has_feature('location'):
             from mist.api.clouds.models import CloudLocation
             try:
@@ -2784,7 +2836,13 @@ class BaseComputeController(BaseController):
             return location_οbj
 
     def _create_machine__get_size_object(self, size):
-        if self.cloud.ctl.has_feature('custom_size'):
+        """Retrieve CloudSize object from mongo or in the case
+        of custom size return it as is.
+
+        Subclasses that require special handling MAY override this method.
+        """
+        if self.cloud.ctl.has_feature('custom_size') \
+                and isinstance(size, dict):
             return size
         else:
             from mist.api.clouds.models import CloudSize
