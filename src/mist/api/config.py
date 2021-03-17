@@ -478,6 +478,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [{
                     "refId": "A",
                     "target": 
+
                 "{{__name__=~'(system_load15)|(system_load1)|(system_load5)',machine_id=\"{machine_id}\"}}"
                 }],
                 "x-axis": True,
@@ -492,12 +493,6 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [{
                     "refId": "B",
                     "target": 
-                    # 'mem_[fucb][a-z]{3,}'
-                    # urllib.parse.quote("\"mem_free\"," +
-                    #                              " \"mem_used\"," +
-                    #                              " \"mem_cached\"," +
-                    #                              " \"mem_buffered\"")
-                    # "{VICTORIA_URI}/api/v1/query_range?query={{__name__=~'mem_[fucb][a-z]{{3,}}'"+",machine_id=\"{machine_id}\"}}"
                 "{{__name__=~'(mem_free)|(mem_used)|(mem_cached)|(mem_buffered)',machine_id=\"{machine_id}\"}}"
                 }, ],
                 "yaxes": [{
