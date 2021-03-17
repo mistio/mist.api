@@ -478,11 +478,6 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [{
                     "refId": "A",
                     "target": 
-                    # 'system_load[1-9]{1,2}'
-                    # urllib.parse.quote("\"system_load1\"," +
-                    #                              " \"system_load5\"," +
-                    #                              " \"system_load15\"")
-                #    "{VICTORIA_URI}/api/v1/query_range?query={{__name__=~'(system_load15)|(system_load1)|(system_load5)'"+",machine_id=\"{machine_id}\"}}"
                 "{{__name__=~'(system_load15)|(system_load1)|(system_load5)',machine_id=\"{machine_id}\"}}"
                 }],
                 "x-axis": True,
