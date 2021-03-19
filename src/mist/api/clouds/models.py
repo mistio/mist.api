@@ -390,6 +390,9 @@ class CloudSize(me.Document):
     meta = {
         'collection': 'sizes',
         'indexes': [
+            'cloud',
+            'external_id',
+            'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,

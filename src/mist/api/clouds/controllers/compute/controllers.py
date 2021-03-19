@@ -2171,6 +2171,7 @@ class VSphereComputeController(BaseComputeController):
         updated = False
         try:
             _size = CloudSize.objects.get(
+                cloud=self.cloud,
                 external_id=node_dict['size'].get('id'))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,

@@ -32,6 +32,10 @@ class CloudImage(OwnershipMixin, me.Document):
     meta = {
         'collection': 'images',
         'indexes': [
+            'cloud',
+            'external_id',
+            'missing_since',
+            'stored_after_search',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
