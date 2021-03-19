@@ -464,7 +464,7 @@ class BaseMainController(object):
                               "Metal and KVM/Libvirt clouds.")
 
     def has_feature(self, feature):
-        """Check wether a certain feature is supported by cloud
+        """Check whether a certain feature is supported by cloud
         List of features:
             dns
             networks
@@ -498,7 +498,10 @@ class BaseMainController(object):
             has_feature = provider_dict['features'].get(feature, True)
             # if dictionary is returned key is supported but not required
         elif feature in ['size-image-restriction', 'location-size-restriction', 'location-image-restriction']:  # noqa
-            has_feature = provider_dict['features']['provision']['restrictions'].get(feature, False)  # noqa
+            try:
+                has_feature = provider_dict['features']['provision']['restrictions'].get(feature, False)  # noqa
+            except (KeyError, TypeError):
+                return False
         else:
             if provider_dict['features']['provision']:
                 has_feature = provider_dict['features']['provision'].get(feature, False)  # noqa
