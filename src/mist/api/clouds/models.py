@@ -318,6 +318,7 @@ class CloudLocation(OwnershipMixin, me.Document):
     meta = {
         'collection': 'locations',
         'indexes': [
+            'cloud', 'external_id', 'name', 'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -390,6 +391,9 @@ class CloudSize(me.Document):
     meta = {
         'collection': 'sizes',
         'indexes': [
+            'cloud',
+            'external_id',
+            'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
