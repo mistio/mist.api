@@ -71,6 +71,8 @@ class CloudImage(OwnershipMixin, me.Document):
             'os_type': self.os_type,
             'os_distro': self.os_distro,
             'architecture': self.architecture,
+            'min_disk_size': self.min_disk_size,
+            'min_memory_size': self.min_memory_size,
             'tags': self.tags,
             'origin': self.origin,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
@@ -80,7 +82,8 @@ class CloudImage(OwnershipMixin, me.Document):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
-            'id', 'name', 'external_id', 'starred', 'os_type', 'extra']
+            'id', 'name', 'external_id', 'starred', 'os_type', 'os_distro',
+            'architecture', 'min_disk_size', 'min_memory_size', 'extra']
         deref_map = {
             'cloud': 'title',
             'owned_by': 'email',
