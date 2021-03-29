@@ -1018,7 +1018,7 @@ NO_VERIFY_HOSTS = []
 
 MIXPANEL_ID = ""
 FB_ID = ""
-OLARK_ID = ""
+CHATWOOT_TOKEN = ""
 
 FAILED_LOGIN_RATE_LIMIT = {
     'max_logins': 5,            # allow that many failed login attempts
@@ -3005,7 +3005,7 @@ HOMEPAGE_INPUTS = {
         'sales': EMAIL_SALES
     },
     'fb_id': FB_ID,
-    'olark_id': OLARK_ID,
+    'chatwoot_token': CHATWOOT_TOKEN,
     'google_analytics_id': GOOGLE_ANALYTICS_ID,
     'mixpanel_id': MIXPANEL_ID,
     'categories': LANDING_CATEGORIES
