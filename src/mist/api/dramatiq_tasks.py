@@ -148,7 +148,7 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                                   deleted=None)
-        conn = connect_provider(cloud)
+        conn = connect_provider(cloud, location_id=plan.get('location'))
 
         if isinstance(cloud, DockerCloud):
             nodes = conn.list_containers()

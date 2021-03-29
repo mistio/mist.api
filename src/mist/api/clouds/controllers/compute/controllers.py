@@ -3228,6 +3228,124 @@ class LibvirtComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
 
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        """
+        Parse network interfaces.
+        - If networks_dict is empty, no network interface will be configured.
+        - If only `id` or `name` is given, the interface will be
+        configured by DHCP.
+        - If `ip` is given, it will be statically assigned to the interface and
+          optionally `gateway` and `primary` attributes will be used.
+        """
+        from mist.api.methods import list_resources
+        from libcloud.utils.networking import is_valid_ip_address
+
+        if not networks_dict:
+            return None
+
+        ret_dict = {
+            'networks': [],
+        }
+        networks = networks_dict.get('networks', [])
+        for net in networks:
+            network_id = net.get('id') or net.get('name')
+            if not network_id:
+                raise BadRequestError('network id or name is required')
+            try:
+                [network], _ = list_resources(auth_context, 'network',
+                                              search=network_id,
+                                              cloud=self.cloud.id,
+                                              limit=1)
+            except ValueError:
+                raise NotFoundError('Network does not exist')
+
+            nid = {
+                'network_name': network.name
+            }
+            if net.get('ip'):
+                if is_valid_ip_address(net['ip']):
+                    nid['ip'] = net['ip']
+                else:
+                    raise BadRequestError('IP given is invalid')
+                if net.get('gateway'):
+                    if is_valid_ip_address(net['gateway']):
+                        nid['gateway'] = net['gateway']
+                    else:
+                        raise BadRequestError('Gateway IP given is invalid')
+                if net.get('primary'):
+                    nid['primary'] = net['primary']
+            ret_dict['networks'].append(nid)
+
+        if networks_dict.get('vnfs'):
+            ret_dict['vnfs'] = networks_dict['vnfs']
+
+        return ret_dict
+
+    def _generate_plan__parse_disks(self, auth_context, disks_dict):
+        ret_dict = {
+            'disk_size': disks_dict.get('disk_size', 4),
+        }
+        if disks_dict.get('disk_path'):
+            ret_dict['disk_path'] = disks_dict.get('disk_path')
+
+        return ret_dict
+
+    def _create_machine__get_image_object(self, image):
+        from mist.api.images.models import CloudImage
+        try:
+            cloud_image = CloudImage.objects.get(id=image)
+        except me.DoesNotExist:
+            raise NotFoundError('Image does not exist')
+        return cloud_image.external_id
+
+    def _create_machine__get_size_object(self, size):
+        if isinstance(size, dict):
+            return size
+        from mist.api.clouds.models import CloudSize
+        try:
+            cloud_size = CloudSize.objects.get(id=size)
+        except me.DoesNotExist:
+            raise NotFoundError('Location does not exist')
+        return {'cpus': cloud_size.cpus, 'ram': cloud_size.ram}
+
+    def _create_machine__get_location_object(self, location):
+        from mist.api.clouds.models import CloudLocation
+        try:
+            cloud_location = CloudLocation.objects.get(id=location)
+        except me.DoesNotExist:
+            raise NotFoundError('Location does not exist')
+        return cloud_location.external_id
+
+    def _create_machine__compute_kwargs(self, plan):
+        from mist.api.machines.models import Machine
+        from mist.api.exceptions import MachineCreationError
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        location_id = kwargs.pop('location')
+        try:
+            host = Machine.objects.get(
+                cloud=self.cloud, machine_id=location_id)
+        except me.DoesNotExist:
+            raise MachineCreationError("The host specified does not exist")
+        driver = self._get_host_driver(host)
+        kwargs['driver'] = driver
+        size = kwargs.pop('size')
+        kwargs['cpu'] = size['cpus']
+        kwargs['ram'] = size['ram']
+        if kwargs.get('auth'):
+            kwargs['public_key'] = kwargs.pop('auth').public
+        kwargs['disk_size'] = plan['disks'].get('disk_size')
+        kwargs['disk_path'] = plan['disks'].get('disk_path')
+        kwargs['networks'] = plan.get('networks', {}).get('networks', [])
+        kwargs['vnfs'] = plan.get('networks', {}).get('vnfs', [])
+        kwargs['cloud_init'] = plan.get('cloudinit')
+
+        return kwargs
+
+    def _create_machine__create_node(self, kwargs):
+        driver = kwargs.pop('driver')
+        node = driver.create_node(**kwargs)
+        return node
+
 
 class OnAppComputeController(BaseComputeController):
 
