@@ -366,10 +366,12 @@ class CloudLocation(OwnershipMixin, me.Document):
 
         if self.cloud.ctl.has_feature('location-image-restriction'):
             location_dict['available_images'] = [image.name for image
-                                                 in self.available_images]
+                                                 in self.available_images
+                                                 if hasattr(image, 'name')]
         if self.cloud.ctl.has_feature('location-size-restriction'):
             location_dict['available_sizes'] = [size.name for size
-                                                in self.available_sizes]
+                                                in self.available_sizes
+                                                if hasattr(size, 'name')]
         return location_dict
 
     def clean(self):
@@ -451,7 +453,8 @@ class CloudSize(me.Document):
 
         if self.cloud.ctl.has_feature('size-image-restriction'):
             size_dict['allowed_images'] = [image.name for image
-                                           in self.allowed_images]
+                                           in self.allowed_images
+                                           if hasattr(image, 'name')]
         return size_dict
 
 
