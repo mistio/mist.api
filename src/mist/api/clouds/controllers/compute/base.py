@@ -2268,11 +2268,12 @@ class BaseComputeController(BaseController):
         """
         raise MistNotImplementedError()
 
-    def generate_plan(self, auth_context, plan, image,
-                      size, location='', key={},
-                      networks={}, volumes=[], disks={},
-                      extra={}, scripts=[], schedules={}, cloudinit='',
-                      fqdn='', monitoring=False, quantity=1):
+    def generate_plan(self, auth_context, plan, name, image,
+                      size, location='', key=None,
+                      networks=None, volumes=None, disks=None,
+                      extra=None, scripts=None, schedules=None, cloudinit='',
+                      fqdn='', monitoring=False, request_tags=None,
+                      expiration=None, quantity=1):
         """Generate a machine creation plan.
 
         Subclasses SHOULD NOT override or extend this method
@@ -2294,16 +2295,45 @@ class BaseComputeController(BaseController):
             `self._generate_plan__parse_extra`
             `self._generate_plan__post_parse_plan`
         """
+        from mist.api.machines.methods import machine_name_validator
+        from mist.api.helpers import (
+            compute_tags,
+            check_expiration_constraint,
+            check_cost_constraint,
+            check_size_constraint,
+        )
+        plan['machine_name'] = machine_name_validator(self.provider,
+                                                      name)
+
+        tags, constraints = auth_context.check_perm('machine', 'create', None)
+
+        tags = compute_tags(auth_context, tags=tags,
+                            request_tags=request_tags)
+        if tags:
+            plan['tags'] = tags
+
+        expiration = self._generate_plan__parse_expiration(auth_context,
+                                                           expiration)
+        check_expiration_constraint(auth_context, expiration,
+                                    constraints=constraints)
+        if expiration:
+            plan['expiration'] = expiration
+
+        check_cost_constraint(auth_context, constraints=constraints)
+
         images = self._generate_plan__parse_image(auth_context, image)
 
         if self.cloud.ctl.has_feature('location'):
             locations = self._generate_plan__parse_location(auth_context,
                                                             location)
         else:
+            # TODO this will not work in combinations
             locations = None
 
         sizes = self._generate_plan__parse_size(auth_context, size)
 
+        sizes = check_size_constraint(auth_context, sizes,
+                                      constraints=constraints)
         comb_list = self._get_allowed_image_size_location_combinations(
             images, locations, sizes)
         image, size, location = self._compute_best_combination(comb_list)
@@ -2311,6 +2341,7 @@ class BaseComputeController(BaseController):
         if location:
             plan['location'] = location.id
         if size:
+            # custom size
             if isinstance(size, dict):
                 plan['size'] = size
             else:
@@ -2320,7 +2351,7 @@ class BaseComputeController(BaseController):
 
         key = self._generate_plan__parse_key(auth_context, key)
         if key:
-            plan['key'] = key
+           plan['key'] = key.id
 
         networks = self._generate_plan__parse_networks(auth_context,
                                                        networks)
@@ -2440,7 +2471,11 @@ class BaseComputeController(BaseController):
         """ Find all possible combinations of images, locations and sizes
         based on provider restrictions.
         """
-        custom_size = isinstance(sizes[0], dict)
+        try:
+            custom_size = isinstance(sizes[0], dict)
+        except IndexError:
+            raise NotFoundError('No available plan exists for given size')
+
         ret_list = []
         for location in locations:
             available_sizes = sizes
@@ -2478,8 +2513,8 @@ class BaseComputeController(BaseController):
         ret_scripts = []
         from mist.api.methods import list_resources
         for script in scripts:
-            if script.get('id') or script.get('name'):
-                script_search = script.get('id') or script.get('name')
+            if script.get('script'):
+                script_search = script.get('script')
                 try:
                     [script_obj], _ = list_resources(auth_context, 'script',
                                                      search=script_search,
@@ -2531,7 +2566,37 @@ class BaseComputeController(BaseController):
         except ValueError:
             raise NotFoundError('Key does not exist')
 
-        return key.id
+        return key
+
+    def _generate_plan__parse_expiration(self, auth_context,
+                                         expiration):
+        if not expiration:
+            return {}
+
+        if isinstance(expiration, dict):
+            return expiration
+
+        # expiration object
+        exp_dict = expiration.to_dict()
+        if exp_dict.get('notify'):
+            # convert notify object to datetime str
+            try:
+                value = exp_dict['notify']['value']
+                period = exp_dict['notify']['period']
+            except KeyError:
+                raise BadRequestError('Parameter missing in expiration')
+            if period == 'minutes':
+                notify = datetime.timedelta(minutes=value)
+            elif period == 'hours':
+                notify = datetime.timedelta(hours=value)
+            else:
+                notify = datetime.timedelta(days=value)
+
+            exp_dict['notify'] = (exp_dict['date'] - notify).strftime('%Y-%m-%d %H:%M:%S')  # noqa
+        exp_dict['date'] = datetime.datetime.strftime(exp_dict['date'],
+                                                      '%Y-%m-%d %H:%M:%S')
+
+        return exp_dict
 
     def _generate_plan__parse_networks(self, auth_context, networks_dict):
         pass
@@ -2595,90 +2660,144 @@ class BaseComputeController(BaseController):
         pass
 
     def _generate_plan__parse_schedules(self, auth_context,
-                                        machine_name, schedule):
+                                        machine_name, schedules):
         """
-        Schedule key/value pairs:
-            type: 'one_off', 'interval', 'crontab'
-            action: 'start' 'stop', 'reboot', 'destroy'
-            script: script id or name to run (action should not be set)
-            entry: if type is one_off then time in milliseconds to run
+        Schedule attributes:
+            `schedule_type`: 'one_off', 'interval', 'crontab'
+            `action`: 'start' 'stop', 'reboot', 'destroy'
+            `script`: dictionary containing:
+                    `script`: id or name of the script to run
+                    `params`: optional script parameters
 
-                   if type is interval then dictionary with the keys/values:
-                       'every': int , 'period': minutes,hours,days
+            one_off schedule_type parameters:
+                `datetime`: when schedule should run,
+                            e.g '2020-12-15T22:00:00Z'
+            crontab schedule_type parameters:
+                `minute`: e.g '*/10',
+                `hour`
+                `day_of_month`
+                `month_of_year`
+                `day_of_week`
 
-                   if type is crontab:
-                       'minute': '*/10',
-                       'hour': '*',
-                       'day_of_month': '*',
-                       'month_of_year': '*',
-                       'day_of_week': '*'}
+            interval schedule_type parameters:
+                    `every`: int ,
+                    `period`: minutes,hours,days
 
-            expires: date when schedule should expire,
-            e.g '2020-12-15 22:00:00'
+            `expires`: date when schedule should expire,
+            e.g '2020-12-15T22:00:00Z'
 
-            start_after: date when schedule should start running,
-            e.g '2020-12-15 22:00:00'
+            `start_after`: date when schedule should start running,
+            e.g '2020-12-15T22:00:00Z'
 
-            max_run_count:max number of times to run
-            task_enabled:
+            `max_run_count`: max number of times to run
             description:
         """
-        if not schedule:
-            return
-        schedule_type = schedule.get('type')
-        if schedule_type not in ['crontab', 'interval', 'one_off']:
-            raise BadRequestError('schedule type must be one of '
-                                  'these (crontab, interval, one_off)]'
-                                  )
+        if not schedules:
+            return None
+        ret_schedules = []
+        for schedule in schedules:
+            schedule_type = schedule.get('schedule_type')
+            if schedule_type not in ['crontab', 'interval', 'one_off']:
+                raise BadRequestError('schedule type must be one of '
+                                      'these (crontab, interval, one_off)]')
 
-        if not schedule.get('entry'):
-            raise BadRequestError('schedule requires date given in '
-                                  'schedule_entry')
+            ret_schedule = {
+                'name': machine_name,
+                'schedule_type': schedule_type,
+                'description': schedule.get('description', ''),
+                'task_enabled': True,
+            }
+            action = schedule.get('action')
+            script = schedule.get('script')
+            if action is None and script is None:
+                raise BadRequestError('Schedule action or script not defined')
+            if action and script:
+                raise BadRequestError(
+                    'One of action or script should be defined')
+            if action:
+                if action not in ['reboot', 'destroy', 'start', 'stop']:
+                    raise BadRequestError('Action is not correct')
+                ret_schedule['action'] = action
+            else:
+                from mist.api.methods import list_resources
+                script_search = script.get('script')
+                if not script_search:
+                    raise BadRequestError('script parameter is required')
+                try:
+                    [script_obj], _ = list_resources(auth_context, 'script',
+                                                     search=script_search,
+                                                     limit=1)
+                except ValueError:
+                    raise NotFoundError('Schedule script does not exist')
+                auth_context.check_perm('script', 'run', script_obj.id)
+                ret_schedule['script_id'] = script_obj.id
+                ret_schedule['script_name'] = script_obj.name
+                ret_schedule['params'] = script.get('params')
+            if schedule_type == 'one_off':
+                # convert schedule_entry from ISO format
+                # to '%Y-%m-%d %H:%M:%S'
+                try:
+                    ret_schedule['schedule_entry'] = datetime.datetime.strptime(  # noqa
+                        schedule['datetime'], '%Y-%m-%dT%H:%M:%SZ'
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+                except KeyError:
+                    raise BadRequestError(
+                        'one_off schedule parameter missing')
+                except ValueError:
+                    raise BadRequestError(
+                        'Schedule parameter datetime does not match'
+                        ' format %Y-%m-%dT%H:%M:%SZ')
+            elif schedule_type == 'interval':
+                try:
+                    ret_schedule['schedule_entry'] = {
+                        'every': schedule['every'],
+                        'period': schedule['period']
+                    }
+                except KeyError:
+                    raise BadRequestError(
+                        'interval schedule parameter missing')
+            elif schedule_type == 'crontab':
+                try:
+                    ret_schedule['schedule_entry'] = {
+                        'minute': schedule['minute'],
+                        'hour': schedule['hour'],
+                        'day_of_month': schedule['day_of_month'],
+                        'month_of_year': schedule['month_of_year'],
+                        'day_of_week': schedule['day_of_week']
+                    }
+                except KeyError:
+                    raise BadRequestError(
+                        'crontab schedule parameter missing')
 
-        ret_schedule = {
-            'name': machine_name,
-            'schedule_type': schedule_type,
-            'description': schedule.get('description', ''),
-            'task_enabled': schedule.get('task_enabled', True),
-            'schedule_entry': schedule.get('entry'),
-        }
+            if schedule_type in ['crontab', 'interval']:
+                if schedule.get('start_after'):
+                    # convert `start_after` from ISO format
+                    # to '%Y-%m-%d %H:%M:%S'
+                    try:
+                        ret_schedule['start_after'] = datetime.datetime.strptime(  # noqa
+                            schedule['start_after'], '%Y-%m-%dT%H:%M:%SZ'
+                        ).strftime("%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        raise BadRequestError('Parameter `start_after` does '
+                                              'not match format '
+                                              '%Y-%m-%dT%H:%M:%SZ'
+                                              )
+                if schedule.get('expires'):
+                    # convert `expires` from ISO format
+                    # to '%Y-%m-%d %H:%M:%S'
+                    try:
+                        ret_schedule['expires'] = datetime.datetime.strptime(  # noqa
+                            schedule['expires'], '%Y-%m-%dT%H:%M:%SZ'
+                        ).strftime("%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        raise BadRequestError('Parameter `expires` does not '
+                                              'match format %Y-%m-%dT%H:%M:%SZ'
+                                              )
+                ret_schedule['max_run_count'] = schedule.get('max_run_count',
+                                                             '')
+            ret_schedules.append(ret_schedule)
 
-        action = schedule.get('action')
-        script = schedule.get('script')
-        if action is None and script is None:
-            raise BadRequestError('Action or script not defined')
-
-        if action:
-            if action not in ['reboot', 'destroy', 'start', 'stop']:
-                raise BadRequestError('Action is not correct')
-            ret_schedule['action'] = action
-        else:
-            from mist.api.methods import list_resources
-            try:
-                [script_obj], _ = list_resources(auth_context, 'script',
-                                                 search=script,
-                                                 limit=1)
-            except ValueError:
-                raise NotFoundError('Schedule script does not exist')
-            auth_context.check_perm('script', 'run', script_obj.id)
-            ret_schedule['script_id'] = script_obj.id
-
-        if schedule_type == 'interval':
-            if not all(k in schedule['entry'] for k in ('every', 'period')):
-                raise BadRequestError('Parameter in schedule entry missing')
-        elif schedule_type == 'crontab':
-            if not all(k in schedule['entry'] for k in ('minute',
-                                                        'hour',
-                                                        'day_of_month',
-                                                        'month_of_year',
-                                                        'day_of_week')):
-                raise BadRequestError('Parameter in schedule entry missing')
-
-        ret_schedule['start_after'] = schedule.get('start_after')
-        ret_schedule['expires'] = schedule.get('expires')
-        ret_schedule['max_run_count'] = schedule.get('max_run_count')
-
-        return ret_schedule
+        return ret_schedules
 
     def _generate_plan__post_parse_plan(self, plan):
         """Used to parse whole plan in place, instead of specific parts of it.
@@ -2708,8 +2827,6 @@ class BaseComputeController(BaseController):
         try:
             node = self._create_machine__create_node(kwargs)
         except Exception as exc:
-            # TODO docker tries to pull image
-            # when exception occurs
             self._create_machine__handle_exception(exc, kwargs)
 
         self._create_machine__post_machine_creation_steps(node, kwargs, plan)

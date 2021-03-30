@@ -1,4 +1,5 @@
 import time
+import datetime
 import uuid
 import logging
 from random import randrange
@@ -256,6 +257,13 @@ def dramatiq_ssh_tasks(auth_context_serialized, cloud_id, key_id, host,
 
 
 def add_expiration_for_machine(auth_context, expiration, machine):
+    if expiration.get('notify'):
+        # convert notify value from datetime str to seconds
+        notify = datetime.datetime.strptime(expiration['date'],
+                                            '%Y-%m-%d %H:%M:%S') \
+            - datetime.datetime.strptime(expiration['notify'],
+                                         '%Y-%m-%d %H:%M:%S')
+        expiration['notify'] = int(notify.total_seconds())
     params = {
         "schedule_type": "one_off",
         "description": "Scheduled to run when machine expires",
@@ -272,36 +280,44 @@ def add_expiration_for_machine(auth_context, expiration, machine):
 
 
 def add_schedules(auth_context, external_id, machine_id,
-                  log_dict, schedule):
-
-    # TODO Handle multiple schedules
-    if schedule and schedule.get('name'):  # ugly hack to prevent dupes
-        action = schedule.get('action', '')
-        try:
-            name = (action + '-' + schedule.pop('name') +
-                    '-' + external_id[:4])
-
-            tmp_log("Add scheduler entry %s", name)
-            schedule["selectors"] = [{"type": "machines", "ids": [machine_id]}]
-            schedule_info = Schedule.add(auth_context, name, **schedule)
-            tmp_log("A new scheduler was added")
-            log_event(
-                action="Add scheduler entry",
-                scheduler=schedule_info.as_dict(),
-                **log_dict
-            )
-        except Exception as e:
-            tmp_log_error("Exception occured %s", repr(e))
-            error = repr(e)
-            notify_user(
-                auth_context.owner,
-                "add scheduler entry failed for machine %s" % external_id,
-                repr(e),
-                error=error,
-            )
-            log_event(
-                action="Add scheduler entry failed", error=error, **log_dict
-            )
+                  log_dict, schedules):
+    schedules = schedules or []
+    for schedule in schedules:
+        if schedule and schedule.get('name'):  # ugly hack to prevent dupes
+            # FIXME this causes errors if multiple schedules are
+            # added with the same action
+            action = schedule.get('action', '')
+            try:
+                name = (
+                    action
+                    + "-"
+                    + schedule.pop("name")
+                    + "-"
+                    + external_id[:4]
+                )
+                tmp_log("Add scheduler entry %s", name)
+                schedule["selectors"] = [{"type": "machines",
+                                          "ids": [machine_id]}]
+                schedule_info = Schedule.add(auth_context, name, **schedule)
+                tmp_log("A new scheduler was added")
+                log_event(
+                    action="Add scheduler entry",
+                    scheduler=schedule_info.as_dict(),
+                    **log_dict
+                )
+            except Exception as e:
+                tmp_log_error("Exception occured %s", repr(e))
+                error = repr(e)
+                notify_user(
+                    auth_context.owner,
+                    "add scheduler entry failed for machine %s" % external_id,
+                    repr(e),
+                    error=error,
+                )
+                log_event(
+                    action="Add scheduler entry failed", error=error,
+                    **log_dict
+                )
 
 
 def add_dns_record(auth_context, host, log_dict, fqdn):
