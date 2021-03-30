@@ -42,6 +42,7 @@ from mist.api.exceptions import SSLError
 from mist.api.exceptions import MistNotImplementedError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import MachineCreationError
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish
@@ -2351,7 +2352,7 @@ class BaseComputeController(BaseController):
 
         key = self._generate_plan__parse_key(auth_context, key)
         if key:
-           plan['key'] = key.id
+            plan['key'] = key.id
 
         networks = self._generate_plan__parse_networks(auth_context,
                                                        networks)
@@ -2394,26 +2395,26 @@ class BaseComputeController(BaseController):
         self._generate_plan__post_parse_plan(plan)
         return plan
 
-    def _generate_plan__parse_image(self, auth_context, image_dict):
+    def _generate_plan__parse_image(self, auth_context, image_obj):
         """Subclasses MAY override this method.
         """
+        if self.cloud.ctl.has_feature('custom_image'):
+            image = self._generate_plan__parse_custom_image(image_obj)
+            return [image]
+
         from mist.api.methods import list_resources
-        # TODO make it required
-        image_search = image_dict.get('id', '') or image_dict.get('name', '')
-        # if not image_search:
-        #    raise BadRequestError('Image id or name is required')
-        try:
-            images, _ = list_resources(
-                auth_context, 'image', search=image_search,
-                cloud=self.cloud.id
-            )
-        except ValueError:
-            if self.cloud.ctl.has_feature('custom_image'):
-                image = self._generate_plan__parse_custom_image(
-                    image_dict)
-                return [image]
-            else:
-                raise NotFoundError('Image does not exist')
+        if isinstance(image_obj, str):
+            image_search = image_obj
+        else:
+            image_search = image_obj.get('image')
+        if not image_search:
+            raise BadRequestError('Image is required')
+        images, count = list_resources(
+            auth_context, 'image', search=image_search,
+            cloud=self.cloud.id
+        )
+        if not count:
+            raise NotFoundError('Image not found')
         return images
 
     def _generate_plan__parse_custom_image(self, image_dict):
@@ -2424,36 +2425,47 @@ class BaseComputeController(BaseController):
 
     def _generate_plan__parse_location(self, auth_context, location_search):
         from mist.api.methods import list_resources
-        try:
-            locations, _ = list_resources(
-                auth_context, 'location',
-                search=location_search,
-                cloud=self.cloud.id)
-        except ValueError:
-            raise NotFoundError('Location does not exist')
-        # TODO add perimissions other than read to list_resources
-        # auth_context.check_perm('location', 'create_resources',
-        #                        location.id)
+        locations, count = list_resources(
+            auth_context, 'location',
+            search=location_search,
+            cloud=self.cloud.id)
+        if not count:
+            raise NotFoundError('Location not found')
+
+        ret_locations = []
+        for location in locations:
+            try:
+                auth_context.check_perm('location',
+                                        'create_resources',
+                                        location.id)
+            except PolicyUnauthorizedError:
+                continue
+            else:
+                ret_locations.append(location)
+
         return locations
 
-    def _generate_plan__parse_size(self, auth_context, size_dict):
+    def _generate_plan__parse_size(self, auth_context, size_obj):
         from mist.api.methods import list_resources
-        size_search = size_dict.get('id') or size_dict.get('name')
+        if isinstance(size_obj, str):
+            size_search = size_obj
+        else:
+            size_search = size_obj.get('size')
         if size_search:
             sizes, count = list_resources(
                 auth_context, 'size', search=size_search,
                 cloud=self.cloud.id
             )
             if not count:
-                raise NotFoundError('Size does not exist')
+                raise NotFoundError('Size not found')
 
             return sizes
         else:
             if self.cloud.ctl.has_feature('custom_size'):
-                size = self._generate_plan__parse_custom_size(size_dict)
+                size = self._generate_plan__parse_custom_size(size_obj)
                 return [size]
             else:
-                raise BadRequestError('Size id or name is required')
+                raise BadRequestError('Size is required')
 
     def _generate_plan__parse_custom_size(self, size_dict):
         """Providers with custom sizes SHOULD override/extend this method
@@ -2545,28 +2557,31 @@ class BaseComputeController(BaseController):
                                 'images, sizes, locations')
         return combination_list[0]
 
-    def _generate_plan__parse_key(self, auth_context, key_dict):
+    def _generate_plan__parse_key(self, auth_context, key_obj):
         feature = self.cloud.ctl.has_feature('key')
         if feature is False:
             return None
-        key_search = key_dict.get('id', '') or key_dict.get('name', '')
-        #  key is not required and a key attribute was not given
+        if isinstance(key_obj, str):
+            key_search = key_obj
+        else:
+            key_search = key_obj.get('key', '')
+        #  key is not required and a key was not given
         if isinstance(feature, dict) \
            and feature.get('required') is False \
            and key_search == '':
             return None
-        # TODO default key, if key_search empty check for default
-
         from mist.api.methods import list_resources
-        try:
 
-            [key], _ = list_resources(
-                auth_context, 'key', search=key_search, limit=1
-            )
-        except ValueError:
-            raise NotFoundError('Key does not exist')
-
-        return key
+        keys, count = list_resources(
+            auth_context, 'key', search=key_search, limit=1
+        )
+        if not count:
+            raise NotFoundError('Key not found')
+        # try to use the default key
+        for key in keys:
+            if key.default is True:
+                return key
+        return keys[0]
 
     def _generate_plan__parse_expiration(self, auth_context,
                                          expiration):
