@@ -2736,10 +2736,12 @@ ALLOW_SIGNUP_EMAIL = True
 ALLOW_SIGNUP_GOOGLE = False
 ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNUP_MS365 = False
+ALLOW_SIGNUP_CILOGON = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
 ALLOW_SIGNIN_MS365 = False
+ALLOW_SIGNIN_CILOGON = False
 LDAP_SETTINGS = {}
 DEFAULT_SIGNIN_METHOD = 'email'
 STRIPE_PUBLIC_APIKEY = False
@@ -2986,12 +2988,14 @@ HOMEPAGE_INPUTS = {
         'signup_google': ALLOW_SIGNUP_GOOGLE,
         'signup_github': ALLOW_SIGNUP_GITHUB,
         'signup_ms365': ALLOW_SIGNUP_MS365,
+        'signup_cilogon': ALLOW_SIGNUP_CILOGON,
         'signin_email': ALLOW_SIGNIN_EMAIL,
         'signin_google': ALLOW_SIGNIN_GOOGLE,
         'signin_github': ALLOW_SIGNIN_GITHUB,
         'signin_ldap': ALLOW_SIGNIN_LDAP,
         'signin_ad': ALLOW_SIGNIN_AD,
         'signin_ms365': ALLOW_SIGNIN_MS365,
+        'signin_cilogon': ALLOW_SIGNIN_CILOGON,
         'default_signin_method': DEFAULT_SIGNIN_METHOD.lower(),
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
