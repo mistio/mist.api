@@ -1168,11 +1168,13 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
-    'telegraf-tsfdb'
+    'telegraf-tsfdb',
+    'telegraf-victoriametrics'
 )
-DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
+DEFAULT_MONITORING_METHOD = 'telegraf-victoriametrics'
 
 GRAPHITE_URI = "http://graphite"
+VICTORIAMETRICS_URI = "http://victoria-metrics:8428"
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
@@ -1185,6 +1187,9 @@ CILIA_INFLUXDB_NODATA_TARGETS = (
 )
 CILIA_FOUNDATIONDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
+CILIA_VICTORIAMETRICS_NODATA_TARGETS = (
+    "system_load1", "system_n_cpus", 'cpu_usage_user{cpu="cpu0"}'
 )
 
 # Shard Manager settings. Can also be set through env variables.
