@@ -290,11 +290,7 @@ def add_schedules(auth_context, external_id, machine_id,
             action = schedule.get('action', '')
             try:
                 name = (
-                    action
-                    + "-"
-                    + schedule.pop("name")
-                    + "-"
-                    + external_id[:4]
+                    action + "-" + schedule.pop("name") + "-" + external_id[:4]
                 )
                 tmp_log("Add scheduler entry %s", name)
                 schedule["selectors"] = [{"type": "machines",
