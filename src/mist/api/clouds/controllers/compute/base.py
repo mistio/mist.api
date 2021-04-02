@@ -2628,10 +2628,10 @@ class BaseComputeController(BaseController):
         ret_volumes = []
         from mist.api.methods import list_resources
         for volume in volumes:
-            if volume.get('id'):
+            if volume.get('volume'):
                 try:
                     [vol], _ = list_resources(
-                        auth_context, 'volume', search=volume['id'],
+                        auth_context, 'volume', search=volume['volume'],
                         cloud=self.cloud.id
                     )
                 except ValueError:
@@ -2646,7 +2646,8 @@ class BaseComputeController(BaseController):
 
     def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
         """Create and return a dictionary with all of the provider's
-        attributes necessary to attach the volume to a machine.
+        attributes necessary to attach the already existing volume to a
+        machine.
 
         Subclasses that require special handling SHOULD override this
         by default, dummy method

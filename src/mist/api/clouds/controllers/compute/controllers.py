@@ -413,9 +413,15 @@ class AmazonComputeController(BaseComputeController):
 
         return ret_dict
 
-    def _parse_volumes_from_request(self, auth_context, volumes_dict):
-        # TODO
-        pass
+    def _create_machine__get_location_object(self, location):
+        from libcloud.compute.drivers.ec2 import ExEC2AvailabilityZone
+        location_obj = super()._create_machine__get_location_object(location)
+        location_obj.availability_zone = ExEC2AvailabilityZone(
+            name=location_obj.name,
+            zone_state=None,
+            region_name=self.connection.region_name
+        )
+        return location_obj
 
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
@@ -761,7 +767,7 @@ class DigitalOceanComputeController(BaseComputeController):
         for volume in plan.get('volumes', []):
             if volume.get('id'):
                 try:
-                    mist_vol = Volume.objects.get(id=volume.get(volume['id']))
+                    mist_vol = Volume.objects.get(id=volume['id'])
                     volumes.append(mist_vol.external_id)
                 except me.DoesNotExist:
                     # this shouldn't happen as during plan creation
