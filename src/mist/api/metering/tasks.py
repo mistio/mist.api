@@ -38,6 +38,9 @@ def find_machine_cores(machine_id):
                 metric = ('fetch(\"{id}.cpu.*\d.usage_idle\"' +
                           ', start=\"{start}\", stop=\"{stop}\"' +
                           ', step=\"{step}\")')
+            elif machine.monitoring.method.endswith('victoriametrics'):
+                # TODO: use either get_cores or get_query
+                return 0
             else:
                 metric = 'cpu.cpu=/cpu\d/.usage_idle'
             return len(get_stats(machine, start='-60sec', metrics=[metric]))
