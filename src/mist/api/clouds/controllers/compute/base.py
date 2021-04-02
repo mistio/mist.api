@@ -2340,19 +2340,19 @@ class BaseComputeController(BaseController):
         image, size, location = self._compute_best_combination(comb_list)
 
         if location:
-            plan['location'] = location.id
+            plan['location'] = {'id': location.id, 'name': location.name}
         if size:
             # custom size
             if isinstance(size, dict):
                 plan['size'] = size
             else:
-                plan['size'] = size.id
+                plan['size'] = {'id': size.id, 'name': size.name}
         if image:
-            plan['image'] = image.id
+            plan['image'] = {'id': image.id, 'name': image.name}
 
         key = self._generate_plan__parse_key(auth_context, key)
         if key:
-            plan['key'] = key.id
+            plan['key'] = {'id': key.id, 'name': key.name}
 
         networks = self._generate_plan__parse_networks(auth_context,
                                                        networks)
@@ -2860,11 +2860,19 @@ class BaseComputeController(BaseController):
             'name': plan['machine_name']
         }
 
-        image = self._create_machine__get_image_object(plan.get('image'))
+        if plan['size'].get('id'):
+            size = plan['size']['id']
+        else:
+            # custom size
+            size = plan['size']
+
+        image = self._create_machine__get_image_object(
+            plan['image'].get('id'))
         location = self._create_machine__get_location_object(
-            plan.get('location'))
-        size = self._create_machine__get_size_object(plan.get('size'))
-        key = self._create_machine__get_key_object(plan.get('key'))
+            plan.get('location', {}).get('id'))
+        size = self._create_machine__get_size_object(size)
+        key = self._create_machine__get_key_object(
+            plan.get('key', {}).get('id'))
 
         if image:
             kwargs['image'] = image

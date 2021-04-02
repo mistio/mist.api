@@ -56,7 +56,7 @@ def dramatiq_create_machine_async(
 
     job_id = job_id or uuid.uuid4().hex
     auth_context = AuthContext.deserialize(auth_context_serialized)
-    cloud = Cloud.objects.get(id=plan["cloud"])
+    cloud = Cloud.objects.get(id=plan["cloud"]["id"])
     # scripts=script, script_id=script_id, script_params=script_params
     # persist=persist
 
@@ -106,7 +106,7 @@ def dramatiq_create_machine_async(
     # Associate key.
     if plan.get('key'):
         try:
-            key = Key.objects.get(id=plan["key"])
+            key = Key.objects.get(id=plan["key"]["id"])
             username = node.extra.get("username", "")
             # TODO port could be something else
             machine.ctl.associate_key(
@@ -149,7 +149,8 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                                   deleted=None)
-        conn = connect_provider(cloud, location_id=plan.get('location'))
+        conn = connect_provider(cloud,
+                                location_id=plan.get('location', {}).get('id'))
 
         if isinstance(cloud, DockerCloud):
             nodes = conn.list_containers()
@@ -197,7 +198,7 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
         "job_id": job_id,
         "job": job,
         "host": host,
-        "key_id": plan.get("key", ""),
+        "key_id": plan.get("key", {}).get("id"),
     }
 
     add_schedules(auth_context, external_id, machine_id,
@@ -205,7 +206,7 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
     add_dns_record(auth_context, host, log_dict, plan.get("fqdn"))
 
     dramatiq_ssh_tasks.send(auth_context_serialized, cloud_id,
-                            plan.get('key', ''), host, external_id,
+                            plan.get("key", {}).get("id"), host, external_id,
                             node.name, machine_id, plan.get('scripts'),
                             log_dict, monitoring=plan.get('monitoring', False),
                             plugins=None, job_id=job_id,
@@ -396,6 +397,7 @@ def create_key_association(auth_context, shell, cloud_id, key_id, machine_id,
 
 def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
                 machine_name, log_dict, job_id):
+    scripts = scripts or []
     for script in scripts:
         if script.get('id'):
             tmp_log('will run script_id %s', script['id'])
