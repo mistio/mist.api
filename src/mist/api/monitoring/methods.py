@@ -293,7 +293,7 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
         victoria_data = victoria_get_cores(
             owner, victoria_uuids, start, stop, step)
 
-    if graphite_data or influx_data or fdb_data:
+    if graphite_data or influx_data or fdb_data or victoria_data:
         return dict(
             list(graphite_data.items()) +
             list(influx_data.items()) +

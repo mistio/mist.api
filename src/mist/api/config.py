@@ -475,12 +475,20 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "span": 6,
                 "stack": False,
                 "datasource": "mist.monitor",
-                "targets": [{
-                    "refId": "A",
-                    "target": urllib.parse.quote("\"system_load1\"," +
-                                                 " \"system_load5\"," +
-                                                 " \"system_load15\"")
-                }],
+                "targets": [
+                    {
+                        "refId": "A1",
+                        "target": "system_load1"
+                    },
+                    {
+                        "refId": "A2",
+                        "target": "system_load5"
+                    },
+                    {
+                        "refId": "A3",
+                        "target": "system_load15"
+                    }
+                ],
                 "x-axis": True,
                 "y-axis": True
             }, {
@@ -490,13 +498,24 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "span": 6,
                 "stack": True,
                 "datasource": "mist.monitor",
-                "targets": [{
-                    "refId": "B",
-                    "target": urllib.parse.quote("\"mem_free\"," +
-                                                 " \"mem_used\"," +
-                                                 " \"mem_cached\"," +
-                                                 " \"mem_buffered\"")
-                }, ],
+                "targets": [
+                    {
+                        "refId": "B1",
+                        "target": "mem_free"
+                    },
+                    {
+                        "refId": "B2",
+                        "target": "mem_used"
+                    },
+                    {
+                        "refId": "B3",
+                        "target": "mem_cached"
+                    },
+                    {
+                        "refId": "B4",
+                        "target": "mem_buffered"
+                    }
+                ],
                 "yaxes": [{
                     "label": "B"
                 }]
@@ -507,11 +526,48 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "span": 6,
                 "stack": True,
                 "datasource": "mist.monitor",
-                "targets": [{
-                    "refId": "C",
-                    # something something idle needs to be gone
-                    "target": urllib.parse.quote("\"*.cpu=cpu-total\",")
-                }],
+                "targets": [
+                    {
+                        "refId": "C1",
+                        "target": 'cpu_usage_guest{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C2",
+                        "target": 'cpu_usage_iowait{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C3",
+                        "target": 'cpu_usage_user{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C4",
+                        "target": 'cpu_usage_nice{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C5",
+                        "target": 'cpu_usage_softirq{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C6",
+                        "target": 'cpu_usage_idle{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C7",
+                        "target": 'cpu_usage_irq{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C8",
+                        "target": 'cpu_usage_system{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C9",
+                        "target": 'cpu_usage_steal{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C10",
+                        "target": 'cpu_usage_guest_nice{cpu="cpu-total"}'
+                    }
+                ],
                 "yaxes": [{
                     "label": "%"
                 }]
@@ -524,7 +580,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "Z",
-                    "target": urllib.parse.quote("\"cpu_usage_idle\",")
+                    "target": "cpu_usage_idle"
                 }],
                 "yaxes": [{
                     "label": "%"
@@ -538,7 +594,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "G",
-                    "target": urllib.parse.quote("\"net_bytes_recv\",")
+                    "target": "net_bytes_recv"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -552,7 +608,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "H",
-                    "target": urllib.parse.quote("\"net_bytes_sent\",")
+                    "target": "net_bytes_sent"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -566,7 +622,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "I",
-                    "target": urllib.parse.quote("\"diskio_read_bytes\",")
+                    "target": "diskio_read_bytes"
                 }],
                 "x-axis": True,
                 "y-axis": True,
@@ -582,7 +638,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "J",
-                    "target": urllib.parse.quote("\"diskio_write_bytes\",")
+                    "target": "diskio_write_bytes"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -597,7 +653,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "D",
-                    "target": urllib.parse.quote("\"disk_free\",")
+                    "target": "disk_free"
                 }],
                 "yaxes": [{
                     "label": "B"
