@@ -10,7 +10,7 @@ RUN ln -s /influxdb-1.8.4-1/influxd /usr/local/bin/influxd
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --upgrade setuptools && \
-    pip install libvirt-python==5.10.0 uwsgi==2.0.18 && \
+    pip install libvirt-python==7.2.0 uwsgi==2.0.19.1 && \
     pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
 
 # Remove `-frozen` to build without strictly pinned dependencies.
