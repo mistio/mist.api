@@ -1,0 +1,14 @@
+{
+    "OpenLogic:CentOS:7.5:latest": "OpenLogic CentOS 7.5",
+    "CoreOS:CoreOS:Stable:latest": "CoreOS CoreOS Stable",
+    "Debian:debian-10:10:latest": "Debian debian-10 10",
+    "SUSE:openSUSE-Leap:42.3:latest": "SUSE openSUSE-Leap 42.3",
+    "RedHat:RHEL:7-LVM:latest": "RedHat RHEL 7-LVM",
+    "SUSE:SLES:15:latest": "SUSE SLES 15",
+    "Canonical:UbuntuServer:18.04-LTS:latest": "Canonical UbuntuServer 18.04-LTS",
+    "MicrosoftWindowsServer:WindowsServer:2019-Datacenter:latest": "MicrosoftWindowsServer WindowsServer 2019-Datacenter",
+    "MicrosoftWindowsServer:WindowsServer:2016-Datacenter:latest": "MicrosoftWindowsServer WindowsServer 2016-Datacenter",
+    "MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:latest": "MicrosoftWindowsServer WindowsServer 2012-R2-Datacenter",
+    "MicrosoftWindowsServer:WindowsServer:2012-Datacenter:latest": "MicrosoftWindowsServer WindowsServer 2012-Datacenter",
+    "MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:latest": "MicrosoftWindowsServer WindowsServer 2008-R2-SP1"
+}

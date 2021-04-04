@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Get Azure default images
+
+Usage asssuming on api directory:
+    ./bin/get-azure-images azure_default_images.json
+
+Requires requests to run
+Install it with `pip install requests`
+"""
+import requests
+import json
+import argparse
+
+GITHUB_URL = "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/master/arm-compute/quickstart-templates/aliases.json"  # noqa
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Get default Azure images")
+    parser.add_argument(
+        "file", help="JSON file where Azure images will be stored"
+    )
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    args = parse_args()
+    r = requests.get(GITHUB_URL)
+    content = json.loads(r.content)
+
+    z = {
+        **content["outputs"]["aliases"]["value"]["Linux"],
+        **content["outputs"]["aliases"]["value"]["Windows"],
+    }
+
+    default_images = {}
+    for item in z.values():
+        key = "{}:{}:{}:{}".format(
+            item["publisher"], item["offer"], item["sku"], item["version"]
+        )
+        value = "{} {} {}".format(
+            item["publisher"], item["offer"], item["sku"]
+        )
+        default_images[key] = value
+
+    with open(args.file, "w") as f:
+        f.write(json.dumps(default_images, indent=4))
+
+
+if __name__ == "__main__":
+    main()

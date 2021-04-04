@@ -96,7 +96,9 @@ def main(global_config, **settings):
                                     'SOCIAL_AUTH_INTRALOT_OAUTH2_KEY',
                                     'SOCIAL_AUTH_INTRALOT_OAUTH2_SECRET',
                                     'SOCIAL_AUTH_AZUREAD_OAUTH2_KEY',
-                                    'SOCIAL_AUTH_AZUREAD_OAUTH2_SECRET')}
+                                    'SOCIAL_AUTH_AZUREAD_OAUTH2_SECRET',
+                                    'SOCIAL_AUTH_CILOGON_OAUTH2_KEY',
+                                    'SOCIAL_AUTH_CILOGON_OAUTH2_SECRET')}
     configurator.registry.settings.update(social_auth_keys)
     configurator.registry.settings.update(getattr(config,
                                                   'SOCIAL_AUTH_SETTINGS', {}))
