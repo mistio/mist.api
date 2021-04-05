@@ -3172,7 +3172,7 @@ class LibvirtComputeController(BaseComputeController):
             from mist.api.helpers import trigger_session_update
             trigger_session_update(machine.owner.id, ['clouds'])
         else:
-            self.connection.ex_rename_node(node, name)
+            self._get_host_driver(machine).ex_rename_node(node, name)
 
     def remove_machine(self, machine):
         from mist.api.machines.models import KeyMachineAssociation
