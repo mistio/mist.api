@@ -3378,8 +3378,14 @@ HOMEPAGE_INPUTS = {
 if HAS_BILLING and STRIPE_PUBLIC_APIKEY:
     HOMEPAGE_INPUTS['stripe_public_apikey'] = STRIPE_PUBLIC_APIKEY
 
-# DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
+if not VAULT_TOKEN:
+    try:
+        with open('/approle/token', 'r') as file:
+            VAULT_TOKEN = file.read().replace('\n', '')
+    except FileNotFoundError:
+        pass
 
+# DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
 
 # Read version info
 VERSION = {}
