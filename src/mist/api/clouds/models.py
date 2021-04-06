@@ -490,13 +490,15 @@ class MaxihostCloud(Cloud):
 
 
 class GigG8Cloud(Cloud):
+    """
+    DEPRECATED
+    """
 
     apikey = me.StringField(required=True)
     user_id = me.IntField(required=True)
     url = me.StringField(required=True)
 
     _private_fields = ('apikey', )
-    _controller_cls = controllers.GigG8MainController
 
 
 class LinodeCloud(Cloud):

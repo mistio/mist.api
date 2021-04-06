@@ -1245,7 +1245,7 @@ LINODE_DATACENTERS = {
     10: 'Frankfurt, DE'
 }
 
-PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
+PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd',
                                'kubevirt', 'cloudsigma']
 
 PROVIDERS = {
@@ -1462,26 +1462,6 @@ PROVIDERS = {
                     'location-image-restriction': False,
                 },
             },
-        }
-    },
-    'g8': {
-        'name': 'G8',
-        'aliases': ['gig g8', 'gig-g8', 'gig'],
-        'driver': 'gig_g8',
-        'category': 'private cloud',
-        'features': {
-            'compute': True,
-            'provision': {
-                'cloudinit': True,
-                'custom_size': True,
-                'location': False,
-                'restrictions': {
-                    'size-image-restriction': False,
-                    'location-size-restriction': False,
-                    'location-image-restriction': False,
-                },
-            },
-            'storage': True,
         }
     },
     'openstack': {
@@ -2213,12 +2193,6 @@ SUPPORTED_PROVIDERS = [
     {
         'title': 'Kubevirt',
         'provider': Provider.KUBEVIRT,
-        'regions': []
-    },
-    # GigG8
-    {
-        'title': 'GigG8',
-        'provider': Provider.GIG_G8,
         'regions': []
     },
     # LXD
