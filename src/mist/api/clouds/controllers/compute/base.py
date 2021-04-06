@@ -42,6 +42,7 @@ from mist.api.exceptions import SSLError
 from mist.api.exceptions import MistNotImplementedError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import MachineCreationError
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish
@@ -2268,11 +2269,12 @@ class BaseComputeController(BaseController):
         """
         raise MistNotImplementedError()
 
-    def generate_plan(self, auth_context, plan, image,
-                      size, location='', key={},
-                      networks={}, volumes=[], disks={},
-                      extra={}, scripts=[], schedules={}, cloudinit='',
-                      fqdn='', monitoring=False, quantity=1):
+    def generate_plan(self, auth_context, plan, name, image,
+                      size, location='', key=None,
+                      networks=None, volumes=None, disks=None,
+                      extra=None, scripts=None, schedules=None, cloudinit='',
+                      fqdn='', monitoring=False, request_tags=None,
+                      expiration=None, quantity=1):
         """Generate a machine creation plan.
 
         Subclasses SHOULD NOT override or extend this method
@@ -2294,33 +2296,63 @@ class BaseComputeController(BaseController):
             `self._generate_plan__parse_extra`
             `self._generate_plan__post_parse_plan`
         """
+        from mist.api.machines.methods import machine_name_validator
+        from mist.api.helpers import (
+            compute_tags,
+            check_expiration_constraint,
+            check_cost_constraint,
+            check_size_constraint,
+        )
+        plan['machine_name'] = machine_name_validator(self.provider,
+                                                      name)
+
+        tags, constraints = auth_context.check_perm('machine', 'create', None)
+
+        tags = compute_tags(auth_context, tags=tags,
+                            request_tags=request_tags)
+        if tags:
+            plan['tags'] = tags
+
+        expiration = self._generate_plan__parse_expiration(auth_context,
+                                                           expiration)
+        check_expiration_constraint(auth_context, expiration,
+                                    constraints=constraints)
+        if expiration:
+            plan['expiration'] = expiration
+
+        check_cost_constraint(auth_context, constraints=constraints)
+
         images = self._generate_plan__parse_image(auth_context, image)
 
         if self.cloud.ctl.has_feature('location'):
             locations = self._generate_plan__parse_location(auth_context,
                                                             location)
         else:
+            # TODO this will not work in combinations
             locations = None
 
         sizes = self._generate_plan__parse_size(auth_context, size)
 
+        sizes = check_size_constraint(auth_context, sizes,
+                                      constraints=constraints)
         comb_list = self._get_allowed_image_size_location_combinations(
             images, locations, sizes)
         image, size, location = self._compute_best_combination(comb_list)
 
         if location:
-            plan['location'] = location.id
+            plan['location'] = {'id': location.id, 'name': location.name}
         if size:
+            # custom size
             if isinstance(size, dict):
                 plan['size'] = size
             else:
-                plan['size'] = size.id
+                plan['size'] = {'id': size.id, 'name': size.name}
         if image:
-            plan['image'] = image.id
+            plan['image'] = {'id': image.id, 'name': image.name}
 
         key = self._generate_plan__parse_key(auth_context, key)
         if key:
-            plan['key'] = key
+            plan['key'] = {'id': key.id, 'name': key.name}
 
         networks = self._generate_plan__parse_networks(auth_context,
                                                        networks)
@@ -2363,26 +2395,26 @@ class BaseComputeController(BaseController):
         self._generate_plan__post_parse_plan(plan)
         return plan
 
-    def _generate_plan__parse_image(self, auth_context, image_dict):
+    def _generate_plan__parse_image(self, auth_context, image_obj):
         """Subclasses MAY override this method.
         """
+        if self.cloud.ctl.has_feature('custom_image'):
+            image = self._generate_plan__parse_custom_image(image_obj)
+            return [image]
+
         from mist.api.methods import list_resources
-        # TODO make it required
-        image_search = image_dict.get('id', '') or image_dict.get('name', '')
-        # if not image_search:
-        #    raise BadRequestError('Image id or name is required')
-        try:
-            images, _ = list_resources(
-                auth_context, 'image', search=image_search,
-                cloud=self.cloud.id
-            )
-        except ValueError:
-            if self.cloud.ctl.has_feature('custom_image'):
-                image = self._generate_plan__parse_custom_image(
-                    image_dict)
-                return [image]
-            else:
-                raise NotFoundError('Image does not exist')
+        if isinstance(image_obj, str):
+            image_search = image_obj
+        else:
+            image_search = image_obj.get('image')
+        if not image_search:
+            raise BadRequestError('Image is required')
+        images, count = list_resources(
+            auth_context, 'image', search=image_search,
+            cloud=self.cloud.id
+        )
+        if not count:
+            raise NotFoundError('Image not found')
         return images
 
     def _generate_plan__parse_custom_image(self, image_dict):
@@ -2393,36 +2425,47 @@ class BaseComputeController(BaseController):
 
     def _generate_plan__parse_location(self, auth_context, location_search):
         from mist.api.methods import list_resources
-        try:
-            locations, _ = list_resources(
-                auth_context, 'location',
-                search=location_search,
-                cloud=self.cloud.id)
-        except ValueError:
-            raise NotFoundError('Location does not exist')
-        # TODO add perimissions other than read to list_resources
-        # auth_context.check_perm('location', 'create_resources',
-        #                        location.id)
+        locations, count = list_resources(
+            auth_context, 'location',
+            search=location_search,
+            cloud=self.cloud.id)
+        if not count:
+            raise NotFoundError('Location not found')
+
+        ret_locations = []
+        for location in locations:
+            try:
+                auth_context.check_perm('location',
+                                        'create_resources',
+                                        location.id)
+            except PolicyUnauthorizedError:
+                continue
+            else:
+                ret_locations.append(location)
+
         return locations
 
-    def _generate_plan__parse_size(self, auth_context, size_dict):
+    def _generate_plan__parse_size(self, auth_context, size_obj):
         from mist.api.methods import list_resources
-        size_search = size_dict.get('id') or size_dict.get('name')
+        if isinstance(size_obj, str):
+            size_search = size_obj
+        else:
+            size_search = size_obj.get('size')
         if size_search:
             sizes, count = list_resources(
                 auth_context, 'size', search=size_search,
                 cloud=self.cloud.id
             )
             if not count:
-                raise NotFoundError('Size does not exist')
+                raise NotFoundError('Size not found')
 
             return sizes
         else:
             if self.cloud.ctl.has_feature('custom_size'):
-                size = self._generate_plan__parse_custom_size(size_dict)
+                size = self._generate_plan__parse_custom_size(size_obj)
                 return [size]
             else:
-                raise BadRequestError('Size id or name is required')
+                raise BadRequestError('Size is required')
 
     def _generate_plan__parse_custom_size(self, size_dict):
         """Providers with custom sizes SHOULD override/extend this method
@@ -2440,7 +2483,11 @@ class BaseComputeController(BaseController):
         """ Find all possible combinations of images, locations and sizes
         based on provider restrictions.
         """
-        custom_size = isinstance(sizes[0], dict)
+        try:
+            custom_size = isinstance(sizes[0], dict)
+        except IndexError:
+            raise NotFoundError('No available plan exists for given size')
+
         ret_list = []
         for location in locations:
             available_sizes = sizes
@@ -2478,8 +2525,8 @@ class BaseComputeController(BaseController):
         ret_scripts = []
         from mist.api.methods import list_resources
         for script in scripts:
-            if script.get('id') or script.get('name'):
-                script_search = script.get('id') or script.get('name')
+            if script.get('script'):
+                script_search = script.get('script')
                 try:
                     [script_obj], _ = list_resources(auth_context, 'script',
                                                      search=script_search,
@@ -2510,28 +2557,61 @@ class BaseComputeController(BaseController):
                                 'images, sizes, locations')
         return combination_list[0]
 
-    def _generate_plan__parse_key(self, auth_context, key_dict):
+    def _generate_plan__parse_key(self, auth_context, key_obj):
         feature = self.cloud.ctl.has_feature('key')
         if feature is False:
             return None
-        key_search = key_dict.get('id', '') or key_dict.get('name', '')
-        #  key is not required and a key attribute was not given
+        if isinstance(key_obj, str):
+            key_search = key_obj
+        else:
+            key_search = key_obj.get('key', '')
+        #  key is not required and a key was not given
         if isinstance(feature, dict) \
            and feature.get('required') is False \
            and key_search == '':
             return None
-        # TODO default key, if key_search empty check for default
-
         from mist.api.methods import list_resources
-        try:
 
-            [key], _ = list_resources(
-                auth_context, 'key', search=key_search, limit=1
-            )
-        except ValueError:
-            raise NotFoundError('Key does not exist')
+        keys, count = list_resources(
+            auth_context, 'key', search=key_search, limit=1
+        )
+        if not count:
+            raise NotFoundError('Key not found')
+        # try to use the default key
+        for key in keys:
+            if key.default is True:
+                return key
+        return keys[0]
 
-        return key.id
+    def _generate_plan__parse_expiration(self, auth_context,
+                                         expiration):
+        if not expiration:
+            return {}
+
+        if isinstance(expiration, dict):
+            return expiration
+
+        # expiration object
+        exp_dict = expiration.to_dict()
+        if exp_dict.get('notify'):
+            # convert notify object to datetime str
+            try:
+                value = exp_dict['notify']['value']
+                period = exp_dict['notify']['period']
+            except KeyError:
+                raise BadRequestError('Parameter missing in expiration')
+            if period == 'minutes':
+                notify = datetime.timedelta(minutes=value)
+            elif period == 'hours':
+                notify = datetime.timedelta(hours=value)
+            else:
+                notify = datetime.timedelta(days=value)
+
+            exp_dict['notify'] = (exp_dict['date'] - notify).strftime('%Y-%m-%d %H:%M:%S')  # noqa
+        exp_dict['date'] = datetime.datetime.strftime(exp_dict['date'],
+                                                      '%Y-%m-%d %H:%M:%S')
+
+        return exp_dict
 
     def _generate_plan__parse_networks(self, auth_context, networks_dict):
         pass
@@ -2548,10 +2628,10 @@ class BaseComputeController(BaseController):
         ret_volumes = []
         from mist.api.methods import list_resources
         for volume in volumes:
-            if volume.get('id'):
+            if volume.get('volume'):
                 try:
                     [vol], _ = list_resources(
-                        auth_context, 'volume', search=volume['id'],
+                        auth_context, 'volume', search=volume['volume'],
                         cloud=self.cloud.id
                     )
                 except ValueError:
@@ -2566,7 +2646,8 @@ class BaseComputeController(BaseController):
 
     def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
         """Create and return a dictionary with all of the provider's
-        attributes necessary to attach the volume to a machine.
+        attributes necessary to attach the already existing volume to a
+        machine.
 
         Subclasses that require special handling SHOULD override this
         by default, dummy method
@@ -2595,90 +2676,144 @@ class BaseComputeController(BaseController):
         pass
 
     def _generate_plan__parse_schedules(self, auth_context,
-                                        machine_name, schedule):
+                                        machine_name, schedules):
         """
-        Schedule key/value pairs:
-            type: 'one_off', 'interval', 'crontab'
-            action: 'start' 'stop', 'reboot', 'destroy'
-            script: script id or name to run (action should not be set)
-            entry: if type is one_off then time in milliseconds to run
+        Schedule attributes:
+            `schedule_type`: 'one_off', 'interval', 'crontab'
+            `action`: 'start' 'stop', 'reboot', 'destroy'
+            `script`: dictionary containing:
+                    `script`: id or name of the script to run
+                    `params`: optional script parameters
 
-                   if type is interval then dictionary with the keys/values:
-                       'every': int , 'period': minutes,hours,days
+            one_off schedule_type parameters:
+                `datetime`: when schedule should run,
+                            e.g '2020-12-15T22:00:00Z'
+            crontab schedule_type parameters:
+                `minute`: e.g '*/10',
+                `hour`
+                `day_of_month`
+                `month_of_year`
+                `day_of_week`
 
-                   if type is crontab:
-                       'minute': '*/10',
-                       'hour': '*',
-                       'day_of_month': '*',
-                       'month_of_year': '*',
-                       'day_of_week': '*'}
+            interval schedule_type parameters:
+                    `every`: int ,
+                    `period`: minutes,hours,days
 
-            expires: date when schedule should expire,
-            e.g '2020-12-15 22:00:00'
+            `expires`: date when schedule should expire,
+            e.g '2020-12-15T22:00:00Z'
 
-            start_after: date when schedule should start running,
-            e.g '2020-12-15 22:00:00'
+            `start_after`: date when schedule should start running,
+            e.g '2020-12-15T22:00:00Z'
 
-            max_run_count:max number of times to run
-            task_enabled:
+            `max_run_count`: max number of times to run
             description:
         """
-        if not schedule:
-            return
-        schedule_type = schedule.get('type')
-        if schedule_type not in ['crontab', 'interval', 'one_off']:
-            raise BadRequestError('schedule type must be one of '
-                                  'these (crontab, interval, one_off)]'
-                                  )
+        if not schedules:
+            return None
+        ret_schedules = []
+        for schedule in schedules:
+            schedule_type = schedule.get('schedule_type')
+            if schedule_type not in ['crontab', 'interval', 'one_off']:
+                raise BadRequestError('schedule type must be one of '
+                                      'these (crontab, interval, one_off)]')
 
-        if not schedule.get('entry'):
-            raise BadRequestError('schedule requires date given in '
-                                  'schedule_entry')
+            ret_schedule = {
+                'name': machine_name,
+                'schedule_type': schedule_type,
+                'description': schedule.get('description', ''),
+                'task_enabled': True,
+            }
+            action = schedule.get('action')
+            script = schedule.get('script')
+            if action is None and script is None:
+                raise BadRequestError('Schedule action or script not defined')
+            if action and script:
+                raise BadRequestError(
+                    'One of action or script should be defined')
+            if action:
+                if action not in ['reboot', 'destroy', 'start', 'stop']:
+                    raise BadRequestError('Action is not correct')
+                ret_schedule['action'] = action
+            else:
+                from mist.api.methods import list_resources
+                script_search = script.get('script')
+                if not script_search:
+                    raise BadRequestError('script parameter is required')
+                try:
+                    [script_obj], _ = list_resources(auth_context, 'script',
+                                                     search=script_search,
+                                                     limit=1)
+                except ValueError:
+                    raise NotFoundError('Schedule script does not exist')
+                auth_context.check_perm('script', 'run', script_obj.id)
+                ret_schedule['script_id'] = script_obj.id
+                ret_schedule['script_name'] = script_obj.name
+                ret_schedule['params'] = script.get('params')
+            if schedule_type == 'one_off':
+                # convert schedule_entry from ISO format
+                # to '%Y-%m-%d %H:%M:%S'
+                try:
+                    ret_schedule['schedule_entry'] = datetime.datetime.strptime(  # noqa
+                        schedule['datetime'], '%Y-%m-%dT%H:%M:%SZ'
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+                except KeyError:
+                    raise BadRequestError(
+                        'one_off schedule parameter missing')
+                except ValueError:
+                    raise BadRequestError(
+                        'Schedule parameter datetime does not match'
+                        ' format %Y-%m-%dT%H:%M:%SZ')
+            elif schedule_type == 'interval':
+                try:
+                    ret_schedule['schedule_entry'] = {
+                        'every': schedule['every'],
+                        'period': schedule['period']
+                    }
+                except KeyError:
+                    raise BadRequestError(
+                        'interval schedule parameter missing')
+            elif schedule_type == 'crontab':
+                try:
+                    ret_schedule['schedule_entry'] = {
+                        'minute': schedule['minute'],
+                        'hour': schedule['hour'],
+                        'day_of_month': schedule['day_of_month'],
+                        'month_of_year': schedule['month_of_year'],
+                        'day_of_week': schedule['day_of_week']
+                    }
+                except KeyError:
+                    raise BadRequestError(
+                        'crontab schedule parameter missing')
 
-        ret_schedule = {
-            'name': machine_name,
-            'schedule_type': schedule_type,
-            'description': schedule.get('description', ''),
-            'task_enabled': schedule.get('task_enabled', True),
-            'schedule_entry': schedule.get('entry'),
-        }
+            if schedule_type in ['crontab', 'interval']:
+                if schedule.get('start_after'):
+                    # convert `start_after` from ISO format
+                    # to '%Y-%m-%d %H:%M:%S'
+                    try:
+                        ret_schedule['start_after'] = datetime.datetime.strptime(  # noqa
+                            schedule['start_after'], '%Y-%m-%dT%H:%M:%SZ'
+                        ).strftime("%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        raise BadRequestError('Parameter `start_after` does '
+                                              'not match format '
+                                              '%Y-%m-%dT%H:%M:%SZ'
+                                              )
+                if schedule.get('expires'):
+                    # convert `expires` from ISO format
+                    # to '%Y-%m-%d %H:%M:%S'
+                    try:
+                        ret_schedule['expires'] = datetime.datetime.strptime(  # noqa
+                            schedule['expires'], '%Y-%m-%dT%H:%M:%SZ'
+                        ).strftime("%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        raise BadRequestError('Parameter `expires` does not '
+                                              'match format %Y-%m-%dT%H:%M:%SZ'
+                                              )
+                ret_schedule['max_run_count'] = schedule.get('max_run_count',
+                                                             '')
+            ret_schedules.append(ret_schedule)
 
-        action = schedule.get('action')
-        script = schedule.get('script')
-        if action is None and script is None:
-            raise BadRequestError('Action or script not defined')
-
-        if action:
-            if action not in ['reboot', 'destroy', 'start', 'stop']:
-                raise BadRequestError('Action is not correct')
-            ret_schedule['action'] = action
-        else:
-            from mist.api.methods import list_resources
-            try:
-                [script_obj], _ = list_resources(auth_context, 'script',
-                                                 search=script,
-                                                 limit=1)
-            except ValueError:
-                raise NotFoundError('Schedule script does not exist')
-            auth_context.check_perm('script', 'run', script_obj.id)
-            ret_schedule['script_id'] = script_obj.id
-
-        if schedule_type == 'interval':
-            if not all(k in schedule['entry'] for k in ('every', 'period')):
-                raise BadRequestError('Parameter in schedule entry missing')
-        elif schedule_type == 'crontab':
-            if not all(k in schedule['entry'] for k in ('minute',
-                                                        'hour',
-                                                        'day_of_month',
-                                                        'month_of_year',
-                                                        'day_of_week')):
-                raise BadRequestError('Parameter in schedule entry missing')
-
-        ret_schedule['start_after'] = schedule.get('start_after')
-        ret_schedule['expires'] = schedule.get('expires')
-        ret_schedule['max_run_count'] = schedule.get('max_run_count')
-
-        return ret_schedule
+        return ret_schedules
 
     def _generate_plan__post_parse_plan(self, plan):
         """Used to parse whole plan in place, instead of specific parts of it.
@@ -2708,8 +2843,6 @@ class BaseComputeController(BaseController):
         try:
             node = self._create_machine__create_node(kwargs)
         except Exception as exc:
-            # TODO docker tries to pull image
-            # when exception occurs
             self._create_machine__handle_exception(exc, kwargs)
 
         self._create_machine__post_machine_creation_steps(node, kwargs, plan)
@@ -2728,11 +2861,19 @@ class BaseComputeController(BaseController):
             'name': plan['machine_name']
         }
 
-        image = self._create_machine__get_image_object(plan.get('image'))
+        if plan['size'].get('id'):
+            size = plan['size']['id']
+        else:
+            # custom size
+            size = plan['size']
+
+        image = self._create_machine__get_image_object(
+            plan['image'].get('id'))
         location = self._create_machine__get_location_object(
-            plan.get('location'))
-        size = self._create_machine__get_size_object(plan.get('size'))
-        key = self._create_machine__get_key_object(plan.get('key'))
+            plan.get('location', {}).get('id'))
+        size = self._create_machine__get_size_object(size)
+        key = self._create_machine__get_key_object(
+            plan.get('key', {}).get('id'))
 
         if image:
             kwargs['image'] = image
