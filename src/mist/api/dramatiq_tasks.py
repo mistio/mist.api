@@ -1,4 +1,5 @@
 import time
+import datetime
 import uuid
 import logging
 from random import randrange
@@ -55,7 +56,7 @@ def dramatiq_create_machine_async(
 
     job_id = job_id or uuid.uuid4().hex
     auth_context = AuthContext.deserialize(auth_context_serialized)
-    cloud = Cloud.objects.get(id=plan["cloud"])
+    cloud = Cloud.objects.get(id=plan["cloud"]["id"])
     # scripts=script, script_id=script_id, script_params=script_params
     # persist=persist
 
@@ -105,7 +106,7 @@ def dramatiq_create_machine_async(
     # Associate key.
     if plan.get('key'):
         try:
-            key = Key.objects.get(id=plan["key"])
+            key = Key.objects.get(id=plan["key"]["id"])
             username = node.extra.get("username", "")
             # TODO port could be something else
             machine.ctl.associate_key(
@@ -148,7 +149,8 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                                   deleted=None)
-        conn = connect_provider(cloud, location_id=plan.get('location'))
+        conn = connect_provider(cloud,
+                                location_id=plan.get('location', {}).get('id'))
 
         if isinstance(cloud, DockerCloud):
             nodes = conn.list_containers()
@@ -196,7 +198,7 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
         "job_id": job_id,
         "job": job,
         "host": host,
-        "key_id": plan.get("key", ""),
+        "key_id": plan.get("key", {}).get("id"),
     }
 
     add_schedules(auth_context, external_id, machine_id,
@@ -204,7 +206,7 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
     add_dns_record(auth_context, host, log_dict, plan.get("fqdn"))
 
     dramatiq_ssh_tasks.send(auth_context_serialized, cloud_id,
-                            plan.get('key', ''), host, external_id,
+                            plan.get("key", {}).get("id"), host, external_id,
                             node.name, machine_id, plan.get('scripts'),
                             log_dict, monitoring=plan.get('monitoring', False),
                             plugins=None, job_id=job_id,
@@ -256,6 +258,13 @@ def dramatiq_ssh_tasks(auth_context_serialized, cloud_id, key_id, host,
 
 
 def add_expiration_for_machine(auth_context, expiration, machine):
+    if expiration.get('notify'):
+        # convert notify value from datetime str to seconds
+        notify = datetime.datetime.strptime(expiration['date'],
+                                            '%Y-%m-%d %H:%M:%S') \
+            - datetime.datetime.strptime(expiration['notify'],
+                                         '%Y-%m-%d %H:%M:%S')
+        expiration['notify'] = int(notify.total_seconds())
     params = {
         "schedule_type": "one_off",
         "description": "Scheduled to run when machine expires",
@@ -272,36 +281,40 @@ def add_expiration_for_machine(auth_context, expiration, machine):
 
 
 def add_schedules(auth_context, external_id, machine_id,
-                  log_dict, schedule):
-
-    # TODO Handle multiple schedules
-    if schedule and schedule.get('name'):  # ugly hack to prevent dupes
-        action = schedule.get('action', '')
-        try:
-            name = (action + '-' + schedule.pop('name') +
-                    '-' + external_id[:4])
-
-            tmp_log("Add scheduler entry %s", name)
-            schedule["selectors"] = [{"type": "machines", "ids": [machine_id]}]
-            schedule_info = Schedule.add(auth_context, name, **schedule)
-            tmp_log("A new scheduler was added")
-            log_event(
-                action="Add scheduler entry",
-                scheduler=schedule_info.as_dict(),
-                **log_dict
-            )
-        except Exception as e:
-            tmp_log_error("Exception occured %s", repr(e))
-            error = repr(e)
-            notify_user(
-                auth_context.owner,
-                "add scheduler entry failed for machine %s" % external_id,
-                repr(e),
-                error=error,
-            )
-            log_event(
-                action="Add scheduler entry failed", error=error, **log_dict
-            )
+                  log_dict, schedules):
+    schedules = schedules or []
+    for schedule in schedules:
+        if schedule and schedule.get('name'):  # ugly hack to prevent dupes
+            # FIXME this causes errors if multiple schedules are
+            # added with the same action
+            action = schedule.get('action', '')
+            try:
+                name = (
+                    action + "-" + schedule.pop("name") + "-" + external_id[:4]
+                )
+                tmp_log("Add scheduler entry %s", name)
+                schedule["selectors"] = [{"type": "machines",
+                                          "ids": [machine_id]}]
+                schedule_info = Schedule.add(auth_context, name, **schedule)
+                tmp_log("A new scheduler was added")
+                log_event(
+                    action="Add scheduler entry",
+                    scheduler=schedule_info.as_dict(),
+                    **log_dict
+                )
+            except Exception as e:
+                tmp_log_error("Exception occured %s", repr(e))
+                error = repr(e)
+                notify_user(
+                    auth_context.owner,
+                    "add scheduler entry failed for machine %s" % external_id,
+                    repr(e),
+                    error=error,
+                )
+                log_event(
+                    action="Add scheduler entry failed", error=error,
+                    **log_dict
+                )
 
 
 def add_dns_record(auth_context, host, log_dict, fqdn):
@@ -380,6 +393,7 @@ def create_key_association(auth_context, shell, cloud_id, key_id, machine_id,
 
 def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
                 machine_name, log_dict, job_id):
+    scripts = scripts or []
     for script in scripts:
         if script.get('id'):
             tmp_log('will run script_id %s', script['id'])
