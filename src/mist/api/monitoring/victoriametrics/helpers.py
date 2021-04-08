@@ -44,9 +44,21 @@ def parse_value(value):
 
 
 def parse_relative_time(dt):
+    if re.match(r'.*month.*', dt):
+        dt = re.sub(r'month.*', '', dt)
+        try:
+            dt = int(dt) * 30
+            dt = f"{dt}d"
+        except ValueError:
+            raise ValueError(
+                "Could not convert 'month'" +
+                " relative time to promql time syntax")
+        return dt
     dt = re.sub(r's.*', 's', dt)
     dt = re.sub(r'm.*', 'm', dt)
     dt = re.sub(r'h.*', 'h', dt)
+    dt = re.sub(r'd.*', 'd', dt)
+    dt = re.sub(r'w.*', 'w', dt)
     dt = re.sub(r'y.*', 'y', dt)
     return dt
 
