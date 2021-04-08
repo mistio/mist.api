@@ -69,7 +69,7 @@ log = logging.getLogger(__name__)
 
 def get_stats(
     machine, start="", stop="", step="",
-        metrics=None, monitoring_method=None):
+        metrics=None, monitoring_method=None, round_timestamps=False):
     """Get all monitoring data for the specified machine.
 
     If a list of `metrics` is provided, each metric needs to comply with the
@@ -101,8 +101,10 @@ def get_stats(
     elif not isinstance(metrics, list):
         metrics = [metrics]
 
+    data = {}
+
     if monitoring_method in ("telegraf-graphite"):
-        return graphite_get_stats(
+        data = graphite_get_stats(
             machine, start=start, stop=stop, step=step, metrics=metrics,
         )
     elif monitoring_method == "telegraf-influxdb":
@@ -138,29 +140,35 @@ def get_stats(
             )
             if data:
                 results.update(data)
-        return results
-
+        data = results
     # return time-series data from foundationdb
     elif monitoring_method == "telegraf-tsfdb":
-        return fdb_get_stats(
+        data = fdb_get_stats(
             machine,
             start,
             stop,
             step,
             metrics
         )
-
     elif monitoring_method == "telegraf-victoriametrics":
-        return victoria_get_stats(
+        data = victoria_get_stats(
             machine,
             start,
             stop,
             step,
             metrics
         )
-
     else:
         raise Exception("Invalid monitoring method")
+
+    if round_timestamps:
+        for metric in data.keys():
+            data[metric]["datapoints"] = [
+                [val, str(round_base(int(float(dt)), 1, 5))]
+                for val, dt in data[metric]["datapoints"]
+            ]
+
+    return data
 
 
 def get_load(owner, start="", stop="", step="", uuids=None):
@@ -889,3 +897,7 @@ def find_metrics_by_tags(auth_context, tags):
     metrics = loop.run_until_complete(async_find_metrics(resources))
     loop.close()
     return metrics
+
+
+def round_base(x, precision, base):
+    return round(base * round(float(x) / base), precision)

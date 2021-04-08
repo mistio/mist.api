@@ -624,6 +624,10 @@ def get_stats(request):
       type: string
       required: false
       description: step to fetch stats, used in aggregations
+    round_timestamps:
+      in: query
+      type: boolean
+      required: false
     metrics:
       in: query
       type: string
@@ -646,14 +650,18 @@ def get_stats(request):
     start = params.get('start', '')
     stop = params.get('stop', '')
     step = params.get('step', '')
+    round_timestamps = bool(params.get('round_timestamps', False))
     try:
         metrics = params.getall('metrics')
     except:
         metrics = params.get('metrics')
 
-    data = mist.api.monitoring.methods.get_stats(machine,
-                                                 start=start, stop=stop,
-                                                 step=step, metrics=metrics)
+    data = mist.api.monitoring.methods.get_stats(
+        machine,
+        start=start, stop=stop,
+        step=step, metrics=metrics,
+        round_timestamps=round_timestamps
+    )
     data['request_id'] = params.get('request_id')
     return data
 
