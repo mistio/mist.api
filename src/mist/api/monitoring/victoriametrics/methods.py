@@ -60,7 +60,6 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             data[metric] = {
                 "name": metric,
                 "datapoints": [[parse_value(val),
-                                # str(round_base(int(dt), 1, 5))]
                                 str(dt)]
                                for dt, val in result.get("values")]
             }
