@@ -547,8 +547,13 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     sort = sort or ''
     only = only or ''
     postfilters = []
-    # search filter is either an id or a space separated key/value terms
+    id_implicit = False
+    # search filter contains space separated terms
+    # if the term contains : or = then assume key/value query
+    # otherwise search for objects with id or name matching the term
+    # TODO this breaks if ':' or '=' character is in resource id/name
     if search and ':' not in search and '=' not in search:
+        id_implicit = True
         query['id'] = search
     elif search:
         for term in search.split(' '):
@@ -556,11 +561,11 @@ def list_resources(auth_context, resource_type, search='', cloud='',
                 k, v = term.split(':')
             elif '=' in term:
                 k, v = term.split('=')
-            elif 'and' in term.lower() or not term:
+            elif 'and' == term.lower() or not term:
                 continue
             else:
-                log.error('Invalid query term', term)
-                continue
+                id_implicit = True
+                k, v = 'id', term
             if k == 'provider' and 'cloud' in resource_type:
                 k = '_cls'
                 v = CLOUDS[v]()._cls
@@ -608,7 +613,7 @@ def list_resources(auth_context, resource_type, search='', cloud='',
                      if field in resource_model._fields]
         result = result.only(*only_list)
 
-    if not result.count() and query.get('id'):
+    if not result.count() and query.get('id') and id_implicit:
         # Try searching for name or title field
         if getattr(resource_model, 'name', None) and \
                 not isinstance(getattr(resource_model, 'name'), property):
