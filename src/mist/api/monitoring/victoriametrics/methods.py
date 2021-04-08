@@ -75,7 +75,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         if not istatus.activated_at:
             for val in (point[0] for item in list(data.values())
                         for point in item['datapoints']
-                        if int(point[1]) >= istatus.started_at):
+                        if int(float(point[1])) >= istatus.started_at):
                 if val is not None:
                     if not istatus.finished_at:
                         istatus.finished_at = time.time()
