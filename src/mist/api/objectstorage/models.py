@@ -59,7 +59,7 @@ class Bucket(OwnershipMixin, me.Document):
             'extra': self.extra
         }
 
-    def get_content(self, path):
+    def get_content(self):
         return {
             **self.as_dict(),
             'content': {c.name: c.to_mongo() for c in self.content}

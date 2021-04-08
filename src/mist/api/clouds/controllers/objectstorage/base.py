@@ -189,9 +189,7 @@ class BaseObjectStorageController(BaseController):
 
     def list_bucket_content(self, name, path):
         container = self.connection.get_container(name)
-        content = self.connection.list_container_objects(container, path)
-
-        return [c.__dict__ for c in content]
+        return self._list_buckets__fetch_bucket_content(container, path)
 
     def _list_buckets__postparse_bucket(self, bucket, libcloud_bucket):
         """Parses a libcloud storage object on behalf of `self._list_storage`.

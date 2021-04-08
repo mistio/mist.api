@@ -1,6 +1,7 @@
 import logging
 
 from mist.api.objectstorage.models import Bucket
+from mist.api.clouds.models import Cloud
 
 
 log = logging.getLogger(__name__)
@@ -16,31 +17,32 @@ def list_buckets(owner, cloud_id, cached=True):
 
     else:
         log.error('Not cached request')
-        bucket = Bucket(owner=owner)
-        buckets = bucket.ctl.objectstorage.list_buckets()
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        buckets = cloud.ctl.objectstorage.list_buckets()
 
-        # Update RBAC Mappings given the list of new secrets.
+        # Update RBAC Mappings given the list of new buckets.
         owner.mapper.update(buckets, asynchronous=False)
 
     return [_bucket.as_dict() for _bucket in buckets]
 
 
 def list_bucket_content(owner, storage_id, path='', cached=True):
+    bucket = Bucket.objects.get(
+        owner=owner,
+        id=storage_id,
+        missing_since=None
+    )
+
     if cached:
-        buckets = Bucket.objects.get(
-            owner=owner,
-            id=storage_id,
-            missing_since=None
-        )
-
+        content = bucket.get_content()
     else:
-        bucket = Bucket(owner=owner)
-        buckets = bucket.ctl.objectstorage.list_buckets()
+        libcloud_content = bucket.cloud.ctl.objectstorage.list_bucket_content(bucket.name, path)
+        bucket.update(content=libcloud_content)
+        bucket.reload()
+        content = bucket.get_content()
 
-        # Update RBAC Mappings given the list of new secrets.
-        owner.mapper.update(buckets, asynchronous=False)
 
-    return buckets.get_content(path)
+    return content
 
 
 def filter_list_buckets(auth_context,

@@ -42,7 +42,6 @@ def list_buckets(request):
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
     cached = bool(params.get('cached', True))  # return cached by default
-    path = params.get('path', '.')
 
     # to prevent iterate throw every cloud
     auth_context.check_perm("cloud", "read", None)
@@ -55,7 +54,7 @@ def list_buckets(request):
                     auth_context,
                     cloud.get('id'),
                     cached,
-                    path
+                    perm='read'
                 )
                 buckets.extend(storage)
             except (CloudUnavailableError, CloudUnauthorizedError):
