@@ -19,6 +19,7 @@ class BucketItem(me.EmbeddedDocument):
     extra = MistDictField()
     meta_data = MistDictField()
 
+
 class Bucket(OwnershipMixin, me.Document):
     """The basic bucket model"""
 

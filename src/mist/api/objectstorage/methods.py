@@ -30,17 +30,18 @@ def list_bucket_content(owner, storage_id, path='', cached=True):
     bucket = Bucket.objects.get(
         owner=owner,
         id=storage_id,
-        missing_since=None
-    )
+        missing_since=None)
 
     if cached:
         content = bucket.get_content()
     else:
-        libcloud_content = bucket.cloud.ctl.objectstorage.list_bucket_content(bucket.name, path)
+        libcloud_content = bucket.cloud.ctl.objectstorage.list_bucket_content(
+            bucket.name,
+            path)
+
         bucket.update(content=libcloud_content)
         bucket.reload()
         content = bucket.get_content()
-
 
     return content
 
