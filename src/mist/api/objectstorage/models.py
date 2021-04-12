@@ -15,14 +15,9 @@ class BucketItem(me.EmbeddedDocument):
     name = me.StringField(required=True)
     size = me.IntField()
     hash = me.StringField(required=True)
-    type = me.StringField()
     container = MistDictField()
     extra = MistDictField()
     meta_data = MistDictField()
-
-    def clean(self):
-        self.type = 'folder' if self.name.endswith('/') else 'file'
-
 
 class Bucket(OwnershipMixin, me.Document):
     """The basic bucket model"""
