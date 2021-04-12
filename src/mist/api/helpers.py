@@ -1581,3 +1581,33 @@ def docker_run(name, image_id, env=None, command=None):
         raise WorkflowExecutionError(str(err))
 
     return node
+
+def search_parser(search):
+    """
+    Parse search string passed to `list_resources` into a list of tuples
+    with the format:
+        - (key, symbol, value)
+        - (AND/OR/stray string,)
+
+    Supports key:value, key=value, key:(value with spaces), key: "exact value",
+    AND/OR operators and a single 'stray' string that will be set to
+    id or name.
+
+    A value containing spaces should be enclosed in
+    parentheses or double quotes for exact match.
+
+    Note: 'stray' string cannot be the last value
+    unless it's the only value in search.
+    """
+
+    pattern = (r'([a-zA-Z0-9_]+)(:|=)'  # capture key, symbol
+               r'(\(.+?\)|".+?"|\S+)'  # capture value or value with spaces enclosed in "", ()  # noqa
+               r'|(OR|AND|[^:=]+?'  # capture OR/AND/'stray' string  # noqa
+               r'(?= [a-zA-Z0-9_]+?[:=]| AND | OR )'  # until one of key+symbol, OR , AND is encountered  # noqa
+               r'|^[^:=]+$)')  # capture simple 'stray' string
+
+    matched = re.findall(pattern, search)
+
+    items = [''.join(val.strip(' ()') for val in tup if val)
+             for tup in matched]
+    return items
