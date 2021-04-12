@@ -30,6 +30,8 @@ import tempfile
 import iso8601
 import pytz
 import asyncio
+import os
+import json
 
 import mongoengine as me
 
@@ -124,9 +126,9 @@ class AmazonComputeController(BaseComputeController):
             network_interfaces = node_dict['extra'].get(
                 'network_interfaces', [])
             network_interfaces = [{
-                'id': network_interface.id,
-                'state': network_interface.state,
-                'extra': network_interface.extra
+                'id': network_interface['id'],
+                'state': network_interface['state'],
+                'extra': network_interface['extra']
             } for network_interface in network_interfaces]
         except Exception as exc:
             log.warning("Cannot parse net ifaces for machine %s/%s/%s: %r" % (
@@ -210,7 +212,11 @@ class AmazonComputeController(BaseComputeController):
     def _list_images__fetch_images(self, search=None):
         if not search:
             from mist.api.images.models import CloudImage
-            default_images = config.EC2_IMAGES[self.cloud.region]
+            images_file = os.path.join(config.MIST_API_DIR,
+                                       config.EC2_IMAGES_FILE)
+            with open(images_file, 'r') as f:
+                default_images = json.load(f)[self.cloud.region]
+
             image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images
@@ -407,9 +413,15 @@ class AmazonComputeController(BaseComputeController):
 
         return ret_dict
 
-    def _parse_volumes_from_request(self, auth_context, volumes_dict):
-        # TODO
-        pass
+    def _create_machine__get_location_object(self, location):
+        from libcloud.compute.drivers.ec2 import ExEC2AvailabilityZone
+        location_obj = super()._create_machine__get_location_object(location)
+        location_obj.availability_zone = ExEC2AvailabilityZone(
+            name=location_obj.name,
+            zone_state=None,
+            region_name=self.connection.region_name
+        )
+        return location_obj
 
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
@@ -755,7 +767,7 @@ class DigitalOceanComputeController(BaseComputeController):
         for volume in plan.get('volumes', []):
             if volume.get('id'):
                 try:
-                    mist_vol = Volume.objects.get(id=volume.get(volume['id']))
+                    mist_vol = Volume.objects.get(id=volume['id'])
                     volumes.append(mist_vol.external_id)
                 except me.DoesNotExist:
                     # this shouldn't happen as during plan creation
@@ -1412,10 +1424,13 @@ class AzureArmComputeController(BaseComputeController):
         return node['extra'].get('size')
 
     def _list_images__fetch_images(self, search=None):
-        # Fetch mist's recommended images
+        images_file = os.path.join(config.MIST_API_DIR,
+                                   config.AZURE_IMAGES_FILE)
+        with open(images_file, 'r') as f:
+            default_images = json.load(f)
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
-                  for image, name in list(config.AZURE_ARM_IMAGES.items())]
+                  for image, name in list(default_images.items())]
         return images
 
     def _reboot_machine(self, machine, node):
@@ -2162,6 +2177,7 @@ class VSphereComputeController(BaseComputeController):
         updated = False
         try:
             _size = CloudSize.objects.get(
+                cloud=self.cloud,
                 external_id=node_dict['size'].get('id'))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
@@ -3162,7 +3178,7 @@ class LibvirtComputeController(BaseComputeController):
             from mist.api.helpers import trigger_session_update
             trigger_session_update(machine.owner.id, ['clouds'])
         else:
-            self.connection.ex_rename_node(node, name)
+            self._get_host_driver(machine).ex_rename_node(node, name)
 
     def remove_machine(self, machine):
         from mist.api.machines.models import KeyMachineAssociation
@@ -3217,6 +3233,124 @@ class LibvirtComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        """
+        Parse network interfaces.
+        - If networks_dict is empty, no network interface will be configured.
+        - If only `id` or `name` is given, the interface will be
+        configured by DHCP.
+        - If `ip` is given, it will be statically assigned to the interface and
+          optionally `gateway` and `primary` attributes will be used.
+        """
+        from mist.api.methods import list_resources
+        from libcloud.utils.networking import is_valid_ip_address
+
+        if not networks_dict:
+            return None
+
+        ret_dict = {
+            'networks': [],
+        }
+        networks = networks_dict.get('networks', [])
+        for net in networks:
+            network_id = net.get('id') or net.get('name')
+            if not network_id:
+                raise BadRequestError('network id or name is required')
+            try:
+                [network], _ = list_resources(auth_context, 'network',
+                                              search=network_id,
+                                              cloud=self.cloud.id,
+                                              limit=1)
+            except ValueError:
+                raise NotFoundError('Network does not exist')
+
+            nid = {
+                'network_name': network.name
+            }
+            if net.get('ip'):
+                if is_valid_ip_address(net['ip']):
+                    nid['ip'] = net['ip']
+                else:
+                    raise BadRequestError('IP given is invalid')
+                if net.get('gateway'):
+                    if is_valid_ip_address(net['gateway']):
+                        nid['gateway'] = net['gateway']
+                    else:
+                        raise BadRequestError('Gateway IP given is invalid')
+                if net.get('primary'):
+                    nid['primary'] = net['primary']
+            ret_dict['networks'].append(nid)
+
+        if networks_dict.get('vnfs'):
+            ret_dict['vnfs'] = networks_dict['vnfs']
+
+        return ret_dict
+
+    def _generate_plan__parse_disks(self, auth_context, disks_dict):
+        ret_dict = {
+            'disk_size': disks_dict.get('disk_size', 4),
+        }
+        if disks_dict.get('disk_path'):
+            ret_dict['disk_path'] = disks_dict.get('disk_path')
+
+        return ret_dict
+
+    def _create_machine__get_image_object(self, image):
+        from mist.api.images.models import CloudImage
+        try:
+            cloud_image = CloudImage.objects.get(id=image)
+        except me.DoesNotExist:
+            raise NotFoundError('Image does not exist')
+        return cloud_image.external_id
+
+    def _create_machine__get_size_object(self, size):
+        if isinstance(size, dict):
+            return size
+        from mist.api.clouds.models import CloudSize
+        try:
+            cloud_size = CloudSize.objects.get(id=size)
+        except me.DoesNotExist:
+            raise NotFoundError('Location does not exist')
+        return {'cpus': cloud_size.cpus, 'ram': cloud_size.ram}
+
+    def _create_machine__get_location_object(self, location):
+        from mist.api.clouds.models import CloudLocation
+        try:
+            cloud_location = CloudLocation.objects.get(id=location)
+        except me.DoesNotExist:
+            raise NotFoundError('Location does not exist')
+        return cloud_location.external_id
+
+    def _create_machine__compute_kwargs(self, plan):
+        from mist.api.machines.models import Machine
+        from mist.api.exceptions import MachineCreationError
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        location_id = kwargs.pop('location')
+        try:
+            host = Machine.objects.get(
+                cloud=self.cloud, machine_id=location_id)
+        except me.DoesNotExist:
+            raise MachineCreationError("The host specified does not exist")
+        driver = self._get_host_driver(host)
+        kwargs['driver'] = driver
+        size = kwargs.pop('size')
+        kwargs['cpu'] = size['cpus']
+        kwargs['ram'] = size['ram']
+        if kwargs.get('auth'):
+            kwargs['public_key'] = kwargs.pop('auth').public
+        kwargs['disk_size'] = plan['disks'].get('disk_size')
+        kwargs['disk_path'] = plan['disks'].get('disk_path')
+        kwargs['networks'] = plan.get('networks', {}).get('networks', [])
+        kwargs['vnfs'] = plan.get('networks', {}).get('vnfs', [])
+        kwargs['cloud_init'] = plan.get('cloudinit')
+
+        return kwargs
+
+    def _create_machine__create_node(self, kwargs):
+        driver = kwargs.pop('driver')
+        node = driver.create_node(**kwargs)
+        return node
 
 
 class OnAppComputeController(BaseComputeController):

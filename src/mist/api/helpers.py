@@ -74,7 +74,7 @@ from mist.api.auth.models import ApiToken, datetime_to_str
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.exceptions import PolicyUnauthorizedError
+from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
 
 from mist.api import config
 from functools import reduce
@@ -730,8 +730,8 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
 rtype_to_classpath = {
     'cloud': 'mist.api.clouds.models.Cloud',
     'clouds': 'mist.api.clouds.models.Cloud',
-    'bucket': 'mist.api.objectstorages.models.Bucket',
-    'buckets': 'mist.api.objectstorages.models.Bucket',
+    'bucket': 'mist.api.objectstorage.models.Bucket',
+    'buckets': 'mist.api.objectstorage.models.Bucket',
     'machine': 'mist.api.machines.models.Machine',
     'machines': 'mist.api.machines.models.Machine',
     'zone': 'mist.api.dns.models.Zone',
@@ -1485,6 +1485,65 @@ def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
             ref = getattr(obj, k)
             ret[k] = getattr(ref, v, '')
     return ret
+
+
+def compute_tags(auth_context, tags=None, request_tags=None):
+    security_tags = auth_context.get_security_tags()
+    for mt in request_tags:
+        if mt in security_tags:
+            raise ForbiddenError(
+                'You may not assign tags included in a Team access policy:'
+                ' `%s`' % mt)
+    tags.update(request_tags)
+    return tags
+
+
+def check_expiration_constraint(auth_context, expiration, constraints=None):
+    constraints = constraints or {}
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
+
+
+def check_cost_constraint(auth_context, constraints=None):
+    constraints = constraints or {}
+    cost_constraint = constraints.get('cost', {})
+    if cost_constraint:
+        try:
+            from mist.rbac.methods import check_cost
+            check_cost(auth_context.org, cost_constraint)
+        except ImportError:
+            pass
+
+
+def check_size_constraint(auth_context, sizes, constraints=None):
+    try:
+        from mist.rbac.methods import check_size
+    except ImportError:
+        return sizes
+
+    constraints = constraints or {}
+    size_constraint = constraints.get('size', {})
+
+    if not size_constraint:
+        return sizes
+
+    permitted_sizes = []
+    for size in sizes:
+        # constraints do not apply on custom sizes
+        if not isinstance(size, dict):
+            try:
+                check_size(auth_context.org, size_constraint, size.id)
+            except PolicyUnauthorizedError:
+                continue
+            else:
+                permitted_sizes.append(size)
+
+    return permitted_sizes
 
 
 def bucket_to_dict(node):

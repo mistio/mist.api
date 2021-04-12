@@ -85,7 +85,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                       key_id=None, username=None, password=None, port=22,
                       script_id='', script_params='', job_id=None, job=None,
                       hostname='', plugins=None, script='',
-                      post_script_id='', post_script_params='', schedule={}):
+                      post_script_id='', post_script_params='', schedule={},
+                      location_id=None):
     # TODO: break into subtasks
     from mist.api.methods import connect_provider, probe_ssh_only
     from mist.api.methods import notify_user, notify_admin
@@ -104,7 +105,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         node = None
         try:
             cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-            conn = connect_provider(cloud)
+            conn = connect_provider(cloud, location_id=location_id)
 
             if isinstance(cloud, DockerCloud):
                 nodes = conn.list_containers()

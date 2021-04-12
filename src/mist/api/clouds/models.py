@@ -318,6 +318,7 @@ class CloudLocation(OwnershipMixin, me.Document):
     meta = {
         'collection': 'locations',
         'indexes': [
+            'cloud', 'external_id', 'name', 'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -352,7 +353,7 @@ class CloudLocation(OwnershipMixin, me.Document):
         return ret
 
     def as_dict(self):
-        return {
+        location_dict = {
             'id': self.id,
             'extra': self.extra,
             'cloud': self.cloud.id if self.cloud else None,  # same as above
@@ -360,8 +361,18 @@ class CloudLocation(OwnershipMixin, me.Document):
             'name': self.name,
             'country': self.country,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
-                                 if self.missing_since else '')
+                                 if self.missing_since else ''),
         }
+
+        if self.cloud.ctl.has_feature('location-image-restriction'):
+            location_dict['available_images'] = [image.name for image
+                                                 in self.available_images
+                                                 if hasattr(image, 'name')]
+        if self.cloud.ctl.has_feature('location-size-restriction'):
+            location_dict['available_sizes'] = [size.name for size
+                                                in self.available_sizes
+                                                if hasattr(size, 'name')]
+        return location_dict
 
     def clean(self):
         # Populate owner field based on self.cloud.owner
@@ -390,6 +401,9 @@ class CloudSize(me.Document):
     meta = {
         'collection': 'sizes',
         'indexes': [
+            'cloud',
+            'external_id',
+            'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -411,9 +425,10 @@ class CloudSize(me.Document):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
             'id', 'name', 'external_id', 'cpus', 'ram', 'bandwidth', 'disk',
-            'architecture', 'allowed_images', 'extra']
+            'architecture', 'extra']
         deref_map = {
-            'cloud': 'title'
+            'cloud': 'title',
+            'allowed_images': 'name',
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
@@ -421,7 +436,7 @@ class CloudSize(me.Document):
         return ret
 
     def as_dict(self):
-        return {
+        size_dict = {
             'id': self.id,
             'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
@@ -433,8 +448,14 @@ class CloudSize(me.Document):
             'disk': self.disk,
             'architecture': self.architecture,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
-                                 if self.missing_since else '')
+                                 if self.missing_since else ''),
         }
+
+        if self.cloud.ctl.has_feature('size-image-restriction'):
+            size_dict['allowed_images'] = [image.name for image
+                                           in self.allowed_images
+                                           if hasattr(image, 'name')]
+        return size_dict
 
 
 class AmazonCloud(Cloud):

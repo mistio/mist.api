@@ -709,6 +709,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             script_params=script_params, job_id=job_id, job=job, port=ssh_port,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
+            location_id=location_id,
         )
 
     ret = {'id': node.id,
