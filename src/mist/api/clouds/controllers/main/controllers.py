@@ -524,7 +524,7 @@ class LibvirtMainController(BaseMainController):
                 machine_id=host.replace('.', '-'),
                 ssh_port=ssh_port,
                 extra=extra,
-                state=NodeState.RUNNING,
+                state=NodeState.RUNNING.value,
                 last_seen=datetime.datetime.utcnow(),
             )
 
