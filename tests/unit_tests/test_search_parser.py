@@ -135,11 +135,11 @@ class TestSearchParser(unittest.TestCase):
                                            'attr_2<=val2',
                                            'attr_3>val3',
                                            'attr_4!=val 4',
-                                          ])
+                                           ])
 
         search = ('attr_1:(value 1) attr_2>"value_2" id or name attr_3<val-3 '
-            'attr4<=(value4) attr5!=(value 5) '
-            'attr6!="value 6" attr7>="value 7"')
+                  'attr4<=(value4) attr5!=(value 5) '
+                  'attr6!="value 6" attr7>="value 7"')
         parsed_list = search_parser(search)
         self.assertListEqual(parsed_list, ['attr_1:value 1',
                                            'attr_2>"value_2"',
@@ -149,8 +149,7 @@ class TestSearchParser(unittest.TestCase):
                                            'attr5!=value 5',
                                            'attr6!="value 6"',
                                            'attr7>="value 7"',
-                                          ])
-                                    
+                                           ])
 
     def test_full(self):
         search = ('attr_1:(value 1) AND attr_2>"value 2" '

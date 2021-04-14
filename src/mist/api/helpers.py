@@ -1600,7 +1600,7 @@ def search_parser(search):
     unless it's the only value in search.
     """
 
-    pattern = (r'([a-zA-Z0-9_]+)(:|=|<=|>=|!=|<|>)'  # capture key and mathematical operator
+    pattern = (r'([a-zA-Z0-9_]+)(:|=|<=|>=|!=|<|>)'  # capture key and mathematical operator  # noqa
                r'(\(.+?\)|".+?"|\S+)'  # capture value or value with spaces enclosed in "", ()  # noqa
                r'|(OR|AND|[^:=<>!]+?'  # capture OR/AND/'stray' string  # noqa
                r'(?= [a-zA-Z0-9_]+?[:=<>!]| AND | OR )'  # until one of key+mathematical operator, OR , AND is encountered  # noqa
@@ -1611,3 +1611,7 @@ def search_parser(search):
     items = [''.join(val.strip(' ()') for val in tup if val)
              for tup in matched]
     return items
+
+
+def startsandendswith(main_str, char):
+    return main_str.startswith(char) and main_str.endswith(char)

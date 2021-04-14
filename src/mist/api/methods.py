@@ -21,7 +21,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.helpers import amqp_publish_user, search_parser
-
+from mist.api.helpers import startsandendswith
 from mist.api.helpers import dirty_cow, parse_os_release
 
 from mist.api.clouds.models import Cloud
@@ -556,29 +556,44 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     for term in terms:
         if ':' in term:
             k, v = term.split(':')
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+        elif '!=' in term:
+            k, v = term.split('!=')
+            mongo_operator = '__ne'
+        elif '<=' in term:
+            k, v = term.split('<=')
+            mongo_operator = '__lte'
+        elif '>=' in term:
+            k, v = term.split('>=')
+            mongo_operator = '__gte'
+        elif '>' in term:
+            k, v = term.split('>')
+            mongo_operator = '__gt'
+        elif '<' in term:
+            k, v = term.split('<')
+            mongo_operator = '__lt'
         elif '=' in term:
             k, v = term.split('=')
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
         # TODO: support OR keyword
-        elif 'and' == term.lower() or 'or' == term.lower() or not term:
+        elif term.lower() in ['and', 'or'] or not term:
             continue
         else:
             id_implicit = True
             k, v = 'id', term
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
 
-        exact_match = False
-        if v.startswith('"') and v.endswith('"'):
-            v = v.strip('"')
-            exact_match = True
+        v = v.strip('"')
 
         if k == 'provider' and 'cloud' in resource_type:
             query &= Q(_cls=CLOUDS[v]()._cls)
         # TODO: only allow terms on indexed fields
         # TODO: support additional operators: >, <, !=, ~
-        elif k == 'cloud' or k == 'location':
+        elif k in ['cloud', 'location']:
             resources, _ = list_resources(auth_context, k, search=v,
                                           only='id')
             query &= Q(**{f'{k}__in': resources})
-        elif k == 'owned_by' or k == 'created_by':
+        elif k in ['owned_by', 'created_by']:
             if not v or v.lower() in ['none', 'nobody']:
                 query &= Q(**{k: None})
                 continue
@@ -598,18 +613,12 @@ def list_resources(auth_context, resource_type, search='', cloud='',
                     field_name = 'name'
                 else:
                     field_name = 'title'
-                if exact_match is True:
-                    query &= (Q(id=v) | Q(**{field_name: v}))
-                else:
-                    # id will always be exact match
-                    query &= (Q(id=v) | Q(**{f'{field_name}__contains': v}))
+                # id will always be exact match
+                query &= (Q(id=v) | Q(**{f'{field_name}{mongo_operator}': v}))
             else:
                 query &= Q(id=v)
         else:
-            if exact_match is True:
-                query &= Q(**{k: v})
-            else:
-                query &= Q(**{f'{k}__contains': v})
+            query &= Q(**{f'{k}{mongo_operator}': v})
 
     result = resource_model.objects(query)
     if only:
