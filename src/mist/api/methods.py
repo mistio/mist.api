@@ -4,7 +4,7 @@ import subprocess
 import pingparsing
 
 
-from mongoengine import DoesNotExist
+from mongoengine import DoesNotExist, Q
 
 from time import time
 
@@ -524,24 +524,24 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     from mist.api.clouds.models import CLOUDS
     resource_model = get_resource_model(resource_type)
 
-    # Init query dict
+    # Init query object
     if resource_type == 'rule':
-        query = {"owner_id": auth_context.org.id}
+        query = Q(owner_id=auth_context.org.id)
     elif hasattr(resource_model, 'owner'):
-        query = {"owner": auth_context.org}
+        query = Q(owner=auth_context.org)
     else:
-        query = {}
+        query = Q()
 
     if resource_type in ['cloud', 'key', 'script', 'template']:
-        query['deleted'] = False
+        query &= Q(deleted=False)
     elif resource_type in ['machine', 'network', 'volume', 'image']:
-        query['missing_since'] = None
+        query &= Q(missing_since=None)
 
     if cloud:
         clouds, _ = list_resources(
             auth_context, 'cloud', search=cloud, only='id'
         )
-        query['cloud__in'] = clouds
+        query &= Q(cloud__in=clouds)
 
     search = search or ''
     sort = sort or ''
@@ -564,45 +564,58 @@ def list_resources(auth_context, resource_type, search='', cloud='',
         else:
             id_implicit = True
             k, v = 'id', term
+
+        exact_match = False
+        if v.startswith('"') and v.endswith('"'):
+            v = v.strip('"')
+            exact_match = True
+
         if k == 'provider' and 'cloud' in resource_type:
-            query['_cls'] = CLOUDS[v]()._cls
+            query &= Q(_cls=CLOUDS[v]()._cls)
         # TODO: only allow terms on indexed fields
         # TODO: support additional operators: >, <, !=, ~
         elif k == 'cloud' or k == 'location':
             resources, _ = list_resources(auth_context, k, search=v,
                                           only='id')
-            query[f'{k}__in'] = resources
+            query &= Q(**{f'{k}__in': resources})
         elif k == 'owned_by' or k == 'created_by':
             if not v or v.lower() in ['none', 'nobody']:
-                query[k] = None
+                query &= Q(**{k: None})
                 continue
             try:
                 user = User.objects.get(
                     id__in=[m.id for m in auth_context.org.members],
                     email=v)
-                query[k] = user.id
+                query &= Q(**{k: user.id})
             except User.DoesNotExist:
-                query[k] = v
+                query &= Q(**{k: v})
         elif k in ['key_associations', ]:  # Looks like a postfilter
             postfilters.append((k, v))
+        elif k == 'id':
+            if id_implicit is True:
+                if getattr(resource_model, 'name', None) and \
+                        not isinstance(getattr(resource_model, 'name'), property):  # noqa
+                    field_name = 'name'
+                else:
+                    field_name = 'title'
+                if exact_match is True:
+                    query &= (Q(id=v) | Q(**{field_name: v}))
+                else:
+                    # id will always be exact match
+                    query &= (Q(id=v) | Q(**{f'{field_name}__contains': v}))
+            else:
+                query &= Q(id=v)
         else:
-            query[k] = v
+            if exact_match is True:
+                query &= Q(**{k: v})
+            else:
+                query &= Q(**{f'{k}__contains': v})
 
-    result = resource_model.objects(**query)
+    result = resource_model.objects(query)
     if only:
         only_list = [field for field in only.split(',')
                      if field in resource_model._fields]
         result = result.only(*only_list)
-
-    if not result.count() and query.get('id') and id_implicit:
-        # Try searching for name or title field
-        if getattr(resource_model, 'name', None) and \
-                not isinstance(getattr(resource_model, 'name'), property):
-            field_name = 'name'
-        else:
-            field_name = 'title'
-        query[field_name] = query.pop('id')
-        result = resource_model.objects(**query)
 
     for (k, v) in postfilters:
         if k == 'key_associations':
