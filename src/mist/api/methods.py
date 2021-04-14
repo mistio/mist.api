@@ -565,40 +565,24 @@ def list_resources(auth_context, resource_type, search='', cloud='',
             id_implicit = True
             k, v = 'id', term
         if k == 'provider' and 'cloud' in resource_type:
-            k = '_cls'
-            v = CLOUDS[v]()._cls
+            query['_cls'] = CLOUDS[v]()._cls
         # TODO: only allow terms on indexed fields
         # TODO: support additional operators: >, <, !=, ~
-        if k == 'cloud':
-            clouds, _ = list_resources(auth_context, 'cloud', search=v,
-                                       only='id')
-            query['cloud__in'] = clouds
-        elif k == 'location':
-            locations, _ = list_resources(auth_context, 'location',
-                                          search=v, only='id')
-            query['location__in'] = locations
-        elif k == 'owned_by':
+        elif k == 'cloud' or k == 'location':
+            resources, _ = list_resources(auth_context, k, search=v,
+                                          only='id')
+            query[f'{k}__in'] = resources
+        elif k == 'owned_by' or k == 'created_by':
             if not v or v.lower() in ['none', 'nobody']:
-                query['owned_by'] = None
+                query[k] = None
                 continue
             try:
                 user = User.objects.get(
                     id__in=[m.id for m in auth_context.org.members],
                     email=v)
-                query['owned_by'] = user.id
+                query[k] = user.id
             except User.DoesNotExist:
-                query['owned_by'] = v
-        elif k == 'created_by':
-            if not v or v.lower() in ['none', 'nobody']:
-                query['created_by'] = None
-                continue
-            try:
-                user = User.objects.get(
-                    id__in=[m.id for m in auth_context.org.members],
-                    email=v)
-                query['created_by'] = user.id
-            except User.DoesNotExist:
-                query['created_by'] = v
+                query[k] = v
         elif k in ['key_associations', ]:  # Looks like a postfilter
             postfilters.append((k, v))
         else:
