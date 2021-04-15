@@ -1582,21 +1582,19 @@ def docker_run(name, image_id, env=None, command=None):
 
     return node
 
+
 def search_parser(search):
     """
-    Parse search string passed to `list_resources` into a list of tuples
-    with the format:
-        - (key, symbol, value)
-        - (AND/OR/stray string,)
+    Parse search string passed to `list_resources` into a list of strings.
 
-    Supports key:value, key=value, key:(value with spaces), key: "exact value",
+    Supports key:value, key=value, key:(value with spaces), key:"exact value",
     AND/OR operators and a single 'stray' string that will be set to
     id or name.
 
     A value containing spaces should be enclosed in
     parentheses or double quotes for exact match.
 
-    Note: 'stray' string cannot be the last value
+    Note: implicit id or name cannot be the last value
     unless it's the only value in search.
     """
 

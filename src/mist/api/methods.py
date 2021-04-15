@@ -550,7 +550,7 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     postfilters = []
     id_implicit = False
     # search filter contains space separated terms
-    # if the term contains :,=,<,>,! then assume key/value query
+    # if the term contains :,=,<,>,!=, <=, >= then assume key/value query
     # otherwise search for objects with id or name matching the term
     terms = search_parser(search)
     for term in terms:
