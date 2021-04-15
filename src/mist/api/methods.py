@@ -1,10 +1,11 @@
 import re
 import subprocess
+import distutils.util
 
 import pingparsing
 
 
-from mongoengine import DoesNotExist, Q
+from mongoengine import DoesNotExist, Q, BooleanField
 
 from time import time
 
@@ -549,9 +550,8 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     postfilters = []
     id_implicit = False
     # search filter contains space separated terms
-    # if the term contains : or = then assume key/value query
+    # if the term contains :,=,<,>,! then assume key/value query
     # otherwise search for objects with id or name matching the term
-    # TODO this breaks if ':' or '=' character is in resource id/name
     terms = search_parser(search)
     for term in terms:
         if ':' in term:
@@ -584,6 +584,12 @@ def list_resources(auth_context, resource_type, search='', cloud='',
             mongo_operator = '' if startsandendswith(v, '"') else '__contains'
 
         v = v.strip('"')
+        attr = getattr(resource_model, k, None)
+        if isinstance(attr, BooleanField):
+            try:
+                v = bool(distutils.util.strtobool(v))
+            except ValueError:
+                v = bool(v)
 
         if k == 'provider' and 'cloud' in resource_type:
             query &= Q(_cls=CLOUDS[v]()._cls)
