@@ -645,8 +645,8 @@ def list_resources(auth_context, resource_type, search='', cloud='',
                 ids = [machine.id for machine in result
                        if KeyMachineAssociation.objects(
                            machine=machine).count()]
-            query['id__in'] = ids
-            result = resource_model.objects(**query)
+            query &= Q(id__in=ids)
+            result = resource_model.objects(query)
 
     if result.count():
         if not auth_context.is_owner():
