@@ -596,8 +596,14 @@ def list_resources(auth_context, resource_type, search='', cloud='',
         # TODO: only allow terms on indexed fields
         # TODO: support additional operators: >, <, !=, ~
         elif k in ['cloud', 'location']:
-            resources, _ = list_resources(auth_context, k, search=v,
-                                          only='id')
+            # exact match
+            if not mongo_operator:
+                resources, _ = list_resources(auth_context, k,
+                                              search=f'"{v}"',
+                                              only='id')
+            else:
+                resources, _ = list_resources(auth_context, k, search=v,
+                                              only='id')
             query &= Q(**{f'{k}__in': resources})
         elif k in ['owned_by', 'created_by']:
             if not v or v.lower() in ['none', 'nobody']:
