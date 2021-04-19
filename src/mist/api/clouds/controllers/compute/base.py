@@ -2461,7 +2461,7 @@ class BaseComputeController(BaseController):
 
             return sizes
         else:
-            return self._generate_plan__parse_custom_size(auth_context, size_obj)
+            return self._generate_plan__parse_custom_size(auth_context, size_obj)  # noqa
 
     def _generate_plan__parse_custom_size(self, auth_context, size_dict):
         """Providers with custom sizes SHOULD override/extend this method
@@ -2471,7 +2471,7 @@ class BaseComputeController(BaseController):
             ram = size_dict['ram']
         except (KeyError, TypeError):
             raise BadRequestError('Required parameter missing')
-        
+
         if self.cloud.ctl.has_feature('custom_size'):
             return [{'cpus': cpus, 'ram': ram}]
 
@@ -2482,7 +2482,8 @@ class BaseComputeController(BaseController):
             cloud=self.cloud.id
         )
         if not count:
-            raise NotFoundError('Size with the given cpu and ram does not exist')
+            raise NotFoundError(
+                'Size with the given cpu and ram does not exist')
 
         return sizes
 
@@ -2564,7 +2565,24 @@ class BaseComputeController(BaseController):
         if not combination_list:
             raise NotFoundError('No available plan exists for given '
                                 'images, sizes, locations')
-        return combination_list[0]
+
+        has_price_info = any(size.extra.get('price')
+                             for _, size, _ in combination_list)
+
+        def sort_by_price(value):
+            image, size, location = value
+            price = size.extra.get('price') or float('inf')
+            return price, -image.starred, len(image.name)
+
+        def sort_by_size(value):
+            image, size, location = value
+            cpus = size.cpus or float('inf')
+            ram = size.ram or float('inf')
+            return cpus, ram, -image.starred, len(image.name)
+
+        if has_price_info:
+            return sorted(combination_list, key=sort_by_price)[0]
+        return sorted(combination_list, key=sort_by_size)[0]
 
     def _generate_plan__parse_key(self, auth_context, key_obj):
         feature = self.cloud.ctl.has_feature('key')
