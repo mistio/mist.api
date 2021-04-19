@@ -1601,7 +1601,7 @@ def search_parser(search):
     pattern = (r'([a-zA-Z0-9_]+)(:|=|<=|>=|!=|<|>)'  # capture key and mathematical operator  # noqa
                r'(\(.+?\)|".+?"|\S+)'  # capture value or value with spaces enclosed in "", ()  # noqa
                r'|(OR|AND|[^:=<>!]+?'  # capture OR/AND/'stray' string  # noqa
-               r'(?= [a-zA-Z0-9_]+?[:=<>!]| AND | OR )'  # until one of key+mathematical operator, OR , AND is encountered  # noqa
+               r'(?= [a-zA-Z0-9_]+?[:=<>!]| AND | OR |$)'  # until one of key+mathematical operator, OR , AND is encountered  # noqa
                r'|^[^:=<>!]+$)')  # capture simple 'stray' string
 
     matched = re.findall(pattern, search)

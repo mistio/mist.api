@@ -242,6 +242,42 @@ class TestSearchParser(unittest.TestCase):
                                            'attr7="value 7"',
                                            ])
 
+        search = ('attr_1:(value 1) AND attr_2<="value 2" OR attr_3:val-3 '
+                  'attr4>value4 AND attr5=(value 5) '
+                  'attr6:"value 6" OR attr7="value 7" "id or name"')
+        parsed_list = search_parser(search)
+        self.assertListEqual(parsed_list, ['attr_1:value 1',
+                                           'AND',
+                                           'attr_2<="value 2"',
+                                           'OR',
+                                           'attr_3:val-3',
+                                           'attr4>value4',
+                                           'AND',
+                                           'attr5=value 5',
+                                           'attr6:"value 6"',
+                                           'OR',
+                                           'attr7="value 7"',
+                                           '"id or name"',
+                                           ])
+
+        search = ('attr_1:(value 1) AND attr_2<="value 2" OR attr_3:val-3 '
+                  'attr4>value4 AND attr5=(value 5) '
+                  'attr6:"value 6" OR attr7="value 7" id or name')
+        parsed_list = search_parser(search)
+        self.assertListEqual(parsed_list, ['attr_1:value 1',
+                                           'AND',
+                                           'attr_2<="value 2"',
+                                           'OR',
+                                           'attr_3:val-3',
+                                           'attr4>value4',
+                                           'AND',
+                                           'attr5=value 5',
+                                           'attr6:"value 6"',
+                                           'OR',
+                                           'attr7="value 7"',
+                                           'id or name',
+                                           ])
+
 
 if __name__ == '__main__':
     unittest.main()
