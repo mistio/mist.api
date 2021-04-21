@@ -7,6 +7,7 @@ from mist.api.celery_app import app
 from mist.api.rules.models import Rule
 from mist.api.machines.models import Machine
 from mist.api.monitoring.methods import get_stats
+from mist.api.monitoring.methods import get_cores
 
 
 log = logging.getLogger(__name__)
@@ -39,8 +40,12 @@ def find_machine_cores(machine_id):
                           ', start=\"{start}\", stop=\"{stop}\"' +
                           ', step=\"{step}\")')
             elif machine.monitoring.method.endswith('victoriametrics'):
-                # TODO: use either get_cores or get_query
-                return 0
+                data = get_cores(machine.owner.id,
+                                 start="-60sec", uuids=[machine.id])
+                if data.get(machine.id) and data[machine.id].get("datapoints"):
+                    datapoints = data[machine.id]["datapoints"]
+                    if datapoints:
+                        return datapoints[0][0]
             else:
                 metric = 'cpu.cpu=/cpu\d/.usage_idle'
             return len(get_stats(machine, start='-60sec', metrics=[metric]))
