@@ -178,7 +178,8 @@ def get_load(owner, start="", stop="", step="", uuids=None):
     clouds = Cloud.objects(owner=owner, deleted=None).only("id")
     if uuids:
         machines = Machine.objects(
-            owner=owner, cloud__in=clouds, id__in=uuids, monitoring__hasmonitoring=True
+            owner=owner, cloud__in=clouds, id__in=uuids,
+            monitoring__hasmonitoring=True
         )
     else:
         machines = Machine.objects(
@@ -252,7 +253,8 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
     clouds = Cloud.objects(owner=owner, deleted=None).only("id")
     if uuids:
         machines = Machine.objects(
-            owner=owner, cloud__in=clouds, id__in=uuids, monitoring__hasmonitoring=True
+            owner=owner, cloud__in=clouds, id__in=uuids,
+            monitoring__hasmonitoring=True
         )
     else:
         machines = Machine.objects(
