@@ -176,11 +176,14 @@ def get_stats(
 def get_load(owner, start="", stop="", step="", uuids=None):
     """Get shortterm load for all monitored machines."""
     clouds = Cloud.objects(owner=owner, deleted=None).only("id")
-    machines = Machine.objects(
-        cloud__in=clouds, monitoring__hasmonitoring=True
-    )
     if uuids:
-        machines.filter(id__in=uuids)
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, id__in=uuids, monitoring__hasmonitoring=True
+        )
+    else:
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, monitoring__hasmonitoring=True
+        )
 
     graphite_uuids = [
         machine.id
@@ -247,11 +250,14 @@ def get_load(owner, start="", stop="", step="", uuids=None):
 def get_cores(owner, start="", stop="", step="", uuids=None):
     """Get cores for all monitored machines."""
     clouds = Cloud.objects(owner=owner, deleted=None).only("id")
-    machines = Machine.objects(
-        cloud__in=clouds, monitoring__hasmonitoring=True
-    )
     if uuids:
-        machines.filter(id__in=uuids)
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, id__in=uuids, monitoring__hasmonitoring=True
+        )
+    else:
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, monitoring__hasmonitoring=True
+        )
 
     graphite_uuids = [
         machine.id
