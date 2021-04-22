@@ -14,6 +14,8 @@ from mist.api.auth.methods import token_with_name_not_exists
 from mist.api.auth.methods import reissue_cookie_session
 from mist.api.auth.methods import user_from_request
 
+from mist.api.notifications.models import Notification
+from mist.api.notifications.channels import EmailNotificationChannel
 
 from mist.api.helpers import ip_from_request, send_email
 from mist.api.helpers import view_config, params_from_request
@@ -182,7 +184,9 @@ def create_token(request):
             "\n Best regards \n The mist.io team".format(
                 user.first_name, auth_context.token.ip_address, config.CORE_URI
             ))
-    send_email(subject, body, user.email)
+    notification = Notification(subject=subject, text_body=body, owner=org)
+    notification_channel = EmailNotificationChannel(notification=notification)
+    notification_channel.send(users=[user])
 
     token_view = new_api_token.get_public_view()
     token_view['last_accessed_at'] = 'Never'
