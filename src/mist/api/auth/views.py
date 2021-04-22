@@ -110,7 +110,6 @@ def create_token(request):
     """
     params = params_from_request(request)
     email = params.get('email', '').lower()
-    password = params.get('password', '')
     api_token_name = params.get('name', '')
     org_id = params.get('org_id', '')
     ttl = params.get('ttl', 60 * 60)
@@ -119,8 +118,6 @@ def create_token(request):
     ttl = int(ttl)
     if ttl < 0:
         raise BadRequestError('Ttl must be greater or equal to zero')
-    if not password:
-        raise RequiredParameterMissingError('password')
 
     try:
         auth_context = auth_context_from_request(request)
@@ -153,10 +150,6 @@ def create_token(request):
 
     if user.status != 'confirmed':
         raise UserUnauthorizedError()
-    if not user.password:
-        raise BadRequestError('Please use the GUI to set a password and retry')
-    if not user.check_password(password):
-        raise UserUnauthorizedError('Wrong password')
 
     if not org:
         org = reissue_cookie_session(request, user.id).org
@@ -182,6 +175,14 @@ def create_token(request):
     else:
         raise BadRequestError("MAX number of %s active tokens reached"
                               % config.ACTIVE_APITOKEN_NUM)
+    subject = "New Mist API Token"
+    body = ("Hello {}, \n We are letting you know that a new API Token just "
+            "got created from {} IP address.\n If it was not you we suggest "
+            "you revoke it immediately at {}/my-account/tokens ."
+            "\n Best regards \n The mist.io team".format(
+                user.first_name, auth_context.token.ip_address, config.CORE_URI
+            ))
+    send_email(subject, body, user.email)
 
     token_view = new_api_token.get_public_view()
     token_view['last_accessed_at'] = 'Never'
