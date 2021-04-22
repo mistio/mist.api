@@ -626,7 +626,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 time.sleep(i * 10)
                 continue
             try:
-                cloud.ctl.compute._list_machines()
+                cloud.ctl.compute.list_machines()
             except Exception as e:
                 if i > 8:
                     raise(e)
@@ -660,10 +660,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
-    fresh_machines = cloud.ctl.compute._list_machines()
-    cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines,
-                                                first_run=True)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if cloud.ctl.provider == Provider.AZURE.value:
