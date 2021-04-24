@@ -21,6 +21,9 @@ def escape_dots_and_dollars_from_dict(value):
     elif not isinstance(value, dict):
         return value
     for key in list(value.keys()):
+        if key == '_cls':
+            del value[key]
+            continue
         k = key.replace('.', '_').replace('$', '_')
         value[k] = escape_dots_and_dollars_from_dict(value.pop(key))
     return value
