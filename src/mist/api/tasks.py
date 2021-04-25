@@ -1033,7 +1033,6 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
 
             playbook = script.script
             # playbooks contain ' or " which look like multiple arguments.
-            # TODO need to test cases with ' or both '," in playbooks
             playbook = playbook.replace('\'', '"')
             playbook = f'\'{playbook}\''
 
@@ -1054,7 +1053,8 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             container = docker_run(name=f'ansible_runner-{ret["job_id"]}',
                                    image_id='ansible_runner:latest',
                                    command=' '.join(params))
-            # TODO error handling
+            # TODO get container stdout / stderror
+            # TODO remove exited container?
             exit_code = 0
         else:
             shell = mist.api.shell.Shell(host)
