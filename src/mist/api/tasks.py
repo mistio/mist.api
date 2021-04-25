@@ -30,6 +30,7 @@ from mist.api.images.models import CloudImage
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import RECORDS
+from mist.api.keys.models import SSHKey
 
 from mist.api.rules.models import NoDataRule
 
@@ -45,6 +46,7 @@ from mist.api.poller.models import ListLocationsPollingSchedule
 from mist.api.poller.models import ListSizesPollingSchedule
 from mist.api.poller.models import ListImagesPollingSchedule
 
+from mist.api.helpers import docker_run
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import trigger_session_update
 
@@ -1024,26 +1026,57 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
                     break
         if not host:
             raise MistError("No host provided and none could be discovered.")
-        shell = mist.api.shell.Shell(host)
-        ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
-            owner, cloud_id, machine['id'], key_id, username, password, port
-        )
-        # FIXME wrap here script.run_script
-        path, params, wparams = script.ctl.run_script(shell,
-                                                      params=params,
-                                                      job_id=ret.get('job_id'))
 
-        with open(os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-                os.path.abspath(__file__)
-            )))),
-            'run_script', 'run.py'
-        )) as fobj:
-            wscript = fobj.read()
+        if script.exec_type == 'ansible':
+            # TODO choose first IP is ok?
+            machine_ip = machine['public_ips'][0]
 
-        # check whether python exists
+            playbook = script.script
+            # playbooks contain ' or " which look like multiple arguments.
+            # TODO need to test cases with ' or both '," in playbooks
+            playbook = playbook.replace('\'', '"')
+            playbook = f'\'{playbook}\''
 
-        exit_code, wstdout = shell.command("command -v python")
+            # TODO investigate key_id input and create choose key logic
+            key_association = machine['key_associations'][0]
+            ssh_user = key_association['ssh_user']
+
+            # TODO is secure?
+            key = SSHKey.objects.get(owner=owner, id=key_association['key'])
+            private_key = key.private
+            private_key = f'\'{private_key}\''
+
+            params = ['-i', machine_ip]
+            params += ['-p', playbook]
+            params += ['-k', private_key]
+            params += ['-u', ssh_user]
+
+            # TODO job_id is empty. Bug?
+            container = docker_run(name=f'ansible_runner-{job_id}',
+                                   image_id='ansible_runner:latest',
+                                   command=' '.join(params))
+            # TODO error handling
+        else:
+            shell = mist.api.shell.Shell(host)
+            ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
+                owner, cloud_id, machine['id'],
+                key_id, username, password, port
+            )
+            # FIXME wrap here script.run_script
+            path, params, wparams = script.ctl.run_script(
+                shell, params=params, job_id=ret.get('job_id')
+            )
+
+            with open(os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(
+                    os.path.dirname(os.path.abspath(__file__))))),
+                'run_script', 'run.py'
+            )) as fobj:
+                wscript = fobj.read()
+
+            # check whether python exists
+
+            exit_code, wstdout = shell.command("command -v python")
 
         if exit_code > 0:
             command = "chmod +x %s && %s %s" % (path, path, params)
