@@ -1051,11 +1051,11 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             params += ['-k', private_key]
             params += ['-u', ssh_user]
 
-            # TODO job_id is empty. Bug?
-            container = docker_run(name=f'ansible_runner-{job_id}',
+            container = docker_run(name=f'ansible_runner-{ret["job_id"]}',
                                    image_id='ansible_runner:latest',
                                    command=' '.join(params))
             # TODO error handling
+            exit_code = 0
         else:
             shell = mist.api.shell.Shell(host)
             ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
@@ -1078,13 +1078,13 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
 
             exit_code, wstdout = shell.command("command -v python")
 
-        if exit_code > 0:
-            command = "chmod +x %s && %s %s" % (path, path, params)
-        else:
-            command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
-        if su:
-            command = 'sudo ' + command
-        ret['command'] = command
+            if exit_code > 0:
+                command = "chmod +x %s && %s %s" % (path, path, params)
+            else:
+                command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
+            if su:
+                command = 'sudo ' + command
+            ret['command'] = command
     except Exception as exc:
         ret['error'] = str(exc)
     log_event(event_type='job', action=action_prefix + 'script_started', **ret)
