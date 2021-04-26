@@ -1171,7 +1171,7 @@ MONITORING_METHODS = (
     'telegraf-tsfdb',
     'telegraf-victoriametrics'
 )
-DEFAULT_MONITORING_METHOD = 'telegraf-victoriametrics'
+DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
 VICTORIAMETRICS_URI = "http://victoria-metrics:8428"
