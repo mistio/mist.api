@@ -445,20 +445,18 @@ def create_machine(request):
         except ImportError:
             pass
 
-    # constraints do not apply on custom sizes
-    if not isinstance(size, dict) or 'custom' in size.get('id', ""):
-        # check size constraint
-        size_constraint = constraints.get('size', {})
-        if(size_constraint.get('allowed', []) or
-           size_constraint.get('not_allowed', [])):
-            try:
-                db_size = size
-                if(not isinstance(size, dict)):
-                    db_size = CloudSize.objects.get(id=size)
-                from mist.rbac.methods import check_size
-                check_size(auth_context.org, size_constraint, db_size)
-            except ImportError:
-                pass
+    # check for size constraints
+    size_constraint = constraints.get('size', {})
+    if(size_constraint.get('allowed', []) or
+        size_constraint.get('not_allowed', [])):
+        try:
+            db_size = size
+            if(not isinstance(size, dict)):
+                db_size = CloudSize.objects.get(id=size)
+            from mist.rbac.methods import check_size
+            check_size(auth_context.org, size_constraint, db_size)
+        except ImportError:
+            pass
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
