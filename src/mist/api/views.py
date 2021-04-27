@@ -11,6 +11,7 @@ be performed inside the corresponding method functions.
 
 import os
 import hashlib
+import html
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -1466,7 +1467,7 @@ def create_organization(request):
                                                'create organization')
     params = params_from_request(request)
 
-    name = params.get('name')
+    name = html.escape(params.get('name'))
     super_org = params.get('super_org')
 
     if not name:
@@ -1608,7 +1609,7 @@ def edit_organization(request):
 
     org_id = request.matchdict['org_id']
     params = params_from_request(request)
-    name = params.get('new_name')
+    name = html.escape(params.get('new_name'))
     alerts_email = params.get('alerts_email')
     avatar = params.get('avatar')
     enable_r12ns = params.get('enable_r12ns')

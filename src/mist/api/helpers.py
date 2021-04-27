@@ -69,14 +69,20 @@ from distutils.version import LooseVersion
 from elasticsearch import Elasticsearch
 from elasticsearch_tornado import EsClient
 
+from libcloud.container.base import ContainerImage
+from libcloud.container.providers import get_driver as get_container_driver
+from libcloud.container.types import Provider as Container_Provider
+
 import mist.api.users.models
 from mist.api.auth.models import ApiToken, datetime_to_str
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
+from mist.api.exceptions import WorkflowExecutionError
 
 from mist.api import config
+
 from functools import reduce
 
 if config.HAS_RBAC:
@@ -1540,3 +1546,70 @@ def check_size_constraint(auth_context, sizes, constraints=None):
                 permitted_sizes.append(size)
 
     return permitted_sizes
+
+
+def docker_run(name, image_id, env=None, command=None):
+    try:
+        if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
+            # tls auth, needs to pass the key and cert as files
+            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            key_temp_file.write(config.DOCKER_TLS_KEY.encode())
+            key_temp_file.close()
+            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            cert_temp_file.write(config.DOCKER_TLS_CERT.encode())
+            cert_temp_file.close()
+            if config.DOCKER_TLS_CA:
+                # docker started with tlsverify
+                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+                ca_cert_temp_file.write(config.DOCKER_TLS_CA.encode())
+                ca_cert_temp_file.close()
+            driver = get_container_driver(Container_Provider.DOCKER)
+            conn = driver(host=config.DOCKER_IP,
+                          port=config.DOCKER_PORT,
+                          key_file=key_temp_file.name,
+                          cert_file=cert_temp_file.name,
+                          ca_cert=ca_cert_temp_file.name)
+        else:
+            driver = get_container_driver(Container_Provider.DOCKER)
+            conn = driver(host=config.DOCKER_IP, port=config.DOCKER_PORT)
+        image = ContainerImage(id=image_id, name=image_id,
+                               extra={}, driver=conn, path=None,
+                               version=None)
+        node = conn.deploy_container(name, image, environment=env,
+                                     command=command, tty=True)
+    except Exception as err:
+        raise WorkflowExecutionError(str(err))
+
+    return node
+
+
+def search_parser(search):
+    """
+    Parse search string passed to `list_resources` into a list of strings.
+
+    Supports key:value, key=value, key:(value with spaces), key:"exact value",
+    AND/OR operators and a single 'stray' string that will be set to
+    id or name.
+
+    A value containing spaces should be enclosed in
+    parentheses or double quotes for exact match.
+
+    Note: implicit id or name cannot be the last value
+    unless it's the only value in search.
+    """
+
+    pattern = (r'([a-zA-Z0-9_]+)(:|=|<=|>=|!=|<|>)'  # capture key and mathematical operator  # noqa
+               r'(\(.+?\)|".+?"|\S+)'  # capture value or value with spaces enclosed in "", ()  # noqa
+               r'|(OR|AND|[^:=<>!]+?'  # capture OR/AND/'stray' string  # noqa
+               r'(?= [a-zA-Z0-9_]+?[:=<>!]| AND | OR |$)'  # until one of key+mathematical operator, OR , AND is encountered  # noqa
+               r'|^[^:=<>!]+$)')  # capture simple 'stray' string
+
+    matched = re.findall(pattern, search)
+
+    items = [''.join(val.strip(' ()') for val in tup if val)
+             for tup in matched]
+    return items
+
+
+def startsandendswith(main_str, char):
+    return main_str.startswith(char) and main_str.endswith(char)

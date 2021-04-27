@@ -2,7 +2,7 @@
 
 set -e
 
-export QUEUES="${QUEUES:-scripts,probe,ping,rules}"
+export QUEUES="${QUEUES:-rules,probe,ping}"
 export POOL=gevent
 export CONCURRENCY=${CONCURRENCY:-100}
 

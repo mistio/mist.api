@@ -524,7 +524,7 @@ class LibvirtMainController(BaseMainController):
                 machine_id=host.replace('.', '-'),
                 ssh_port=ssh_port,
                 extra=extra,
-                state=NodeState.RUNNING,
+                state=NodeState.RUNNING.value,
                 last_seen=datetime.datetime.utcnow(),
             )
 
@@ -557,6 +557,10 @@ class LibvirtMainController(BaseMainController):
             raise MistError("Couldn't connect to host '%s'."
                             % host)
 
+        new_machines = self.cloud.ctl.compute.list_machines()
+        # Update RBAC Mappings given the list of nodes seen for the first time.
+        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+
         if amqp_owner_listening(self.cloud.owner.id):
             old_machines = []
             for cached_machine in \
@@ -566,7 +570,6 @@ class LibvirtMainController(BaseMainController):
                     old_machines.append(cached_machine)
             old_machines = [m.as_dict() for m in
                             old_machines]
-            new_machines = self.cloud.ctl.compute.list_machines()
             self.cloud.ctl.compute.produce_and_publish_patch(
                 old_machines, new_machines)
 
@@ -789,8 +792,11 @@ class OtherMainController(BaseMainController):
                     machine.delete()
                 raise
 
+        # Update RBAC Mappings given the list of nodes seen for the first time.
+        new_machines = self.cloud.ctl.compute.list_cached_machines()
+        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+
         if amqp_owner_listening(self.cloud.owner.id):
-            new_machines = self.cloud.ctl.compute.list_cached_machines()
             self.cloud.ctl.compute.produce_and_publish_patch(
                 old_machines, new_machines)
 
