@@ -448,7 +448,7 @@ def create_machine(request):
     # check for size constraints
     size_constraint = constraints.get('size', {})
     if(size_constraint.get('allowed', []) or
-        size_constraint.get('not_allowed', [])):
+       size_constraint.get('not_allowed', [])):
         try:
             db_size = size
             if(not isinstance(size, dict)):
