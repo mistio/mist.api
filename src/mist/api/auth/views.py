@@ -183,7 +183,8 @@ def create_token(request):
         fname=user.first_name, IPaddr=auth_context.token.ip_address,
         CORE_URI=config.CORE_URI, EMAIL_SUPPORT=config.EMAIL_SUPPORT,
         PORTAL_NAME=config.PORTAL_NAME)
-    notification = EmailNotification(subject=subject, text_body=body, owner=org)
+    notification = EmailNotification(subject=subject, text_body=body,
+                                     owner=org)
     notification_channel = EmailNotificationChannel(notification=notification)
     notification_channel.send(users=[user])
 
