@@ -28,6 +28,8 @@ from mist.api.exceptions import MistNotImplementedError, MethodNotAllowedError
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
 
+from mist.api.clouds.models import CloudSize
+
 from mist.api import config
 
 if config.HAS_VPN:
@@ -444,13 +446,17 @@ def create_machine(request):
             pass
 
     # constraints do not apply on custom sizes
-    if not isinstance(size, dict):
+    if not isinstance(size, dict) or 'custom' in size.get('id', ""):
         # check size constraint
         size_constraint = constraints.get('size', {})
-        if size_constraint:
+        if(size_constraint.get('allowed', []) or
+           size_constraint.get('not_allowed', [])):
             try:
+                db_size = size
+                if(not isinstance(size, dict)):
+                    db_size = CloudSize.objects.get(id=size)
                 from mist.rbac.methods import check_size
-                check_size(auth_context.org, size_constraint, size)
+                check_size(auth_context.org, size_constraint, db_size)
             except ImportError:
                 pass
 
