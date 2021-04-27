@@ -14,7 +14,7 @@ from mist.api.auth.methods import token_with_name_not_exists
 from mist.api.auth.methods import reissue_cookie_session
 from mist.api.auth.methods import user_from_request
 
-from mist.api.notifications.models import Notification
+from mist.api.notifications.models import EmailNotification
 from mist.api.notifications.channels import EmailNotificationChannel
 
 from mist.api.helpers import ip_from_request, send_email
@@ -177,14 +177,13 @@ def create_token(request):
     else:
         raise BadRequestError("MAX number of %s active tokens reached"
                               % config.ACTIVE_APITOKEN_NUM)
-    subject = "New Mist API Token"
-    body = ("Hello {}, \n We are letting you know that a new API Token just "
-            "got created from {} IP address.\n If it was not you we suggest "
-            "you revoke it immediately at {}/my-account/tokens ."
-            "\n Best regards \n The mist.io team".format(
-                user.first_name, auth_context.token.ip_address, config.CORE_URI
-            ))
-    notification = Notification(subject=subject, text_body=body, owner=org)
+    subject = config.CREATE_APITOKEN_SUBJECT.format(
+        PORTAL_NAME=config.PORTAL_NAME)
+    body = config.CREATE_APITOKEN_BODY.format(
+        fname=user.first_name, IPaddr=auth_context.token.ip_address,
+        CORE_URI=config.CORE_URI, EMAIL_SUPPORT=config.EMAIL_SUPPORT,
+        PORTAL_NAME=config.PORTAL_NAME)
+    notification = EmailNotification(subject=subject, text_body=body, owner=org)
     notification_channel = EmailNotificationChannel(notification=notification)
     notification_channel.send(users=[user])
 
