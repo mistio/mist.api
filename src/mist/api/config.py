@@ -1267,7 +1267,8 @@ PROVIDERS = {
             },
             'dns': True,
             'storage': True,
-            'networks': True
+            'networks': True,
+            'objectstorage': True
         }
     },
     'azure': {
@@ -1500,6 +1501,7 @@ PROVIDERS = {
                 },
             },
             'storage': True,
+            'objectstorage': True
         }
     },
     'onapp': {
