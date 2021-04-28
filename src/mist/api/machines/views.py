@@ -448,13 +448,13 @@ def create_machine(request):
     # check for size constraints
     size_constraint = constraints.get('size', {})
     all_constraints = size_constraint.get(
-      'allowed', []) or size_constraint.get('not_allowed', [])
+        'allowed', []) or size_constraint.get('not_allowed', [])
     if(all_constraints):
-        #filter size constraints relevant to current cloud
+        # filter size constraints relevant to current cloud
         size_constraints = []
         for size_constr in all_constraints:
-          if(size_constr['cloud'] == cloud.id):
-            size_constraints.append(size_constr['size'])
+            if(size_constr['cloud'] == cloud.id):
+                size_constraints.append(size_constr['size'])
         try:
             db_size = size
             if(not isinstance(size, dict)):
