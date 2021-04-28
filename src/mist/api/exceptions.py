@@ -463,3 +463,7 @@ class RecordCreationError(InternalServerError):
 # FORBIDDEN (translated as 403 in views)
 class WhitelistIPError(ForbiddenError):
     msg = "Trying to login from a non-whitelisted IP address."
+
+
+class WorkflowExecutionError(ServiceUnavailableError):
+    msg = "Failed to execute workflow"

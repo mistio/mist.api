@@ -2722,7 +2722,21 @@ Click the link below to unsuppress all suppressed alerts:
 Note that the above action will actually send the alerts, if the corresponding
 rules are re-triggered during the next evaluation cycle.
 """
+CREATE_APITOKEN_SUBJECT = "{PORTAL_NAME} New API Token has been issued"
 
+CREATE_APITOKEN_BODY = """Hello {fname},
+
+You requested a new API token which has been issued.
+The request originated from the IP address {IPaddr}.
+
+If it was not you we suggest that you:
+1. Revoke the new token immediately at {CORE_URI}/my-account/tokens
+2. Change your password
+3. Contact {EMAIL_SUPPORT}
+
+Best regards,
+The {PORTAL_NAME} team
+"""
 CTA = {
     "rbac": {
         "action": "UPGRADE YOUR MIST.IO",

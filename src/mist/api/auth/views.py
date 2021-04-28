@@ -14,6 +14,8 @@ from mist.api.auth.methods import token_with_name_not_exists
 from mist.api.auth.methods import reissue_cookie_session
 from mist.api.auth.methods import user_from_request
 
+from mist.api.notifications.models import EmailNotification
+from mist.api.notifications.channels import EmailNotificationChannel
 
 from mist.api.helpers import ip_from_request, send_email
 from mist.api.helpers import view_config, params_from_request
@@ -110,7 +112,6 @@ def create_token(request):
     """
     params = params_from_request(request)
     email = params.get('email', '').lower()
-    password = params.get('password', '')
     api_token_name = params.get('name', '')
     org_id = params.get('org_id', '')
     ttl = params.get('ttl', 60 * 60)
@@ -119,8 +120,6 @@ def create_token(request):
     ttl = int(ttl)
     if ttl < 0:
         raise BadRequestError('Ttl must be greater or equal to zero')
-    if not password:
-        raise RequiredParameterMissingError('password')
 
     try:
         auth_context = auth_context_from_request(request)
@@ -153,10 +152,6 @@ def create_token(request):
 
     if user.status != 'confirmed':
         raise UserUnauthorizedError()
-    if not user.password:
-        raise BadRequestError('Please use the GUI to set a password and retry')
-    if not user.check_password(password):
-        raise UserUnauthorizedError('Wrong password')
 
     if not org:
         org = reissue_cookie_session(request, user.id).org
@@ -182,6 +177,16 @@ def create_token(request):
     else:
         raise BadRequestError("MAX number of %s active tokens reached"
                               % config.ACTIVE_APITOKEN_NUM)
+    subject = config.CREATE_APITOKEN_SUBJECT.format(
+        PORTAL_NAME=config.PORTAL_NAME)
+    body = config.CREATE_APITOKEN_BODY.format(
+        fname=user.first_name, IPaddr=auth_context.token.ip_address,
+        CORE_URI=config.CORE_URI, EMAIL_SUPPORT=config.EMAIL_SUPPORT,
+        PORTAL_NAME=config.PORTAL_NAME)
+    notification = EmailNotification(subject=subject, text_body=body,
+                                     owner=org)
+    notification_channel = EmailNotificationChannel(notification=notification)
+    notification_channel.send(users=[user])
 
     token_view = new_api_token.get_public_view()
     token_view['last_accessed_at'] = 'Never'

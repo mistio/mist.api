@@ -47,7 +47,6 @@ def _machine_from_matchdict(request, deleted=False):
                 machine = Machine.objects.get(
                     cloud=cloud,
                     machine_id=request.matchdict['machine'],
-                    state__ne='terminated',
                 )
             else:
                 machine = Machine.objects.get(
@@ -64,7 +63,6 @@ def _machine_from_matchdict(request, deleted=False):
             machine = Machine.objects.get(
                 cloud__in=clouds,
                 id=request.matchdict['machine_uuid'],
-                state__ne='terminated'
             )
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" %

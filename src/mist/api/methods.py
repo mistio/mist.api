@@ -1,10 +1,11 @@
 import re
 import subprocess
+import distutils.util
 
 import pingparsing
 
 
-from mongoengine import DoesNotExist
+from mongoengine import DoesNotExist, Q, BooleanField
 
 from time import time
 
@@ -20,8 +21,8 @@ from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import CloudNotFoundError
 
-from mist.api.helpers import amqp_publish_user
-
+from mist.api.helpers import amqp_publish_user, search_parser
+from mist.api.helpers import startsandendswith
 from mist.api.helpers import dirty_cow, parse_os_release
 
 from mist.api.clouds.models import Cloud
@@ -524,24 +525,24 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     from mist.api.clouds.models import CLOUDS
     resource_model = get_resource_model(resource_type)
 
-    # Init query dict
+    # Init query object
     if resource_type == 'rule':
-        query = {"owner_id": auth_context.org.id}
+        query = Q(owner_id=auth_context.org.id)
     elif hasattr(resource_model, 'owner'):
-        query = {"owner": auth_context.org}
+        query = Q(owner=auth_context.org)
     else:
-        query = {}
+        query = Q()
 
     if resource_type in ['cloud', 'key', 'script', 'template']:
-        query['deleted'] = False
+        query &= Q(deleted=False)
     elif resource_type in ['machine', 'network', 'volume', 'image']:
-        query['missing_since'] = None
+        query &= Q(missing_since=None)
 
     if cloud:
         clouds, _ = list_resources(
             auth_context, 'cloud', search=cloud, only='id'
         )
-        query['cloud__in'] = clouds
+        query &= Q(cloud__in=clouds)
 
     search = search or ''
     sort = sort or ''
@@ -549,79 +550,93 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     postfilters = []
     id_implicit = False
     # search filter contains space separated terms
-    # if the term contains : or = then assume key/value query
+    # if the term contains :,=,<,>,!=, <=, >= then assume key/value query
     # otherwise search for objects with id or name matching the term
-    # TODO this breaks if ':' or '=' character is in resource id/name
-    if search and ':' not in search and '=' not in search:
-        id_implicit = True
-        query['id'] = search
-    elif search:
-        for term in search.split(' '):
-            if ':' in term:
-                k, v = term.split(':')
-            elif '=' in term:
-                k, v = term.split('=')
-            elif 'and' == term.lower() or not term:
-                continue
-            else:
-                id_implicit = True
-                k, v = 'id', term
-            if k == 'provider' and 'cloud' in resource_type:
-                k = '_cls'
-                v = CLOUDS[v]()._cls
-            # TODO: only allow terms on indexed fields
-            # TODO: support OR keyword
-            # TODO: support additional operators: >, <, !=, ~
-            if k == 'cloud':
-                clouds, _ = list_resources(auth_context, 'cloud', search=v,
-                                           only='id')
-                query['cloud__in'] = clouds
-            elif k == 'location':
-                locations, _ = list_resources(auth_context, 'location',
-                                              search=v, only='id')
-                query['location__in'] = locations
-            elif k == 'owned_by':
-                if not v or v.lower() in ['none', 'nobody']:
-                    query['owned_by'] = None
-                    continue
-                try:
-                    user = User.objects.get(
-                        id__in=[m.id for m in auth_context.org.members],
-                        email=v)
-                    query['owned_by'] = user.id
-                except User.DoesNotExist:
-                    query['owned_by'] = v
-            elif k == 'created_by':
-                if not v or v.lower() in ['none', 'nobody']:
-                    query['created_by'] = None
-                    continue
-                try:
-                    user = User.objects.get(
-                        id__in=[m.id for m in auth_context.org.members],
-                        email=v)
-                    query['created_by'] = user.id
-                except User.DoesNotExist:
-                    query['created_by'] = v
-            elif k in ['key_associations', ]:  # Looks like a postfilter
-                postfilters.append((k, v))
-            else:
-                query[k] = v
+    terms = search_parser(search)
+    for term in terms:
+        if ':' in term:
+            k, v = term.split(':')
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+        elif '!=' in term:
+            k, v = term.split('!=')
+            mongo_operator = '__ne'
+        elif '<=' in term:
+            k, v = term.split('<=')
+            mongo_operator = '__lte'
+        elif '>=' in term:
+            k, v = term.split('>=')
+            mongo_operator = '__gte'
+        elif '>' in term:
+            k, v = term.split('>')
+            mongo_operator = '__gt'
+        elif '<' in term:
+            k, v = term.split('<')
+            mongo_operator = '__lt'
+        elif '=' in term:
+            k, v = term.split('=')
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+        # TODO: support OR keyword
+        elif term.lower() in ['and', 'or'] or not term:
+            continue
+        else:
+            id_implicit = True
+            k, v = 'id', term
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
 
-    result = resource_model.objects(**query)
+        v = v.strip('"')
+        attr = getattr(resource_model, k, None)
+        if isinstance(attr, BooleanField):
+            try:
+                v = bool(distutils.util.strtobool(v))
+            except ValueError:
+                v = bool(v)
+
+        if k == 'provider' and 'cloud' in resource_type:
+            query &= Q(_cls=CLOUDS[v]()._cls)
+        # TODO: only allow terms on indexed fields
+        # TODO: support additional operators: >, <, !=, ~
+        elif k in ['cloud', 'location']:
+            # exact match
+            if not mongo_operator:
+                resources, _ = list_resources(auth_context, k,
+                                              search=f'"{v}"',
+                                              only='id')
+            else:
+                resources, _ = list_resources(auth_context, k, search=v,
+                                              only='id')
+            query &= Q(**{f'{k}__in': resources})
+        elif k in ['owned_by', 'created_by']:
+            if not v or v.lower() in ['none', 'nobody']:
+                query &= Q(**{k: None})
+                continue
+            try:
+                user = User.objects.get(
+                    id__in=[m.id for m in auth_context.org.members],
+                    email=v)
+                query &= Q(**{k: user.id})
+            except User.DoesNotExist:
+                query &= Q(**{k: v})
+        elif k in ['key_associations', ]:  # Looks like a postfilter
+            postfilters.append((k, v))
+        elif k == 'id':
+            if id_implicit is True:
+                if getattr(resource_model, 'name', None) and \
+                        not isinstance(getattr(resource_model, 'name'), property):  # noqa
+                    field_name = 'name'
+                else:
+                    field_name = 'title'
+                # id will always be exact match
+                query &= (Q(id=v) | Q(**{f'{field_name}{mongo_operator}': v}))
+            else:
+                query &= Q(id=v)
+        else:
+            query &= Q(**{f'{k}{mongo_operator}': v})
+
+    result = resource_model.objects(query)
     if only:
         only_list = [field for field in only.split(',')
                      if field in resource_model._fields]
         result = result.only(*only_list)
-
-    if not result.count() and query.get('id') and id_implicit:
-        # Try searching for name or title field
-        if getattr(resource_model, 'name', None) and \
-                not isinstance(getattr(resource_model, 'name'), property):
-            field_name = 'name'
-        else:
-            field_name = 'title'
-        query[field_name] = query.pop('id')
-        result = resource_model.objects(**query)
 
     for (k, v) in postfilters:
         if k == 'key_associations':
@@ -642,8 +657,8 @@ def list_resources(auth_context, resource_type, search='', cloud='',
                 ids = [machine.id for machine in result
                        if KeyMachineAssociation.objects(
                            machine=machine).count()]
-            query['id__in'] = ids
-            result = resource_model.objects(**query)
+            query &= Q(id__in=ids)
+            result = resource_model.objects(query)
 
     if result.count():
         if not auth_context.is_owner():

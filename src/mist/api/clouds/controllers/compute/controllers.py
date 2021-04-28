@@ -1980,6 +1980,9 @@ class EquinixMetalComputeController(BaseComputeController):
             return super()._list_images__get_os_distro(image)
         return os_distro
 
+    def _list_sizes__get_cpu(self, size):
+        return int(size.extra.get('cpu_cores') or 1)
+
     def _list_sizes__get_available_locations(self, mist_size):
         from mist.api.clouds.models import CloudLocation
         CloudLocation.objects(
