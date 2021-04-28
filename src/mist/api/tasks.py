@@ -1053,7 +1053,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         else:
             command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
         if su:
-            command = 'sudo ' + command
+            command = "sudo sh -c '%s'" % command
         ret['command'] = command
     except Exception as exc:
         ret['error'] = str(exc)
