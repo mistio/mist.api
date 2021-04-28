@@ -591,8 +591,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        cloud_init=cloud_init,
                                        vnfs=vnfs)
     elif cloud.ctl.provider == Provider.EQUINIXMETAL.value:
-        node = _create_machine_equinixmetal(conn, public_key, machine_name,
-                                            image, size, location, cloud_init,
+        node = _create_machine_equinixmetal(conn, key.name, public_key,
+                                            machine_name, image,
+                                            size, location, cloud_init,
                                             cloud, project_id, volumes,
                                             ip_addresses)
 
@@ -1686,18 +1687,27 @@ def _create_machine_hostvirtual(conn, public_key,
     return node
 
 
-def _create_machine_equinixmetal(conn, public_key, machine_name, image,
-                                 size, location, cloud_init, cloud,
+def _create_machine_equinixmetal(conn, key_name, public_key, machine_name,
+                                 image, size, location, cloud_init, cloud,
                                  project_id=None, volumes=[],
                                  ip_addresses=[]):
     """Create a machine in Equinix Metal.
     """
-    key = public_key.replace('\n', '')
-    try:
-        conn.create_key_pair('mistio', key)
-    except:
-        # key exists and will be deployed
-        pass
+    from libcloud.utils.publickey import get_pubkey_openssh_fingerprint
+    fingerprint = get_pubkey_openssh_fingerprint(public_key)
+    keys = conn.list_key_pairs()
+    for k in keys:
+        if fingerprint == k.fingerprint:
+            ssh_keys = [{
+                'label': k.extra['label'],
+                'key': k.public_key
+            }]
+            break
+    else:
+        ssh_keys = [{
+            'label': f'mistio-{key_name}',
+            'key': public_key
+        }]
 
     # if project_id is not specified, use the project for which the driver
     # has been initiated. If driver hasn't been initiated with a project,
@@ -1760,7 +1770,8 @@ def _create_machine_equinixmetal(conn, public_key, machine_name, image,
             ip_addresses=ip_addresses,
             cloud_init=cloud_init,
             disk=ex_disk,
-            disk_size=disk_size
+            disk_size=disk_size,
+            ssh_keys=ssh_keys
         )
     except Exception as e:
         raise MachineCreationError(
