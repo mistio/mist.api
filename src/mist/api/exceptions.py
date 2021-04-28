@@ -246,6 +246,10 @@ class VolumeExistsError(ConflictError):
     msg = "Volume already exists"
 
 
+class BucketExistsError(ConflictError):
+    msg = "Bucket already exists"
+
+
 #  Rate Limit Error (translated as 429 in views)
 class RateLimitError(MistError):
     msg = "Rate Limit Error"
@@ -305,6 +309,10 @@ class SubnetDeletionError(InternalServerError):
 
 class VolumeListingError(InternalServerError):
     msg = "Error while getting a volume listing"
+
+
+class BucketListingError(InternalServerError):
+    msg = "Error while getting a bucket listing"
 
 
 class VolumeCreationError(InternalServerError):

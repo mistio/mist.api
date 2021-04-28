@@ -12,7 +12,7 @@ class Tag(me.Document):
     key = me.StringField(required=True)
 
     resource_type = me.StringField(
-        choices=['cloud', 'machine', 'volume', 'image',
+        choices=['cloud', 'machine', 'volume', 'buckets', 'image',
                  'network', 'subnet', 'zone', 'record',
                  'key', 'script', 'template', 'stack',
                  'schedule', 'tunnel', 'rule', 'team'])
