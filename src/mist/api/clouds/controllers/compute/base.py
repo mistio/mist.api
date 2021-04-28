@@ -2861,6 +2861,10 @@ class BaseComputeController(BaseController):
         their cloud type. These methods are:
 
             `self._create_machine__compute_kwargs`
+            `self._create_machine__get_image_object`
+            `self._create_machine__get_location_object`
+            `self._create_machine__get_size_object`
+            `self._create_machine__get_key_object`
             `self._create_machine__create_node`
             `self._create_machine__handle_exception`
             `self._create_machine__post_machine_creation_steps`
