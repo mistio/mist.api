@@ -447,14 +447,20 @@ def create_machine(request):
 
     # check for size constraints
     size_constraint = constraints.get('size', {})
-    if(size_constraint.get('allowed', []) or
-       size_constraint.get('not_allowed', [])):
+    all_constraints = size_constraint.get(
+      'allowed', []) or size_constraint.get('not_allowed', [])
+    if(all_constraints):
+        #filter size constraints relevant to current cloud
+        size_constraints = []
+        for size_constr in all_constraints:
+          if(size_constr['cloud'] == cloud.id):
+            size_constraints.append(size_constr['size'])
         try:
             db_size = size
             if(not isinstance(size, dict)):
                 db_size = CloudSize.objects.get(id=size)
             from mist.rbac.methods import check_size
-            check_size(auth_context.org, size_constraint, db_size)
+            check_size(auth_context.org, size_constraints, db_size)
         except ImportError:
             pass
 
