@@ -1800,6 +1800,8 @@ class GoogleComputeController(BaseComputeController):
             extra.update({'description': description})
         if size.price:
             extra.update({'price': size.price})
+        extra['accelerators'] = size.extra.get('accelerators', [])
+        extra['isSharedCpu'] = size.extra.get('isSharedCpu')
         return extra
 
     def _list_locations__get_available_sizes(self, location):
