@@ -120,7 +120,6 @@ def create_token(request):
     ttl = int(ttl)
     if ttl < 0:
         raise BadRequestError('Ttl must be greater or equal to zero')
-
     try:
         auth_context = auth_context_from_request(request)
         user, org = auth_context.user, auth_context.org
@@ -179,8 +178,9 @@ def create_token(request):
                               % config.ACTIVE_APITOKEN_NUM)
     subject = config.CREATE_APITOKEN_SUBJECT.format(
         PORTAL_NAME=config.PORTAL_NAME)
+
     body = config.CREATE_APITOKEN_BODY.format(
-        fname=user.first_name, IPaddr=auth_context.token.ip_address,
+        fname=user.first_name, IPaddr=ip_from_request(request),
         CORE_URI=config.CORE_URI, EMAIL_SUPPORT=config.EMAIL_SUPPORT,
         PORTAL_NAME=config.PORTAL_NAME)
     notification = EmailNotification(subject=subject, text_body=body,
