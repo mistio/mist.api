@@ -5,12 +5,13 @@ import logging
 import datetime
 import mongoengine as me
 
-from time import time
+from time import time, sleep
 
 import paramiko
 
 from libcloud.compute.types import NodeState
 from libcloud.container.base import Container
+from libcloud.container.drivers.docker import DockerContainerDriver
 
 from celery.exceptions import SoftTimeLimitExceeded
 
@@ -46,7 +47,7 @@ from mist.api.poller.models import ListLocationsPollingSchedule
 from mist.api.poller.models import ListSizesPollingSchedule
 from mist.api.poller.models import ListImagesPollingSchedule
 
-from mist.api.helpers import docker_run
+from mist.api.helpers import docker_connect, docker_run
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import trigger_session_update
 
@@ -1028,24 +1029,22 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             raise MistError("No host provided and none could be discovered.")
 
         if script.exec_type == 'ansible':
-            # TODO choose first IP is ok?
-            machine_ip = machine['public_ips'][0]
-
             playbook = script.script
             # playbooks contain ' or " which look like multiple arguments.
             playbook = playbook.replace('\'', '"')
             playbook = f'\'{playbook}\''
 
-            # TODO investigate key_id input and create choose key logic
+            # TODO change with find_best_ssh_params. missing auth_context
             key_association = machine['key_associations'][0]
             ssh_user = key_association['ssh_user']
 
-            # TODO is secure?
+            # TODO change with KeyMachineAssociation
             key = SSHKey.objects.get(owner=owner, id=key_association['key'])
             private_key = key.private
             private_key = f'\'{private_key}\''
 
-            params = ['-i', machine_ip]
+            # TODO check ssh port
+            params = ['-i', host]
             params += ['-p', playbook]
             params += ['-k', private_key]
             params += ['-u', ssh_user]
@@ -1053,9 +1052,12 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             container = docker_run(name=f'ansible_runner-{ret["job_id"]}',
                                    image_id='ansible_runner:latest',
                                    command=' '.join(params))
-            # TODO get container stdout / stderror
+            conn = docker_connect()
+            # TODO get logs when container exits
+            sleep(5)
+            stdout = conn.ex_get_logs(container, stdout=True, stderr=False)
+            stderr = conn.ex_get_logs(container, stdout=False, stderr=True)
             # TODO remove exited container?
-            exit_code = 0
         else:
             shell = mist.api.shell.Shell(host)
             ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
