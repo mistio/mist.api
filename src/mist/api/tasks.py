@@ -11,7 +11,6 @@ import paramiko
 
 from libcloud.compute.types import NodeState
 from libcloud.container.base import Container
-from libcloud.container.drivers.docker import DockerContainerDriver
 
 from celery.exceptions import SoftTimeLimitExceeded
 
@@ -1053,10 +1052,20 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
                                    image_id='ansible_runner:latest',
                                    command=' '.join(params))
             conn = docker_connect()
-            # TODO get logs when container exits
-            sleep(5)
+            while conn.get_container(container.id).state != 'stopped':
+                sleep(0.5)
             stdout = conn.ex_get_logs(container, stdout=True, stderr=False)
             stderr = conn.ex_get_logs(container, stdout=False, stderr=True)
+            state = conn.get_container(container.id).extra['state']
+            exit_code = state['ExitCode']
+
+            ret['stdout'] = stdout
+            ret['error'] = stderr
+            ret['exit_code'] = exit_code
+
+            wstdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
+            ret['wrapper_stdout'] = wstdout
+
             # TODO remove exited container?
         else:
             shell = mist.api.shell.Shell(host)
