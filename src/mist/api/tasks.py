@@ -1053,7 +1053,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
                                    command=' '.join(params))
             conn = docker_connect()
             while conn.get_container(container.id).state != 'stopped':
-                sleep(0.5)
+                sleep(3)
             stdout = conn.ex_get_logs(container, stdout=True, stderr=False)
             stderr = conn.ex_get_logs(container, stdout=False, stderr=True)
             state = conn.get_container(container.id).extra['state']
