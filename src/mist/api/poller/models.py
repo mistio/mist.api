@@ -340,6 +340,10 @@ class ListVolumesPollingSchedule(CloudPollingSchedule):
                 hasattr(self.cloud.ctl, 'storage'))
 
 
+class ListBucketsPollingSchedule(CloudPollingSchedule):
+    task = 'mist.api.poller.tasks.list_buckets'
+
+
 class MachinePollingSchedule(PollingSchedule):
 
     machine_id = me.StringField(required=True)

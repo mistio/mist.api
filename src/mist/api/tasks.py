@@ -45,6 +45,7 @@ from mist.api.poller.models import SSHProbeMachinePollingSchedule
 from mist.api.poller.models import ListLocationsPollingSchedule
 from mist.api.poller.models import ListSizesPollingSchedule
 from mist.api.poller.models import ListImagesPollingSchedule
+from mist.api.poller.models import ListBucketsPollingSchedule
 
 from mist.api.helpers import docker_connect, docker_run
 from mist.api.helpers import send_email as helper_send_email
@@ -140,8 +141,11 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             tmp_log('not running state')
             raise self.retry(exc=Exception(), countdown=120, max_retries=30)
 
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
-                                      state__ne='terminated')
+        try:
+            machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
+                                          state__ne='terminated')
+        except Machine.DoesNotExist:
+            raise self.retry(countdown=60, max_retries=60)
 
         log_dict = {
             'owner_id': owner.id,
@@ -208,8 +212,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 if predeployed_key_id and key_id:
                     # Use predeployed key to deploy the user selected key
                     shell.autoconfigure(
-                        owner, cloud_id, node.id, predeployed_key_id, username,
-                        password, port
+                        owner, cloud_id, machine.id, predeployed_key_id,
+                        username, password, port
                     )
                     retval, output = shell.command(
                         'echo %s >> ~/.ssh/authorized_keys' % Key.objects.get(
@@ -222,8 +226,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 if command and key_id:
                     tmp_log('Executing cloud post deploy cmd: %s' % command)
                     shell.autoconfigure(
-                        owner, cloud_id, node.id, key_id, username, password,
-                        port
+                        owner, cloud_id, machine.id, key_id, username,
+                        password, port
                     )
                     retval, output = shell.command(command)
                     if retval > 0:
@@ -279,7 +283,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 notify_user(owner, title,
                             cloud_id=cloud_id,
                             machine_id=machine_id,
-                            machine_name=node.name,
+                            machine_name=machine.name,
                             command=script,
                             output=output,
                             duration=execution_time,
@@ -1094,7 +1098,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             else:
                 command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
             if su:
-                command = 'sudo ' + command
+                command = "sudo sh -c '%s'" % command
             ret['command'] = command
     except Exception as exc:
         ret['error'] = str(exc)
@@ -1176,6 +1180,8 @@ def update_poller(org_id):
                                      ttl=120)
         ListImagesPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
                                       ttl=120)
+        ListBucketsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                       ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:

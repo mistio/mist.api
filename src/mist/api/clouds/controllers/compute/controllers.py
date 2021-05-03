@@ -436,7 +436,7 @@ class AmazonComputeController(BaseComputeController):
                 log.info('Attempting to create security group')
                 ret_dict = self.connection.ex_create_security_group(
                     name=plan['networks']['security_group']['name'],
-                    description=plan['networks']['security_group']['description'] # noqa
+                    description=plan['networks']['security_group']['description']  # noqa
                 )
                 self.connection.ex_authorize_security_group_permissive(
                     name=plan['networks']['security_group']['name'])
@@ -1800,6 +1800,8 @@ class GoogleComputeController(BaseComputeController):
             extra.update({'description': description})
         if size.price:
             extra.update({'price': size.price})
+        extra['accelerators'] = size.extra.get('accelerators', [])
+        extra['isSharedCpu'] = size.extra.get('isSharedCpu')
         return extra
 
     def _list_locations__get_available_sizes(self, location):
@@ -2006,8 +2008,65 @@ class EquinixMetalComputeController(BaseComputeController):
             ret_list.append('x86')
         return ret_list or ['x86']
 
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except (KeyError, TypeError):
+            raise BadRequestError('Invalid parameter in volumes')
+        if size < 100:
+            raise BadRequestError('Size value must be at least 100')
+
+        plan = volume_dict.get('plan', 'standard')
+        if plan not in ('standard', 'performance'):
+            raise BadRequestError(
+                'Invalid value for plan, valid values are: '
+                'performance, standard'
+            )
+
+        return {'size': size, 'plan': plan}
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        try:
+            ip_addresses = networks_dict['ip_addresses']
+        except KeyError:
+            return None
+        # one private IPv4 is required
+        private_ipv4 = False
+        for address in ip_addresses:
+            try:
+                address_family = address['address_family']
+                cidr = address['cidr']
+                public = address['public']
+            except KeyError:
+                raise BadRequestError(
+                    'Required parameter missing on ip_addresses'
+                )
+            if address_family == 4 and public is True:
+                private_ipv4 = True
+            if address_family not in (4, 6):
+                raise BadRequestError(
+                    'Valid values for address_family are: 4, 6'
+                )
+            if address_family == 4 and cidr not in range(28, 33):
+                raise BadRequestError(
+                    'Invalid value for cidr block'
+                )
+            if address_family == 6 and cidr not in range(124, 128):
+                raise BadRequestError(
+                    'Invalid value for cidr block'
+                )
+            if type(public) != bool:
+                raise BadRequestError(
+                    'Invalid value for public'
+                )
+        if private_ipv4 is False:
+            raise BadRequestError(
+                'A private IPv4 needs to be included in ip_addresses'
+            )
+        return {'ip_addresses': ip_addresses}
+
     def _generate_plan__parse_extra(self, extra, plan):
-        project_id = extra.get('project')
+        project_id = extra.get('project_id')
         if not project_id:
             if self.connection.project_id:
                 project_id = self.connection.project_id
@@ -2027,19 +2086,90 @@ class EquinixMetalComputeController(BaseComputeController):
                 raise BadRequestError(
                     "Project does not exist"
                 )
-        plan['project'] = project_id
+        plan['project_id'] = project_id
+
+    def _create_machine__get_key_object(self, key):
+        from libcloud.utils.publickey import get_pubkey_openssh_fingerprint
+        key_obj = super()._create_machine__get_key_object(key)
+        fingerprint = get_pubkey_openssh_fingerprint(key_obj.public)
+        keys = self.connection.list_key_pairs()
+        for k in keys:
+            if fingerprint == k.fingerprint:
+                ssh_keys = [{
+                    'label': k.extra['label'],
+                    'key': k.public_key
+                }]
+                break
+        else:
+            ssh_keys = [{
+                'label': f'mistio-{key.name}',
+                'key': key_obj.public
+            }]
+        return ssh_keys
 
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
-        key = kwargs.pop('auth')
-        try:
-            self.connection.create_key_pair('mistio', key.public)
-        except Exception:
-            # key exists and will be deployed
-            pass
-        kwargs['ex_project_id'] = plan['project']
+        kwargs['ex_project_id'] = plan['project_id']
         kwargs['cloud_init'] = plan.get('cloudinit')
+        kwargs['ssh_keys'] = kwargs.pop('auth')
+        try:
+            kwargs['ip_addresses'] = plan['networks']['ip_addresses']
+        except (KeyError, TypeError):
+            pass
         return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        volumes = plan.get('volumes', [])
+        if not volumes:
+            return
+        from mist.api.models import Volume
+        from libcloud.compute.base import StorageVolume
+        # volumes cannot be attached while node is pending
+        # so sleep until node is running
+        for _ in range(50):
+            node = self.connection.ex_get_node(node.id)
+            if node.state.value == NodeState.RUNNING.value:
+                break
+            else:
+                sleep(10)
+        for vol in volumes:
+            if vol.get('id'):
+                try:
+                    volume = Volume.objects.get(id=vol['id'])
+                except me.DoesNotExist:
+                    # this shouldn't happen as volume was found
+                    # during plan creation
+                    log.warning('Failed to attach volume.Volume %s does not exist' %  # noqa
+                                (vol['id']))
+                    continue
+                storage_volume = StorageVolume(id=volume.external_id,
+                                               name=volume.name,
+                                               size=volume.size,
+                                               driver=self.connection)
+                try:
+                    self.connection.attach_volume(node, storage_volume)
+                except Exception as exc:
+                    log.warning('Volume attachment failed')
+            else:
+                try:
+                    size = vol['size']
+                    volume_plan = vol['plan']
+                except KeyError:
+                    # this shouldn't happen as these fields
+                    # were checked during plan creation
+                    log.warning('Error while parsing volume attributes')
+                    continue
+                volume_plan = "storage_1" if volume_plan == 'standard' else 'storage_2'  # noqa
+                try:
+                    volume = self.connection.create_volume(
+                                                size=size,
+                                                location=kwargs['location'],
+                                                plan=volume_plan,
+                                                ex_project_id=kwargs['ex_project_id'],  # noqa
+                                                )
+                    self.connection.attach_volume(node, volume)
+                except Exception as exc:
+                    log.warning('Volume attachment failed')
 
 
 class VultrComputeController(BaseComputeController):
@@ -2109,7 +2239,7 @@ class VSphereComputeController(BaseComputeController):
                                        port=port,
                                        ca_cert=ca_cert)
         self.version = driver_6_5._get_version()
-        if '6.7'in self.version and config.ENABLE_VSPHERE_REST:
+        if '6.7' in self.version and config.ENABLE_VSPHERE_REST:
             self.version = '6.7'
             return VSphere_6_7_NodeDriver(self.cloud.username,
                                           secret=self.cloud.password,
@@ -2693,6 +2823,7 @@ class LXDComputeController(BaseComputeController):
     """
     Compute controller for LXC containers
     """
+
     def __init__(self, *args, **kwargs):
         super(LXDComputeController, self).__init__(*args, **kwargs)
         self._lxchost = None

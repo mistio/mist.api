@@ -736,6 +736,8 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
 rtype_to_classpath = {
     'cloud': 'mist.api.clouds.models.Cloud',
     'clouds': 'mist.api.clouds.models.Cloud',
+    'bucket': 'mist.api.objectstorage.models.Bucket',
+    'buckets': 'mist.api.objectstorage.models.Bucket',
     'machine': 'mist.api.machines.models.Machine',
     'machines': 'mist.api.machines.models.Machine',
     'zone': 'mist.api.dns.models.Zone',
@@ -982,7 +984,8 @@ def logging_view_decorator(func):
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
                     'tunnel_id', 'story_id', 'stack_id', 'template_id',
-                    'zone', 'record', 'network', 'subnet', 'volume', 'key']:
+                    'zone', 'record', 'network', 'subnet', 'volume', 'key',
+                    'buckets']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -1059,7 +1062,8 @@ def logging_view_decorator(func):
                 log_dict['machine_id'] = bdict['machine']
             # Match resource type based on the action performed.
             for rtype in ['cloud', 'machine', 'key', 'script', 'tunnel',
-                          'stack', 'template', 'schedule', 'volume']:
+                          'stack', 'template', 'schedule', 'volume',
+                          'buckets']:
                 if rtype in log_dict['action']:
                     if 'id' in bdict and '%s_id' % rtype not in log_dict:
                         log_dict['%s_id' % rtype] = bdict['id']
@@ -1546,6 +1550,26 @@ def check_size_constraint(auth_context, sizes, constraints=None):
                 permitted_sizes.append(size)
 
     return permitted_sizes
+
+
+def bucket_to_dict(node):
+    if isinstance(node, str):
+        return node
+    elif isinstance(node, datetime.datetime):
+        return node.isoformat()
+    elif not getattr(node, "__dict__"):
+        return str(node)
+    ret = node.__dict__
+    if ret.get('driver'):
+        ret.pop('driver')
+    if ret.get('container'):
+        ret['container'] = bucket_to_dict(ret['container'])
+    if ret.get('state'):
+        ret['state'] = str(ret['state'])
+    if 'extra' in ret:
+        ret['extra'] = json.loads(json.dumps(
+            ret['extra'], default=bucket_to_dict))
+    return ret
 
 
 def docker_connect():
