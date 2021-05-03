@@ -1047,7 +1047,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             params += ['-k', private_key]
 
             container = docker_run(name=f'ansible_runner-{ret["job_id"]}',
-                                   image_id='ansible_runner:latest',
+                                   image_id='mist/ansible-runner:latest',
                                    command=' '.join(params))
             conn = docker_connect()
             while conn.get_container(container.id).state != 'stopped':
