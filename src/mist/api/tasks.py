@@ -1040,17 +1040,18 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             # TODO change with find_best_ssh_params. missing auth_context
             key_association = machine['key_associations'][0]
             ssh_user = key_association['ssh_user']
+            ssh_port = '22'
 
             # TODO change with KeyMachineAssociation
             key = SSHKey.objects.get(owner=owner, id=key_association['key'])
             private_key = key.private
             private_key = f'\'{private_key}\''
 
-            # TODO check ssh port
-            params = ['-i', host]
-            params += ['-p', playbook]
-            params += ['-k', private_key]
+            params = ['-s', playbook]
+            params += ['-i', host]
+            params += ['-p', ssh_port]
             params += ['-u', ssh_user]
+            params += ['-k', private_key]
 
             container = docker_run(name=f'ansible_runner-{ret["job_id"]}',
                                    image_id='ansible_runner:latest',

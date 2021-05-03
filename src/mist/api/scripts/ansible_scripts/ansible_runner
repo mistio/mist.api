@@ -29,6 +29,7 @@ def main():
         print(args.private_key, file=id_rsa)
 
     os.environ["ANSIBLE_HOST_KEY_CHECKING"] = "False"
+    os.environ["ANSIBLE_REMOTE_PORT"] = args.port
 
     subprocess.call(
         [
@@ -47,16 +48,19 @@ def parse_args():
         description='Fetch and run executable script or ansible playbook.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+
+    parser.add_argument(
+        '-s', '--playbook', type=str, help='Ansible Playbook to run'
+    )
     parser.add_argument(
         '-i', '--ip', type=str, help='Target Machine Public IP'
     )
-    parser.add_argument(
-        '-p', '--playbook', type=str, help='Ansible Playbook to run'
-    )
+    parser.add_argument('-p', '--port', type=str, help='SSH port')
+    parser.add_argument('-u', '--user', type=str, help='SSH key user')
     parser.add_argument(
         '-k', '--private_key', type=str, help='Private SSH key of machine'
     )
-    parser.add_argument('-u', '--user', type=str, help='SSH key user')
+
     return parser.parse_args()
 
 
