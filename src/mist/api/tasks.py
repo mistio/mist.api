@@ -1052,17 +1052,12 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             conn = docker_connect()
             while conn.get_container(container.id).state != 'stopped':
                 sleep(3)
-            stdout = conn.ex_get_logs(container, stdout=True, stderr=False)
+
+            wstdout = conn.ex_get_logs(container, stdout=True, stderr=False)
             stderr = conn.ex_get_logs(container, stdout=False, stderr=True)
             state = conn.get_container(container.id).extra['state']
             exit_code = state['ExitCode']
-
-            ret['stdout'] = stdout
             ret['error'] = stderr
-            ret['exit_code'] = exit_code
-
-            wstdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
-            ret['wrapper_stdout'] = wstdout
 
             conn.destroy_container(container)
         else:
@@ -1100,8 +1095,9 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     log.info('Script started: %s', ret)
     if not ret['error']:
         try:
-            exit_code, wstdout = shell.command(command)
-            shell.disconnect()
+            if script.exec_type != 'ansible':
+                exit_code, wstdout = shell.command(command)
+                shell.disconnect()
             wstdout = wstdout.replace('\r\n', '\n').replace('\r', '\n')
             ret['wrapper_stdout'] = wstdout
             ret['exit_code'] = exit_code
