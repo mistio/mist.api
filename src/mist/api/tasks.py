@@ -1071,7 +1071,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             wstdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
             ret['wrapper_stdout'] = wstdout
 
-            # TODO remove exited container?
+            conn.destroy_container(container)
         else:
             shell = mist.api.shell.Shell(host)
             ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
