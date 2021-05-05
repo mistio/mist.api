@@ -1057,6 +1057,14 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             stderr = conn.ex_get_logs(container, stdout=False, stderr=True)
             state = conn.get_container(container.id).extra['state']
             exit_code = state['ExitCode']
+
+            # parse stdout for errors
+            if re.search('ERROR!', wstdout) or re.search(
+                'failed=[1-9]+[0-9]{0,}', wstdout
+            ):
+                stderr = wstdout
+                exit_code = 1
+
             ret['error'] = stderr
 
             conn.destroy_container(container)
