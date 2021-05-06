@@ -626,7 +626,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 time.sleep(i * 10)
                 continue
             try:
-                cloud.ctl.compute.list_machines()
+                cloud.ctl.compute._list_machines()
             except Exception as e:
                 if i > 8:
                     raise(e)
