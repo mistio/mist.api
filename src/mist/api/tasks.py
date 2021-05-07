@@ -1033,9 +1033,14 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
 
         if script.exec_type == 'ansible':
             playbook = script.script
+            # common playbook backward compatibility fixes
+            playbook = re.sub(r'sudo:\strue', 'become: true', playbook)
+            playbook = re.sub(r'hosts:\s.+', 'hosts: all', playbook)
+
             # playbooks contain ' or " which look like multiple arguments.
             playbook = playbook.replace('\'', '"')
             playbook = f'\'{playbook}\''
+            ret['command'] = playbook
 
             private_key = SSHKey.objects(id=key_id)[0].private
             private_key = f'\'{private_key}\''
@@ -1049,25 +1054,6 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             container = docker_run(name=f'ansible_runner-{ret["job_id"]}',
                                    image_id='mist/ansible-runner:latest',
                                    command=' '.join(params))
-            conn = docker_connect()
-            while conn.get_container(container.id).state != 'stopped':
-                sleep(3)
-
-            wstdout = conn.ex_get_logs(container, stdout=True, stderr=False)
-            stderr = conn.ex_get_logs(container, stdout=False, stderr=True)
-            state = conn.get_container(container.id).extra['state']
-            exit_code = state['ExitCode']
-
-            # parse stdout for errors
-            if re.search('ERROR!', wstdout) or re.search(
-                'failed=[1-9]+[0-9]{0,}', wstdout
-            ):
-                stderr = wstdout
-                exit_code = 1
-
-            ret['error'] = stderr
-
-            conn.destroy_container(container)
         else:
             shell = mist.api.shell.Shell(host)
             ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
@@ -1103,7 +1089,23 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     log.info('Script started: %s', ret)
     if not ret['error']:
         try:
-            if script.exec_type != 'ansible':
+            if script.exec_type == 'ansible':
+                conn = docker_connect()
+                while conn.get_container(container.id).state != 'stopped':
+                    sleep(3)
+
+                wstdout = conn.ex_get_logs(container)
+                exit_code = 0
+
+                # parse stdout for errors
+                if re.search('ERROR!', wstdout) or re.search(
+                    'failed=[1-9]+[0-9]{0,}', wstdout
+                ):
+                    exit_code = 1
+
+                conn.destroy_container(container)
+
+            else:
                 exit_code, wstdout = shell.command(command)
                 shell.disconnect()
             wstdout = wstdout.replace('\r\n', '\n').replace('\r', '\n')
