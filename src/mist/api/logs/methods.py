@@ -52,6 +52,8 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
         - patch: the json patch produced from the diff of
             cached and new resources
     """
+    if not isinstance(cached_resources, dict):
+        log.info(f'LOG-OBSERVATIONS {type(cached_resources)} {new_resources}')
     log_dict = {
         'cloud_id': cloud_id,
     }
