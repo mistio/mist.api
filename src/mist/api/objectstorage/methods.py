@@ -2,7 +2,7 @@ import logging
 
 from mist.api.objectstorage.models import Bucket
 from mist.api.clouds.models import Cloud
-
+from mist.api.exceptions import CloudNotFoundError
 
 log = logging.getLogger(__name__)
 
@@ -17,7 +17,14 @@ def list_buckets(owner, cloud_id, cached=True):
 
     else:
         log.error('Not cached request')
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        try:
+            cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
+
+        if not hasattr(cloud.ctl, 'objectstorage'):
+            return []
+
         buckets = cloud.ctl.objectstorage.list_buckets()
 
         # Update RBAC Mappings given the list of new buckets.
