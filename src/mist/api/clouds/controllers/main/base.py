@@ -420,6 +420,12 @@ class BaseMainController(object):
             ListVolumesPollingSchedule.add(
                 cloud=self.cloud, run_immediately=True)
 
+        if hasattr(self.cloud.ctl, 'objectstorage'):        
+            schedule = ListBucketsPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
+            schedule.set_default_interval(60 * 60 * 24)
+            schedule.save()
+
         # Add extra cloud-level polling schedules with lower frequency. Such
         # schedules poll resources that should hardly ever change. Thus, we
         # add the schedules, increase their interval, and forget about them.
@@ -439,11 +445,6 @@ class BaseMainController(object):
             cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.add_interval(90, ttl=270)
-        schedule.save()
-
-        schedule = ListBucketsPollingSchedule.add(
-            cloud=self.cloud, run_immediately=True)
-        schedule.set_default_interval(60 * 60 * 24)
         schedule.save()
 
     def delete(self, expire=False):

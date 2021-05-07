@@ -1136,14 +1136,15 @@ def update_poller(org_id):
                                      ttl=120)
         ListImagesPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
                                       ttl=120)
-        ListBucketsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
-                                       ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
             ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        if hasattr(cloud.ctl, 'objectstorage'):
+            ListBucketsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                           ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
             for machine in cloud.ctl.compute.list_cached_machines():
                 if machine.machine_type != 'container':
