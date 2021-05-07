@@ -353,7 +353,7 @@ def create_machine(request):
         job = None
 
     auth_context = auth_context_from_request(request)
-
+    log.info(f'CREATE-MACHINE-REQUEST owner:{auth_context.owner.id}, owner_name: {auth_context.owner.name} org_members:{auth_context.owner.members} user:{auth_context.user.id} user_email:{auth_context.user.email}')
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner,
                                   id=cloud_id, deleted=None)

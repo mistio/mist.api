@@ -634,6 +634,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                     continue
 
     # Assign machine's owner/creator
+    log.info(f'CREATE-MACHINE-REQUEST owner:{auth_context.owner.id}, owner_name: {auth_context.owner.name} org_members:{auth_context.owner.members} user:{auth_context.user.id} user_email:{auth_context.user.email}')
     machine.assign_to(auth_context.user)
 
     # add schedule if expiration given
