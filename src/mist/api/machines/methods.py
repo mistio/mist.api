@@ -663,8 +663,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # Emit jsonpatch with new key association
     fresh_machines = cloud.ctl.compute.list_cached_machines()
     cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines,
-                                                first_run=True)
+                                                fresh_machines)
+
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if cloud.ctl.provider == Provider.AZURE.value:
