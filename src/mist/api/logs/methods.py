@@ -119,15 +119,18 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 continue
 
         elif _patch.get('op') == 'replace' and resource_type == 'machine':
-            if '/state' in _patch.get('path') and _patch.get('value') in \
-               ['running', 'stopped', 'terminated']:
+            if '/state' in _patch.get('path') and \
+               _patch.get('value') in ['running', 'stopped', 'terminated']:
                 if _patch.get('value') == 'stopped':
                     action = 'stop_machine'
                 elif _patch.get('value') == 'running':
                     action = 'start_machine'
                 elif _patch.get('value') == 'terminated':
                     action = 'destroy_machine'
-                key = _patch.get('path')[1:-6]  # strip '/' and '/state'
+                if _patch['path'].endswith('/extra/state'):
+                    key = _patch['path'][1:-len('/extra/state')]
+                else:
+                    key = _patch['path'][1:-len('/state')]
                 name = cached_resources.get(key).get('name')
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
