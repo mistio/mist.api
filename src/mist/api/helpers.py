@@ -70,6 +70,7 @@ from elasticsearch import Elasticsearch
 from elasticsearch_tornado import EsClient
 
 from libcloud.container.base import ContainerImage
+from libcloud.container.drivers.docker import DockerException
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 
@@ -1607,8 +1608,13 @@ def docker_run(name, image_id, env=None, command=None):
     image = ContainerImage(id=image_id, name=image_id,
                            extra={}, driver=conn, path=None,
                            version=None)
-    container = conn.deploy_container(name, image, environment=env,
-                                      command=command, tty=True)
+    try:
+        container = conn.deploy_container(name, image, environment=env,
+                                          command=command, tty=True)
+    except DockerException:
+        conn.install_image(image_id)
+        container = conn.deploy_container(name, image, environment=env,
+                                          command=command, tty=True)
     return container
 
 
