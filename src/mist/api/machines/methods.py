@@ -442,9 +442,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if port_forwards:
         validate_portforwards(port_forwards)
 
-    cached_machines = [m.as_dict()
-                       for m in cloud.ctl.compute.list_cached_machines()]
-
     if cloud.ctl.provider is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
@@ -633,6 +630,14 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 else:
                     continue
 
+    # since machine was found in mongo, a patch has already
+    # been published with the newly created machine,
+    # so the json patch that will be produced here
+    # should only contain machine expiration,
+    # key association, tags and owner/creator
+    cached_machines = [m.as_dict()
+                       for m in cloud.ctl.compute.list_cached_machines()]
+
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
 
@@ -664,7 +669,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     fresh_machines = cloud.ctl.compute.list_cached_machines()
     cloud.ctl.compute.produce_and_publish_patch(cached_machines,
                                                 fresh_machines)
-
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if cloud.ctl.provider == Provider.AZURE.value:
