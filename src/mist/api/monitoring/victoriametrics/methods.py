@@ -34,8 +34,12 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         else:
             query = metric_promql
         try:
+            # Need to trim org due to 32 bit limitation of
+            # the accountID on victoria metrics tenants
+            uri = config.VICTORIAMETRICS_URI.replace(
+                "<org_id>", str(int(machine.owner.id[:8], 16)))
             raw_machine_data = requests.get(
-                f"{config.VICTORIAMETRICS_URI}/api/v1/query_range"
+                f"{uri}/api/v1/query_range"
                 f"?query={query}{time_args}", timeout=20)
         except Exception as exc:
             log.error(
@@ -92,8 +96,10 @@ def find_metrics(machine):
     if not machine.monitoring.hasmonitoring:
         raise ForbiddenError("Machine doesn't have monitoring enabled.")
     try:
+        uri = config.VICTORIAMETRICS_URI.replace(
+            "<org_id>", str(int(machine.owner.id[:8], 16)))
         data = requests.get(
-            f"{config.VICTORIAMETRICS_URI}/api/v1/series",
+            f"{uri}/api/v1/series",
             params={"match[]": f"{{machine_id=\"{machine.id}\"}}"})
     except Exception as exc:
         log.error(
@@ -118,8 +124,10 @@ def get_load(org, machines, start, stop, step):
     data = {}
     time_args = calculate_time_args(start, stop, step)
     try:
+        uri = config.VICTORIAMETRICS_URI.replace(
+            "<org_id>", str(int(org.id[:8], 16)))
         raw_load_data = requests.get(
-            f"{config.VICTORIAMETRICS_URI}/api/v1/query_range?query="
+            f"{uri}/api/v1/query_range?query="
             f"{{__name__=\"system_load1\"}}{time_args}", timeout=20)
     except Exception as exc:
         log.error(
@@ -156,8 +164,10 @@ def get_cores(org, machines, start, stop, step):
         promql_machine_ids += machine + "|"
     promql_machine_ids = promql_machine_ids[:-1]
     try:
+        uri = config.VICTORIAMETRICS_URI.replace(
+            "<org_id>", str(int(org.id[:8], 16)))
         raw_machine_data = requests.get(
-            f"{config.VICTORIAMETRICS_URI}/api/v1/query_range?query="
+            f"{uri}/api/v1/query_range?query="
             f"count({{__name__=\"cpu_usage_idle\", cpu=~\"cpu[0-9]*\","
             f" machine_id=~\"{promql_machine_ids}\"}}) by (machine_id)"
             f"{time_args}", timeout=20)
