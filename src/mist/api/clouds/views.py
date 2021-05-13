@@ -127,6 +127,8 @@ def add_cloud(request):
     machine_user:
       type: string
       description: Required for KVM
+    object_storage_enabled:
+      type: boolean
     organization:
       type: string
       description: Required for Vcloud
@@ -399,11 +401,15 @@ def toggle_cloud(request):
     dns_enabled = params_from_request(request).get('dns_enabled', None)
     observation_logs_enabled = params_from_request(request).get(
         'observation_logs_enabled', None)
+    object_storage_enabled = params_from_request(request).get(
+        'object_storage_enabled', None)
 
-    if new_state is None and dns_enabled is None and \
-            observation_logs_enabled is None:
+    if new_state is None and \
+       dns_enabled is None and \
+       observation_logs_enabled is None and \
+       object_storage_enabled is None:
         raise RequiredParameterMissingError('new_state or dns_enabled or \
-          observation_logs_enabled')
+          observation_logs_enabled or object_storage_enabled')
 
     if new_state == '1':
         cloud.ctl.enable()
@@ -418,6 +424,13 @@ def toggle_cloud(request):
         cloud.ctl.dns_disable()
     elif dns_enabled:
         raise BadRequestError('Invalid DNS state')
+
+    if object_storage_enabled == 1:
+        cloud.ctl.object_storage_enable()
+    elif object_storage_enabled == 0:
+        cloud.ctl.object_storage_disable()
+    elif object_storage_enabled:
+        raise BadRequestError('Invalid Object Storage state')
 
     if observation_logs_enabled == 1:
         cloud.ctl.observation_logs_enable()

@@ -123,6 +123,7 @@ class Cloud(OwnershipMixin, me.Document):
     polling_interval = me.IntField(default=0)  # in seconds
 
     dns_enabled = me.BooleanField(default=False)
+    object_storage_enabled = me.BooleanField(default=False)
     observation_logs_enabled = me.BooleanField(default=False)
 
     default_monitoring_method = me.StringField(
@@ -229,6 +230,9 @@ class Cloud(OwnershipMixin, me.Document):
     def clean(self):
         if self.dns_enabled and not hasattr(self.ctl, 'dns'):
             self.dns_enabled = False
+        if self.object_storage_enabled and \
+                not hasattr(self.ctl, 'objectstorage'):
+            self.object_storage_enabled = False
 
     def as_dict(self):
         cdict = {
@@ -237,6 +241,7 @@ class Cloud(OwnershipMixin, me.Document):
             'provider': self.ctl.provider,
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
+            'object_storage_enabled': self.object_storage_enabled,
             'observation_logs_enabled': self.observation_logs_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
@@ -278,6 +283,7 @@ class Cloud(OwnershipMixin, me.Document):
             ret['features'] = {
                 'compute': self.enabled,
                 'dns': self.dns_enabled,
+                'object_storage_enabled': self.object_storage_enabled,
                 'observations': self.observation_logs_enabled,
                 'polling': self.polling_interval
             }
