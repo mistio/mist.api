@@ -365,8 +365,9 @@ class AmazonComputeController(BaseComputeController):
             else:
                 networks['security_group'] = {
                     'name': config.EC2_SECURITYGROUP.get('name', ''),
-                    'description': config.EC2_SECURITYGROUP.get('description',
-                                                                '')
+                    'description':
+                        config.EC2_SECURITYGROUP.get('description', '').format(
+                            portal_name=config.PORTAL_NAME)
                 }
 
         if subnet:
