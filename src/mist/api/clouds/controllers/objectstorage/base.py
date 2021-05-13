@@ -38,8 +38,7 @@ class BaseObjectStorageController(BaseController):
         with task.task_runner(persist=persist):
             cached_buckets = {'%s-%s' % (s.id, s.name): s.as_dict()
                               for s in self.list_cached_buckets()}
-
-        buckets = self._list_buckets()
+            buckets = self._list_buckets()
 
         buckets_dict = [b.as_dict() for b in buckets]
         if cached_buckets or buckets:
