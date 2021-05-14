@@ -27,6 +27,7 @@ from mist.api.dns.models import Zone
 from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine
 from mist.api.images.models import CloudImage
+from mist.api.objectstorage.models import Bucket
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import RECORDS
@@ -1142,7 +1143,8 @@ def update_poller(org_id):
             ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
-        if hasattr(cloud.ctl, 'objectstorage'):
+        if hasattr(cloud.ctl, 'objectstorage') and \
+                cloud.object_storage_enabled:
             ListBucketsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
                                            ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
@@ -1192,7 +1194,7 @@ def gc_schedulers():
 @app.task
 def set_missing_since(cloud_id):
     for Model in (Machine, CloudLocation, CloudSize, CloudImage,
-                  Network, Volume, Zone):
+                  Network, Volume, Bucket, Zone):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
@@ -1201,7 +1203,7 @@ def set_missing_since(cloud_id):
 @app.task
 def delete_periodic_tasks(cloud_id):
     from mist.api.concurrency.models import PeriodicTaskInfo
-    for section in ['machines', 'volumes', 'networks', 'zones']:
+    for section in ['machines', 'volumes', 'networks', 'zones', 'buckets']:
         try:
             key = 'cloud:list_%s:%s' % (section, cloud_id)
             PeriodicTaskInfo.objects.get(key=key).delete()

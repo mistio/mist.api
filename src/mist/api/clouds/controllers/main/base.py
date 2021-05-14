@@ -161,6 +161,8 @@ class BaseMainController(object):
 
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
+        self.cloud.object_storage_enabled = \
+            kwargs.pop('object_storage_enabled', False) is True
         self.cloud.observation_logs_enabled = True
         self.cloud.polling_interval = kwargs.pop('polling_interval', 30 * 60)
 
@@ -364,6 +366,14 @@ class BaseMainController(object):
         self.cloud.dns_enabled = False
         self.cloud.save()
 
+    def object_storage_enable(self):
+        self.cloud.object_storage_enabled = True
+        self.cloud.save()
+
+    def object_storage_disable(self):
+        self.cloud.object_storage_enabled = False
+        self.cloud.save()
+
     def observation_logs_enable(self):
         self.cloud.observation_logs_enabled = True
         self.cloud.save()
@@ -420,7 +430,8 @@ class BaseMainController(object):
             ListVolumesPollingSchedule.add(
                 cloud=self.cloud, run_immediately=True)
 
-        if hasattr(self.cloud.ctl, 'objectstorage'):
+        if hasattr(self.cloud.ctl, 'objectstorage') and \
+                self.cloud.object_storage_enabled:
             schedule = ListBucketsPollingSchedule.add(
                 cloud=self.cloud, run_immediately=True)
             schedule.set_default_interval(60 * 60 * 24)
