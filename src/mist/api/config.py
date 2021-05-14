@@ -1183,6 +1183,9 @@ CELERY_SETTINGS = {
         # List zones
         'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
 
+        # List buckets
+        'mist.api.poller.tasks.list_buckets': {'queue': 'buckets'},
+
     },
 }
 
