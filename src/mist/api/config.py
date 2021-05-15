@@ -34,11 +34,11 @@ log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 ###############################################################################
 ###############################################################################
 
-PORTAL_NAME = "Mist"
+PORTAL_NAME = "Mist CE"
 DESCRIPTION = "A secure cloud management platform for automation,\
  orchestration, cost and usage monitoring of public and private clouds,\
  hypervisors and container hosts. Provides multi-cloud RBAC. Enables\
- self service provisioning. Cost analysis and cloud spending optimization"
+ self service provisioning. Cost analytics and cloud spending optimization"
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
