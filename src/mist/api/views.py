@@ -13,10 +13,6 @@ import os
 import hashlib
 import html
 
-# Python 2 and 3 support
-from future.utils import string_types
-from future.standard_library import install_aliases
-install_aliases()
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -610,7 +606,8 @@ def register(request):
             body = config.CONFIRMATION_EMAIL_BODY.format(
                 fname=user.first_name, ip_addr=ip_from_request(request),
                 portal_uri=config.CORE_URI, follow_us=config.FOLLOW_US,
-                portal_name=config.PORTAL_NAME)
+                portal_name=config.PORTAL_NAME,
+                activation_key=user.activation_key)
 
             if not send_email(subject, body, user.email):
                 raise ServiceUnavailableError("Could not send "
@@ -748,12 +745,11 @@ def forgot_password(request):
         subject = config.CONFIRMATION_EMAIL_SUBJECT.format(
             portal_name=config.PORTAL_NAME
         )
-        full_name = "%s %s" % (user.first_name or '', user.last_name or '')
-        body = config.CONFIRMATION_EMAIL_BODY % (full_name,
-                                                 config.CORE_URI,
-                                                 user.activation_key,
-                                                 ip_from_request(request),
-                                                 config.CORE_URI)
+        body = config.CONFIRMATION_EMAIL_BODY.format(
+            fname=user.first_name, ip_addr=ip_from_request(request),
+            portal_uri=config.CORE_URI, follow_us=config.FOLLOW_US,
+            portal_name=config.PORTAL_NAME,
+            activation_key=user.activation_key)
 
         if not send_email(subject, body, user.email):
             raise ServiceUnavailableError("Could not send confirmation email.")
@@ -1935,7 +1931,7 @@ def delete_teams(request):
             auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
-    if not isinstance(team_ids, (list, string_types)) or len(team_ids) == 0:
+    if not isinstance(team_ids, (list, (str,)) or len(team_ids) == 0:
         raise RequiredParameterMissingError('No team ids provided')
     # remove duplicate ids if there are any
     teams_ids = sorted(team_ids)
