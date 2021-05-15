@@ -763,13 +763,15 @@ def forgot_password(request):
     log.debug("will now save (forgot)")
     user.save()
 
-    subject = config.RESET_PASSWORD_EMAIL_SUBJECT
-    body = config.RESET_PASSWORD_EMAIL_BODY
-    body = body % ((user.first_name or "") + " " + (user.last_name or ""),
-                   config.CORE_URI,
-                   encrypt("%s:%s" % (token, email), config.SECRET),
-                   user.password_reset_token_ip_addr,
-                   config.CORE_URI)
+    subject = config.RESET_PASSWORD_EMAIL_SUBJECT.format(
+        portal_name=config.PORTAL_NAME
+    )
+    body = config.RESET_PASSWORD_EMAIL_BODY.format(
+        fname=user.first_name, portal_name=config.PORTAL_NAME,
+        portal_uri=config.CORE_URI,
+        ip_addr=user.password_reset_token_ip_addr,
+        activation_key=encrypt("%s:%s" % (token, email), config.SECRET)
+    )
     if not send_email(subject, body, email):
         log.info("Failed to send email to user %s for forgot password link" %
                  user.email)
