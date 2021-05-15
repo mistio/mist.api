@@ -1130,7 +1130,7 @@ CELERY_SETTINGS = {
     # metadata.
     # 'worker_log_format': PY_LOG_FORMAT,
     # 'worker_task_log_format': PY_LOG_FORMAT,
-    'worker_concurrency': 32,
+    'worker_concurrency': 16,
     'worker_max_tasks_per_child': 32,
     'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
     'worker_send_task_events': True,
@@ -2817,8 +2817,8 @@ for plugin in PLUGINS:
                 locals()[key] = plugin_env[key]
         log.warn("Imported config of `%s` plugin" % plugin)
     except Exception as exc:
-        log.error("Failed to import config of `%s` plugin" %
-                  plugin)
+        log.error("Failed to import config of `%s` plugin: %r" % (
+            plugin, exc))
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
@@ -3016,5 +3016,5 @@ VERSION = {}
 try:
     with open('/mist-version.json', 'r') as fobj:
         VERSION = json.load(fobj)
-except Exception as exc:
+except Exception:
     log.error("Couldn't load version info.")
