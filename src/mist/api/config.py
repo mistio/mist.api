@@ -1130,7 +1130,7 @@ CELERY_SETTINGS = {
     # metadata.
     # 'worker_log_format': PY_LOG_FORMAT,
     # 'worker_task_log_format': PY_LOG_FORMAT,
-    'worker_concurrency': 8,
+    'worker_concurrency': 32,
     'worker_max_tasks_per_child': 32,
     'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
     'worker_send_task_events': True,
