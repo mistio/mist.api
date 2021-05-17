@@ -8,6 +8,15 @@ log = logging.getLogger(__name__)
 
 
 def list_buckets(owner, cloud_id, cached=True):
+    try:
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    if cloud.object_storage_enabled is False or \
+            not hasattr(cloud.ctl, 'objectstorage'):
+        return []
+
     if cached:
         buckets = Bucket.objects(
             owner=owner,
@@ -17,14 +26,6 @@ def list_buckets(owner, cloud_id, cached=True):
 
     else:
         log.error('Not cached request')
-        try:
-            cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-        except Cloud.DoesNotExist:
-            raise CloudNotFoundError()
-
-        if not hasattr(cloud.ctl, 'objectstorage'):
-            return []
-
         buckets = cloud.ctl.objectstorage.list_buckets()
 
         # Update RBAC Mappings given the list of new buckets.
