@@ -177,12 +177,12 @@ def create_token(request):
         raise BadRequestError("MAX number of %s active tokens reached"
                               % config.ACTIVE_APITOKEN_NUM)
     subject = config.CREATE_APITOKEN_SUBJECT.format(
-        PORTAL_NAME=config.PORTAL_NAME)
+        portal_name=config.PORTAL_NAME)
 
     body = config.CREATE_APITOKEN_BODY.format(
-        fname=user.first_name, IPaddr=ip_from_request(request),
-        CORE_URI=config.CORE_URI, EMAIL_SUPPORT=config.EMAIL_SUPPORT,
-        PORTAL_NAME=config.PORTAL_NAME)
+        fname=user.first_name, ip_addr=ip_from_request(request),
+        portal_uri=config.CORE_URI, support_email=config.EMAIL_SUPPORT,
+        portal_name=config.PORTAL_NAME)
     notification = EmailNotification(subject=subject, text_body=body,
                                      owner=org)
     notification_channel = EmailNotificationChannel(notification=notification)

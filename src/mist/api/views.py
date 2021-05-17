@@ -13,10 +13,6 @@ import os
 import hashlib
 import html
 
-# Python 2 and 3 support
-from future.utils import string_types
-from future.standard_library import install_aliases
-install_aliases()
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -403,13 +399,16 @@ def login(request):
                               action='login_rate_limiting',
                               ip=ip_from_request(request))
                     # alert admins something nasty is going on
-                    subject = config.FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT
-                    body = config.FAILED_LOGIN_ATTEMPTS_EMAIL_BODY % (
-                        user.email,
-                        ip_from_request(request),
-                        max_logins,
-                        max_logins_period,
-                        block_period
+                    subject = \
+                        config.FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT.format(
+                            portal_name=config.PORTAL_NAME
+                        )
+                    body = config.FAILED_LOGIN_ATTEMPTS_EMAIL_BODY.format(
+                        email=user.email,
+                        ip_addr=ip_from_request(request),
+                        failed_attempts=max_logins,
+                        time_period=max_logins_period,
+                        block_period=block_period
                     )
                     send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
                 raise UserUnauthorizedError()
@@ -602,18 +601,19 @@ def register(request):
 
         if user.status == 'pending':
             # if user is not confirmed yet resend the email
-            subject = config.CONFIRMATION_EMAIL_SUBJECT
-            body = config.CONFIRMATION_EMAIL_BODY % ((user.first_name + " " +
-                                                      user.last_name),
-                                                     config.CORE_URI,
-                                                     user.activation_key,
-                                                     ip_from_request(request),
-                                                     config.CORE_URI)
+            subject = config.CONFIRMATION_EMAIL_SUBJECT.format(
+                portal_name=config.PORTAL_NAME)
+            body = config.CONFIRMATION_EMAIL_BODY.format(
+                fname=user.first_name, ip_addr=ip_from_request(request),
+                portal_uri=config.CORE_URI, follow_us=config.FOLLOW_US,
+                portal_name=config.PORTAL_NAME,
+                activation_key=user.activation_key)
 
             if not send_email(subject, body, user.email):
                 raise ServiceUnavailableError("Could not send "
                                               "confirmation email.")
 
+    # TODO: Move to mist.billing or remove altogether
     if request_demo:
         # if user requested a demo then notify the mist.api team
         subject = "Demo request"
@@ -742,13 +742,14 @@ def forgot_password(request):
         # resend confirmation email
         user.activation_key = get_secure_rand_token()
         user.save()
-        subject = config.CONFIRMATION_EMAIL_SUBJECT
-        full_name = "%s %s" % (user.first_name or '', user.last_name or '')
-        body = config.CONFIRMATION_EMAIL_BODY % (full_name,
-                                                 config.CORE_URI,
-                                                 user.activation_key,
-                                                 ip_from_request(request),
-                                                 config.CORE_URI)
+        subject = config.CONFIRMATION_EMAIL_SUBJECT.format(
+            portal_name=config.PORTAL_NAME
+        )
+        body = config.CONFIRMATION_EMAIL_BODY.format(
+            fname=user.first_name, ip_addr=ip_from_request(request),
+            portal_uri=config.CORE_URI, follow_us=config.FOLLOW_US,
+            portal_name=config.PORTAL_NAME,
+            activation_key=user.activation_key)
 
         if not send_email(subject, body, user.email):
             raise ServiceUnavailableError("Could not send confirmation email.")
@@ -762,13 +763,15 @@ def forgot_password(request):
     log.debug("will now save (forgot)")
     user.save()
 
-    subject = config.RESET_PASSWORD_EMAIL_SUBJECT
-    body = config.RESET_PASSWORD_EMAIL_BODY
-    body = body % ((user.first_name or "") + " " + (user.last_name or ""),
-                   config.CORE_URI,
-                   encrypt("%s:%s" % (token, email), config.SECRET),
-                   user.password_reset_token_ip_addr,
-                   config.CORE_URI)
+    subject = config.RESET_PASSWORD_EMAIL_SUBJECT.format(
+        portal_name=config.PORTAL_NAME
+    )
+    body = config.RESET_PASSWORD_EMAIL_BODY.format(
+        fname=user.first_name, portal_name=config.PORTAL_NAME,
+        portal_uri=config.CORE_URI,
+        ip_addr=user.password_reset_token_ip_addr,
+        activation_key=encrypt("%s:%s" % (token, email), config.SECRET)
+    )
     if not send_email(subject, body, email):
         log.info("Failed to send email to user %s for forgot password link" %
                  user.email)
@@ -865,14 +868,15 @@ def request_whitelist_ip(request):
     user.whitelist_ip_token_ip_addr = ip_from_request(request)
     log.debug("will now save (whitelist_ip)")
     user.save()
+    confirmation_key = encrypt("%s:%s" % (token, email), config.SECRET)
 
-    subject = config.WHITELIST_IP_EMAIL_SUBJECT
-    body = config.WHITELIST_IP_EMAIL_BODY
-    body = body % ((user.first_name or "") + " " + (user.last_name or ""),
-                   config.CORE_URI,
-                   encrypt("%s:%s" % (token, email), config.SECRET),
-                   user.whitelist_ip_token_ip_addr,
-                   config.CORE_URI)
+    subject = config.WHITELIST_IP_EMAIL_SUBJECT.format(
+        portal_name=config.PORTAL_NAME)
+    body = config.WHITELIST_IP_EMAIL_BODY.format(
+        fname=user.first_name, portal_name=config.PORTAL_NAME,
+        portal_uri=config.CORE_URI, confirmation_key=confirmation_key,
+        ip_addr=user.whitelist_ip_token_ip_addr
+    )
     if not send_email(subject, body, email):
         log.info("Failed to send email to user %s for whitelist IP link" %
                  user.email)
@@ -1929,7 +1933,7 @@ def delete_teams(request):
             auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
-    if not isinstance(team_ids, (list, string_types)) or len(team_ids) == 0:
+    if not isinstance(team_ids, (list, (str,))) or len(team_ids) == 0:
         raise RequiredParameterMissingError('No team ids provided')
     # remove duplicate ids if there are any
     teams_ids = sorted(team_ids)
@@ -2029,7 +2033,8 @@ def invite_member_to_team(request):
         raise RequiredParameterMissingError('emails')
 
     org = auth_context.org
-    subject = config.ORG_INVITATION_EMAIL_SUBJECT
+    subject = config.ORG_INVITATION_EMAIL_SUBJECT.format(
+        portal_name=config.PORTAL_NAME)
 
     for email in emails:
         if not email or '@' not in email:
@@ -2105,24 +2110,22 @@ def invite_member_to_team(request):
             else:
                 team_name = '"' + team.name + '" team'
             if user.status == 'pending':
-                body = config.REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY % (
-                    auth_context.user.get_nice_name(),
-                    org.name,
-                    team_name,
-                    config.CORE_URI,
-                    user.activation_key,
-                    invitoken,
-                    's' if len(pending_teams) > 1 else '',
-                    config.CORE_URI)
+                body = \
+                    config.REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY.format(
+                        fname=user.first_name, team=team_name, org=org.name,
+                        invited_by=auth_context.user.get_nice_name(),
+                        portal_uri=config.CORE_URI,
+                        portal_name=config.PORTAL_NAME,
+                        activation_key=user.activation_key,
+                        invitoken=invitoken
+                    )
             else:
-                body = config.USER_CONFIRM_ORG_INVITATION_EMAIL_BODY % (
-                    auth_context.user.get_nice_name(),
-                    org.name,
-                    team_name,
-                    config.CORE_URI,
-                    invitoken,
-                    's' if len(pending_teams) > 1 else '',
-                    config.CORE_URI)
+                body = config.USER_CONFIRM_ORG_INVITATION_EMAIL_BODY.format(
+                    fname=user.first_name,
+                    invited_by=auth_context.user.get_nice_name(),
+                    org=org.name, team=team.name, portal_uri=config.CORE_URI,
+                    portal_name=config.PORTAL_NAME, invitoken=invitoken
+                )
             return_val['pending'] = True
             log.info("Sending invitation to user with email '%s' for team %s "
                      "of org %s with token %s", user.email, team.name,
@@ -2134,10 +2137,13 @@ def invite_member_to_team(request):
                 raise MemberConflictError('Member already in team')
             org.add_member_to_team_by_id(team_id, user)
             org.save()
-            subject = config.ORG_NOTIFICATION_EMAIL_SUBJECT
-            body = config.USER_NOTIFY_ORG_TEAM_ADDITION % (team.name,
-                                                           org.name,
-                                                           config.CORE_URI)
+            subject = config.ORG_NOTIFICATION_EMAIL_SUBJECT.format(
+                portal_name=config.PORTAL_NAME
+            )
+            body = config.USER_NOTIFY_ORG_TEAM_ADDITION.format(
+                fname=user.first_name, team=team.name, org=org.name,
+                portal_name=config.PORTAL_NAME
+            )
             return_val['pending'] = False
 
             # if one of the org owners adds himself to team don't send email
@@ -2206,9 +2212,12 @@ def delete_member_from_team(request):
                 raise NotFoundError()
             invitation.teams.remove(team_id)
             if len(invitation.teams) == 0:
-                subject = config.NOTIFY_INVITATION_REVOKED_SUBJECT
-                body = config.NOTIFY_INVITATION_REVOKED % (
-                    auth_context.org.name, config.CORE_URI)
+                subject = config.NOTIFY_INVITATION_REVOKED_SUBJECT.format(
+                    portal_name=config.PORTAL_NAME
+                )
+                body = config.NOTIFY_INVITATION_REVOKED.format(
+                    portal_name=config.PORTAL_NAME, org=auth_context.org.name,
+                    fname=user.first_name)
                 try:
                     invitation.delete()
                 except me.ValidationError as e:
@@ -2243,17 +2252,21 @@ def delete_member_from_team(request):
             remove_from_org = False
             break
 
-    subject = config.ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT
+    subject = config.ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT.format(
+        portal_name=config.PORTAL_NAME
+    )
     if remove_from_org:
-        body = config.NOTIFY_REMOVED_FROM_ORG % (
-            auth_context.org.name, config.CORE_URI)
+        body = config.NOTIFY_REMOVED_FROM_ORG.format(
+            fname=user.first_name, org=auth_context.org.name,
+            portal_name=config.PORTAL_NAME
+        )
         auth_context.org.remove_member_from_members(user)
     else:
-        body = config.NOTIFY_REMOVED_FROM_TEAM % (
-            team.name,
-            auth_context.org.name,
-            auth_context.user.get_nice_name(),
-            config.CORE_URI)
+        body = config.NOTIFY_REMOVED_FROM_TEAM.format(
+            fname=user.first_name, team=team.name,
+            org=auth_context.org.name,
+            admin=auth_context.user.get_nice_name(),
+            portal_uri=config.CORE_URI)
 
     try:
         auth_context.org.save()

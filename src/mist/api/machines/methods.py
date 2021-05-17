@@ -927,9 +927,13 @@ def _create_machine_aliyun(conn, key_name, public_key,
     """Create a machine in Alibaba Aliyun ECS.
     """
     sec_gr_name = config.EC2_SECURITYGROUP.get('name', '')
-    sec_gr_description = config.EC2_SECURITYGROUP.get('description', '')
+    sec_gr_description = \
+        config.EC2_SECURITYGROUP.get('description', '').format(
+            portal_name=config.PORTAL_NAME)
     vpc_name = config.ECS_VPC.get('name', '')
-    vpc_description = config.ECS_VPC.get('description', '')
+    vpc_description = config.ECS_VPC.get('description', '').format(
+        portal_name=config.PORTAL_NAME
+    )
     security_groups = conn.ex_list_security_groups()
     mist_sg = [sg for sg in security_groups if sg.name == sec_gr_name]
 
