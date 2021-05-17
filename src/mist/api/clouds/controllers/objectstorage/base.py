@@ -160,7 +160,7 @@ class BaseObjectStorageController(BaseController):
             missing_since=None
         ).update(missing_since=datetime.datetime.utcnow())
         Bucket.objects(
-            cloud=self.cloud, id__in=[b.name for b in buckets]
+            cloud=self.cloud, name__in=[b.name for b in buckets]
         ).update(missing_since=None)
 
         # Update RBAC Mappings given the list of new storage.
