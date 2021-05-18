@@ -101,7 +101,14 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 if cached_resources.get(key) and \
                     cached_resources.get(key).get('state') == 'terminated' \
                         and action == 'destroy_machine':
-                    continue
+                    from mist.api.clouds.models import Cloud
+                    try:
+                        cloud = Cloud.objects.get(id=cloud_id)
+                    except Cloud.DoesNotExist:
+                        log.error(f"Could not find cloud with id:{cloud_id}")
+                        continue
+                    if cloud.provider in config.PROVIDERS_WITH_TERMINATED_MACHINES_VISIBLE:  # noqa
+                        continue
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
                 external_id = '-'.join(ids)

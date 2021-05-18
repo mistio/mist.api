@@ -1251,6 +1251,8 @@ LINODE_DATACENTERS = {
 PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
                                'kubevirt', 'cloudsigma']
 
+PROVIDERS_WITH_TERMINATED_MACHINES_VISIBLE = ['ec2', 'libvirt', 'azure_arm']
+
 PROVIDERS = {
     'amazon': {
         'name': 'Amazon Web Services',
