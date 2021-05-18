@@ -2287,7 +2287,8 @@ class VSphereComputeController(BaseComputeController):
         """Perform the actual libcloud call to get list of nodes"""
         machine_list = []
         for node in self.connection.list_nodes(
-                max_properties=self.cloud.max_properties_per_request):
+                max_properties=self.cloud.max_properties_per_request,
+                extra=config.VSPHERE_FETCH_ALL_EXTRA):
             # Check for VMs without uuid
             if node.id is None:
                 log.error("Skipping machine {} on cloud {} - {}): uuid is "
@@ -2346,7 +2347,7 @@ class VSphereComputeController(BaseComputeController):
         machine.actions.clone = True
         machine.actions.rename = True
         machine.actions.create_snapshot = True
-        if len(machine.extra.get('snapshots')):
+        if len(machine.extra.get('snapshots', [])):
             machine.actions.remove_snapshot = True
             machine.actions.revert_to_snapshot = True
         else:
