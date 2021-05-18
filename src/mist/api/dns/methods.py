@@ -44,7 +44,7 @@ def filter_list_zones(auth_context, cloud_id, zones=None, perm='read',
         filtered = []
         for zone in zones:
             if zone['id'] in allowed_resources['zones']:
-                for rec in zone['records']:
+                for rec in list(zone['records']):
                     if rec not in allowed_resources['records']:
                         zone['records'].pop(rec)
                 filtered.append(zone)
