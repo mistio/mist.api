@@ -5,7 +5,7 @@ import logging
 import datetime
 import mongoengine as me
 
-from time import time
+from time import time, sleep
 
 import paramiko
 
@@ -31,6 +31,7 @@ from mist.api.objectstorage.models import Bucket
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import RECORDS
+from mist.api.keys.models import SSHKey
 
 from mist.api.rules.models import NoDataRule
 
@@ -47,6 +48,7 @@ from mist.api.poller.models import ListSizesPollingSchedule
 from mist.api.poller.models import ListImagesPollingSchedule
 from mist.api.poller.models import ListBucketsPollingSchedule
 
+from mist.api.helpers import docker_connect, docker_run
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import trigger_session_update
 
@@ -1033,42 +1035,84 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
                     break
         if not host:
             raise MistError("No host provided and none could be discovered.")
-        shell = mist.api.shell.Shell(host)
-        ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
-            owner, cloud_id, machine['id'], key_id, username, password, port
-        )
-        # FIXME wrap here script.run_script
-        path, params, wparams = script.ctl.run_script(shell,
-                                                      params=params,
-                                                      job_id=ret.get('job_id'))
 
-        with open(os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-                os.path.abspath(__file__)
-            )))),
-            'run_script', 'run.py'
-        )) as fobj:
-            wscript = fobj.read()
+        if script.exec_type == 'ansible':
+            playbook = script.script
+            # common playbook backward compatibility fixes
+            playbook = re.sub(r'sudo:\strue', 'become: true', playbook)
+            playbook = re.sub(r'hosts:\s.+', 'hosts: all', playbook)
 
-        # check whether python exists
+            # playbooks contain ' or " which look like multiple arguments.
+            playbook = playbook.replace('\'', '"')
+            playbook = f'\'{playbook}\''
+            ret['command'] = playbook
 
-        exit_code, wstdout = shell.command("command -v python")
+            private_key = SSHKey.objects(id=key_id)[0].private
+            private_key = f'\'{private_key}\''
 
-        if exit_code > 0:
-            command = "chmod +x %s && %s %s" % (path, path, params)
+            params = ['-s', playbook]
+            params += ['-i', host]
+            params += ['-p', str(port)]
+            params += ['-u', username]
+            params += ['-k', private_key]
+
+            container = docker_run(name=f'ansible_runner-{ret["job_id"]}',
+                                   image_id='mist/ansible-runner:latest',
+                                   command=' '.join(params))
         else:
-            command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
-        if su:
-            command = "sudo sh -c '%s'" % command
-        ret['command'] = command
+            shell = mist.api.shell.Shell(host)
+            ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
+                owner, cloud_id, machine['id'],
+                key_id, username, password, port
+            )
+            # FIXME wrap here script.run_script
+            path, params, wparams = script.ctl.run_script(
+                shell, params=params, job_id=ret.get('job_id')
+            )
+
+            with open(os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(
+                    os.path.dirname(os.path.abspath(__file__))))),
+                'run_script', 'run.py'
+            )) as fobj:
+                wscript = fobj.read()
+
+            # check whether python exists
+
+            exit_code, wstdout = shell.command("command -v python")
+
+            if exit_code > 0:
+                command = "chmod +x %s && %s %s" % (path, path, params)
+            else:
+                command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
+            if su:
+                command = "sudo sh -c '%s'" % command
+            ret['command'] = command
     except Exception as exc:
         ret['error'] = str(exc)
     log_event(event_type='job', action=action_prefix + 'script_started', **ret)
     log.info('Script started: %s', ret)
     if not ret['error']:
         try:
-            exit_code, wstdout = shell.command(command)
-            shell.disconnect()
+            if script.exec_type == 'ansible':
+                conn = docker_connect()
+                while conn.get_container(container.id).state != 'stopped':
+                    sleep(3)
+
+                wstdout = conn.ex_get_logs(container)
+                exit_code = 0
+
+                # parse stdout for errors
+                if re.search('ERROR!', wstdout) or re.search(
+                    'failed=[1-9]+[0-9]{0,}', wstdout
+                ):
+                    exit_code = 1
+
+                conn.destroy_container(container)
+
+            else:
+                exit_code, wstdout = shell.command(command)
+                shell.disconnect()
             wstdout = wstdout.replace('\r\n', '\n').replace('\r', '\n')
             ret['wrapper_stdout'] = wstdout
             ret['exit_code'] = exit_code

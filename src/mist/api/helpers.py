@@ -70,6 +70,7 @@ from elasticsearch import Elasticsearch
 from elasticsearch_tornado import EsClient
 
 from libcloud.container.base import ContainerImage
+from libcloud.container.drivers.docker import DockerException
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 
@@ -1572,7 +1573,7 @@ def bucket_to_dict(node):
     return ret
 
 
-def docker_run(name, image_id, env=None, command=None):
+def docker_connect():
     try:
         if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
             # tls auth, needs to pass the key and cert as files
@@ -1596,15 +1597,25 @@ def docker_run(name, image_id, env=None, command=None):
         else:
             driver = get_container_driver(Container_Provider.DOCKER)
             conn = driver(host=config.DOCKER_IP, port=config.DOCKER_PORT)
-        image = ContainerImage(id=image_id, name=image_id,
-                               extra={}, driver=conn, path=None,
-                               version=None)
-        node = conn.deploy_container(name, image, environment=env,
-                                     command=command, tty=True)
     except Exception as err:
         raise WorkflowExecutionError(str(err))
 
-    return node
+    return conn
+
+
+def docker_run(name, image_id, env=None, command=None):
+    conn = docker_connect()
+    image = ContainerImage(id=image_id, name=image_id,
+                           extra={}, driver=conn, path=None,
+                           version=None)
+    try:
+        container = conn.deploy_container(name, image, environment=env,
+                                          command=command, tty=True)
+    except DockerException:
+        conn.install_image(image_id)
+        container = conn.deploy_container(name, image, environment=env,
+                                          command=command, tty=True)
+    return container
 
 
 def search_parser(search):
