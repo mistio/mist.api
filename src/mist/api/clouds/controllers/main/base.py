@@ -367,8 +367,14 @@ class BaseMainController(object):
         self.cloud.save()
 
     def object_storage_enable(self):
+        from mist.api.poller.models import ListBucketsPollingSchedule
         self.cloud.object_storage_enabled = True
         self.cloud.save()
+        if hasattr(self.cloud.ctl, 'objectstorage'):
+            schedule = ListBucketsPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
+            schedule.set_default_interval(60 * 60 * 24)
+            schedule.save()
 
     def object_storage_disable(self):
         self.cloud.object_storage_enabled = False
