@@ -2265,7 +2265,8 @@ def delete_member_from_team(request):
         body = config.NOTIFY_REMOVED_FROM_TEAM.format(
             fname=user.first_name, team=team.name,
             org=auth_context.org.name,
-            admin=auth_context.user.get_nice_name())
+            admin=auth_context.user.get_nice_name(),
+            portal_name=config.PORTAL_NAME)
 
     try:
         auth_context.org.save()
