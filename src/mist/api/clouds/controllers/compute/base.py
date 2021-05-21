@@ -2322,7 +2322,9 @@ class BaseComputeController(BaseController):
 
         check_cost_constraint(auth_context, constraints=constraints)
 
-        images = self._generate_plan__parse_image(auth_context, image)
+        images, image_extra_attrs = self._generate_plan__parse_image(
+            auth_context, image)
+        image_extra_attrs = image_extra_attrs or {}
 
         if self.cloud.ctl.has_feature('location'):
             locations = self._generate_plan__parse_location(auth_context,
@@ -2331,12 +2333,16 @@ class BaseComputeController(BaseController):
             # TODO this will not work in combinations
             locations = None
 
-        sizes = self._generate_plan__parse_size(auth_context, size)
+        sizes, size_extra_attrs = self._generate_plan__parse_size(
+            auth_context, size)
+        size_extra_attrs = size_extra_attrs or {}
 
         sizes = check_size_constraint(auth_context, sizes,
                                       constraints=constraints)
+
         comb_list = self._get_allowed_image_size_location_combinations(
-            images, locations, sizes)
+            images, locations, sizes, image_extra_attrs, size_extra_attrs)
+
         image, size, location = self._compute_best_combination(comb_list)
 
         if location:
@@ -2347,12 +2353,17 @@ class BaseComputeController(BaseController):
                 plan['size'] = size
             else:
                 plan['size'] = {'id': size.id, 'name': size.name}
+            plan['size'].update(size_extra_attrs)
         if image:
             plan['image'] = {'id': image.id, 'name': image.name}
+            plan['image'].update(image_extra_attrs)
 
-        key = self._generate_plan__parse_key(auth_context, key)
+        key, key_extra_attrs = self._generate_plan__parse_key(auth_context,
+                                                              key)
+        key_extra_attrs = key_extra_attrs or {}
         if key:
             plan['key'] = {'id': key.id, 'name': key.name}
+            plan['key'].update(key_extra_attrs)
 
         networks = self._generate_plan__parse_networks(auth_context,
                                                        networks)
@@ -2396,17 +2407,26 @@ class BaseComputeController(BaseController):
         return plan
 
     def _generate_plan__parse_image(self, auth_context, image_obj):
-        """Subclasses MAY override this method.
+        """Parse the image parameter from request.
+
+        Returns a tuple of the following items:
+        - A list of CloudImage objects
+        - A dictionary of items to be added as is to plan's image dictionary
+          or by default None
+
+        Subclasses MAY override or extend this method.
         """
         if self.cloud.ctl.has_feature('custom_image'):
             image = self._generate_plan__parse_custom_image(image_obj)
-            return [image]
+            return [image], None
 
         from mist.api.methods import list_resources
         if isinstance(image_obj, str):
             image_search = image_obj
-        else:
+        elif isinstance(image_obj, dict):
             image_search = image_obj.get('image')
+        else:
+            raise BadRequestError('Invalid image type')
         if not image_search:
             raise BadRequestError('Image is required')
         images, count = list_resources(
@@ -2415,7 +2435,7 @@ class BaseComputeController(BaseController):
         )
         if not count:
             raise NotFoundError('Image not found')
-        return images
+        return images, None
 
     def _generate_plan__parse_custom_image(self, image_dict):
         """Get an image that is not saved in mongo.
@@ -2424,6 +2444,12 @@ class BaseComputeController(BaseController):
         pass
 
     def _generate_plan__parse_location(self, auth_context, location_search):
+        """Parse the location string parameter from request
+
+        Returns a list of CloudLocation objects
+
+        Subclasses MAY override or extend this method.
+        """
         from mist.api.methods import list_resources
         locations, count = list_resources(
             auth_context, 'location',
@@ -2446,11 +2472,23 @@ class BaseComputeController(BaseController):
         return locations
 
     def _generate_plan__parse_size(self, auth_context, size_obj):
+        """Parse the size parameter from request.
+
+        Returns a tuple of the following items:
+        - A list of CloudSize or dictionary objects in case of custom size
+        - A dictionary of items to be added as is to plan's size dictionary
+          or None
+
+        Subclasses MAY override or extend this method.
+        """
         from mist.api.methods import list_resources
         if isinstance(size_obj, str):
             size_search = size_obj
-        else:
+        elif isinstance(size_obj, dict):
             size_search = size_obj.get('size')
+        else:
+            raise BadRequestError('Invalid size type')
+
         if size_search:
             sizes, count = list_resources(
                 auth_context, 'size', search=size_search,
@@ -2459,12 +2497,22 @@ class BaseComputeController(BaseController):
             if not count:
                 raise NotFoundError('Size not found')
 
-            return sizes
+            return sizes, None
         else:
-            return self._generate_plan__parse_custom_size(auth_context, size_obj)  # noqa
+            sizes = self._generate_plan__parse_custom_size(
+                auth_context, size_obj)
+            return sizes, None
 
     def _generate_plan__parse_custom_size(self, auth_context, size_dict):
-        """Providers with custom sizes SHOULD override/extend this method
+        """Parse custom size from request.
+
+        In case of providers with custom sizes a list of dictionaries
+        will be returned.
+        For providers with standard sizes a list of CloudSize objects
+        within the range: [(`cpus`, `ram`), [(2*`cpus`, 2*`ram`)]
+        will be returned.
+
+        Subclasses MAY override or extend this method.
         """
         try:
             cpus = size_dict['cpus']
@@ -2489,7 +2537,9 @@ class BaseComputeController(BaseController):
 
     def _get_allowed_image_size_location_combinations(self, images,
                                                       locations,
-                                                      sizes):
+                                                      sizes,
+                                                      image_extra_attrs,
+                                                      size_extra_attrs):
         """ Find all possible combinations of images, locations and sizes
         based on provider restrictions.
         """
@@ -2585,20 +2635,32 @@ class BaseComputeController(BaseController):
         return sorted(combination_list, key=sort_by_size)[0]
 
     def _generate_plan__parse_key(self, auth_context, key_obj):
+        """Parse the key parameter from request.
+
+        Returns a tuple of the following items:
+        - A Key object or None
+        - A dictionary of items to be added as is to plan's key dictionary
+          or None
+
+        Subclasses MAY override this method.
+        """
         feature = self.cloud.ctl.has_feature('key')
         if feature is False:
-            return None
+            return None, None
         if isinstance(key_obj, str):
             key_search = key_obj
-        else:
+        elif isinstance(key_obj, dict):
             key_search = key_obj.get('key', '')
+        else:
+            raise BadRequestError('Invalid key type')
+
         #  key is not required and a key was not given
         if isinstance(feature, dict) \
            and feature.get('required') is False \
            and key_search == '':
-            return None
-        from mist.api.methods import list_resources
+            return None, None
 
+        from mist.api.methods import list_resources
         keys, count = list_resources(
             auth_context, 'key', search=key_search, limit=1
         )
@@ -2607,8 +2669,8 @@ class BaseComputeController(BaseController):
         # try to use the default key
         for key in keys:
             if key.default is True:
-                return key
-        return keys[0]
+                return key, None
+        return keys[0], None
 
     def _generate_plan__parse_expiration(self, auth_context,
                                          expiration):
@@ -2679,7 +2741,7 @@ class BaseComputeController(BaseController):
         Subclasses that require special handling SHOULD override this
         by default, dummy method
         """
-        return {'id': vol_obj.id}
+        return {'id': vol_obj.id, 'name': vol_obj.name}
 
     def _generate_plan__parse_custom_volume(self, volume_dict):
         """
@@ -2917,7 +2979,7 @@ class BaseComputeController(BaseController):
 
         if key:
             kwargs['auth'] = key
-        # TODO post parse
+
         return kwargs
 
     def _create_machine__create_node(self, kwargs):
