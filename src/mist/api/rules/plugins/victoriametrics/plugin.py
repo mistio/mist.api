@@ -19,15 +19,12 @@ class VictoriaMetricsBackendPlugin(base.BaseBackendPlugin):
                                           stop=self.stop,
                                           metrics=[query.target])
 
-        # No data ever reached Graphite? Is the whisper file missing?
+        # If response is empty, then data is absent for the given interval.
         if not len(data):
-            log.warning('Empty response for %s.%s', rid, query.target)
-            raise methods.EmptyResponseReturnedError()
+            log.warning('No datapoints for %s.%s', rid, query.target)
+            return None, None
 
-        # Check whether the query to Graphite returned multiple series. This
-        # should never occur actually, since the query's target belongs to a
-        # pre-defined list of allowed targets which are quaranteed to return
-        # a single series.
+        # Check whether the query to Victoria Metrics returned multiple series.
         if len(data) > 1:
             log.warning('Got multiple series for %s.%s', rid, query.target)
             raise methods.MultipleSeriesReturnedError()
