@@ -1174,7 +1174,8 @@ MONITORING_METHODS = (
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
-VICTORIAMETRICS_URI = "http://victoria-metrics:8428"
+
+VICTORIAMETRICS_URI = "http://vmselect:8481/select/<org_id>/prometheus"
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
