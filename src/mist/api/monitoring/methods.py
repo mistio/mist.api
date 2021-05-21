@@ -90,7 +90,6 @@ def get_stats(
         - step: the step at which to return stats
         - metrics: the metrics to query for, if explicitly specified
         - monitoring_method: override default monitoring method
-        - round_timestamps: round timestamps to the closest base 5 timestamp
 
     """
     if not monitoring_method:
