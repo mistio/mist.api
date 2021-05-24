@@ -2384,10 +2384,9 @@ class VSphereComputeController(BaseComputeController):
         return self.connection.ex_list_snapshots(node)
 
     def _list_images__fetch_images(self, search=None):
-        image_folders = []
         if config.VSPHERE_IMAGE_FOLDERS:
             image_folders = config.VSPHERE_IMAGE_FOLDERS
-        image_list = self.connection.list_images(folder_ids=image_folders)
+        image_list = self.connection.list_images()
         # Check for templates without uuid
         for image in image_list[:]:
             if image.id is None:
