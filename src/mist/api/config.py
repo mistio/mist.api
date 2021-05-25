@@ -1171,7 +1171,7 @@ CELERY_SETTINGS = {
             'queue': 'deployments'},
         'mist.api.tasks.rackspace_first_gen_post_create_steps': {
             'queue': 'deployments'},
-        'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        # 'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
 
         # List networks
