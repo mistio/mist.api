@@ -76,7 +76,7 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-DATABASE_VERSION = 11
+DATABASE_VERSION = 12
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -1171,7 +1171,7 @@ CELERY_SETTINGS = {
             'queue': 'deployments'},
         'mist.api.tasks.rackspace_first_gen_post_create_steps': {
             'queue': 'deployments'},
-        'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        # 'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
 
         # List networks
