@@ -3,6 +3,7 @@ import traceback
 
 from mist.api.users.models import Organization
 
+
 def run_update_mappings():
 
     failed = updated = 0
@@ -24,6 +25,7 @@ def run_update_mappings():
 
     print(f'{updated} orgs updated succesfully')
     print(f'{failed} orgs failed')
+
 
 if __name__ == '__main__':
     run_update_mappings()
