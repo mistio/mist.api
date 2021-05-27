@@ -1204,7 +1204,19 @@ class SoftLayerComputeController(BaseComputeController):
                                               self.cloud.apikey)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
-        return node_dict['extra'].get('created')  # iso8601 string
+        try:
+            created_at = node_dict['extra']['created']
+        except KeyError:
+            return None
+
+        try:
+            created_at = iso8601.parse_date(created_at)
+        except iso8601.ParseError as exc:
+            log.error(str(exc))
+            return created_at
+
+        created_at = pytz.UTC.normalize(created_at)
+        return created_at
 
     def _list_machines__postparse_machine(self, machine, node_dict):
         updated = False
@@ -1485,8 +1497,19 @@ class GoogleComputeController(BaseComputeController):
         return extra
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
-        # iso8601 string
-        return node_dict['extra'].get('creationTimestamp')
+        try:
+            created_at = node_dict['extra']['creationTimestamp']
+        except KeyError:
+            return None
+
+        try:
+            created_at = iso8601.parse_date(created_at)
+        except iso8601.ParseError as exc:
+            log.error(str(exc))
+            return created_at
+
+        created_at = pytz.UTC.normalize(created_at)
+        return created_at
 
     def _list_machines__get_custom_size(self, node):
         machine_type = node['extra'].get('machineType', "").split("/")[-1]
