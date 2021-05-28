@@ -109,6 +109,8 @@ def machine_dashboard(request):
             ret = copy.deepcopy(config.GRAPHITE_MACHINE_DASHBOARD_DEFAULT)
     elif machine.monitoring.method in ('telegraf-tsfdb'):
         ret = copy.deepcopy(config.FDB_MACHINE_DASHBOARD_DEFAULT)
+    elif machine.monitoring.method in ('telegraf-victoriametrics'):
+        ret = copy.deepcopy(config.VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT)
     else:
         ret = copy.deepcopy(config.INFLUXDB_MACHINE_DASHBOARD_DEFAULT)
     dashboard = ret['dashboard']
@@ -630,6 +632,10 @@ def get_stats(request):
       in: query
       type: string
       required: false
+    monitoring_method:
+      in: query
+      type: string
+      required: false
 
     """
     machine = _machine_from_matchdict(request)
@@ -644,14 +650,18 @@ def get_stats(request):
     start = params.get('start', '')
     stop = params.get('stop', '')
     step = params.get('step', '')
+    monitoring_method = params.get('monitoring_method', '')
     try:
         metrics = params.getall('metrics')
     except:
         metrics = params.get('metrics')
 
-    data = mist.api.monitoring.methods.get_stats(machine,
-                                                 start=start, stop=stop,
-                                                 step=step, metrics=metrics)
+    data = mist.api.monitoring.methods.get_stats(
+        machine,
+        start=start, stop=stop,
+        step=step, metrics=metrics,
+        monitoring_method=monitoring_method
+    )
     data['request_id'] = params.get('request_id')
     return data
 
