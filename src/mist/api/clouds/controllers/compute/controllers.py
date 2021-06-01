@@ -1473,6 +1473,15 @@ class AzureArmComputeController(BaseComputeController):
         return CloudSize.objects(cloud=self.cloud,
                                  external_id__in=libcloud_size_ids)
 
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        # workaround to avoid overwriting creation time
+        # as Azure updates it when a machine stops, reboots etc.
+
+        if machine.created is not None:
+            return machine.created
+
+        return super()._list_machines__machine_creation_date(machine,
+                                                             node_dict)
 
 class GoogleComputeController(BaseComputeController):
 
