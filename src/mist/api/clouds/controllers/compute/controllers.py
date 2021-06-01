@@ -1483,6 +1483,7 @@ class AzureArmComputeController(BaseComputeController):
         return super()._list_machines__machine_creation_date(machine,
                                                              node_dict)
 
+
 class GoogleComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
