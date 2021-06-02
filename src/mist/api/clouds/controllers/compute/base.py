@@ -2711,7 +2711,8 @@ class BaseComputeController(BaseController):
         something provider specific.
 
         Subclasses MAY override this method, even though overriding
-        `self._generate_plan__parse_custom_volume` should be enough for
+        `self._generate_plan__parse_custom_volume` or
+        `self._generate_plan__parse_volume_attrs` should be enough for
         most cases
         """
         ret_volumes = []
