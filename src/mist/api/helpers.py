@@ -22,6 +22,7 @@ import socket
 import smtplib
 import logging
 import codecs
+import secrets
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -1648,3 +1649,32 @@ def search_parser(search):
 
 def startsandendswith(main_str, char):
     return main_str.startswith(char) and main_str.endswith(char)
+
+
+def generate_secure_password(min_chars=12, max_chars=21):
+    """Generate a twelve to twenty characters password with at least
+    one lowercase character, at least one uppercase character
+    and at least three digits.
+
+    """
+    alphabet = string.ascii_letters + string.digits
+    length = secrets.choice(range(min_chars, max_chars))
+    while True:
+        password = ''.join(secrets.choice(alphabet) for i in range(length))
+        if (any(c.islower() for c in password) and
+            any(c.isupper() for c in password) and
+                sum(c.isdigit() for c in password) >= 3):
+            break
+
+    return password
+
+
+def validate_password(password):
+    """A simple password validator
+    """
+    length = len(password) > 7
+    lower_case = any(c.islower() for c in password)
+    upper_case = any(c.isupper() for c in password)
+    digit = any(c.isdigit() for c in password)
+
+    return length and lower_case and upper_case and digit
