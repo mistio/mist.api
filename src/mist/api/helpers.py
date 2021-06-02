@@ -753,7 +753,11 @@ rtype_to_classpath = {
     'image': 'mist.api.images.models.CloudImage',
     'rule': 'mist.api.rules.models.Rule',
     'size': 'mist.api.clouds.models.CloudSize',
-    'team': 'mist.api.users.models.Team'
+    'team': 'mist.api.users.models.Team',
+    'users': 'mist.api.users.models.User',
+    'user': 'mist.api.users.models.User',
+    'orgs': 'mist.api.users.models.Organization',
+    'org': 'mist.api.users.models.Organization'
 }
 
 if config.HAS_VPN:

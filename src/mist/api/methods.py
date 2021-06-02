@@ -661,7 +661,9 @@ def list_resources(auth_context, resource_type, search='', cloud='',
             result = resource_model.objects(query)
 
     if result.count():
-        if not auth_context.is_owner():
+        if resource_type in {'user', 'users'} and not auth_context.is_owner():
+            result = result.filter(id__in=[auth_context.user.id])
+        elif not auth_context.is_owner():
             allowed_resources = auth_context.get_allowed_resources(
                 rtype=resource_type)
             result = result.filter(id__in=allowed_resources)

@@ -347,6 +347,22 @@ class User(Owner):
             from mist.api.dummy.mappings import OwnershipMapper
         return OwnershipMapper(self, org)
 
+    def as_dict_v2(self, deref='none', only=''):
+        """Returns the API representation of the `User` object."""
+        # User has no reference to other fields nor tags
+        # deref param is kept for compatibility
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['email', 'id', 'first_name', 'last_name',
+                           'last_login', 'username', 'registration_date']
+        ret =  prepare_dereferenced_dict(standard_fields, {}, self,
+                                         deref, only)
+        if ret.get('last_login'):
+            ret['last_login'] = datetime.datetime.fromtimestamp(
+                ret['last_login']).strftime("%A, %B %d, %Y %I:%M:%S")
+        if ret.get('registration_date'):
+            ret['registration_date'] = datetime.datetime.fromtimestamp(
+                ret['registration_date']).strftime("%A, %B %d, %Y %I:%M:%S")
+        return ret
 
 class Avatar(me.Document):
     id = me.StringField(primary_key=True,
