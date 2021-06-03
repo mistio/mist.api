@@ -1109,6 +1109,11 @@ class LinodeComputeController(BaseComputeController):
             return 'system'
         return 'custom'
 
+    def _list_sizes__get_cpu(self, size):
+        if self.cloud.apiversion is not None:
+            return super()._list_sizes__get_cpu(size)
+        return int(size.extra.get('vcpus') or 1)
+
     def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
         persist_across_boots = True if volume_dict.get(
             'persist_across_boots', True) is True else False
