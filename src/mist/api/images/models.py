@@ -32,6 +32,10 @@ class CloudImage(OwnershipMixin, me.Document):
     meta = {
         'collection': 'images',
         'indexes': [
+            'cloud',
+            'external_id',
+            'missing_since',
+            'stored_after_search',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -49,13 +53,17 @@ class CloudImage(OwnershipMixin, me.Document):
                                        resource_type='image')}
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        # this is for mongo medthod objects.only('id') to work..
+        if self.cloud:
+            name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        else:
+            name = f"{self.name}, None, {self.external_id}"
         return name
 
     def as_dict(self):
         return {
             'id': self.id,
-            'cloud': self.cloud.id,
+            'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
             'starred': self.starred,
@@ -63,6 +71,8 @@ class CloudImage(OwnershipMixin, me.Document):
             'os_type': self.os_type,
             'os_distro': self.os_distro,
             'architecture': self.architecture,
+            'min_disk_size': self.min_disk_size,
+            'min_memory_size': self.min_memory_size,
             'tags': self.tags,
             'origin': self.origin,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
@@ -72,7 +82,8 @@ class CloudImage(OwnershipMixin, me.Document):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
-            'id', 'name', 'external_id', 'starred', 'os_type', 'extra']
+            'id', 'name', 'external_id', 'starred', 'os_type', 'os_distro',
+            'architecture', 'min_disk_size', 'min_memory_size', 'extra']
         deref_map = {
             'cloud': 'title',
             'owned_by': 'email',

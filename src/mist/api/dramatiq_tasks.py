@@ -1,9 +1,11 @@
 import time
+import datetime
 import uuid
 import logging
 from random import randrange
 import mongoengine as me
-import dramatiq
+
+from dramatiq import actor
 from dramatiq.errors import Retry
 
 from libcloud.compute.types import NodeState
@@ -19,17 +21,17 @@ from mist.api.dns.models import RECORDS
 
 from mist.api.exceptions import ServiceUnavailableError
 
+from mist.api import config
+from mist.api.dramatiq_app import broker
 from mist.api.methods import connect_provider, probe_ssh_only
 from mist.api.methods import notify_user, notify_admin
 from mist.api.auth.methods import AuthContext
 from mist.api.logs.methods import log_event
 from mist.api.tag.methods import resolve_id_and_set_tags
 from mist.api.monitoring.methods import enable_monitoring
-
-from mist.api import config
 from mist.api.shell import Shell
-from mist.api.dramatiq_app import broker
 from mist.api.tasks import run_script
+from mist.api.helpers import trigger_session_update
 
 
 logging.basicConfig(
@@ -48,14 +50,24 @@ def tmp_log(msg, *args):
     log.info("Post deploy: %s" % msg, *args)
 
 
-@dramatiq.actor(queue_name="dramatiq_create_machine", broker=broker)
+@actor(queue_name="dramatiq_mappings", broker=broker)
+def dramatiq_async_session_update(owner, sections=None):
+    if sections is None:
+        sections = [
+            'org', 'user', 'keys', 'clouds', 'stacks',
+            'scripts', 'schedules', 'templates', 'monitoring'
+        ]
+    trigger_session_update(owner, sections)
+
+
+@actor(queue_name="dramatiq_create_machine", broker=broker)
 def dramatiq_create_machine_async(
     auth_context_serialized, plan, job_id=None, job=None
 ):
 
     job_id = job_id or uuid.uuid4().hex
     auth_context = AuthContext.deserialize(auth_context_serialized)
-    cloud = Cloud.objects.get(id=plan["cloud"])
+    cloud = Cloud.objects.get(id=plan["cloud"]["id"])
     # scripts=script, script_id=script_id, script_params=script_params
     # persist=persist
 
@@ -105,8 +117,9 @@ def dramatiq_create_machine_async(
     # Associate key.
     if plan.get('key'):
         try:
-            key = Key.objects.get(id=plan["key"])
-            username = node.extra.get("username", "")
+            key = Key.objects.get(id=plan["key"]["id"])
+            username = plan['key'].get('user') or \
+                node.extra.get("username", "")
             # TODO port could be something else
             machine.ctl.associate_key(
                 key, username=username, port=22, no_connect=True
@@ -127,7 +140,7 @@ def dramatiq_create_machine_async(
                               node.id, plan, job_id=job_id, job=job)
 
 
-@dramatiq.actor(queue_name="dramatiq_post_deploy_steps")
+@actor(queue_name="dramatiq_post_deploy_steps", broker=broker)
 def dramatiq_post_deploy(auth_context_serialized, cloud_id,
                          machine_id, external_id, plan,
                          job_id=None, job=None):
@@ -148,7 +161,8 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                                   deleted=None)
-        conn = connect_provider(cloud)
+        conn = connect_provider(cloud,
+                                location_id=plan.get('location', {}).get('id'))
 
         if isinstance(cloud, DockerCloud):
             nodes = conn.list_containers()
@@ -196,7 +210,7 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
         "job_id": job_id,
         "job": job,
         "host": host,
-        "key_id": plan.get("key", ""),
+        "key_id": plan.get("key", {}).get("id"),
     }
 
     add_schedules(auth_context, external_id, machine_id,
@@ -204,14 +218,14 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
     add_dns_record(auth_context, host, log_dict, plan.get("fqdn"))
 
     dramatiq_ssh_tasks.send(auth_context_serialized, cloud_id,
-                            plan.get('key', ''), host, external_id,
+                            plan.get("key", {}).get("id"), host, external_id,
                             node.name, machine_id, plan.get('scripts'),
                             log_dict, monitoring=plan.get('monitoring', False),
                             plugins=None, job_id=job_id,
                             username=None, password=None, port=22)
 
 
-@dramatiq.actor(queue_name="dramatiq_ssh_tasks")
+@actor(queue_name="dramatiq_ssh_tasks", broker=broker)
 def dramatiq_ssh_tasks(auth_context_serialized, cloud_id, key_id, host,
                        external_id, machine_name, machine_id, scripts,
                        log_dict, monitoring=False, plugins=None,
@@ -256,6 +270,13 @@ def dramatiq_ssh_tasks(auth_context_serialized, cloud_id, key_id, host,
 
 
 def add_expiration_for_machine(auth_context, expiration, machine):
+    if expiration.get('notify'):
+        # convert notify value from datetime str to seconds
+        notify = datetime.datetime.strptime(expiration['date'],
+                                            '%Y-%m-%d %H:%M:%S') \
+            - datetime.datetime.strptime(expiration['notify'],
+                                         '%Y-%m-%d %H:%M:%S')
+        expiration['notify'] = int(notify.total_seconds())
     params = {
         "schedule_type": "one_off",
         "description": "Scheduled to run when machine expires",
@@ -272,36 +293,40 @@ def add_expiration_for_machine(auth_context, expiration, machine):
 
 
 def add_schedules(auth_context, external_id, machine_id,
-                  log_dict, schedule):
-
-    # TODO Handle multiple schedules
-    if schedule and schedule.get('name'):  # ugly hack to prevent dupes
-        action = schedule.get('action', '')
-        try:
-            name = (action + '-' + schedule.pop('name') +
-                    '-' + external_id[:4])
-
-            tmp_log("Add scheduler entry %s", name)
-            schedule["selectors"] = [{"type": "machines", "ids": [machine_id]}]
-            schedule_info = Schedule.add(auth_context, name, **schedule)
-            tmp_log("A new scheduler was added")
-            log_event(
-                action="Add scheduler entry",
-                scheduler=schedule_info.as_dict(),
-                **log_dict
-            )
-        except Exception as e:
-            tmp_log_error("Exception occured %s", repr(e))
-            error = repr(e)
-            notify_user(
-                auth_context.owner,
-                "add scheduler entry failed for machine %s" % external_id,
-                repr(e),
-                error=error,
-            )
-            log_event(
-                action="Add scheduler entry failed", error=error, **log_dict
-            )
+                  log_dict, schedules):
+    schedules = schedules or []
+    for schedule in schedules:
+        if schedule and schedule.get('name'):  # ugly hack to prevent dupes
+            # FIXME this causes errors if multiple schedules are
+            # added with the same action
+            action = schedule.get('action', '')
+            try:
+                name = (
+                    action + "-" + schedule.pop("name") + "-" + external_id[:4]
+                )
+                tmp_log("Add scheduler entry %s", name)
+                schedule["selectors"] = [{"type": "machines",
+                                          "ids": [machine_id]}]
+                schedule_info = Schedule.add(auth_context, name, **schedule)
+                tmp_log("A new scheduler was added")
+                log_event(
+                    action="Add scheduler entry",
+                    scheduler=schedule_info.as_dict(),
+                    **log_dict
+                )
+            except Exception as e:
+                tmp_log_error("Exception occured %s", repr(e))
+                error = repr(e)
+                notify_user(
+                    auth_context.owner,
+                    "add scheduler entry failed for machine %s" % external_id,
+                    repr(e),
+                    error=error,
+                )
+                log_event(
+                    action="Add scheduler entry failed", error=error,
+                    **log_dict
+                )
 
 
 def add_dns_record(auth_context, host, log_dict, fqdn):
@@ -380,6 +405,7 @@ def create_key_association(auth_context, shell, cloud_id, key_id, machine_id,
 
 def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
                 machine_name, log_dict, job_id):
+    scripts = scripts or []
     for script in scripts:
         if script.get('id'):
             tmp_log('will run script_id %s', script['id'])

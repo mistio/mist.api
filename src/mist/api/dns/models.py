@@ -111,6 +111,38 @@ class Zone(OwnershipMixin, me.Document):
                 for tag in Tag.objects(
                     resource_id=self.id, resource_type='zone')}
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'domain', 'type', 'ttl', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'name' in only or not only:
+            ret['name'] = self.domain
+
+        if 'external_id' in only or not only:
+            ret['external_id'] = None
+            if self.zone_id:
+                ret['external_id'] = self.zone_id
+
+        if 'records' in only or not only:
+            ret['records'] = {r.id: r.as_dict() for r
+                              in Record.objects(zone=self, deleted=None)}
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value for tag in Tag.objects(
+                    resource_id=self.id, resource_type='zone').only(
+                        'key', 'value')}
+
+        return ret
+
     def as_dict(self):
         """Return a dict with the model values."""
         return {

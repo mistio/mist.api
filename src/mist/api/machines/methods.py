@@ -33,7 +33,7 @@ import mist.api.tasks
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine, KeyMachineAssociation
-from mist.api.keys.models import Key
+from mist.api.keys.models import Key, SignedSSHKey
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
 from mist.api.users.models import Owner, Organization
@@ -49,8 +49,10 @@ from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import MistNotImplementedError
+from mist.api.exceptions import MachineUnauthorizedError
 
 from mist.api.helpers import check_host
+from mist.api.helpers import trigger_session_update
 
 from mist.api.methods import connect_provider
 from mist.api.methods import notify_admin
@@ -64,6 +66,13 @@ from mist.api.tag.methods import get_tags_for_resource
 from mist.api.tag.methods import remove_tags_from_resource
 
 from mist.api import config
+
+from mist.api.shell import ParamikoShell
+
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
+else:
+    from mist.api.dummy.methods import dnat
 
 import logging
 
@@ -433,9 +442,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if port_forwards:
         validate_portforwards(port_forwards)
 
-    cached_machines = [m.as_dict()
-                       for m in cloud.ctl.compute.list_cached_machines()]
-
     if cloud.ctl.provider is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
@@ -599,6 +605,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                         memory=size_ram, cpu=size_cpu,
                                         network=network,
                                         port_forwards=port_forwards)
+    elif cloud.ctl.provider == Provider.CLOUDSIGMA.value:
+        node = _create_machine_cloudsigma(conn, machine_name, image=image,
+                                          cpu=size_cpu, ram=size_ram,
+                                          disk=size_disk_primary,
+                                          public_key=public_key,
+                                          cloud_init=cloud_init)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -611,12 +623,20 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 time.sleep(i * 10)
                 continue
             try:
-                cloud.ctl.compute._list_machines()
+                cloud.ctl.compute.list_machines()
             except Exception as e:
                 if i > 8:
                     raise(e)
                 else:
                     continue
+
+    # since machine was found in mongo, a patch has already
+    # been published with the newly created machine,
+    # so the json patch that will be produced here
+    # should only contain machine expiration,
+    # key association, tags and owner/creator
+    cached_machines = [m.as_dict()
+                       for m in cloud.ctl.compute.list_cached_machines()]
 
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
@@ -645,10 +665,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
-    fresh_machines = cloud.ctl.compute._list_machines()
+    # Emit jsonpatch with new key association
+    fresh_machines = cloud.ctl.compute.list_cached_machines()
     cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines,
-                                                first_run=True)
+                                                fresh_machines)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if cloud.ctl.provider == Provider.AZURE.value:
@@ -694,6 +714,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             script_params=script_params, job_id=job_id, job=job, port=ssh_port,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
+            location_id=location_id,
         )
 
     ret = {'id': node.id,
@@ -906,9 +927,13 @@ def _create_machine_aliyun(conn, key_name, public_key,
     """Create a machine in Alibaba Aliyun ECS.
     """
     sec_gr_name = config.EC2_SECURITYGROUP.get('name', '')
-    sec_gr_description = config.EC2_SECURITYGROUP.get('description', '')
+    sec_gr_description = \
+        config.EC2_SECURITYGROUP.get('description', '').format(
+            portal_name=config.PORTAL_NAME)
     vpc_name = config.ECS_VPC.get('name', '')
-    vpc_description = config.ECS_VPC.get('description', '')
+    vpc_description = config.ECS_VPC.get('description', '').format(
+        portal_name=config.PORTAL_NAME
+    )
     security_groups = conn.ex_list_security_groups()
     mist_sg = [sg for sg in security_groups if sg.name == sec_gr_name]
 
@@ -2158,6 +2183,8 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
     if cloud_init:
         metadata['startup-script'] = cloud_init
 
+    if isinstance(network, list) and network:
+        network = network[0]
     try:
         network = Network.objects.get(id=network).name
     except me.DoesNotExist:
@@ -2304,6 +2331,41 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
                                service_type=data['service_type'],
                                cluster_ip=data['cluster_ip'],
                                load_balancer_ip=data['load_balancer_ip'])
+    return node
+
+
+def _create_machine_cloudsigma(conn, machine_name, image,
+                               cpu, ram, disk, public_key=None,
+                               cloud_init=None):
+
+    # check if key already exists in cloudsigma
+    key_uuid = None
+    if public_key:
+        keys = conn.list_key_pairs()
+        for key in keys:
+            if key.public_key == public_key:
+                key_uuid = [key.extra['uuid']]
+                break
+        else:
+            key = conn.import_key_pair_from_string('mistio', public_key)
+            key_uuid = [key.extra['uuid']]
+    from libcloud.compute.drivers.cloudsigma import CloudSigmaNodeSize
+    size = CloudSigmaNodeSize(id='', name='', cpu=cpu,
+                              ram=ram, disk=disk, bandwidth=None,
+                              price=None, driver=conn)
+    ex_metadata = None
+    if cloud_init:
+        ex_metadata = {
+            'base64_fields': 'cloudinit-user-data',
+            'cloudinit-user-data': base64.b64encode(cloud_init.encode('utf-8')).decode('utf-8')  # noqa
+        }
+    try:
+        node = conn.create_node(machine_name, size, image,
+                                public_keys=key_uuid, ex_metadata=ex_metadata)
+    except Exception as exc:
+        raise MachineCreationError("CloudSigma, got exception %s" % exc, exc)
+
+    node.extra['username'] = 'cloudsigma'
     return node
 
 
@@ -2485,27 +2547,174 @@ def machine_safe_expire(owner_id, machine):
     machine.save()
 
 
-def prepare_ssh_uri(machine):
+def find_best_ssh_params(auth_context, machine):
     # Get key associations, prefer root or sudoer ones
     key_associations = KeyMachineAssociation.objects(
         Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
         or KeyMachineAssociation.objects(machine=machine)
     if not key_associations:
         raise ForbiddenError()
-    key_id = key_associations[0].key.id
-    host = '%s@%s:%d' % (key_associations[0].ssh_user,
-                         machine.hostname,
-                         key_associations[0].port)
+    permitted_key_associations = []
+    for key_association in key_associations:
+        try:
+            auth_context.check_perm("key", "read", key_association.key.id)
+        except PolicyUnauthorizedError:
+            continue
+        permitted_key_associations.append(key_association)
+    if not permitted_key_associations:
+        raise ForbiddenError()
+    key_associations = permitted_key_associations
+    key_associations = [key_association
+                        for key_association in key_associations
+                        if isinstance(key_association.key, Key)]
+    if not key_associations:
+        raise ForbiddenError()
+
+    key_associations = sorted(
+        key_associations, key=lambda k: k.last_used, reverse=True)
+
+    for key_association in key_associations:
+        if (key_association.ssh_user == 'root' or key_association.sudo) and \
+            int(datetime.now().timestamp()) - key_association.last_used \
+                <= 30 * 24 * 60 * 60:
+            hostname, port = dnat(
+                machine.owner, machine.hostname, key_association.port)
+            key_association.last_used = int(
+                datetime.now().timestamp())
+            key_association.save()
+            return key_association.id, \
+                hostname, \
+                key_association.ssh_user, \
+                port
+
+    key_associations_sudo_old = [
+        key_association for key_association
+        in key_associations if (
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used >= 0]
+
+    key_associations_non_sudo_old = [
+        key_association for key_association in key_associations if not (
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used >= 0]
+
+    key_associations_sudo_failed = [
+        key_association for key_association in key_associations if (
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used < 0]
+
+    key_associations_non_sudo_failed = [
+        key_association for key_association in key_associations if not (
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used < 0]
+
+    # Use the default org keys as a last measure
+    default_keys = Key.objects(
+        owner=auth_context.org, default=True, deleted=None)
+    key_associations_default = []
+    for key in default_keys:
+        try:
+            auth_context.check_perm("key", "read", key.id)
+        except PolicyUnauthorizedError:
+            continue
+        key_associations_default.append(KeyMachineAssociation(
+            key=key, machine=machine))
+
+    key_associations = key_associations_sudo_old + \
+        key_associations_non_sudo_old + \
+        key_associations_sudo_failed + \
+        key_associations_non_sudo_failed + key_associations_default
+
+    users = list({key_association.ssh_user
+                  for key_association in key_associations
+                  if key_association.ssh_user})
+    if not users:
+        users = ['root', 'ubuntu', 'ec2-user', 'user', 'azureuser',
+                 'core', 'centos', 'cloud-user', 'fedora']
+
+    ports = list({key_association.port
+                  for key_association in key_associations})
+
+    if 22 not in ports:
+        ports.append(22)
+
+    for key_association in key_associations:
+        for ssh_user in users:
+            for port in ports:
+                shell = ParamikoShell(machine.hostname)
+                key = key_association.key
+                try:
+                    # store the original ssh port in case of NAT
+                    # by the OpenVPN server
+                    ssh_port = port
+                    host, port = dnat(machine.owner, machine.hostname, port)
+                    log.info("ssh -i %s %s@%s:%s",
+                             key.name, ssh_user, host, port)
+                    cert_file = ''
+                    if isinstance(key, SignedSSHKey):
+                        cert_file = key.certificate
+
+                    shell.connect(ssh_user, key=key, port=port)
+                except MachineUnauthorizedError:
+                    continue
+                retval, resp = shell.command('uptime')
+                new_ssh_user = None
+                if 'Please login as the user ' in resp:
+                    new_ssh_user = resp.split()[5].strip('"')
+                elif 'Please login as the' in resp:
+                    # for EC2 Amazon Linux machines, usually with ec2-user
+                    new_ssh_user = resp.split()[4].strip('"')
+                if new_ssh_user:
+                    log.info("retrying as %s", new_ssh_user)
+                    try:
+                        shell.disconnect()
+                        cert_file = ''
+                        if isinstance(key, SignedSSHKey):
+                            cert_file = key.certificate
+                        shell.connect(ssh_user, key=key,
+                                      port=port, cert_file=cert_file)
+                        ssh_user = new_ssh_user
+                    except MachineUnauthorizedError:
+                        continue
+                # we managed to connect successfully, return
+                # but first update key
+                trigger_session_update_flag = False
+                if key_association.ssh_user != ssh_user:
+                    key_association.ssh_user = ssh_user
+                    trigger_session_update_flag = True
+                if key_association.port != ssh_port:
+                    key_association.port = ssh_port
+                    trigger_session_update_flag = True
+                if not key_association.sudo:
+                    # Check if user has access to passwordless sudo
+                    retval, resp = shell.command(
+                        'sudo -n true &>/dev/null ; echo $?')
+                    if '0' in resp:
+                        key_association.sudo = True
+                        trigger_session_update_flag = True
+                key_association.last_used = int(
+                    datetime.now().timestamp())
+                key_association.save()
+                machine.save()
+                if trigger_session_update_flag:
+                    trigger_session_update(machine.owner.id, ['keys'])
+                return key_association.id, host, ssh_user, port
+
+
+# SEC
+def prepare_ssh_uri(auth_context, machine):
+    key_association_id, hostname, user, port = find_best_ssh_params(
+        auth_context, machine)
     expiry = int(datetime.now().timestamp()) + 100
-    msg = '%s,%s,%s,%s,%s' % (key_associations[0].ssh_user,
-                              machine.hostname,
-                              key_associations[0].port, key_id, expiry)
+    msg = '%s,%s,%s,%s,%s' % (user,
+                              hostname,
+                              port, key_association_id, expiry)
     mac = hmac.new(
         config.SECRET.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
     ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
-        base_ws_uri, key_associations[0].ssh_user,
-        machine.hostname, key_associations[0].port, key_id, expiry, mac)
+        base_ws_uri, user,
+        hostname, port, key_association_id, expiry, mac)
     return ssh_uri

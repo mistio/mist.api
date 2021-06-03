@@ -1,10 +1,10 @@
+import os
 import uuid
 import logging
 import urllib
 
-from pyramid.response import Response
+from pyramid.response import Response, FileResponse
 from pyramid.renderers import render_to_response
-from pyramid.httpexceptions import HTTPFound
 
 import mist.api.machines.methods as methods
 
@@ -27,6 +27,8 @@ from mist.api.exceptions import MistNotImplementedError, MethodNotAllowedError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
+
+from mist.api.clouds.models import CloudSize
 
 from mist.api import config
 
@@ -443,16 +445,24 @@ def create_machine(request):
         except ImportError:
             pass
 
-    # constraints do not apply on custom sizes
-    if not isinstance(size, dict):
-        # check size constraint
-        size_constraint = constraints.get('size', {})
-        if size_constraint:
-            try:
-                from mist.rbac.methods import check_size
-                check_size(auth_context.org, size_constraint, size)
-            except ImportError:
-                pass
+    # check for size constraints
+    size_constraint = constraints.get('size', {})
+    all_constraints = size_constraint.get(
+        'allowed', []) or size_constraint.get('not_allowed', [])
+    if(all_constraints):
+        # filter size constraints relevant to current cloud
+        size_constraints = []
+        for size_constr in all_constraints:
+            if(size_constr['cloud'] == cloud.id):
+                size_constraints.append(size_constr['size'])
+        try:
+            db_size = size
+            if(not isinstance(size, dict)):
+                db_size = CloudSize.objects.get(id=size)
+            from mist.rbac.methods import check_size
+            check_size(auth_context.org, size_constraints, db_size)
+        except ImportError:
+            pass
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
@@ -1103,7 +1113,7 @@ def machine_console(request):
 
 
 @view_config(route_name='api_v1_machine_ssh',
-             request_method='GET', renderer='json')
+             request_method='POST', renderer='json')
 def machine_ssh(request):
     """
     Tags: machines
@@ -1123,9 +1133,7 @@ def machine_ssh(request):
       type: string
     """
     cloud_id = request.matchdict.get('cloud')
-
     auth_context = auth_context_from_request(request)
-
     if cloud_id:
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
@@ -1153,5 +1161,14 @@ def machine_ssh(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    ssh_uri = methods.prepare_ssh_uri(machine)
-    return HTTPFound(location=ssh_uri)
+    ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
+    return {"location": ssh_uri}
+
+
+@view_config(route_name='api_v1_machine_ssh',
+             request_method='GET', renderer='json')
+def render_machine_terminal(request):
+    here = os.path.dirname(__file__)
+    parent = os.path.abspath(os.path.join(here, os.pardir))
+    ssh = os.path.join(parent, "templates", "xterm.html")
+    return FileResponse(ssh, request=request)

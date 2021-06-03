@@ -95,21 +95,20 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
             elif len(_patch.get('path').split('/')) < 3:  # '/id-external_id'
                 if resource_type == 'machine':
                     action = 'destroy_machine'
-                    from mist.api.clouds.models import Cloud
-                    # log resources in case of maxihost for debugging purpose
-                    if Cloud.objects.get(id=cloud_id).ctl.compute.provider \
-                       in ['maxihost']:
-                        log_dict.update({
-                            'cached_resources': cached_resources,
-                            'new_resources': new_resources
-                        })
                 else:
                     action = 'delete_' + resource_type
                 key = _patch.get('path')[1:]  # strip '/'
                 if cached_resources.get(key) and \
                     cached_resources.get(key).get('state') == 'terminated' \
                         and action == 'destroy_machine':
-                    continue
+                    from mist.api.clouds.models import Cloud
+                    try:
+                        cloud = Cloud.objects.get(id=cloud_id)
+                    except Cloud.DoesNotExist:
+                        log.error(f"Could not find cloud with id:{cloud_id}")
+                        continue
+                    if cloud.provider in config.PROVIDERS_WITH_TERMINATED_MACHINES_VISIBLE:  # noqa
+                        continue
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
                 external_id = '-'.join(ids)
@@ -119,15 +118,18 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 continue
 
         elif _patch.get('op') == 'replace' and resource_type == 'machine':
-            if '/state' in _patch.get('path') and _patch.get('value') in \
-               ['running', 'stopped', 'terminated']:
+            if '/state' in _patch.get('path') and \
+               _patch.get('value') in ['running', 'stopped', 'terminated']:
                 if _patch.get('value') == 'stopped':
                     action = 'stop_machine'
                 elif _patch.get('value') == 'running':
                     action = 'start_machine'
                 elif _patch.get('value') == 'terminated':
                     action = 'destroy_machine'
-                key = _patch.get('path')[1:-6]  # strip '/' and '/state'
+                if _patch['path'].endswith('/extra/state'):
+                    key = _patch['path'][1:-len('/extra/state')]
+                else:
+                    key = _patch['path'][1:-len('/state')]
                 name = cached_resources.get(key).get('name')
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')

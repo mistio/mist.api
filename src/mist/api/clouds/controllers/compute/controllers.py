@@ -30,6 +30,8 @@ import tempfile
 import iso8601
 import pytz
 import asyncio
+import os
+import json
 
 import mongoengine as me
 
@@ -124,9 +126,9 @@ class AmazonComputeController(BaseComputeController):
             network_interfaces = node_dict['extra'].get(
                 'network_interfaces', [])
             network_interfaces = [{
-                'id': network_interface.id,
-                'state': network_interface.state,
-                'extra': network_interface.extra
+                'id': network_interface['id'],
+                'state': network_interface['state'],
+                'extra': network_interface['extra']
             } for network_interface in network_interfaces]
         except Exception as exc:
             log.warning("Cannot parse net ifaces for machine %s/%s/%s: %r" % (
@@ -210,7 +212,11 @@ class AmazonComputeController(BaseComputeController):
     def _list_images__fetch_images(self, search=None):
         if not search:
             from mist.api.images.models import CloudImage
-            default_images = config.EC2_IMAGES[self.cloud.region]
+            images_file = os.path.join(config.MIST_API_DIR,
+                                       config.EC2_IMAGES_FILE)
+            with open(images_file, 'r') as f:
+                default_images = json.load(f)[self.cloud.region]
+
             image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images
@@ -359,8 +365,9 @@ class AmazonComputeController(BaseComputeController):
             else:
                 networks['security_group'] = {
                     'name': config.EC2_SECURITYGROUP.get('name', ''),
-                    'description': config.EC2_SECURITYGROUP.get('description',
-                                                                '')
+                    'description':
+                        config.EC2_SECURITYGROUP.get('description', '').format(
+                            portal_name=config.PORTAL_NAME)
                 }
 
         if subnet:
@@ -407,9 +414,15 @@ class AmazonComputeController(BaseComputeController):
 
         return ret_dict
 
-    def _parse_volumes_from_request(self, auth_context, volumes_dict):
-        # TODO
-        pass
+    def _create_machine__get_location_object(self, location):
+        from libcloud.compute.drivers.ec2 import ExEC2AvailabilityZone
+        location_obj = super()._create_machine__get_location_object(location)
+        location_obj.availability_zone = ExEC2AvailabilityZone(
+            name=location_obj.name,
+            zone_state=None,
+            region_name=self.connection.region_name
+        )
+        return location_obj
 
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
@@ -424,7 +437,7 @@ class AmazonComputeController(BaseComputeController):
                 log.info('Attempting to create security group')
                 ret_dict = self.connection.ex_create_security_group(
                     name=plan['networks']['security_group']['name'],
-                    description=plan['networks']['security_group']['description'] # noqa
+                    description=plan['networks']['security_group']['description']  # noqa
                 )
                 self.connection.ex_authorize_security_group_permissive(
                     name=plan['networks']['security_group']['name'])
@@ -707,26 +720,6 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
 
-    def _compute_sizes_for_location(self, location, sizes):
-        """DigitalOcean size object has a `regions` key in `extra`
-        with all available locations for given size
-        """
-        size_list = []
-        for size in sizes:
-            if location.external_id in size.extra['regions']:
-                size_list.append(size)
-        return size_list
-
-    def _compute_images_for_size_location(self, location, size, images):
-        """DigitalOcean image object has a `regions` key in `extra`
-        with all available locations for given image
-        """
-        image_list = []
-        for image in images:
-            if location.external_id in image.extra['regions']:
-                image_list.append(image)
-        return image_list
-
     def _generate_plan__parse_custom_volume(self, volume_dict):
         size = volume_dict.get('size')
         name = volume_dict.get('name')
@@ -775,7 +768,7 @@ class DigitalOceanComputeController(BaseComputeController):
         for volume in plan.get('volumes', []):
             if volume.get('id'):
                 try:
-                    mist_vol = Volume.objects.get(id=volume.get(volume['id']))
+                    mist_vol = Volume.objects.get(id=volume['id'])
                     volumes.append(mist_vol.external_id)
                 except me.DoesNotExist:
                     # this shouldn't happen as during plan creation
@@ -1211,7 +1204,19 @@ class SoftLayerComputeController(BaseComputeController):
                                               self.cloud.apikey)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
-        return node_dict['extra'].get('created')  # iso8601 string
+        try:
+            created_at = node_dict['extra']['created']
+        except KeyError:
+            return None
+
+        try:
+            created_at = iso8601.parse_date(created_at)
+        except iso8601.ParseError as exc:
+            log.error(str(exc))
+            return created_at
+
+        created_at = pytz.UTC.normalize(created_at)
+        return created_at
 
     def _list_machines__postparse_machine(self, machine, node_dict):
         updated = False
@@ -1432,10 +1437,13 @@ class AzureArmComputeController(BaseComputeController):
         return node['extra'].get('size')
 
     def _list_images__fetch_images(self, search=None):
-        # Fetch mist's recommended images
+        images_file = os.path.join(config.MIST_API_DIR,
+                                   config.AZURE_IMAGES_FILE)
+        with open(images_file, 'r') as f:
+            default_images = json.load(f)
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
-                  for image, name in list(config.AZURE_ARM_IMAGES.items())]
+                  for image, name in list(default_images.items())]
         return images
 
     def _reboot_machine(self, machine, node):
@@ -1465,6 +1473,16 @@ class AzureArmComputeController(BaseComputeController):
         return CloudSize.objects(cloud=self.cloud,
                                  external_id__in=libcloud_size_ids)
 
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        # workaround to avoid overwriting creation time
+        # as Azure updates it when a machine stops, reboots etc.
+
+        if machine.created is not None:
+            return machine.created
+
+        return super()._list_machines__machine_creation_date(machine,
+                                                             node_dict)
+
 
 class GoogleComputeController(BaseComputeController):
 
@@ -1489,8 +1507,19 @@ class GoogleComputeController(BaseComputeController):
         return extra
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
-        # iso8601 string
-        return node_dict['extra'].get('creationTimestamp')
+        try:
+            created_at = node_dict['extra']['creationTimestamp']
+        except KeyError:
+            return None
+
+        try:
+            created_at = iso8601.parse_date(created_at)
+        except iso8601.ParseError as exc:
+            log.error(str(exc))
+            return created_at
+
+        created_at = pytz.UTC.normalize(created_at)
+        return created_at
 
     def _list_machines__get_custom_size(self, node):
         machine_type = node['extra'].get('machineType', "").split("/")[-1]
@@ -1805,6 +1834,8 @@ class GoogleComputeController(BaseComputeController):
             extra.update({'description': description})
         if size.price:
             extra.update({'price': size.price})
+        extra['accelerators'] = size.extra.get('accelerators', [])
+        extra['isSharedCpu'] = size.extra.get('isSharedCpu')
         return extra
 
     def _list_locations__get_available_sizes(self, location):
@@ -1857,13 +1888,7 @@ class GoogleComputeController(BaseComputeController):
             network = 'default'
 
         networks['network'] = network
-        '''
-        When creating an instance, if neither the network
-        nor the subnetwork is specified,
-        the default network global/networks/default is used;
-        if the network is not specified but the subnetwork is specified,
-        the network is inferred.
-        '''
+
         if subnetwork:
             try:
                 [subnet], _ = list_resources(auth_context, 'subnet',
@@ -1876,48 +1901,204 @@ class GoogleComputeController(BaseComputeController):
 
         return networks
 
-    def _generate_plan__post_parse_plan(self, plan):
-        if not plan.get('volumes'):
-            from mist.api.images.models import CloudImage
-            image = CloudImage.objects.get(id=plan['image'])
-            # get minimum disk size required from image
+    def _generate_plan__parse_key(self, auth_context, key_obj):
+        key, _ = super()._generate_plan__parse_key(auth_context, key_obj)
+
+        # extract ssh user from key param
+        try:
+            ssh_user = key_obj.get('user') or 'user'
+        except AttributeError:
+            # key_obj is a string
+            ssh_user = 'user'
+
+        if not isinstance(ssh_user, str):
+            raise BadRequestError('Invalid type for user')
+
+        extra_attrs = {
+            'user': ssh_user,
+        }
+        return key, extra_attrs
+
+    def _generate_plan__parse_size(self, auth_context, size_obj):
+        sizes, _ = super()._generate_plan__parse_size(auth_context, size_obj)
+        extra_attrs = None
+
+        try:
+            accelerators = size_obj.get('accelerators')
+        except AttributeError:
+            # size_obj is a string
+            accelerators = None
+
+        if accelerators:
             try:
-                size = image.extra.get('diskSizeGb')
-            except AttributeError:
-                size = 10
-            plan['volumes'] = [{'size': size}]
+                accelerator_type = accelerators['accelerator_type']
+                accelerator_count = accelerators['accelerator_count']
+            except KeyError:
+                raise BadRequestError(
+                    'Both accelerator_type and accelerator_count'
+                    ' are required')
+            except TypeError:
+                raise BadRequestError('Invalid type for accelerators')
 
-    def _compute_sizes_for_location(self, location, sizes):
-        """Compute allowed sizes, given location
+            if not isinstance(accelerator_count, int):
+                raise BadRequestError('Invalid type for accelerator_count')
 
-        Subclasses that require special handling should override these, by
-        default, dummy methods.
-        """
+            if accelerator_count <= 0:
+                raise BadRequestError('Invalid value for accelerator_type')
 
-        libcloud_sizes = {libcloud_size.id for libcloud_size in
-                          self.connection.list_sizes(location=location.name)}
+            # accelerators are currrently supported only on N1 sizes
+            # https://cloud.google.com/compute/docs/gpus#introduction
+            sizes = [size for size in sizes
+                     if size.name.startswith('n1') and
+                     size.extra.get('isSharedCpu') is False]
 
-        valid_sizes = [size for size in sizes if size.external_id in
-                       libcloud_sizes]
+            extra_attrs = {
+                'accelerator_type': accelerator_type,
+                'accelerator_count': accelerator_count,
+            }
 
-        return valid_sizes
+        return sizes, extra_attrs
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        ret_dict = {
+            'id': vol_obj.id,
+            'name': vol_obj.name
+        }
+
+        boot = volume_dict.get('boot')
+        if boot is True:
+            ret_dict['boot'] = boot
+
+        return ret_dict
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size parameter is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+
+        if size < 1:
+            raise BadRequestError('Volume size should be at least 1 GB')
+
+        boot = volume_dict.get('boot')
+        name = None
+        try:
+            name = str(volume_dict['name'])
+        except KeyError:
+            # name is not required in boot volume
+            if boot is not True:
+                raise BadRequestError('Volume name parameter is required')
+
+        volume_type = volume_dict.get('type', 'pd-standard')
+        if volume_type not in ('pd-standard', 'pd-ssd'):
+            raise BadRequestError(
+                'Invalid value for volume type, valid values are: '
+                'pd-standard, pd-ssd'
+            )
+
+        ret_dict = {
+            'size': size,
+            'type': volume_type
+        }
+        # boot volumes use machine's name
+        if name and boot is not True:
+            ret_dict['name'] = name
+
+        if boot is True:
+            ret_dict['boot'] = boot
+
+        return ret_dict
+
+    def _get_allowed_image_size_location_combinations(self,
+                                                      images,
+                                                      locations,
+                                                      sizes,
+                                                      image_extra_attrs,
+                                                      size_extra_attrs):
+        # pre-filter locations based on selected accelerator type availability
+        size_extra_attrs = size_extra_attrs or {}
+        accelerator_type = size_extra_attrs.get('accelerator_type')
+        accelerator_count = size_extra_attrs.get('accelerator_count')
+        if accelerator_type and accelerator_count:
+            filtered_locations = []
+            for location in locations:
+                try:
+                    max_accelerators = \
+                        location.extra['acceleratorTypes'][accelerator_type]
+                except (KeyError, TypeError):
+                    continue
+
+                # check if location supports these many accelerators
+                if max_accelerators >= accelerator_count:
+                    filtered_locations.append(location)
+
+            locations = filtered_locations
+
+        return super()._get_allowed_image_size_location_combinations(
+            images, locations, sizes,
+            image_extra_attrs,
+            size_extra_attrs)
+
+    def _generate_plan__post_parse_plan(self, plan):
+        from mist.api.images.models import CloudImage
+        image = CloudImage.objects.get(id=plan['image']['id'])
+
+        try:
+            image_min_size = int(image.min_disk_size)
+        except TypeError:
+            image_min_size = 10
+
+        volumes = plan.get('volumes', [])
+        # make sure boot drive is first if it exists
+        volumes.sort(key=lambda k: k.get('boot') or False,
+                     reverse=True)
+
+        if len(volumes) > 1:
+            # make sure only one boot volume is set
+            if volumes[1].get('boot') is True:
+                raise BadRequestError('Up to 1 volume must be set as boot')
+
+        if len(volumes) == 0 or volumes[0].get('boot') is not True:
+            boot_volume = {
+                'size': image_min_size,
+                'type': 'pd-standard',
+                'boot': True,
+            }
+            volumes.insert(0, boot_volume)
+
+        boot_volume = volumes[0]
+        if boot_volume.get('size') and boot_volume['size'] < image_min_size:
+            raise BadRequestError(f'Boot volume must be '
+                                  f'at least {image_min_size} GBs '
+                                  f'for image: {image.name}')
+        elif boot_volume.get('id'):
+            from mist.api.volumes.models import Volume
+            vol = Volume.objects.get(id=boot_volume['id'])
+            if vol.size < image_min_size:
+                raise BadRequestError(f'Boot volume must be '
+                                      f'at least {image_min_size} GBs '
+                                      f'for image: {image.name}')
+
+        plan['volumes'] = volumes
 
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
         key = kwargs.pop('auth')
-        username = plan.get('username') or 'user'
+        username = plan.get('key', {}).get('user') or 'user'
         metadata = {
             'sshKeys': '%s:%s' % (username, key.public)
         }
         if plan.get('cloudinit'):
-            metadata['startup-script'] = plan('cloudinit')
+            metadata['startup-script'] = plan['cloudinit']
         kwargs['ex_metadata'] = metadata
 
-        volume = plan['volumes'][0]
-        if volume.get('id'):
+        boot_volume = plan['volumes'].pop(0)
+        if boot_volume.get('id'):
             from mist.api.volumes.models import Volume
             from libcloud.compute.base import StorageVolume
-            vol = Volume.objects.get(id=volume['id'])
+            vol = Volume.objects.get(id=boot_volume['id'])
             libcloud_vol = StorageVolume(id=vol.external_id,
                                          name=vol.name,
                                          size=vol.size,
@@ -1925,12 +2106,58 @@ class GoogleComputeController(BaseComputeController):
                                          extra=vol.extra)
             kwargs['ex_boot_disk'] = libcloud_vol
         else:
-            kwargs['disk_size'] = volume.get('size')
+            kwargs['disk_size'] = boot_volume.get('size')
+            kwargs['ex_disk_type'] = boot_volume.get('type') or 'pd-standard'
 
         kwargs['ex_network'] = plan['networks'].get('network')
         kwargs['ex_subnetwork'] = plan['networks'].get('subnet')
 
+        if plan['size'].get('accelerator_type'):
+            kwargs['ex_accelerator_type'] = plan['size']['accelerator_type']
+            kwargs['ex_accelerator_count'] = plan['size']['accelerator_count']
+            # required when attaching accelerators to an instance
+            kwargs['ex_on_host_maintenance'] = 'TERMINATE'
+
         return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        from mist.api.volumes.models import Volume
+        from libcloud.compute.base import StorageVolume
+        location = kwargs['location']
+        volumes = plan['volumes']
+        for volume in volumes:
+            if volume.get('id'):
+                vol = Volume.objects.get(id=volume['id'])
+                libcloud_vol = StorageVolume(id=vol.external_id,
+                                             name=vol.name,
+                                             size=vol.size,
+                                             driver=self.connection,
+                                             extra=vol.extra)
+                try:
+                    self.connection.attach_volume(node, libcloud_vol)
+                except Exception as exc:
+                    log.exception('Attaching volume failed')
+            else:
+                try:
+                    size = volume['size']
+                    name = volume['name']
+                    volume_type = volume.get('type') or 'pd-standard'
+                except KeyError:
+                    log.exception('Missing required volume parameter')
+                    continue
+                try:
+                    libcloud_vol = self.connection.create_volume(
+                        size,
+                        name,
+                        location=location,
+                        ex_disk_type=volume_type)
+                except Exception as exc:
+                    log.exception('Failed to create volume')
+                    continue
+                try:
+                    self.connection.attach_volume(node, libcloud_vol)
+                except Exception as exc:
+                    log.exception('Attaching volume failed')
 
     def _create_machine__get_size_object(self, size):
         # when providing a Libcloud NodeSize object
@@ -2000,6 +2227,9 @@ class EquinixMetalComputeController(BaseComputeController):
             return super()._list_images__get_os_distro(image)
         return os_distro
 
+    def _list_sizes__get_cpu(self, size):
+        return int(size.extra.get('cpu_cores') or 1)
+
     def _list_sizes__get_available_locations(self, mist_size):
         from mist.api.clouds.models import CloudLocation
         CloudLocation.objects(
@@ -2012,7 +2242,7 @@ class EquinixMetalComputeController(BaseComputeController):
         CloudSize.objects(
             cloud=self.cloud,
             external_id__in=mist_image.extra.get('provisionable_on', [])
-        ).update(add_to_set__allowed_images=mist_image.external_id)
+        ).update(add_to_set__allowed_images=mist_image)
 
     def _list_images__get_architecture(self, image):
         ret_list = []
@@ -2022,6 +2252,169 @@ class EquinixMetalComputeController(BaseComputeController):
         if any('x86' in size for size in sizes):
             ret_list.append('x86')
         return ret_list or ['x86']
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except (KeyError, TypeError):
+            raise BadRequestError('Invalid parameter in volumes')
+        if size < 100:
+            raise BadRequestError('Size value must be at least 100')
+
+        plan = volume_dict.get('plan', 'standard')
+        if plan not in ('standard', 'performance'):
+            raise BadRequestError(
+                'Invalid value for plan, valid values are: '
+                'performance, standard'
+            )
+
+        return {'size': size, 'plan': plan}
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        try:
+            ip_addresses = networks_dict['ip_addresses']
+        except KeyError:
+            return None
+        # one private IPv4 is required
+        private_ipv4 = False
+        for address in ip_addresses:
+            try:
+                address_family = address['address_family']
+                cidr = address['cidr']
+                public = address['public']
+            except KeyError:
+                raise BadRequestError(
+                    'Required parameter missing on ip_addresses'
+                )
+            if address_family == 4 and public is True:
+                private_ipv4 = True
+            if address_family not in (4, 6):
+                raise BadRequestError(
+                    'Valid values for address_family are: 4, 6'
+                )
+            if address_family == 4 and cidr not in range(28, 33):
+                raise BadRequestError(
+                    'Invalid value for cidr block'
+                )
+            if address_family == 6 and cidr not in range(124, 128):
+                raise BadRequestError(
+                    'Invalid value for cidr block'
+                )
+            if type(public) != bool:
+                raise BadRequestError(
+                    'Invalid value for public'
+                )
+        if private_ipv4 is False:
+            raise BadRequestError(
+                'A private IPv4 needs to be included in ip_addresses'
+            )
+        return {'ip_addresses': ip_addresses}
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        project_id = extra.get('project_id')
+        if not project_id:
+            if self.connection.project_id:
+                project_id = self.connection.project_id
+            else:
+                try:
+                    project_id = self.connection.projects[0].id
+                except IndexError:
+                    raise BadRequestError(
+                        "You don't have any projects on Equinix Metal"
+                    )
+        else:
+            for project in self.connection.projects:
+                if project_id in (project.name, project.id):
+                    project_id = project.id
+                    break
+            else:
+                raise BadRequestError(
+                    "Project does not exist"
+                )
+        plan['project_id'] = project_id
+
+    def _create_machine__get_key_object(self, key):
+        from libcloud.utils.publickey import get_pubkey_openssh_fingerprint
+        key_obj = super()._create_machine__get_key_object(key)
+        fingerprint = get_pubkey_openssh_fingerprint(key_obj.public)
+        keys = self.connection.list_key_pairs()
+        for k in keys:
+            if fingerprint == k.fingerprint:
+                ssh_keys = [{
+                    'label': k.extra['label'],
+                    'key': k.public_key
+                }]
+                break
+        else:
+            ssh_keys = [{
+                'label': f'mistio-{key.name}',
+                'key': key_obj.public
+            }]
+        return ssh_keys
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        kwargs['ex_project_id'] = plan['project_id']
+        kwargs['cloud_init'] = plan.get('cloudinit')
+        kwargs['ssh_keys'] = kwargs.pop('auth')
+        try:
+            kwargs['ip_addresses'] = plan['networks']['ip_addresses']
+        except (KeyError, TypeError):
+            pass
+        return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        volumes = plan.get('volumes', [])
+        if not volumes:
+            return
+        from mist.api.models import Volume
+        from libcloud.compute.base import StorageVolume
+        # volumes cannot be attached while node is pending
+        # so sleep until node is running
+        for _ in range(50):
+            node = self.connection.ex_get_node(node.id)
+            if node.state.value == NodeState.RUNNING.value:
+                break
+            else:
+                sleep(10)
+        for vol in volumes:
+            if vol.get('id'):
+                try:
+                    volume = Volume.objects.get(id=vol['id'])
+                except me.DoesNotExist:
+                    # this shouldn't happen as volume was found
+                    # during plan creation
+                    log.warning('Failed to attach volume.Volume %s does not exist' %  # noqa
+                                (vol['id']))
+                    continue
+                storage_volume = StorageVolume(id=volume.external_id,
+                                               name=volume.name,
+                                               size=volume.size,
+                                               driver=self.connection)
+                try:
+                    self.connection.attach_volume(node, storage_volume)
+                except Exception as exc:
+                    log.warning('Volume attachment failed')
+            else:
+                try:
+                    size = vol['size']
+                    volume_plan = vol['plan']
+                except KeyError:
+                    # this shouldn't happen as these fields
+                    # were checked during plan creation
+                    log.warning('Error while parsing volume attributes')
+                    continue
+                volume_plan = "storage_1" if volume_plan == 'standard' else 'storage_2'  # noqa
+                try:
+                    volume = self.connection.create_volume(
+                                                size=size,
+                                                location=kwargs['location'],
+                                                plan=volume_plan,
+                                                ex_project_id=kwargs['ex_project_id'],  # noqa
+                                                )
+                    self.connection.attach_volume(node, volume)
+                except Exception as exc:
+                    log.warning('Volume attachment failed')
 
 
 class VultrComputeController(BaseComputeController):
@@ -2091,7 +2484,7 @@ class VSphereComputeController(BaseComputeController):
                                        port=port,
                                        ca_cert=ca_cert)
         self.version = driver_6_5._get_version()
-        if '6.7'in self.version and config.ENABLE_VSPHERE_REST:
+        if '6.7' in self.version and config.ENABLE_VSPHERE_REST:
             self.version = '6.7'
             return VSphere_6_7_NodeDriver(self.cloud.username,
                                           secret=self.cloud.password,
@@ -2138,7 +2531,8 @@ class VSphereComputeController(BaseComputeController):
         """Perform the actual libcloud call to get list of nodes"""
         machine_list = []
         for node in self.connection.list_nodes(
-                max_properties=self.cloud.max_properties_per_request):
+                max_properties=self.cloud.max_properties_per_request,
+                extra=config.VSPHERE_FETCH_ALL_EXTRA):
             # Check for VMs without uuid
             if node.id is None:
                 log.error("Skipping machine {} on cloud {} - {}): uuid is "
@@ -2162,6 +2556,7 @@ class VSphereComputeController(BaseComputeController):
         updated = False
         try:
             _size = CloudSize.objects.get(
+                cloud=self.cloud,
                 external_id=node_dict['size'].get('id'))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
@@ -2196,7 +2591,7 @@ class VSphereComputeController(BaseComputeController):
         machine.actions.clone = True
         machine.actions.rename = True
         machine.actions.create_snapshot = True
-        if len(machine.extra.get('snapshots')):
+        if len(machine.extra.get('snapshots', [])):
             machine.actions.remove_snapshot = True
             machine.actions.revert_to_snapshot = True
         else:
@@ -2674,6 +3069,7 @@ class LXDComputeController(BaseComputeController):
     """
     Compute controller for LXC containers
     """
+
     def __init__(self, *args, **kwargs):
         super(LXDComputeController, self).__init__(*args, **kwargs)
         self._lxchost = None
@@ -3162,7 +3558,7 @@ class LibvirtComputeController(BaseComputeController):
             from mist.api.helpers import trigger_session_update
             trigger_session_update(machine.owner.id, ['clouds'])
         else:
-            self.connection.ex_rename_node(node, name)
+            self._get_host_driver(machine).ex_rename_node(node, name)
 
     def remove_machine(self, machine):
         from mist.api.machines.models import KeyMachineAssociation
@@ -3217,6 +3613,124 @@ class LibvirtComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        """
+        Parse network interfaces.
+        - If networks_dict is empty, no network interface will be configured.
+        - If only `id` or `name` is given, the interface will be
+        configured by DHCP.
+        - If `ip` is given, it will be statically assigned to the interface and
+          optionally `gateway` and `primary` attributes will be used.
+        """
+        from mist.api.methods import list_resources
+        from libcloud.utils.networking import is_valid_ip_address
+
+        if not networks_dict:
+            return None
+
+        ret_dict = {
+            'networks': [],
+        }
+        networks = networks_dict.get('networks', [])
+        for net in networks:
+            network_id = net.get('id') or net.get('name')
+            if not network_id:
+                raise BadRequestError('network id or name is required')
+            try:
+                [network], _ = list_resources(auth_context, 'network',
+                                              search=network_id,
+                                              cloud=self.cloud.id,
+                                              limit=1)
+            except ValueError:
+                raise NotFoundError('Network does not exist')
+
+            nid = {
+                'network_name': network.name
+            }
+            if net.get('ip'):
+                if is_valid_ip_address(net['ip']):
+                    nid['ip'] = net['ip']
+                else:
+                    raise BadRequestError('IP given is invalid')
+                if net.get('gateway'):
+                    if is_valid_ip_address(net['gateway']):
+                        nid['gateway'] = net['gateway']
+                    else:
+                        raise BadRequestError('Gateway IP given is invalid')
+                if net.get('primary'):
+                    nid['primary'] = net['primary']
+            ret_dict['networks'].append(nid)
+
+        if networks_dict.get('vnfs'):
+            ret_dict['vnfs'] = networks_dict['vnfs']
+
+        return ret_dict
+
+    def _generate_plan__parse_disks(self, auth_context, disks_dict):
+        ret_dict = {
+            'disk_size': disks_dict.get('disk_size', 4),
+        }
+        if disks_dict.get('disk_path'):
+            ret_dict['disk_path'] = disks_dict.get('disk_path')
+
+        return ret_dict
+
+    def _create_machine__get_image_object(self, image):
+        from mist.api.images.models import CloudImage
+        try:
+            cloud_image = CloudImage.objects.get(id=image)
+        except me.DoesNotExist:
+            raise NotFoundError('Image does not exist')
+        return cloud_image.external_id
+
+    def _create_machine__get_size_object(self, size):
+        if isinstance(size, dict):
+            return size
+        from mist.api.clouds.models import CloudSize
+        try:
+            cloud_size = CloudSize.objects.get(id=size)
+        except me.DoesNotExist:
+            raise NotFoundError('Location does not exist')
+        return {'cpus': cloud_size.cpus, 'ram': cloud_size.ram}
+
+    def _create_machine__get_location_object(self, location):
+        from mist.api.clouds.models import CloudLocation
+        try:
+            cloud_location = CloudLocation.objects.get(id=location)
+        except me.DoesNotExist:
+            raise NotFoundError('Location does not exist')
+        return cloud_location.external_id
+
+    def _create_machine__compute_kwargs(self, plan):
+        from mist.api.machines.models import Machine
+        from mist.api.exceptions import MachineCreationError
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        location_id = kwargs.pop('location')
+        try:
+            host = Machine.objects.get(
+                cloud=self.cloud, machine_id=location_id)
+        except me.DoesNotExist:
+            raise MachineCreationError("The host specified does not exist")
+        driver = self._get_host_driver(host)
+        kwargs['driver'] = driver
+        size = kwargs.pop('size')
+        kwargs['cpu'] = size['cpus']
+        kwargs['ram'] = size['ram']
+        if kwargs.get('auth'):
+            kwargs['public_key'] = kwargs.pop('auth').public
+        kwargs['disk_size'] = plan['disks'].get('disk_size')
+        kwargs['disk_path'] = plan['disks'].get('disk_path')
+        kwargs['networks'] = plan.get('networks', {}).get('networks', [])
+        kwargs['vnfs'] = plan.get('networks', {}).get('vnfs', [])
+        kwargs['cloud_init'] = plan.get('cloudinit')
+
+        return kwargs
+
+    def _create_machine__create_node(self, kwargs):
+        driver = kwargs.pop('driver')
+        node = driver.create_node(**kwargs)
+        return node
 
 
 class OnAppComputeController(BaseComputeController):
@@ -3619,3 +4133,122 @@ class KubeVirtComputeController(BaseComputeController):
                                               'cluster_ip', None),
                                           load_balancer_ip=data.get(
                                               'load_balancer_ip', None))
+
+
+class CloudSigmaComputeController(BaseComputeController):
+    def _connect(self, **kwargs):
+        return get_driver(Provider.CLOUDSIGMA)(key=self.cloud.username,
+                                               secret=self.cloud.password,
+                                               region=self.cloud.region)
+
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        if node_dict['extra'].get('runtime'):
+            return node_dict['extra']['runtime'].get('active_since')
+
+    def _list_machines__cost_machine(self, machine, node_dict):
+        from mist.api.volumes.models import Volume
+        try:
+            pricing = machine.location.extra['pricing']
+        except KeyError:
+            return 0, 0
+
+        # cloudsigma calculates pricing using GHz/hour
+        # where 2 GHz = 1 core
+        cpus = node_dict['extra']['cpus'] * 2
+        # machine memory in GBs as pricing uses GB/hour
+        memory = node_dict['extra']['memory'] / 1024
+
+        volume_uuids = [item['drive']['uuid'] for item
+                        in node_dict['extra']['drives']]
+        volumes = Volume.objects(cloud=self.cloud,
+                                 missing_since=None,
+                                 external_id__in=volume_uuids)
+        ssd_size = 0
+        hdd_size = 0
+        for volume in volumes:
+            if volume.extra['storage_type'] == 'dssd':
+                ssd_size += volume.size
+            else:
+                hdd_size += volume.size
+        # cpu and memory pricing per hour
+        cpu_price = cpus * float(pricing['intel_cpu']['price'])
+        memory_price = memory * float(pricing['intel_mem']['price'])
+        # disk pricing per month
+        ssd_price = ssd_size * float(pricing['dssd']['price'])
+        hdd_price = hdd_size * float(pricing['zadara']['price'])
+        cost_per_month = ((24 * 30 * (cpu_price + memory_price)) +
+                          ssd_price + hdd_price)
+        return 0, cost_per_month
+
+    def _list_machines__get_location(self, node):
+        return self.connection.region
+
+    def _list_machines__get_size(self, node):
+        return node['size'].get('id')
+
+    def _list_machines__get_custom_size(self, node_dict):
+        from mist.api.clouds.models import CloudSize
+        updated = False
+        try:
+            _size = CloudSize.objects.get(
+                cloud=self.cloud,
+                external_id=str(node_dict['size'].get('id')))
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=str(node_dict['size'].get('id')))
+            updated = True
+
+        if _size.ram != node_dict['size'].get('ram'):
+            _size.ram = node_dict['size'].get('ram')
+            updated = True
+        if _size.cpus != node_dict['size'].get('cpu'):
+            _size.cpus = node_dict['size'].get('cpu')
+            updated = True
+        if _size.disk != node_dict['size'].get('disk'):
+            _size.disk = node_dict['size'].get('disk')
+            updated = True
+        if _size.name != node_dict['size'].get('name'):
+            _size.name = node_dict['size'].get('name')
+            updated = True
+
+        if updated:
+            _size.save()
+        return _size
+
+    def _destroy_machine(self, machine, node):
+        if node.state == NodeState.RUNNING.value:
+            self.connection.ex_stop_node(node)
+        ret_val = False
+        for _ in range(10):
+            try:
+                self.connection.destroy_node(node)
+            except Exception:
+                sleep(1)
+                continue
+            else:
+                ret_val = True
+                break
+        return ret_val
+
+    def _list_locations__fetch_locations(self):
+        from libcloud.common.cloudsigma import API_ENDPOINTS_2_0
+        attributes = API_ENDPOINTS_2_0[self.connection.region]
+        pricing = self.connection.ex_get_pricing()
+        # get only the default burst level pricing for resources in USD
+        pricing = {item.pop('resource'): item for item in pricing['objects']
+                   if item['level'] == 0 and item['currency'] == 'USD'}
+
+        location = NodeLocation(id=self.connection.region,
+                                name=attributes['name'],
+                                country=attributes['country'],
+                                driver=self.connection,
+                                extra={
+                                    'pricing': pricing,
+                                })
+        return [location]
+
+    def _list_sizes__get_cpu(self, size):
+        cpus = int(round(size.cpu))
+        if cpus == 0:
+            cpus = 1
+        return cpus

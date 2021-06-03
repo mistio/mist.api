@@ -52,6 +52,7 @@ from mist.api.clouds.controllers.compute import controllers as compute_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
 from mist.api.clouds.controllers.storage import controllers as storage_ctls
+from mist.api.clouds.controllers.objectstorage import controllers as objectstorage_ctls  # noqa: E501
 
 from mist.api import config
 
@@ -70,6 +71,7 @@ class AmazonMainController(BaseMainController):
     NetworkController = network_ctls.AmazonNetworkController
     DnsController = dns_ctls.AmazonDNSController
     StorageController = storage_ctls.AmazonStorageController
+    ObjectStorageController = objectstorage_ctls.AmazonS3ObjectStorageController  # noqa: E501
 
     def _add__preparse_kwargs(self, kwargs):
         # Autofill apisecret from other Amazon Cloud.
@@ -272,6 +274,7 @@ class OpenStackMainController(BaseMainController):
     ComputeController = compute_ctls.OpenStackComputeController
     NetworkController = network_ctls.OpenStackNetworkController
     StorageController = storage_ctls.OpenstackStorageController
+    ObjectStorageController = objectstorage_ctls.OpenstackObjectStorageController   # noqa: E501
 
     def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
@@ -524,7 +527,7 @@ class LibvirtMainController(BaseMainController):
                 machine_id=host.replace('.', '-'),
                 ssh_port=ssh_port,
                 extra=extra,
-                state=NodeState.RUNNING,
+                state=NodeState.RUNNING.value,
                 last_seen=datetime.datetime.utcnow(),
             )
 
@@ -557,6 +560,10 @@ class LibvirtMainController(BaseMainController):
             raise MistError("Couldn't connect to host '%s'."
                             % host)
 
+        new_machines = self.cloud.ctl.compute.list_machines()
+        # Update RBAC Mappings given the list of nodes seen for the first time.
+        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+
         if amqp_owner_listening(self.cloud.owner.id):
             old_machines = []
             for cached_machine in \
@@ -566,7 +573,6 @@ class LibvirtMainController(BaseMainController):
                     old_machines.append(cached_machine)
             old_machines = [m.as_dict() for m in
                             old_machines]
-            new_machines = self.cloud.ctl.compute.list_machines()
             self.cloud.ctl.compute.produce_and_publish_patch(
                 old_machines, new_machines)
 
@@ -789,8 +795,11 @@ class OtherMainController(BaseMainController):
                     machine.delete()
                 raise
 
+        # Update RBAC Mappings given the list of nodes seen for the first time.
+        new_machines = self.cloud.ctl.compute.list_cached_machines()
+        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+
         if amqp_owner_listening(self.cloud.owner.id):
-            new_machines = self.cloud.ctl.compute.list_cached_machines()
             self.cloud.ctl.compute.produce_and_publish_patch(
                 old_machines, new_machines)
 
@@ -807,3 +816,9 @@ class KubeVirtMainController(BaseMainController):
         if host:
             host = sanitize_host(host)
             check_host(host)
+
+
+class CloudSigmaMainController(BaseMainController):
+    provider = 'cloudsigma'
+    ComputeController = compute_ctls.CloudSigmaComputeController
+    StorageController = storage_ctls.CloudSigmaStorageController

@@ -65,6 +65,7 @@ def _populate_clouds():
     CLOUDS['other'] = CLOUDS['bare_metal']
     CLOUDS['google'] = CLOUDS['gce']
     CLOUDS['ibm'] = CLOUDS['softlayer']
+    CLOUDS['equinix'] = CLOUDS['equinixmetal']
 
 
 class Cloud(OwnershipMixin, me.Document):
@@ -122,6 +123,7 @@ class Cloud(OwnershipMixin, me.Document):
     polling_interval = me.IntField(default=0)  # in seconds
 
     dns_enabled = me.BooleanField(default=False)
+    object_storage_enabled = me.BooleanField(default=False)
     observation_logs_enabled = me.BooleanField(default=False)
 
     default_monitoring_method = me.StringField(
@@ -228,6 +230,9 @@ class Cloud(OwnershipMixin, me.Document):
     def clean(self):
         if self.dns_enabled and not hasattr(self.ctl, 'dns'):
             self.dns_enabled = False
+        if self.object_storage_enabled and \
+                not hasattr(self.ctl, 'objectstorage'):
+            self.object_storage_enabled = False
 
     def as_dict(self):
         cdict = {
@@ -236,6 +241,7 @@ class Cloud(OwnershipMixin, me.Document):
             'provider': self.ctl.provider,
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
+            'object_storage_enabled': self.object_storage_enabled,
             'observation_logs_enabled': self.observation_logs_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
@@ -277,6 +283,7 @@ class Cloud(OwnershipMixin, me.Document):
             ret['features'] = {
                 'compute': self.enabled,
                 'dns': self.dns_enabled,
+                'object_storage_enabled': self.object_storage_enabled,
                 'observations': self.observation_logs_enabled,
                 'polling': self.polling_interval
             }
@@ -317,6 +324,7 @@ class CloudLocation(OwnershipMixin, me.Document):
     meta = {
         'collection': 'locations',
         'indexes': [
+            'cloud', 'external_id', 'name', 'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -327,20 +335,50 @@ class CloudLocation(OwnershipMixin, me.Document):
     }
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        # this is for mongo medthod objects.only('id') to work..
+        if self.cloud:
+            name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        else:
+            name = f"{self.name}, None, {self.external_id}"
         return name
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'external_id', 'country', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'owned_by': 'email',
+            'created_by': 'email',
+            'available_sizes': 'name',
+            'available_images': 'name',
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        return ret
+
     def as_dict(self):
-        return {
+        location_dict = {
             'id': self.id,
             'extra': self.extra,
-            'cloud': self.cloud.id,
+            'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
             'country': self.country,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
-                                 if self.missing_since else '')
+                                 if self.missing_since else ''),
         }
+
+        if self.cloud.ctl.has_feature('location-image-restriction'):
+            location_dict['available_images'] = [image.name for image
+                                                 in self.available_images
+                                                 if hasattr(image, 'name')]
+        if self.cloud.ctl.has_feature('location-size-restriction'):
+            location_dict['available_sizes'] = [size.name for size
+                                                in self.available_sizes
+                                                if hasattr(size, 'name')]
+        return location_dict
 
     def clean(self):
         # Populate owner field based on self.cloud.owner
@@ -369,6 +407,9 @@ class CloudSize(me.Document):
     meta = {
         'collection': 'sizes',
         'indexes': [
+            'cloud',
+            'external_id',
+            'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -379,13 +420,31 @@ class CloudSize(me.Document):
     }
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        # this is for mongo medthod objects.only('id') to work..
+        if self.cloud:
+            name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        else:
+            name = f"{self.name}, None, {self.external_id}"
         return name
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'external_id', 'cpus', 'ram', 'bandwidth', 'disk',
+            'architecture', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'allowed_images': 'name',
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        return ret
+
     def as_dict(self):
-        return {
+        size_dict = {
             'id': self.id,
-            'cloud': self.cloud.id,
+            'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
             'cpus': self.cpus,
@@ -395,8 +454,14 @@ class CloudSize(me.Document):
             'disk': self.disk,
             'architecture': self.architecture,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
-                                 if self.missing_since else '')
+                                 if self.missing_since else ''),
         }
+
+        if self.cloud.ctl.has_feature('size-image-restriction'):
+            size_dict['allowed_images'] = [image.name for image
+                                           in self.allowed_images
+                                           if hasattr(image, 'name')]
+        return size_dict
 
 
 class AmazonCloud(Cloud):
@@ -666,6 +731,16 @@ class KubeVirtCloud(Cloud):
 
     _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
     _controller_cls = controllers.KubeVirtMainController
+
+
+class CloudSigmaCloud(Cloud):
+
+    username = me.StringField(required=True)
+    password = me.StringField(required=True)
+    region = me.StringField(required=True)
+
+    _private_fields = ('password', )
+    _controller_cls = controllers.CloudSigmaMainController
 
 
 _populate_clouds()

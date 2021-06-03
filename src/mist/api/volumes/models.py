@@ -120,7 +120,7 @@ class Volume(OwnershipMixin, me.Document):
                 for tag in Tag.objects(
                     owner=self.owner,
                     resource_id=self.id,
-                    resource_type='cloud').only('key', 'value')
+                    resource_type='volume').only('key', 'value')
             }
 
         if 'actions' in only or not only:

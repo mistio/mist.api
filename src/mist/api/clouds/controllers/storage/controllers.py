@@ -652,3 +652,40 @@ class LinodeStorageController(BaseStorageController):
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
+
+
+class CloudSigmaStorageController(BaseStorageController):
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+
+        # Find the volume's location.
+        try:
+            volume.location = CloudLocation.objects.get(
+                external_id=self.cloud.ctl.compute.connection.region,
+                cloud=self.cloud, missing_since=None
+            )
+        except CloudLocation.DoesNotExist:
+            volume.location = None
+
+        # Find the machines to which the volume is attached.
+        machine_ids = [item['uuid'] for item in
+                       libcloud_volume.extra['mounted_on']]
+
+        volume.attached_to = Machine.objects(cloud=self.cloud,
+                                             missing_since=None,
+                                             machine_id__in=machine_ids)
+
+    def _create_volume__prepare_args(self, kwargs):
+        for param in ('name', 'size'):
+            if not kwargs.get(param):
+                raise RequiredParameterMissingError(param)
+
+        try:
+            assert 1 <= int(kwargs['size']) <= 100000
+        except AssertionError:
+            raise BadRequestError('Valid size values are 1-100000 GB')
+
+    def _detach_volume(self, libcloud_volume, libcloud_node):
+        self.cloud.ctl.compute.connection.detach_volume(libcloud_node,
+                                                        libcloud_volume)
