@@ -2645,8 +2645,13 @@ class VSphereComputeController(BaseComputeController):
     def _clone_machine(self, machine, node, name, resume):
         locations = self.connection.list_locations()
         node_location = None
+        if not machine.location:
+            vm = self.connection._find_template_by_uuid(node.id)
+            location_id = vm.summary.runtime.host.name
+        else:
+            location_id = machine.location.external_id
         for location in locations:
-            if location.id == machine.location.external_id:
+            if location.id == location_id:
                 node_location = location
                 break
         folder = node.extra.get('folder', None)
