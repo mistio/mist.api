@@ -42,7 +42,8 @@ __all__ = [
     "LibvirtCloud",
     "OnAppCloud",
     "OtherCloud",
-    "KubeVirtCloud"
+    "KubeVirtCloud",
+    "KubernetesCloud"
 ]
 # This is a map from provider name to provider class, eg:
 # 'linode': LinodeCloud
@@ -710,29 +711,30 @@ class OtherCloud(Cloud):
     _controller_cls = controllers.OtherMainController
 
 
-class KubeVirtCloud(Cloud):
+class _KubernetesBaseCloud(Cloud):
     host = me.StringField(required=True)
     port = me.IntField(required=True, default=6443)
-
     # USER / PASS authentication optional
     username = me.StringField(required=False)
     password = me.StringField(required=False)
-
     # Bearer Token authentication optional
     token = me.StringField(required=False)
-
     # TLS Authentication
     key_file = me.StringField(required=False)
     cert_file = me.StringField(required=False)
-
     # certificate authority
     ca_cert_file = me.StringField(required=False)
-
     # certificate verification
     verify = me.BooleanField(required=False)
-
     _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
+
+
+class KubeVirtCloud(_KubernetesBaseCloud):
     _controller_cls = controllers.KubeVirtMainController
+
+
+class KubernetesCloud(_KubernetesBaseCloud):
+    _controller_cls = controllers.KubernetesMainController
 
 
 class CloudSigmaCloud(Cloud):
