@@ -56,10 +56,8 @@ log = logging.getLogger(__name__)
 def _populate_clouds():
     """Populates CLOUDS variable with mappings from providers to clouds"""
     for key, value in list(globals().items()):
-        if key.endswith('Cloud') and key != 'Cloud':
-            value = globals()[key]
-            if not value._controller_cls:
-                continue
+        if not key.startswith('_') and key.endswith(
+                'Cloud') and key != 'Cloud':
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
     CLOUDS['amazon'] = CLOUDS['ec2']
