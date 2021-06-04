@@ -3958,9 +3958,8 @@ class OtherComputeController(BaseComputeController):
         return []
 
 
-class KubeVirtComputeController(BaseComputeController):
-
-    def _connect(self, **kwargs):
+class _KubernetesBaseComputeController(BaseComputeController):
+    def _connect(self, provider, use_container_driver=True, **kwargs):
         host, port = dnat(self.cloud.owner,
                           self.cloud.host, self.cloud.port)
         try:
@@ -3971,6 +3970,10 @@ class KubeVirtComputeController(BaseComputeController):
         except:
             raise Exception("Make sure host is accessible "
                             "and kubernetes port is specified")
+        if use_container_driver:
+            get_driver_method = get_container_driver
+        else:
+            get_driver_method = get_driver
         verify = self.cloud.verify
         ca_cert = None
         if self.cloud.ca_cert_file:
@@ -3990,33 +3993,32 @@ class KubeVirtComputeController(BaseComputeController):
             cert_temp_file.close()
             cert_file = cert_temp_file.name
 
-            return get_driver(Provider.KUBEVIRT)(secure=True,
-                                                 host=host,
-                                                 port=port,
-                                                 key_file=key_file,
-                                                 cert_file=cert_file,
-                                                 ca_cert=ca_cert)
+            return get_driver_method(provider)(secure=True,
+                                               host=host,
+                                               port=port,
+                                               key_file=key_file,
+                                               cert_file=cert_file,
+                                               ca_cert=ca_cert)
 
         elif self.cloud.token:
             token = self.cloud.token
 
-            return get_driver(Provider.KUBEVIRT)(key=token,
-                                                 secure=True,
-                                                 host=host,
-                                                 port=port,
-                                                 ca_cert=ca_cert,
-                                                 ex_token_bearer_auth=True
-                                                 )
+            return get_driver_method(provider)(key=token,
+                                               secure=True,
+                                               host=host,
+                                               port=port,
+                                               ca_cert=ca_cert,
+                                               ex_token_bearer_auth=True)
         # username/password auth
         elif self.cloud.username and self.cloud.password:
             key = self.cloud.username
             secret = self.cloud.password
 
-            return get_driver(Provider.KUBEVIRT)(key=key,
-                                                 secret=secret,
-                                                 secure=True,
-                                                 host=host,
-                                                 port=port)
+            return get_driver_method(provider)(key=key,
+                                               secret=secret,
+                                               secure=True,
+                                               host=host,
+                                               port=port)
         else:
             msg = '''Necessary parameters for authentication are missing.
             Either a key_file/cert_file pair or a username/pass pair
@@ -4024,14 +4026,11 @@ class KubeVirtComputeController(BaseComputeController):
             raise ValueError(msg)
 
     def _list_machines__machine_actions(self, machine, node_dict):
-        super(KubeVirtComputeController,
-              self)._list_machines__machine_actions(
-            machine, node_dict)
+        super()._list_machines__machine_actions(machine, node_dict)
         machine.actions.start = True
         machine.actions.stop = True
         machine.actions.reboot = True
         machine.actions.destroy = True
-        machine.actions.expose = True
 
     def _reboot_machine(self, machine, node):
         return self.connection.reboot_node(node)
@@ -4053,6 +4052,93 @@ class KubeVirtComputeController(BaseComputeController):
                     if machine.id in volume.attached_to:
                         volume.attached_to.remove(machine.id)
 
+    def _list_machines__get_location(self, node):
+        return node['extra'].get('namespace', "")
+
+    def _list_machines__get_size(self, node):
+        return node['size'].get('id')
+
+    def _list_sizes__get_cpu(self, size):
+        cpu = int(size.extra.get('cpus') or 1)
+        if cpu > 1000:
+            cpu = cpu / 1000
+        elif cpu > 99:
+            cpu = 1
+        return cpu
+
+
+class KubernetesComputeController(_KubernetesBaseComputeController):
+    def _connect(self, **kwargs):
+        return super()._connect(Container_Provider.KUBERNETES, **kwargs)
+
+    def _list_machines__fetch_machines(self):
+        """List all kubernetes machines: nodes, pods and containers"""
+        node_map = {}
+        nodes = []
+        for node in self.connection.ex_list_nodes():
+            node.type = 'node'
+            node_map[node.name] = node.id
+            nodes.append(node_to_dict(node))
+        pod_map = {}
+        pods = []
+        for pod in self.connection.ex_list_pods():
+            pod.type = 'pod'
+            pod_map[pod.name] = pod.id
+            pod.parent_id = node_map.get(pod.node_name)
+            pod.public_ips, pod.private_ips = [], []
+            for ip in pod.ip_addresses:
+                if is_private_subnet(ip):
+                    pod.private_ips.append(ip)
+                else:
+                    pod.public_ips.append(ip)
+            pods.append(node_to_dict(pod))
+        containers = []
+        for container in self.connection.list_containers():
+            container.type = 'container'
+            container.public_ips, container.private_ips = [], []
+            container.parent_id = pod_map.get(container.extra['pod'])
+            container.size = None
+            container.image = container.image.name
+            containers.append(node_to_dict(container))
+        machines = nodes + pods + containers
+        return machines
+
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        node_type = node_dict['type']
+        if machine.machine_type != node_type:
+            machine.machine_type = node_type
+            updated = True
+        node_parent_id = node_dict.get('parent_id')
+        if node_parent_id:
+            from mist.api.machines.models import Machine
+            try:
+                machine_parent = Machine.objects.get(
+                    cloud=machine.cloud, machine_id=node_parent_id)
+            except Machine.DoesNotExist:
+                pass
+            else:
+                if machine.parent != machine_parent:
+                    machine.parent = machine_parent
+                    updated = True
+        if node_type == 'node':
+            node_cpu = node_dict['extra'].get('cpu')
+            if node_cpu and (isinstance(node_cpu, int) or node_cpu.is_digit()):
+                machine.cores = node_cpu
+                updated = True
+        return updated
+
+    def _list_machines__get_machine_extra(self, machine, node_dict):
+        node_extra = node_dict.get('extra')
+        return copy.copy(node_extra) if node_extra else {}
+
+
+class KubeVirtComputeController(_KubernetesBaseComputeController):
+    def _connect(self, **kwargs):
+        return super()._connect(Provider.KUBEVIRT,
+                                use_container_driver=False,
+                                **kwargs)
+
     def _list_machines__postparse_machine(self, machine, node_dict):
         updated = False
         if machine.machine_type != 'container':
@@ -4073,19 +4159,9 @@ class KubeVirtComputeController(BaseComputeController):
                             updated = True
         return updated
 
-    def _list_machines__get_location(self, node):
-        return node['extra'].get('namespace', "")
-
-    def _list_machines__get_size(self, node):
-        return node['size'].get('id')
-
-    def _list_sizes__get_cpu(self, size):
-        cpu = int(size.extra.get('cpus') or 1)
-        if cpu > 1000:
-            cpu = cpu / 1000
-        elif cpu > 99:
-            cpu = 1
-        return cpu
+    def _list_machines__machine_actions(self, machine, node_dict):
+        super()._list_machines__machine_actions(machine, node_dict)
+        machine.actions.expose = True
 
     def expose_port(self, machine, port_forwards):
         machine_libcloud = self._get_libcloud_node(machine)
