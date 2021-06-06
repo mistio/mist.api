@@ -22,6 +22,7 @@ from mist.api.dns.models import RECORDS
 from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api import config
+from mist.api.dramatiq_app import broker
 from mist.api.methods import connect_provider, probe_ssh_only
 from mist.api.methods import notify_user, notify_admin
 from mist.api.auth.methods import AuthContext
@@ -49,7 +50,7 @@ def tmp_log(msg, *args):
     log.info("Post deploy: %s" % msg, *args)
 
 
-@actor(queue_name="dramatiq_mappings")
+@actor(queue_name="dramatiq_mappings", broker=broker)
 def dramatiq_async_session_update(owner, sections=None):
     if sections is None:
         sections = [
@@ -59,7 +60,7 @@ def dramatiq_async_session_update(owner, sections=None):
     trigger_session_update(owner, sections)
 
 
-@actor(queue_name="dramatiq_create_machine")
+@actor(queue_name="dramatiq_create_machine", broker=broker)
 def dramatiq_create_machine_async(
     auth_context_serialized, plan, job_id=None, job=None
 ):
@@ -139,7 +140,7 @@ def dramatiq_create_machine_async(
                               node.id, plan, job_id=job_id, job=job)
 
 
-@actor(queue_name="dramatiq_post_deploy_steps")
+@actor(queue_name="dramatiq_post_deploy_steps", broker=broker)
 def dramatiq_post_deploy(auth_context_serialized, cloud_id,
                          machine_id, external_id, plan,
                          job_id=None, job=None):
@@ -224,7 +225,7 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
                             username=None, password=None, port=22)
 
 
-@actor(queue_name="dramatiq_ssh_tasks")
+@actor(queue_name="dramatiq_ssh_tasks", broker=broker)
 def dramatiq_ssh_tasks(auth_context_serialized, cloud_id, key_id, host,
                        external_id, machine_name, machine_id, scripts,
                        log_dict, monitoring=False, plugins=None,
