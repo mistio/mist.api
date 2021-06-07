@@ -86,7 +86,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
                     istatus.state = 'succeeded'
                     machine.save()
                     add_nodata_rule.delay(machine.owner.id, 'victoriametrics')
-                    trigger_session_update(machine.owner, ['monitoring'])
+                    notify_machine_monitoring(machine)
                     break
 
     return data

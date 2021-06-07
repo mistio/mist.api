@@ -137,8 +137,6 @@ def show_tag_values(key):
 
 
 def notify_machine_monitoring(machine):
-    # Initialize AMQP connection to reuse for multiple messages.
-    amqp_conn = Connection(AMQP_URI)
     patches = []
     patches.append({
         "path": "/%s-%s/monitoring" % (
@@ -149,6 +147,5 @@ def notify_machine_monitoring(machine):
 
     amqp_publish_user(machine.owner.id,
                       routing_key='patch_machines',
-                      connection=amqp_conn,
                       data={'cloud_id': machine.cloud.id,
                             'patch': patches})

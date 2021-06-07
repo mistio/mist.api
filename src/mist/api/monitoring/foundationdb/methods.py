@@ -61,6 +61,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         # if no data previously received for machine
         from mist.api.helpers import trigger_session_update
         from mist.api.rules.tasks import add_nodata_rule
+        from mist.api.monitoring.influxdb.helpers import notify_machine_monitoring
 
         istatus = machine.monitoring.installation_status
         if not istatus.activated_at:
@@ -74,7 +75,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
                     istatus.state = 'succeeded'
                     machine.save()
                     add_nodata_rule.delay(machine.owner.id)
-                    trigger_session_update(machine.owner, ['monitoring'])
+                    notify_machine_monitoring(machine)
                     break
 
     return data
