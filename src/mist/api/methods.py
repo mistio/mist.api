@@ -662,8 +662,11 @@ def list_resources(auth_context, resource_type, search='', cloud='',
 
     if result.count():
         if not auth_context.is_owner():
+            # get_allowed_resources uses plural
+            rtype = resource_type if resource_type.endswith(
+                's') else resource_type + 's'
             allowed_resources = auth_context.get_allowed_resources(
-                rtype=resource_type)
+                rtype=rtype)
             result = result.filter(id__in=allowed_resources)
         result = result.order_by(sort)
 
