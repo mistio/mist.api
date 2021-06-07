@@ -1,5 +1,6 @@
 """Schedule entity model."""
 import datetime
+import logging
 from uuid import uuid4
 import celery.schedules
 import mongoengine as me
@@ -12,6 +13,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.selectors.models import SelectorClassMixin
 from mist.api.ownership.mixins import OwnershipMixin
 
+log = logging.getLogger(__name__)
 
 #: Authorized values for Interval.period
 PERIODS = ('days', 'hours', 'minutes', 'seconds', 'microseconds')
@@ -116,6 +118,16 @@ class Crontab(BaseScheduleType):
             'day_of_month': self.day_of_month,
             'month_of_year': self.month_of_year
         }
+
+    def as_cron(self):
+        def rfield(x):
+            return str(x).replace(' ', '') or '*'
+
+        return '{0} {1} {2} {3} {4}'.format(
+            rfield(self.minute), rfield(self.hour),
+            rfield(self.day_of_month), rfield(self.month_of_year),
+            rfield(self.day_of_week),
+        )
 
 
 class BaseTaskType(me.EmbeddedDocument):
@@ -255,6 +267,10 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
         self.ctl = mist.api.schedules.base.BaseController(self)
 
     @property
+    def org(self):
+        return self.owner
+
+    @property
     def owner_id(self):
         # FIXME We should consider storing the owner id as a plain
         # string, instead of using a ReferenceField, to minimize
@@ -314,14 +330,20 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
     def enabled(self):
         if self.deleted:
             return False
-        if not self.get_resources().count():
+        try:
+            if not self.get_resources().count():
+                return False
+        except Exception as e:
+            log.error('Error getting resources for schedule %s: %r' % (
+                self.id, e))
             return False
+
         if self.expires and self.expires < datetime.datetime.now():
             return False
-        # if self.start_after and self.start_after < datetime.datetime.now():
-        #     return False
+        if self.start_after and self.start_after < datetime.datetime.now():
+            return False
         if self.max_run_count and (
-            (self.total_run_count or 0) >= self.max_run_count
+            (self.total_run_count or 0) >= int(self.max_run_count)
         ):
             return False
         else:

@@ -10,6 +10,20 @@ from mist.api.concurrency.models import PeriodicTaskTooRecentLastRun
 
 log = logging.getLogger(__name__)
 
+__all__ = [
+    'debug',
+    'list_machines',
+    'list_locations',
+    'list_sizes',
+    'list_images',
+    'list_networks',
+    'list_zones',
+    'list_volumes',
+    'list_buckets',
+    'ping_probe',
+    'ssh_probe'
+]
+
 
 def autodisable_cloud(cloud):
     """Disable cloud after multiple failures and notify user"""

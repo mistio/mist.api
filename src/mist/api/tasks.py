@@ -66,6 +66,26 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 log = logging.getLogger(__name__)
 
+__all__ = [
+    'ssh_command',
+    'post_deploy_steps',
+    'openstack_post_create_steps',
+    'azure_post_create_steps',
+    'rackspace_first_gen_post_create_steps',
+    'create_machine_async',
+    'send_email',
+    'group_machines_actions',
+    'run_machine_action',
+    'group_run_script',
+    'run_script',
+    'update_poller',
+    'gc_schedulers',
+    'set_missing_since',
+    'delete_periodic_tasks',
+    'create_backup',
+    'async_session_update'
+]
+
 
 @app.task
 def ssh_command(owner_id, cloud_id, machine_id, host, command,

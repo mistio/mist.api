@@ -12,6 +12,11 @@ from mist.api.monitoring.methods import get_cores
 
 log = logging.getLogger(__name__)
 
+__all__ = [
+    'find_machine_cores',
+    'push_metering_info',
+]
+
 
 def _skip_metering(machine):
     # Prevents counting the vCPUs of docker containers and KVM guests.

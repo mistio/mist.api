@@ -243,7 +243,7 @@ class BaseController(object):
                         period='seconds',
                         every=delta.seconds,
                         entry=future_date)
-                self.schedule.max_run_count = 1
+                self.schedule.max_run_count = self.schedule.max_run_count or 1
 
                 notify = kwargs.pop('notify', 0)
                 if notify:
