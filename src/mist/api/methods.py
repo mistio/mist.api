@@ -581,7 +581,7 @@ def list_resources(auth_context, resource_type, search='', cloud='',
         else:
             id_implicit = True
             k, v = 'id', term
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+            mongo_operator = '' if startsandendswith(v, '"') else '__icontains'
 
         v = v.strip('"')
         attr = getattr(resource_model, k, None)
