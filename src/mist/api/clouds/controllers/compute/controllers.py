@@ -2591,12 +2591,8 @@ class VSphereComputeController(BaseComputeController):
         machine.actions.clone = True
         machine.actions.rename = True
         machine.actions.create_snapshot = True
-        if len(machine.extra.get('snapshots', [])):
-            machine.actions.remove_snapshot = True
-            machine.actions.revert_to_snapshot = True
-        else:
-            machine.actions.remove_snapshot = False
-            machine.actions.revert_to_snapshot = False
+        machine.actions.remove_snapshot = True
+        machine.actions.revert_to_snapshot = True
 
     def _stop_machine(self, machine, node):
         return self.connection.stop_node(node)
