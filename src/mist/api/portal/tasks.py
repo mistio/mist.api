@@ -11,6 +11,11 @@ from mist.api.metering.methods import get_current_portal_usage
 
 log = logging.getLogger(__name__)
 
+__all__ = [
+    'check_new_versions',
+    'usage_survey'
+]
+
 
 def get_version_params(portal=None):
     if portal is None:

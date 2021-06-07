@@ -18,6 +18,12 @@ from mist.api.notifications.helpers import _log_alert
 
 log = logging.getLogger(__name__)
 
+__all__ = [
+    'evaluate',
+    'add_nodata_rule',
+    'run_action_by_id',
+]
+
 
 @app.task
 def evaluate(rule_id):

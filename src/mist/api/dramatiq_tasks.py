@@ -2,6 +2,8 @@ import time
 import datetime
 import uuid
 import logging
+import importlib
+
 from random import randrange
 import mongoengine as me
 
@@ -25,14 +27,13 @@ from mist.api import config
 from mist.api.dramatiq_app import broker
 from mist.api.methods import connect_provider, probe_ssh_only
 from mist.api.methods import notify_user, notify_admin
+from mist.api.helpers import trigger_session_update
 from mist.api.auth.methods import AuthContext
 from mist.api.logs.methods import log_event
 from mist.api.tag.methods import resolve_id_and_set_tags
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.shell import Shell
 from mist.api.tasks import run_script
-from mist.api.helpers import trigger_session_update
-
 
 logging.basicConfig(
     level=config.PY_LOG_LEVEL,
@@ -40,6 +41,35 @@ logging.basicConfig(
     datefmt=config.PY_LOG_FORMAT_DATE,
 )
 log = logging.getLogger(__name__)
+
+task_modules = [
+    'mist.api.tasks',
+    'mist.api.auth.tasks',
+    'mist.api.metering.tasks',
+    'mist.api.portal.tasks',
+    'mist.api.poller.tasks',
+    'mist.api.rules.tasks',
+    'mist.api.monitoring.tasks'
+]
+task_map = {
+    module: (lambda x: getattr(importlib.import_module(x), '__all__'))(module)
+    for module in task_modules
+}
+
+print('Loading task modules')
+for task_module in task_map.keys():
+    print(' * %s:' % task_module)
+    for task_name in task_map[task_module]:
+        task = getattr(importlib.import_module(task_module), task_name)
+        actor(
+            task,
+            actor_name=task_name,
+            time_limit=task.time_limit or 5 * 60 * 1000,  # 5 minutes
+            max_retries=task.max_retries,
+            broker=broker,
+            queue_name='dramatiq_schedules'
+        )
+        print('  - %s' % task_name)
 
 
 def tmp_log_error(msg, *args):

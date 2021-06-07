@@ -18,6 +18,13 @@ from mist.api.monitoring.traefik import reset_config, _get_config
 log = logging.getLogger(__name__)
 
 
+__all__ = [
+    'install_telegraf',
+    'uninstall_telegraf',
+    'reset_traefik_config',
+]
+
+
 @app.task(soft_time_limit=480, time_limit=600)
 def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     """Deploy Telegraf over SSH."""

@@ -37,6 +37,6 @@ class LoggingMiddleware(Middleware):
     after_skip_message = after_process_message
 
 
-broker = RabbitmqBroker(url=config.BROKER_URL)
+broker = RabbitmqBroker(url=config.BROKER_URL + '?heartbeat=600')
 broker.add_middleware(LoggingMiddleware())
 dramatiq.set_broker(broker)
