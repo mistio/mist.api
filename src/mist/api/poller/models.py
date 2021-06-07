@@ -1,8 +1,6 @@
 import logging
 import datetime
 
-import celery
-
 import mongoengine as me
 
 from mist.api import config
@@ -127,13 +125,13 @@ class PollingSchedule(ShardedScheduleMixin, me.Document):
                     interval = i
         return interval
 
-    @property
-    def schedule(self):
-        """Return a celery schedule instance
+    # @property
+    # def schedule(self):
+    #     """Return a celery schedule instance
 
-        This is used internally by celerybeatmongo scheduler
-        """
-        return celery.schedules.schedule(self.interval.timedelta)
+    #     This is used internally by celerybeatmongo scheduler
+    #     """
+    #     return celery.schedules.schedule(self.interval.timedelta)
 
     @property
     def expires(self):
