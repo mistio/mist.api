@@ -253,7 +253,10 @@ def create_machine(request):
           object
     security_group:
       type: string
-      description: Machine will join this security group
+      description: Machine will join this security group. AWS parameter
+    security_groups:
+      type: list
+      description: Openstack security groups
     vnfs:
       description: Network Virtual Functions to configure in machine
       type: array
@@ -336,6 +339,13 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
+    if isinstance(sec_group, list):
+        sec_groups = sec_group
+    elif sec_group:
+        sec_groups = [sec_group]
+    else:
+        sec_groups = params.get('security_groups', [])
+
     vnfs = params.get('vnfs', [])
     port_forwards = params.get('port_forwards', {})
     expiration = params.get('expiration', {})
@@ -500,7 +510,7 @@ def create_machine(request):
               'datastore': datastore,
               'ephemeral': params.get('ephemeral', False),
               'lxd_image_source': params.get('lxd_image_source', None),
-              'sec_group': sec_group,
+              'sec_groups': sec_groups,
               'description': description,
               'port_forwards': port_forwards}
     if not run_async:
