@@ -56,12 +56,14 @@ task_map = {
     for module in task_modules
 }
 
+actors = {}
+
 print('Loading task modules')
 for task_module in task_map.keys():
     print(' * %s:' % task_module)
     for task_name in task_map[task_module]:
         task = getattr(importlib.import_module(task_module), task_name)
-        actor(
+        actors[task_name] = actor(
             task,
             actor_name=task_name,
             time_limit=task.time_limit or 5 * 60 * 1000,  # 5 minutes

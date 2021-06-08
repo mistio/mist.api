@@ -9,7 +9,8 @@ from mist.api.helpers import get_resource_model
 
 from mist.api.notifications.helpers import _log_alert
 
-from mist.api.rules.tasks import run_action_by_id
+from mist.api.dramatiq_tasks import actors
+
 from mist.api.rules.models import Rule
 from mist.api.rules.models import NoDataAction
 from mist.api.rules.models import NotificationAction
@@ -59,53 +60,26 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
     if not (triggered and triggered_now):
         action = rule.actions[0]
         if isinstance(action, NotificationAction):
-            run_action_by_id.delay(
+            run_action_by_id.send(
                 rule_id, incident_id, action.id, resource_id,
                 resource_type, value, triggered, timestamp,
             )
         return
 
     # Get a list of task signatures for every task, excluding the first one.
-    chain = []
+    tasks = []
     for action in rule.actions[1:]:
-        task = run_action_by_id.si(
+        task = run_action_by_id.message(
             rule_id, incident_id, action.id, resource_id,
             resource_type, value, triggered, timestamp,
         )
-        chain.append(task)
+        tasks.append(task)
 
-    # If there are multiple actions, build a celery chain.
-    if chain:
-        chain = reduce(operator.or_, chain)
-
-    # Get the task signature of the first action, which was omitted above.
-    action = rule.actions[0]
-    task = run_action_by_id.si(
-        rule_id, incident_id, action.id, resource_id,
-        resource_type, value, triggered, timestamp,
-    )
-
+    delay = 0
     # Buffer no-data alerts so that we can decide on false-positives.
-    if isinstance(action, NoDataAction):
-        task.set(countdown=config.NO_DATA_ALERT_BUFFER_PERIOD)
+    if isinstance(rule.actions[0], NoDataAction):
+        delay=config.NO_DATA_ALERT_BUFFER_PERIOD * 1000
 
-    # Apply all tasks asynchronously. There are 3 scenarios here:
-    # a. If there's only a single task, and not a celery chain, just apply
-    #    it
-    # b. If there's a celery chain, group it with the first task, if it's
-    #    a NotificationAction, in order for the NotificationAction to not
-    #    block the rest of the chain by running them in parallel
-    # c. If there's a celery chain, pipe it to the first task, if that is
-    #    not a NotificationAction
-    # TODO Allow multiple NotificationAction's. Permit users to specify
-    # more than a single notification that will notify them of the outcome
-    # of the previously executed task in the chain, whether it succeeded
-    # or not.
-    if not chain:
-        task.apply_async()
-    elif isinstance(action, NotificationAction):
-        from celery import group
-        group(task, chain)()
-    else:
-        chain = operator.or_(task, chain)
-        chain.apply_async()
+    # Apply all tasks in parallel
+    from dramatiq import group
+    group(tasks).run(delay=delay)
