@@ -525,8 +525,10 @@ class BaseComputeController(BaseController):
             machine.name = node['name']
             updated = True
 
-        if machine.state != config.STATES[node['state']]:
-            machine.state = config.STATES[node['state']]
+        node_state = node.get('state')
+        config_state = config.STATES.get(node_state)
+        if node_state and config_state and machine.state != config_state:
+            machine.state = config_state
             updated = True
 
         new_private_ips = list(set(node['private_ips']))
