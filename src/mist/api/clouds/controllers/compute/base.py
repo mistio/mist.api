@@ -484,15 +484,16 @@ class BaseComputeController(BaseController):
             image_id = node['image']['id']
         elif node.get('image'):
             image_id = node.get('image')
-        elif isinstance(node['extra'].get('image'), dict):
+        elif isinstance(node.get('extra', {}).get('image'), dict):
             image_id = str(node['extra'].get('image').get('id'))
 
         if not image_id:
-            image_id = str(node.get('image') or node['extra'].get('imageId') or
-                           node['extra'].get('image_id') or
-                           node['extra'].get('image'))
+            image_id = str(node.get('image') or node.get(
+                           'extra', {}).get('imageId') or
+                           node.get('extra', {}).get('image_id') or
+                           node.get('extra', {}).get('image'))
         if not image_id:
-            image_id = node['extra'].get('operating_system')
+            image_id = node.get('extra', {}).get('operating_system')
             if isinstance(image_id, dict):
                 image_id = image_id.get('name')
 
