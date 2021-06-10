@@ -354,15 +354,18 @@ class User(Owner):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = ['email', 'id', 'first_name', 'last_name',
                            'last_login', 'username', 'registration_date']
-        ret =  prepare_dereferenced_dict(standard_fields, {}, self,
-                                         deref, only)
+        ret = prepare_dereferenced_dict(standard_fields, {}, self,
+                                        deref, only)
         if ret.get('last_login'):
             ret['last_login'] = datetime.datetime.fromtimestamp(
                 ret['last_login']).strftime("%A, %B %d, %Y %I:%M:%S")
         if ret.get('registration_date'):
             ret['registration_date'] = datetime.datetime.fromtimestamp(
                 ret['registration_date']).strftime("%A, %B %d, %Y %I:%M:%S")
+        else:
+            ret['registration_date'] = ""
         return ret
+
 
 class Avatar(me.Document):
     id = me.StringField(primary_key=True,
@@ -425,6 +428,19 @@ class Team(me.EmbeddedDocument):
             ret['policy'] = self.policy
         return ret
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['name', 'id', 'description']
+        if config.HAS_RBAC:
+            standard_fields.append('policy')
+        deref_map = {
+            'members': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map,
+                                        self, deref, only)
+        if(ret.get('policy')):
+            ret['policy'] = ret['policy'].__str__()
+        ret['members_count'] = len(ret.get('members', []))
         return ret
 
     def __str__(self):
@@ -600,6 +616,19 @@ class Organization(Owner):
                 view["teams"].append(p_team)
 
         return view
+
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+
+        standard_fields = ['id', 'name', 'clouds_count',
+                           'teams_count', 'created',
+                           'enterprise_plan', 'selected_plan', 'enable_r12ns',
+                           'default_monitoring_method', 'insights_enabled',
+                           'ownership_enabled']
+        ret = prepare_dereferenced_dict(standard_fields, {}, self, deref, only)
+        if ret.get('created'):
+            ret['created'] = ret['created'].strftime("%A, %B %d, %Y %I:%M:%S")
+        return ret
 
     def clean(self):
         # make sure that each team's name is unique
