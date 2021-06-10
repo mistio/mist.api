@@ -1109,6 +1109,93 @@ class LinodeComputeController(BaseComputeController):
             return 'system'
         return 'custom'
 
+    def _list_sizes__get_cpu(self, size):
+        if self.cloud.apiversion is not None:
+            return super()._list_sizes__get_cpu(size)
+        return int(size.extra.get('vcpus') or 1)
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        persist_across_boots = True if volume_dict.get(
+            'persist_across_boots', True) is True else False
+        ret = {
+            'id': vol_obj.id,
+            'name': vol_obj.name,
+            'persist_across_boots': persist_across_boots
+        }
+        return ret
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size parameter is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+
+        if size < 10:
+            raise BadRequestError('Volume size should be at least 10 GBs')
+
+        try:
+            name = str(volume_dict['name'])
+        except KeyError:
+            raise BadRequestError('Volume name parameter is required')
+
+        return {'name': name, 'size': size}
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        private_ip = True if networks_dict.get(
+            'private_ip', True) is True else False
+        return {'private_ip': private_ip}
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        from mist.api.helpers import (generate_secure_password,
+                                      validate_password)
+        try:
+            root_pass = extra['root_pass']
+        except KeyError:
+            root_pass = generate_secure_password()
+        else:
+            if validate_password(root_pass) is False:
+                raise BadRequestError(
+                    "Your password must contain at least one "
+                    "lowercase character, one uppercase and one digit")
+        plan['root_pass'] = root_pass
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        key = kwargs.pop('auth')
+        kwargs['ex_authorized_keys'] = [key.public]
+        kwargs['ex_private_ip'] = plan['networks']['private_ip']
+        kwargs['root_pass'] = plan['root_pass']
+        return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        from mist.api.volumes.models import Volume
+        from libcloud.compute.base import StorageVolume
+        volumes = plan.get('volumes', [])
+        for volume in volumes:
+            if volume.get('id'):
+                vol = Volume.objects.get(id=volume['id'])
+                libcloud_vol = StorageVolume(id=vol.external_id,
+                                             name=vol.name,
+                                             size=vol.size,
+                                             driver=self.connection,
+                                             extra=vol.extra)
+                try:
+                    self.connection.attach_volume(
+                        node,
+                        libcloud_vol,
+                        persist_across_boots=volume['persist_across_boots'])
+                except Exception as exc:
+                    log.exception('Failed to attach volume')
+            else:
+                try:
+                    self.connection.create_volume(volume['name'],
+                                                  volume['size'],
+                                                  node=node)
+                except Exception as exc:
+                    log.exception('Failed to create volume')
+
 
 class RackSpaceComputeController(BaseComputeController):
 
