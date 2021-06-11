@@ -2742,12 +2742,12 @@ class VSphereComputeController(BaseComputeController):
         if not folder:
             try:
                 folder = vm.parent._moId
-        except Exception as exc:
-            raise BadRequestError(
-                "Failed to find folder the folder containing the machine")
-            log.error(
-                "Clone Machine: Exception when looking for folder: {}".format(
-                    exc))
+            except Exception as exc:
+                raise BadRequestError(
+                    "Failed to find folder the folder containing the machine")
+                log.error(
+                    "Clone Machine: Exception when "
+                    "looking for folder: {}".format(exc))
         datastore = node.extra.get('datastore', None)
         return self.connection.create_node(name=name, image=node,
                                            size=node.size,
@@ -2757,8 +2757,7 @@ class VSphereComputeController(BaseComputeController):
 
     def _get_libcloud_node(self, machine):
         vm = self.connection.find_by_uuid(machine.machine_id)
-        return self.connection._to_node_recursiver(vm)
-
+        return self.connection._to_node_recursive(vm)
 
 
 class VCloudComputeController(BaseComputeController):
