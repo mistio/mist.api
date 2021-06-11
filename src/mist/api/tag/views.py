@@ -51,7 +51,6 @@ def tag_resources(request):
       required: true
       type: object
     """
-
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
 
@@ -186,8 +185,8 @@ def get_machine_tags(request):
       type: string
     """
     auth_context = auth_context_from_request(request)
-    machine_id = request.matchdict["machine_id"]
-    cloud_id = request.matchdict["cloud_id"]
+    machine_id = request.matchdict["machine"]
+    cloud_id = request.matchdict["cloud"]
     auth_context.check_perm("cloud", "read", cloud_id)
 
     auth_context.check_perm('cloud', 'read', cloud_id)

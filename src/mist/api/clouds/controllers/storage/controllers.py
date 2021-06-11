@@ -364,7 +364,7 @@ class AlibabaStorageController(BaseStorageController):
                 volume.actions.detach = False
 
 
-class PacketStorageController(BaseStorageController):
+class EquinixMetalStorageController(BaseStorageController):
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -545,6 +545,12 @@ class LXDStorageController(BaseStorageController):
                                 "size_type": "GB",
                                 "config": config}
 
+    def _list_volumes__volume_actions(self, volume, libcloud_volume):
+        super(LXDStorageController, self)._list_volumes__volume_actions(
+            volume, libcloud_volume)
+        # detach_volume is not implemented in libcloud driver
+        volume.actions.detach = False
+
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
 
         pool_id = libcloud_volume.extra["pool_id"]
@@ -597,6 +603,88 @@ class GigG8StorageController(BaseStorageController):
 
     def _create_volume__prepare_args(self, kwargs):
         kwargs['ex_description'] = kwargs.pop('description')
+
+    def _detach_volume(self, libcloud_volume, libcloud_node):
+        self.cloud.ctl.compute.connection.detach_volume(libcloud_node,
+                                                        libcloud_volume)
+
+
+class LinodeStorageController(BaseStorageController):
+
+    def _create_volume__prepare_args(self, kwargs):
+        from mist.api.clouds.models import CloudLocation
+        if not kwargs.get('location'):
+            raise RequiredParameterMissingError('location')
+        try:
+            location = CloudLocation.objects.get(id=kwargs['location'])
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError("Location with id '%s'." % kwargs['location'])
+        node_location = NodeLocation(id=location.external_id,
+                                     name=location.name,
+                                     country=location.country, driver=None)
+
+        kwargs['location'] = node_location
+
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+
+        # Find the volume's location.
+        try:
+            volume.location = CloudLocation.objects.get(
+                name=libcloud_volume.extra.get('location', ''),
+                cloud=self.cloud, missing_since=None
+            )
+        except CloudLocation.DoesNotExist:
+            volume.location = None
+
+        # Find the machine to which the volume is attached.
+        volume.attached_to = []
+        machine_id = libcloud_volume.extra.get('linode_id', None)
+        if machine_id:
+            try:
+                machine = Machine.objects.get(
+                    machine_id=str(machine_id),
+                    cloud=self.cloud,
+                    missing_since=None
+                )
+                volume.attached_to = [machine]
+            except Machine.DoesNotExist:
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
+
+
+class CloudSigmaStorageController(BaseStorageController):
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+
+        # Find the volume's location.
+        try:
+            volume.location = CloudLocation.objects.get(
+                external_id=self.cloud.ctl.compute.connection.region,
+                cloud=self.cloud, missing_since=None
+            )
+        except CloudLocation.DoesNotExist:
+            volume.location = None
+
+        # Find the machines to which the volume is attached.
+        machine_ids = [item['uuid'] for item in
+                       libcloud_volume.extra['mounted_on']]
+
+        volume.attached_to = Machine.objects(cloud=self.cloud,
+                                             missing_since=None,
+                                             machine_id__in=machine_ids)
+
+    def _create_volume__prepare_args(self, kwargs):
+        for param in ('name', 'size'):
+            if not kwargs.get(param):
+                raise RequiredParameterMissingError(param)
+
+        try:
+            assert 1 <= int(kwargs['size']) <= 100000
+        except AssertionError:
+            raise BadRequestError('Valid size values are 1-100000 GB')
 
     def _detach_volume(self, libcloud_volume, libcloud_node):
         self.cloud.ctl.compute.connection.detach_volume(libcloud_node,

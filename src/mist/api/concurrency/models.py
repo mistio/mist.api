@@ -26,7 +26,7 @@ class PeriodicTaskInfo(me.Document):
 
     class Lock(me.EmbeddedDocument):
         id = me.StringField(default=lambda: uuid.uuid4().hex)
-        created_at = me.DateTimeField(default=datetime.datetime.now())
+        created_at = me.DateTimeField(default=lambda: datetime.datetime.now())
 
     # Unique task identifier.
     key = me.StringField(primary_key=True)

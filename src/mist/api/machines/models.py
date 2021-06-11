@@ -6,7 +6,7 @@ import logging
 import datetime
 import mongoengine as me
 
-import mist.api.tag.models
+from mist.api.tag.models import Tag
 
 from future.utils import string_types
 
@@ -79,6 +79,7 @@ class Actions(me.EmbeddedDocument):
     suspend = me.BooleanField(default=False)
     undefine = me.BooleanField(default=False)
     clone = me.BooleanField(default=False)
+    power_cycle = me.BooleanField(default=False)
     create_snapshot = me.BooleanField(default=False)
     remove_snapshot = me.BooleanField(default=False)
     revert_to_snapshot = me.BooleanField(default=False)
@@ -100,7 +101,7 @@ class Monitoring(me.EmbeddedDocument):
 
     def get_commands(self):
         if self.method in ('telegraf-influxdb', 'telegraf-graphite',
-                           'telegraf-tsfdb'):
+                           'telegraf-tsfdb', 'telegraf-victoriametrics'):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             from mist.api.monitoring.commands import windows_install
@@ -326,6 +327,8 @@ class Machine(OwnershipMixin, me.Document):
     meta = {
         'collection': 'machines',
         'indexes': [
+            'owner', 'last_seen', 'missing_since',
+            'name', 'cloud', 'machine_id',
             {
                 'fields': [
                     'cloud',
@@ -388,7 +391,7 @@ class Machine(OwnershipMixin, me.Document):
         if self.expiration:
             self.expiration.delete()
         super(Machine, self).delete()
-        mist.api.tag.models.Tag.objects(
+        Tag.objects(
             resource_id=self.id, resource_type='machine').delete()
         try:
             self.owner.mapper.remove(self)
@@ -400,9 +403,101 @@ class Machine(OwnershipMixin, me.Document):
         except (AttributeError, me.DoesNotExist) as exc:
             log.error(exc)
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'hostname', 'state', 'public_ips', 'private_ips',
+            'created', 'last_seen', 'missing_since', 'unreachable_since',
+            'os_type', 'cores', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'parent': 'name',
+            'location': 'name',
+            'image': 'name',
+            'size': 'name',
+            'network': 'name',
+            'subnet': 'name',
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'type' in only or not only:
+            ret['type'] = None
+            if self.machine_type:
+                ret['type'] = self.machine_type
+
+        if 'external_id' in only or not only:
+            ret['external_id'] = None
+            if self.machine_id:
+                ret['external_id'] = self.machine_id
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value for tag in Tag.objects(
+                    resource_id=self.id, resource_type='machine').only(
+                        'key', 'value')}
+
+        if 'cost' in only or not only:
+            ret['cost'] = self.cost.as_dict()
+
+        if 'monitoring' in only or not only:
+            if self.monitoring and self.monitoring.hasmonitoring:
+                ret['monitoring'] = self.monitoring.as_dict()
+            else:
+                ret['monitoring'] = ''
+
+        if 'key_associations' in only or not only:
+            ret['key_associations'] = [
+                ka.as_dict() for ka in KeyMachineAssociation.objects(
+                    machine=self)
+            ]
+
+        if 'probe' in only or not only:
+            ret['probe'] = {}
+            if self.ssh_probe is not None:
+                ret['probe']['ssh'] = self.ssh_probe.as_dict()
+            if self.ping_probe:
+                ret['probe']['ping'] = self.ping_probe.as_dict()
+
+        if 'ports' in only or not only:
+            ret['ports'] = {}
+            if self.ssh_port:
+                ret['ports']['ssh'] = self.ssh_port
+            if self.rdp_port:
+                ret['ports']['rdp'] = self.rdp_port
+
+        if 'actions' in only or not only:
+            ret['actions'] = {
+                action: self.actions[action] for action in self.actions
+            }
+
+        if 'expiration' in only or not only:
+            ret['expiration'] = None
+            if self.expiration:
+                try:
+                    ret['expiration'] = {
+                        'id': self.expiration.id,
+                        'action': self.expiration.task_type.action,
+                        'date':
+                            self.expiration.schedule_type.entry.isoformat(),
+                        'notify': self.expiration.reminder and int((
+                            self.expiration.schedule_type.entry -
+                            self.expiration.reminder.schedule_type.entry
+                        ).total_seconds()) or 0,
+                    }
+                except Exception as exc:
+                    log.error("Error getting expiration for machine %s: %r" % (
+                        self.id, exc))
+                    self.expiration = None
+                    self.save()
+
+        return ret
+
     def as_dict(self):
         # Return a dict as it will be returned to the API
-        tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
+        tags = {tag.key: tag.value for tag in Tag.objects(
             resource_id=self.id, resource_type='machine'
         ).only('key', 'value')}
         try:
@@ -518,3 +613,10 @@ class KeyMachineAssociation(me.Document):
 
     def as_dict(self):
         return json.loads(self.to_json())
+
+    def as_dict_v2(self):
+        return {
+            'machine': self.machine.id,
+            'user': self.ssh_user,
+            'port': self.port
+        }

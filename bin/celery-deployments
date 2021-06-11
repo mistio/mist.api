@@ -2,6 +2,8 @@
 
 set -e
 
-export QUEUES="${QUEUES:-deployments,mappings,command,celery}"
+CONCURRENCY=${CONCURRENCY:-16}
+
+export QUEUES="${QUEUES:-deployments,mappings,command,scripts,celery}"
 
 exec ./bin/celery $@

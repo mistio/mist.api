@@ -22,6 +22,7 @@ import socket
 import smtplib
 import logging
 import codecs
+import secrets
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -69,14 +70,21 @@ from distutils.version import LooseVersion
 from elasticsearch import Elasticsearch
 from elasticsearch_tornado import EsClient
 
+from libcloud.container.base import ContainerImage
+from libcloud.container.drivers.docker import DockerException
+from libcloud.container.providers import get_driver as get_container_driver
+from libcloud.container.types import Provider as Container_Provider
+
 import mist.api.users.models
 from mist.api.auth.models import ApiToken, datetime_to_str
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.exceptions import PolicyUnauthorizedError
+from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
+from mist.api.exceptions import WorkflowExecutionError
 
 from mist.api import config
+
 from functools import reduce
 
 if config.HAS_RBAC:
@@ -730,6 +738,8 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
 rtype_to_classpath = {
     'cloud': 'mist.api.clouds.models.Cloud',
     'clouds': 'mist.api.clouds.models.Cloud',
+    'bucket': 'mist.api.objectstorage.models.Bucket',
+    'buckets': 'mist.api.objectstorage.models.Bucket',
     'machine': 'mist.api.machines.models.Machine',
     'machines': 'mist.api.machines.models.Machine',
     'zone': 'mist.api.dns.models.Zone',
@@ -742,6 +752,9 @@ rtype_to_classpath = {
     'volume': 'mist.api.volumes.models.Volume',
     'location': 'mist.api.clouds.models.CloudLocation',
     'image': 'mist.api.images.models.CloudImage',
+    'rule': 'mist.api.rules.models.Rule',
+    'size': 'mist.api.clouds.models.CloudSize',
+    'team': 'mist.api.users.models.Team'
 }
 
 if config.HAS_VPN:
@@ -973,7 +986,8 @@ def logging_view_decorator(func):
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
                     'tunnel_id', 'story_id', 'stack_id', 'template_id',
-                    'zone', 'record', 'network', 'subnet', 'volume', 'key']:
+                    'zone', 'record', 'network', 'subnet', 'volume', 'key',
+                    'buckets']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -1003,7 +1017,7 @@ def logging_view_decorator(func):
 
         # Attempt to hide passwords, API keys, certificates, etc.
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
-                    'cert_file', 'key_file'):
+                    'cert_file', 'key_file', 'token'):  # FIXME
             if params.get(key):
                 params[key] = '***CENSORED***'
 
@@ -1050,7 +1064,8 @@ def logging_view_decorator(func):
                 log_dict['machine_id'] = bdict['machine']
             # Match resource type based on the action performed.
             for rtype in ['cloud', 'machine', 'key', 'script', 'tunnel',
-                          'stack', 'template', 'schedule', 'volume']:
+                          'stack', 'template', 'schedule', 'volume',
+                          'buckets']:
                 if rtype in log_dict['action']:
                     if 'id' in bdict and '%s_id' % rtype not in log_dict:
                         log_dict['%s_id' % rtype] = bdict['id']
@@ -1291,7 +1306,7 @@ def maybe_submit_cloud_task(cloud, task_name):
 
     """
     if task_name == 'list_projects':
-        if cloud.ctl.provider != 'packet':
+        if cloud.ctl.provider != 'equinixmetal':
             return False
     return True
 
@@ -1444,3 +1459,222 @@ def node_to_dict(node):
         ret['extra'] = json.loads(json.dumps(
             ret['extra'], default=node_to_dict))
     return ret
+
+
+def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
+    only_fields = [f for f in only.split(',') if f]
+    deref = deref.replace(' ', '')
+    if not deref or deref == 'none':
+        deref_map = {k: 'id' for k in deref_map.keys()}
+    elif deref != 'auto':
+        deref_split = [f for f in deref.split(',') if f]
+        for f in deref_split:
+            if ':' in f:
+                k, v = f.split(':')
+                deref_map[k] = v
+            else:
+                deref_map[k] = 'name' if k != 'cloud' else 'title'
+
+    if only_fields:
+        deref_map = {
+            k: v for k, v in deref_map.items() if k in only_fields}
+
+    ret = {}
+
+    for field in standard_fields:
+        if field in only_fields or not only_fields:
+            ret[field] = getattr(obj, field)
+
+    for k, v in deref_map.items():
+        # If we have a list, derefence its contents
+        if isinstance(getattr(obj, k), list):
+            ret[k] = [getattr(item, v, '') for item in getattr(obj, k)]
+        else:
+            ref = getattr(obj, k)
+            ret[k] = getattr(ref, v, '')
+    return ret
+
+
+def compute_tags(auth_context, tags=None, request_tags=None):
+    security_tags = auth_context.get_security_tags()
+    for mt in request_tags:
+        if mt in security_tags:
+            raise ForbiddenError(
+                'You may not assign tags included in a Team access policy:'
+                ' `%s`' % mt)
+    tags.update(request_tags)
+    return tags
+
+
+def check_expiration_constraint(auth_context, expiration, constraints=None):
+    constraints = constraints or {}
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
+
+
+def check_cost_constraint(auth_context, constraints=None):
+    constraints = constraints or {}
+    cost_constraint = constraints.get('cost', {})
+    if cost_constraint:
+        try:
+            from mist.rbac.methods import check_cost
+            check_cost(auth_context.org, cost_constraint)
+        except ImportError:
+            pass
+
+
+def check_size_constraint(auth_context, sizes, constraints=None):
+    try:
+        from mist.rbac.methods import check_size
+    except ImportError:
+        return sizes
+
+    constraints = constraints or {}
+    size_constraint = constraints.get('size', {})
+
+    if not size_constraint:
+        return sizes
+
+    permitted_sizes = []
+    for size in sizes:
+        # constraints do not apply on custom sizes
+        if not isinstance(size, dict):
+            try:
+                check_size(auth_context.org, size_constraint, size.id)
+            except PolicyUnauthorizedError:
+                continue
+            else:
+                permitted_sizes.append(size)
+
+    return permitted_sizes
+
+
+def bucket_to_dict(node):
+    if isinstance(node, str):
+        return node
+    elif isinstance(node, datetime.datetime):
+        return node.isoformat()
+    elif not getattr(node, "__dict__"):
+        return str(node)
+    ret = node.__dict__
+    if ret.get('driver'):
+        ret.pop('driver')
+    if ret.get('container'):
+        ret['container'] = bucket_to_dict(ret['container'])
+    if ret.get('state'):
+        ret['state'] = str(ret['state'])
+    if 'extra' in ret:
+        ret['extra'] = json.loads(json.dumps(
+            ret['extra'], default=bucket_to_dict))
+    return ret
+
+
+def docker_connect():
+    try:
+        if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
+            # tls auth, needs to pass the key and cert as files
+            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            key_temp_file.write(config.DOCKER_TLS_KEY.encode())
+            key_temp_file.close()
+            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            cert_temp_file.write(config.DOCKER_TLS_CERT.encode())
+            cert_temp_file.close()
+            if config.DOCKER_TLS_CA:
+                # docker started with tlsverify
+                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+                ca_cert_temp_file.write(config.DOCKER_TLS_CA.encode())
+                ca_cert_temp_file.close()
+            driver = get_container_driver(Container_Provider.DOCKER)
+            conn = driver(host=config.DOCKER_IP,
+                          port=config.DOCKER_PORT,
+                          key_file=key_temp_file.name,
+                          cert_file=cert_temp_file.name,
+                          ca_cert=ca_cert_temp_file.name)
+        else:
+            driver = get_container_driver(Container_Provider.DOCKER)
+            conn = driver(host=config.DOCKER_IP, port=config.DOCKER_PORT)
+    except Exception as err:
+        raise WorkflowExecutionError(str(err))
+
+    return conn
+
+
+def docker_run(name, image_id, env=None, command=None):
+    conn = docker_connect()
+    image = ContainerImage(id=image_id, name=image_id,
+                           extra={}, driver=conn, path=None,
+                           version=None)
+    try:
+        container = conn.deploy_container(name, image, environment=env,
+                                          command=command, tty=True)
+    except DockerException:
+        conn.install_image(image_id)
+        container = conn.deploy_container(name, image, environment=env,
+                                          command=command, tty=True)
+    return container
+
+
+def search_parser(search):
+    """
+    Parse search string passed to `list_resources` into a list of strings.
+
+    Supports key:value, key=value, key:(value with spaces), key:"exact value",
+    AND/OR operators and a single 'stray' string that will be set to
+    id or name.
+
+    A value containing spaces should be enclosed in
+    parentheses or double quotes for exact match.
+
+    Note: implicit id or name cannot be the last value
+    unless it's the only value in search.
+    """
+
+    pattern = (r'([a-zA-Z0-9_]+)(:|=|<=|>=|!=|<|>)'  # capture key and mathematical operator  # noqa
+               r'(\(.+?\)|".+?"|\S+)'  # capture value or value with spaces enclosed in "", ()  # noqa
+               r'|(OR|AND|[^:=<>!]+?'  # capture OR/AND/'stray' string  # noqa
+               r'(?= [a-zA-Z0-9_]+?[:=<>!]| AND | OR |$)'  # until one of key+mathematical operator, OR , AND is encountered  # noqa
+               r'|^[^:=<>!]+$)')  # capture simple 'stray' string
+
+    matched = re.findall(pattern, search)
+
+    items = [''.join(val.strip(' ()') for val in tup if val)
+             for tup in matched]
+    return items
+
+
+def startsandendswith(main_str, char):
+    return main_str.startswith(char) and main_str.endswith(char)
+
+
+def generate_secure_password(min_chars=12, max_chars=21):
+    """Generate a twelve to twenty characters password with at least
+    one lowercase character, at least one uppercase character
+    and at least three digits.
+
+    """
+    alphabet = string.ascii_letters + string.digits
+    length = secrets.choice(range(min_chars, max_chars))
+    while True:
+        password = ''.join(secrets.choice(alphabet) for i in range(length))
+        if (any(c.islower() for c in password) and
+            any(c.isupper() for c in password) and
+                sum(c.isdigit() for c in password) >= 3):
+            break
+
+    return password
+
+
+def validate_password(password):
+    """A simple password validator
+    """
+    length = len(password) > 7
+    lower_case = any(c.islower() for c in password)
+    upper_case = any(c.isupper() for c in password)
+    digit = any(c.isdigit() for c in password)
+
+    return length and lower_case and upper_case and digit

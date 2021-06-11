@@ -1,8 +1,9 @@
+import os
 import uuid
 import logging
 import urllib
 
-from pyramid.response import Response
+from pyramid.response import Response, FileResponse
 from pyramid.renderers import render_to_response
 
 import mist.api.machines.methods as methods
@@ -26,6 +27,8 @@ from mist.api.exceptions import MistNotImplementedError, MethodNotAllowedError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
+
+from mist.api.clouds.models import CloudSize
 
 from mist.api import config
 
@@ -235,7 +238,7 @@ def create_machine(request):
     docker_port_bindings:
       type: object
     project_id:
-      description: ' Needed only by Packet cloud'
+      description: ' Needed only by EquinixMetal cloud'
       type: string
     softlayer_backend_vlan_id:
       description: 'Specify id of a backend(private) vlan'
@@ -250,7 +253,10 @@ def create_machine(request):
           object
     security_group:
       type: string
-      description: Machine will join this security group
+      description: Machine will join this security group. AWS parameter
+    security_groups:
+      type: list
+      description: Openstack security groups
     vnfs:
       description: Network Virtual Functions to configure in machine
       type: array
@@ -333,6 +339,13 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
+    if isinstance(sec_group, list):
+        sec_groups = sec_group
+    elif sec_group:
+        sec_groups = [sec_group]
+    else:
+        sec_groups = params.get('security_groups', [])
+
     vnfs = params.get('vnfs', [])
     port_forwards = params.get('port_forwards', {})
     expiration = params.get('expiration', {})
@@ -442,6 +455,25 @@ def create_machine(request):
         except ImportError:
             pass
 
+    # check for size constraints
+    size_constraint = constraints.get('size', {})
+    all_constraints = size_constraint.get(
+        'allowed', []) or size_constraint.get('not_allowed', [])
+    if(all_constraints):
+        # filter size constraints relevant to current cloud
+        size_constraints = []
+        for size_constr in all_constraints:
+            if(size_constr['cloud'] == cloud.id):
+                size_constraints.append(size_constr['size'])
+        try:
+            db_size = size
+            if(not isinstance(size, dict)):
+                db_size = CloudSize.objects.get(id=size)
+            from mist.rbac.methods import check_size
+            check_size(auth_context.org, size_constraints, db_size)
+        except ImportError:
+            pass
+
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
@@ -478,7 +510,7 @@ def create_machine(request):
               'datastore': datastore,
               'ephemeral': params.get('ephemeral', False),
               'lxd_image_source': params.get('lxd_image_source', None),
-              'sec_group': sec_group,
+              'sec_groups': sec_groups,
               'description': description,
               'port_forwards': port_forwards}
     if not run_async:
@@ -714,6 +746,7 @@ def machine_actions(request):
       - remove_snapshot
       - revert_to_snapshot
       - expose
+      - power_cycle
       required: true
       type: string
     name:
@@ -797,7 +830,7 @@ def machine_actions(request):
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
                'rename', 'undefine', 'suspend', 'resume', 'remove',
                'list_snapshots', 'create_snapshot', 'remove_snapshot',
-               'revert_to_snapshot', 'clone', 'expose')
+               'revert_to_snapshot', 'clone', 'expose', 'power_cycle')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
@@ -825,7 +858,8 @@ def machine_actions(request):
         result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-    elif action in ('start', 'stop', 'reboot', 'suspend', 'resume'):
+    elif action in ('start', 'stop', 'reboot', 'suspend', 'resume',
+                    'power_cycle'):
         result = getattr(machine.ctl, action)()
     elif action == 'undefine':
         result = getattr(machine.ctl, action)(delete_domain_image)
@@ -866,6 +900,15 @@ def machine_actions(request):
                 check_cost(auth_context.org, cost_constraint)
             except ImportError:
                 pass
+        # check size constraint
+        size_constraint = constraints.get('size', {})
+        if size_constraint:
+            try:
+                from mist.rbac.methods import check_size
+                check_size(auth_context.org, size_constraint, size_id)
+            except ImportError:
+                pass
+
         kwargs = {}
         if memory:
             kwargs['memory'] = memory
@@ -1093,3 +1136,65 @@ def machine_console(request):
             machine.machine_id
         )
     raise RedirectError(console_url)
+
+
+@view_config(route_name='api_v1_machine_ssh',
+             request_method='POST', renderer='json')
+def machine_ssh(request):
+    """
+    Tags: machines
+    ---
+    Open SSH console.
+    Generate and return an URI to open an SSH connection to target machine
+    READ permission required on cloud.
+    READ permission required on machine.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    machine:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict.get('cloud')
+    auth_context = auth_context_from_request(request)
+    if cloud_id:
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine_uuid']
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    auth_context.check_perm("machine", "read", machine.id)
+
+    ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
+    return {"location": ssh_uri}
+
+
+@view_config(route_name='api_v1_machine_ssh',
+             request_method='GET', renderer='json')
+def render_machine_terminal(request):
+    here = os.path.dirname(__file__)
+    parent = os.path.abspath(os.path.join(here, os.pardir))
+    ssh = os.path.join(parent, "templates", "xterm.html")
+    return FileResponse(ssh, request=request)

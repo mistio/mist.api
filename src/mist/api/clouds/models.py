@@ -33,7 +33,7 @@ __all__ = [
     "AzureArmCloud",
     "GoogleCloud",
     "HostVirtualCloud",
-    "PacketCloud",
+    "EquinixMetalCloud",
     "VultrCloud",
     "VSphereCloud",
     "VCloud",
@@ -60,6 +60,12 @@ def _populate_clouds():
             value = globals()[key]
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
+    CLOUDS['amazon'] = CLOUDS['ec2']
+    CLOUDS['kvm'] = CLOUDS['libvirt']
+    CLOUDS['other'] = CLOUDS['bare_metal']
+    CLOUDS['google'] = CLOUDS['gce']
+    CLOUDS['ibm'] = CLOUDS['softlayer']
+    CLOUDS['equinix'] = CLOUDS['equinixmetal']
 
 
 class Cloud(OwnershipMixin, me.Document):
@@ -117,6 +123,7 @@ class Cloud(OwnershipMixin, me.Document):
     polling_interval = me.IntField(default=0)  # in seconds
 
     dns_enabled = me.BooleanField(default=False)
+    object_storage_enabled = me.BooleanField(default=False)
     observation_logs_enabled = me.BooleanField(default=False)
 
     default_monitoring_method = me.StringField(
@@ -167,6 +174,14 @@ class Cloud(OwnershipMixin, me.Document):
         self._cloud_specific_fields = [field for field in type(self)._fields
                                        if field not in Cloud._fields]
 
+    @property
+    def name(self):
+        return self.title
+
+    @property
+    def provider(self):
+        return self.ctl.provider
+
     @classmethod
     def add(cls, owner, title, id='', **kwargs):
         """Add cloud
@@ -215,6 +230,9 @@ class Cloud(OwnershipMixin, me.Document):
     def clean(self):
         if self.dns_enabled and not hasattr(self.ctl, 'dns'):
             self.dns_enabled = False
+        if self.object_storage_enabled and \
+                not hasattr(self.ctl, 'objectstorage'):
+            self.object_storage_enabled = False
 
     def as_dict(self):
         cdict = {
@@ -223,6 +241,7 @@ class Cloud(OwnershipMixin, me.Document):
             'provider': self.ctl.provider,
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
+            'object_storage_enabled': self.object_storage_enabled,
             'observation_logs_enabled': self.observation_logs_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
@@ -241,6 +260,43 @@ class Cloud(OwnershipMixin, me.Document):
                       if key not in self._private_fields})
         return cdict
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['id', 'name', 'provider']
+        deref_map = {
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
+            }
+
+        if 'features' in only or not only:
+            ret['features'] = {
+                'compute': self.enabled,
+                'dns': self.dns_enabled,
+                'object_storage_enabled': self.object_storage_enabled,
+                'observations': self.observation_logs_enabled,
+                'polling': self.polling_interval
+            }
+
+        if 'config' in only or not only:
+            ret['config'] = {}
+            ret['config'].update({
+                key: getattr(self, key)
+                for key in self._cloud_specific_fields
+                if key not in self._private_fields
+            })
+        return ret
+
     def __str__(self):
         return '%s cloud %s (%s) of %s' % (type(self), self.title,
                                            self.id, self.owner)
@@ -258,10 +314,17 @@ class CloudLocation(OwnershipMixin, me.Document):
     country = me.StringField()
     missing_since = me.DateTimeField()
     extra = MistDictField()
+    available_sizes = me.ListField(
+        me.ReferenceField('CloudSize')
+    )
+    available_images = me.ListField(
+        me.ReferenceField('CloudImage')
+    )
 
     meta = {
         'collection': 'locations',
         'indexes': [
+            'cloud', 'external_id', 'name', 'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -272,20 +335,50 @@ class CloudLocation(OwnershipMixin, me.Document):
     }
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        # this is for mongo medthod objects.only('id') to work..
+        if self.cloud:
+            name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        else:
+            name = f"{self.name}, None, {self.external_id}"
         return name
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'external_id', 'country', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'owned_by': 'email',
+            'created_by': 'email',
+            'available_sizes': 'name',
+            'available_images': 'name',
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        return ret
+
     def as_dict(self):
-        return {
+        location_dict = {
             'id': self.id,
             'extra': self.extra,
-            'cloud': self.cloud.id,
+            'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
             'country': self.country,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
-                                 if self.missing_since else '')
+                                 if self.missing_since else ''),
         }
+
+        if self.cloud.ctl.has_feature('location-image-restriction'):
+            location_dict['available_images'] = [image.name for image
+                                                 in self.available_images
+                                                 if hasattr(image, 'name')]
+        if self.cloud.ctl.has_feature('location-size-restriction'):
+            location_dict['available_sizes'] = [size.name for size
+                                                in self.available_sizes
+                                                if hasattr(size, 'name')]
+        return location_dict
 
     def clean(self):
         # Populate owner field based on self.cloud.owner
@@ -306,10 +399,17 @@ class CloudSize(me.Document):
     bandwidth = me.IntField()
     missing_since = me.DateTimeField()
     extra = MistDictField()  # price info  is included here
+    architecture = me.StringField(default='x86', choices=('x86', 'arm'))
+    allowed_images = me.ListField(
+        me.ReferenceField('CloudImage')
+    )
 
     meta = {
         'collection': 'sizes',
         'indexes': [
+            'cloud',
+            'external_id',
+            'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -320,13 +420,31 @@ class CloudSize(me.Document):
     }
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        # this is for mongo medthod objects.only('id') to work..
+        if self.cloud:
+            name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        else:
+            name = f"{self.name}, None, {self.external_id}"
         return name
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'external_id', 'cpus', 'ram', 'bandwidth', 'disk',
+            'architecture', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'allowed_images': 'name',
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        return ret
+
     def as_dict(self):
-        return {
+        size_dict = {
             'id': self.id,
-            'cloud': self.cloud.id,
+            'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
             'cpus': self.cpus,
@@ -334,9 +452,16 @@ class CloudSize(me.Document):
             'bandwidth': self.bandwidth,
             'extra': self.extra,
             'disk': self.disk,
+            'architecture': self.architecture,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
-                                 if self.missing_since else '')
+                                 if self.missing_since else ''),
         }
+
+        if self.cloud.ctl.has_feature('size-image-restriction'):
+            size_dict['allowed_images'] = [image.name for image
+                                           in self.allowed_images
+                                           if hasattr(image, 'name')]
+        return size_dict
 
 
 class AmazonCloud(Cloud):
@@ -383,7 +508,7 @@ class GigG8Cloud(Cloud):
 class LinodeCloud(Cloud):
 
     apikey = me.StringField(required=True)
-
+    apiversion = me.StringField(null=True, default=None)
     _private_fields = ('apikey', )
     _controller_cls = controllers.LinodeMainController
 
@@ -445,13 +570,25 @@ class HostVirtualCloud(Cloud):
     _controller_cls = controllers.HostVirtualMainController
 
 
-class PacketCloud(Cloud):
+class EquinixMetalCloud(Cloud):
 
     apikey = me.StringField(required=True)
     project_id = me.StringField(required=False)
 
     _private_fields = ('apikey', )
-    _controller_cls = controllers.PacketMainController
+    _controller_cls = controllers.EquinixMetalMainController
+
+
+class PacketCloud(Cloud):
+    """
+        For backwards compatibility, to prevent poller crashes
+        TODO: Remove in v5
+    """
+    apikey = me.StringField(required=True)
+    project_id = me.StringField(required=False)
+
+    _private_fields = ('apikey', )
+    _controller_cls = controllers.EquinixMetalMainController
 
 
 class VultrCloud(Cloud):
@@ -594,6 +731,16 @@ class KubeVirtCloud(Cloud):
 
     _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
     _controller_cls = controllers.KubeVirtMainController
+
+
+class CloudSigmaCloud(Cloud):
+
+    username = me.StringField(required=True)
+    password = me.StringField(required=True)
+    region = me.StringField(required=True)
+
+    _private_fields = ('password', )
+    _controller_cls = controllers.CloudSigmaMainController
 
 
 _populate_clouds()

@@ -18,7 +18,7 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
-from mist.api.tasks import async_session_update
+from mist.api.dramatiq_tasks import dramatiq_async_session_update
 
 from mist.api.helpers import params_from_request, view_config
 from mist.api.helpers import trigger_session_update
@@ -141,7 +141,7 @@ def create_volume(request):
     auth_context.check_perm("location", "create_resources", location)
     tags, _ = auth_context.check_perm("volume", "add", None)
 
-    if not name and cloud.ctl.provider != 'packet':
+    if not name and cloud.ctl.provider != 'equinixmetal':
         raise RequiredParameterMissingError('name')
 
     if not hasattr(cloud.ctl, 'storage'):
@@ -165,7 +165,8 @@ def create_volume(request):
     if config.HAS_RBAC:
         owner.mapper.update(
             volume,
-            callback=async_session_update, args=(owner.id, ['volumes'], )
+            callback=dramatiq_async_session_update,
+            args=(owner.id, ['volumes'], )
         )
 
     return volume.as_dict()

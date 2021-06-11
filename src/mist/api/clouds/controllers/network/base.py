@@ -244,7 +244,11 @@ class BaseNetworkController(BaseController):
         first_run = False if task.last_success else True
 
         async def _list_subnets_async(networks):
-            loop = asyncio.get_event_loop()
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                asyncio.set_event_loop(asyncio.new_event_loop())
+                loop = asyncio.get_event_loop()
             subnets = [
                 loop.run_in_executor(None, network.ctl.list_subnets)
                 for network in networks

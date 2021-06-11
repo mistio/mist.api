@@ -8,3 +8,6 @@ from .elastic.plugin import ElasticSearchBackendPlugin  # NOQA
 
 from .foundationdb.plugin import FoundationDBNoDataPlugin  # NOQA
 from .foundationdb.plugin import FoundationDBBackendPlugin  # NOQA
+
+from .victoriametrics.plugin import VictoriaMetricsNoDataPlugin  # NOQA
+from .victoriametrics.plugin import VictoriaMetricsBackendPlugin  # NOQA

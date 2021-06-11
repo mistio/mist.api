@@ -33,6 +33,7 @@ from mist.api.clouds.controllers.network.base import BaseNetworkController
 from mist.api.clouds.controllers.compute.base import BaseComputeController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.clouds.controllers.storage.base import BaseStorageController
+from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
 
 
 log = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ class BaseMainController(object):
     NetworkController = None
     DnsController = None
     StorageController = None
+    ObjectStorageController = None
 
     def __init__(self, cloud):
         """Initialize main cloud controller given a cloud
@@ -126,6 +128,12 @@ class BaseMainController(object):
             assert issubclass(self.StorageController, BaseStorageController)
             self.storage = self.StorageController(self)
 
+        # Initialize Object store controller.
+        if self.ObjectStorageController is not None:
+            assert issubclass(self.ObjectStorageController,
+                              BaseObjectStorageController)
+            self.objectstorage = self.ObjectStorageController(self)
+
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
 
@@ -153,7 +161,10 @@ class BaseMainController(object):
 
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
+        self.cloud.object_storage_enabled = \
+            kwargs.pop('object_storage_enabled', False) is True
         self.cloud.observation_logs_enabled = True
+        self.cloud.polling_interval = kwargs.pop('polling_interval', 30 * 60)
 
         # Cloud specific kwargs preparsing.
         try:
@@ -355,6 +366,20 @@ class BaseMainController(object):
         self.cloud.dns_enabled = False
         self.cloud.save()
 
+    def object_storage_enable(self):
+        from mist.api.poller.models import ListBucketsPollingSchedule
+        self.cloud.object_storage_enabled = True
+        self.cloud.save()
+        if hasattr(self.cloud.ctl, 'objectstorage'):
+            schedule = ListBucketsPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
+            schedule.set_default_interval(60 * 60 * 24)
+            schedule.save()
+
+    def object_storage_disable(self):
+        self.cloud.object_storage_enabled = False
+        self.cloud.save()
+
     def observation_logs_enable(self):
         self.cloud.observation_logs_enabled = True
         self.cloud.save()
@@ -390,35 +415,53 @@ class BaseMainController(object):
         from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
+        from mist.api.poller.models import ListBucketsPollingSchedule
 
         # Add machines' polling schedule.
-        ListMachinesPollingSchedule.add(cloud=self.cloud)
+        ListMachinesPollingSchedule.add(
+            cloud=self.cloud, run_immediately=True)
 
         # Add networks' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'network'):
-            ListNetworksPollingSchedule.add(cloud=self.cloud)
+            ListNetworksPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
 
         # Add zones' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled:
-            ListZonesPollingSchedule.add(cloud=self.cloud)
+            ListZonesPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
 
         # Add volumes' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'storage'):
-            ListVolumesPollingSchedule.add(cloud=self.cloud)
+            ListVolumesPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
+
+        if hasattr(self.cloud.ctl, 'objectstorage') and \
+                self.cloud.object_storage_enabled:
+            schedule = ListBucketsPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
+            schedule.set_default_interval(60 * 60 * 24)
+            schedule.save()
 
         # Add extra cloud-level polling schedules with lower frequency. Such
         # schedules poll resources that should hardly ever change. Thus, we
         # add the schedules, increase their interval, and forget about them.
-        schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
+        schedule = ListLocationsPollingSchedule.add(
+            cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
+        schedule.add_interval(90, ttl=270)
         schedule.save()
 
-        schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
+        schedule = ListSizesPollingSchedule.add(
+            cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
+        schedule.add_interval(90, ttl=270)
         schedule.save()
 
-        schedule = ListImagesPollingSchedule.add(cloud=self.cloud)
+        schedule = ListImagesPollingSchedule.add(
+            cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
+        schedule.add_interval(90, ttl=270)
         schedule.save()
 
     def delete(self, expire=False):
@@ -451,3 +494,48 @@ class BaseMainController(object):
         """
         raise BadRequestError("Adding machines is only supported in Bare"
                               "Metal and KVM/Libvirt clouds.")
+
+    def has_feature(self, feature):
+        """Check whether a certain feature is supported by cloud
+        List of features:
+            dns
+            networks
+            storage
+            custom_size
+            custom_image
+            cloudinit
+            location
+            key
+            size-image-restriction
+            location-size-restriction
+            location-image-restriction
+        """
+        from mist.api.config import PROVIDERS
+        from mist.api.exceptions import NotFoundError
+        provider_dict = None
+        try:
+            provider_dict = PROVIDERS[self.provider]
+        except KeyError:
+            for value in PROVIDERS.values():
+                if self.provider == value['driver']:
+                    provider_dict = value
+                    break
+            if not provider_dict:
+                raise NotFoundError('Provider does not exist')
+
+        has_feature = False
+        if feature in ['dns', 'networks', 'storage', 'container']:
+            has_feature = provider_dict['features'].get(feature, False)
+        elif feature == 'key' and provider_dict['features']['provision']:
+            has_feature = provider_dict['features']['provision'].get(feature, True)  # noqa
+            # if dictionary is returned key is supported but not required
+        elif feature in ['size-image-restriction', 'location-size-restriction', 'location-image-restriction']:  # noqa
+            try:
+                has_feature = provider_dict['features']['provision']['restrictions'].get(feature, False)  # noqa
+            except (KeyError, TypeError):
+                return False
+        else:
+            if provider_dict['features']['provision']:
+                has_feature = provider_dict['features']['provision'].get(feature, False)  # noqa
+
+        return has_feature

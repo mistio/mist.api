@@ -34,7 +34,11 @@ log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 ###############################################################################
 ###############################################################################
 
-PORTAL_NAME = "Mist"
+PORTAL_NAME = "Mist CE"
+DESCRIPTION = "A secure cloud management platform for automation,\
+ orchestration, cost and usage monitoring of public and private clouds,\
+ hypervisors and container hosts. Provides multi-cloud RBAC. Enables\
+ self service provisioning. Cost analytics and cloud spending optimization"
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
@@ -48,6 +52,8 @@ VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
 BACKUP_INTERVAL = 24
+LANDING_CDN_URI = ""
+BLOG_CDN_URI = ""
 
 # backups
 BACKUP = {
@@ -70,7 +76,7 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-DATABASE_VERSION = 7
+DATABASE_VERSION = 12
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -429,6 +435,225 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                         "fetch(\"{id}.disk.*\.free\"" +
                         ", start=\"{start}\", stop=\"{stop}\"" +
                         ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }],
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [
+                    {
+                        "refId": "A1",
+                        "target": "system_load1"
+                    },
+                    {
+                        "refId": "A2",
+                        "target": "system_load5"
+                    },
+                    {
+                        "refId": "A3",
+                        "target": "system_load15"
+                    }
+                ],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [
+                    {
+                        "refId": "B1",
+                        "target": "mem_free"
+                    },
+                    {
+                        "refId": "B2",
+                        "target": "mem_used"
+                    },
+                    {
+                        "refId": "B3",
+                        "target": "mem_cached"
+                    },
+                    {
+                        "refId": "B4",
+                        "target": "mem_buffered"
+                    }
+                ],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [
+                    {
+                        "refId": "C1",
+                        "target": 'cpu_usage_guest{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C2",
+                        "target": 'cpu_usage_iowait{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C3",
+                        "target": 'cpu_usage_user{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C4",
+                        "target": 'cpu_usage_nice{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C5",
+                        "target": 'cpu_usage_softirq{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C6",
+                        "target": 'cpu_usage_idle{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C7",
+                        "target": 'cpu_usage_irq{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C8",
+                        "target": 'cpu_usage_system{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C9",
+                        "target": 'cpu_usage_steal{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C10",
+                        "target": 'cpu_usage_guest_nice{cpu="cpu-total"}'
+                    }
+                ],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": "cpu_usage_idle"
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": "net_bytes_recv"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": "net_bytes_sent"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": "diskio_read_bytes"
+                }],
+                "x-axis": True,
+                "y-axis": True,
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": "diskio_write_bytes"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 12,
+                "height": 400,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": "disk_free"
                 }],
                 "yaxes": [{
                     "label": "B"
@@ -943,11 +1168,14 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
-    'telegraf-tsfdb'
+    'telegraf-tsfdb',
+    'telegraf-victoriametrics'
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
+
+VICTORIAMETRICS_URI = "http://vmselect:8481/select/<org_id>/prometheus"
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
@@ -960,6 +1188,9 @@ CILIA_INFLUXDB_NODATA_TARGETS = (
 )
 CILIA_FOUNDATIONDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
+CILIA_VICTORIAMETRICS_NODATA_TARGETS = (
+    "system_load1", "system_n_cpus", 'cpu_usage_user{cpu="cpu0"}'
 )
 
 # Shard Manager settings. Can also be set through env variables.
@@ -1012,7 +1243,7 @@ NO_VERIFY_HOSTS = []
 
 MIXPANEL_ID = ""
 FB_ID = ""
-OLARK_ID = ""
+CHATWOOT_TOKEN = ""
 
 FAILED_LOGIN_RATE_LIMIT = {
     'max_logins': 5,            # allow that many failed login attempts
@@ -1124,9 +1355,10 @@ CELERY_SETTINGS = {
     # metadata.
     # 'worker_log_format': PY_LOG_FORMAT,
     # 'worker_task_log_format': PY_LOG_FORMAT,
-    'worker_concurrency': 8,
+    'worker_concurrency': 16,
     'worker_max_tasks_per_child': 32,
     'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
+    'worker_send_task_events': True,
     'mongodb_scheduler_db': 'mist2',
     'mongodb_scheduler_collection': 'schedules',
     'mongodb_scheduler_url': MONGO_URI,
@@ -1164,7 +1396,7 @@ CELERY_SETTINGS = {
             'queue': 'deployments'},
         'mist.api.tasks.rackspace_first_gen_post_create_steps': {
             'queue': 'deployments'},
-        'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        # 'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
 
         # List networks
@@ -1175,6 +1407,9 @@ CELERY_SETTINGS = {
 
         # List zones
         'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
+
+        # List buckets
+        'mist.api.poller.tasks.list_buckets': {'queue': 'buckets'},
 
     },
 }
@@ -1218,12 +1453,12 @@ STAR_IMAGE_ON_MACHINE_CREATE = True
 
 EC2_SECURITYGROUP = {
     'name': 'mistio',
-    'description': 'Security group created by mist.io'
+    'description': 'Security group created by {portal_name}'
 }
 
 ECS_VPC = {
     'name': 'mistio',
-    'description': 'Vpc created by mist.io'
+    'description': 'Vpc created by {portal_name}'
 }
 
 # Linode datacenter ids/names mapping
@@ -1239,8 +1474,658 @@ LINODE_DATACENTERS = {
 }
 
 PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
-                               'kubevirt']
+                               'kubevirt', 'cloudsigma']
 
+PROVIDERS_WITH_TERMINATED_MACHINES_VISIBLE = ['ec2', 'libvirt', 'azure_arm']
+
+PROVIDERS = {
+    'amazon': {
+        'name': 'Amazon Web Services',
+        'aliases': ['aws', 'ec2'],
+        'driver': 'ec2',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'dns': True,
+            'storage': True,
+            'networks': True,
+            'objectstorage': True
+        }
+    },
+    'azure': {
+        'name': 'Microsoft Azure',
+        'aliases': ['arm', 'azure_arm'],
+        'driver': 'azure_arm',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
+            'networks': True
+        }
+    },
+    'google': {
+        'name': 'Google Cloud Platform',
+        'aliases': ['gcp', 'gce', 'google cloud'],
+        'driver': 'gce',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
+                },
+            },
+            'dns': True,
+            'storage': True,
+            'networks': True
+        }
+    },
+    'alibaba': {
+        'name': 'Alibaba Cloud',
+        'aliases': ['aliyun', 'aliyun ecs', 'ecs'],
+        'driver': 'aliyun_ecs',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
+            'networks': True
+        },
+    },
+    'equinix': {
+        'name': 'Equinix Metal',
+        'aliases': ['packet', 'packet.net'],
+        'driver': 'equinixmetal',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'restrictions': {
+                    'size-image-restriction': True,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
+            'networks': True,
+            'metal': True
+        }
+    },
+    'ibm': {
+        'name': 'IBM Cloud',
+        'aliases': ['softlayer', 'ibm cloud'],
+        'driver': 'softlayer',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'metal': True
+        }
+    },
+    'digitalocean': {
+        'name': 'DigitalOcean',
+        'aliases': [],
+        'driver': 'digitalocean',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': True,
+                },
+            },
+            'storage': True,
+        }
+    },
+    'linode': {
+        'name': 'Linode',
+        'aliases': [],
+        'driver': 'linode',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'dns': True,
+            'storage': True,
+        }
+    },
+    'rackspace': {
+        'name': 'Rackspace',
+        'aliases': [],
+        'driver': 'rackspace',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'dns': True,
+            'storage': True,
+        }
+    },
+    'maxihost': {
+        'name': 'Maxihost',
+        'aliases': [],
+        'driver': 'maxihost',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'metal': True,
+        }
+    },
+    'vultr': {
+        'name': 'Vultr',
+        'aliases': [],
+        'driver': 'vultr',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': True,
+                    'location-image-restriction': False,
+                },
+            },
+        }
+    },
+    'g8': {
+        'name': 'G8',
+        'aliases': ['gig g8', 'gig-g8', 'gig'],
+        'driver': 'gig_g8',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'cloudinit': True,
+                'custom_size': True,
+                'location': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
+        }
+    },
+    'openstack': {
+        'name': 'OpenStack',
+        'aliases': [],
+        'driver': 'openstack',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
+            'objectstorage': True
+        }
+    },
+    'onapp': {
+        'name': 'OnApp',
+        'aliases': [],
+        'driver': 'onapp',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'custom_size': True,
+                'key': {
+                    'required': False,
+                },
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': False,
+        }
+    },
+    'cloudsigma': {
+        'name': 'CloudSigma',
+        'aliases': [],
+        'driver': 'cloudsigma',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'cloudinit': True,
+                'custom_size': True,
+                'location': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
+        }
+    },
+    'vsphere': {
+        'name': 'vSphere',
+        'aliases': ['vcenter', 'esxi'],
+        'driver': 'vsphere',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'custom_size': True,
+                'key': False,
+                'custom_image': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': False,
+        }
+    },
+    'vcloud': {
+        'name': 'vCloud',
+        'aliases': [],
+        'driver': 'cloud',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': False,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': False,
+        }
+    },
+    'kvm': {
+        'name': 'KVM',
+        'aliases': ['libvirt'],
+        'driver': 'libvirt',
+        'category': 'hypervisor',
+        'features': {
+            'compute': True,
+            'provision': {
+                'location': True,
+                'cloudinit': True,
+                'custom_size': True,
+                'key': {
+                    'required': False,
+                },
+                'custom_image': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': False,
+        }
+    },
+    'lxd': {
+        'name': 'LXD',
+        'aliases': ['lxc'],
+        'driver': 'lxd',
+        'category': 'container host',
+        'features': {
+            'compute': True,
+            'container': True,
+            'provision': {
+                'custom_size': True,
+                'location': False,
+                'key': {
+                    'required': False,
+                },
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
+        }
+    },
+    'docker': {
+        'name': 'Docker',
+        'aliases': [],
+        'driver': 'docker',
+        'category': 'container host',
+        'features': {
+            'compute': True,
+            'container': True,
+            'provision': {
+                'location': False,
+                'key': {
+                    'required': False,
+                },
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+                'custom_image': True,
+            },
+            'storage': False,
+        }
+    },
+    'kubevirt': {
+        'name': 'KubeVirt',
+        'aliases': [],
+        'driver': 'kubevirt',
+        'category': 'container host',
+        'features': {
+            'compute': True,
+            'container': True,
+            'provision': {
+                'location': True,
+                'custom_size': True,
+                'key': False,
+                'custom_image': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
+        }
+    },
+    'other': {
+        'name': 'Other server',
+        'aliases': ['ssh', 'bare_metal'],
+        'driver': '',
+        'category': 'other',
+        'features': {
+            'compute': True,
+            'provision': False,
+            'storage': False,
+        }
+    },
+}
+
+PROVIDERS['amazon']['regions'] = [
+    {
+        'location': 'Tokyo',
+        'id': 'ap-northeast-1'
+    },
+    {
+        'location': 'Seoul',
+        'id': 'ap-northeast-2'
+    },
+    {
+        'location': 'Osaka',
+        'id': 'ap-northeast-3'
+    },
+    {
+        'location': 'Singapore',
+        'id': 'ap-southeast-1'
+    },
+    {
+        'location': 'Sydney',
+        'id': 'ap-southeast-2'
+    },
+    {
+        'location': 'Frankfurt',
+        'id': 'eu-central-1'
+    },
+    {
+        'location': 'Ireland',
+        'id': 'eu-west-1'
+    },
+    {
+        'location': 'London',
+        'id': 'eu-west-2'
+    },
+    {
+        'location': 'Paris',
+        'id': 'eu-west-3'
+    },
+    {
+        'location': 'Stockholm',
+        'id': 'eu-north-1'
+    },
+    {
+        'location': 'Canada Central',
+        'id': 'ca-central-1'
+    },
+    {
+        'location': 'Sao Paulo',
+        'id': 'sa-east-1'
+    },
+    {
+        'location': 'N. Virginia',
+        'id': 'us-east-1'
+    },
+    {
+        'location': 'N. California',
+        'id': 'us-west-1'
+    },
+    {
+        'location': 'Oregon',
+        'id': 'us-west-2'
+    },
+    {
+        'location': 'Ohio',
+        'id': 'us-east-2'
+    },
+    {
+        'location': 'Mumbai',
+        'id': 'ap-south-1'
+    },
+    {
+        'location': 'Hong Kong',
+        'id': 'ap-east-1'
+    },
+    {
+        'location': 'Beijing',
+        'id': 'cn-north-1'
+    },
+    {
+        'location': 'Ningxia',
+        'id': 'cn-northwest-1'
+    },
+    {
+        'location': 'GovCloud (US)',
+        'id': 'us-gov-west-1'
+    },
+    {
+        'location': 'GovCloud (US-East)',
+        'id': 'us-gov-east-1'
+    },
+]
+
+PROVIDERS['alibaba']['regions'] = [
+    {
+        'location': 'China North 1 (Qingdao)',
+        'id': 'cn-qingdao'
+    },
+    {
+        'location': 'China North 2 (Beijing)',
+        'id': 'cn-beijing'
+    },
+    {
+        'location': 'China North 3 (Zhangjiakou)',
+        'id': 'cn-zhangjiakou'
+    },
+    {
+        'location': 'China North 5 (Huhehaote)',
+        'id': 'cn-huhehaote'
+    },
+    {
+        'location': 'China East 1 (Hangzhou)',
+        'id': 'cn-hangzhou'
+    },
+    {
+        'location': 'China East 2 (Shanghai)',
+        'id': 'cn-shanghai'
+    },
+    {
+        'location': 'China South 1 (Shenzhen)',
+        'id': 'cn-shenzhen'
+    },
+    {
+        'location': 'Hong Kong',
+        'id': 'cn-hongkong'
+    },
+    {
+        'location': 'EU Central 1 (Frankfurt)',
+        'id': 'eu-central-1'
+    },
+    {
+        'location': 'Middle East 1 (Dubai)',
+        'id': 'me-east-1'
+    },
+    {
+        'location': 'England (London)',
+        'id': 'eu-west-1'
+    },
+    {
+        'location': 'US West 1 (Silicon Valley)',
+        'id': 'us-west-1'
+    },
+    {
+        'location': 'US East 1 (Virginia)',
+        'id': 'us-east-1'
+    },
+    {
+        'location': 'South Asia 1 (Mumbai)',
+        'id': 'ap-south-1'
+    },
+    {
+        'location': 'Southeast Asia 5 (Jakarta)',
+        'id': 'ap-southeast-5'
+    },
+    {
+        'location': 'Southeast Asia 3 (Kuala Lumpur)',
+        'id': 'ap-southeast-3'
+    },
+    {
+        'location': 'Southeast Asia 2 (Sydney)',
+        'id': 'ap-southeast-2'
+    },
+    {
+        'location': 'Southeast Asia 1 (Singapore)',
+        'id': 'ap-southeast-1'
+    },
+    {
+        'location': 'Northeast Asia Pacific 1 (Tokyo)',
+        'id': 'ap-northeast-1'
+    },
+]
+
+PROVIDERS['rackspace']['regions'] = [
+    {
+        'location': 'Dallas',
+        'id': 'dfw'
+    },
+    {
+        'location': 'Chicago',
+        'id': 'ord'
+    },
+    {
+        'location': 'N. Virginia',
+        'id': 'iad'
+    },
+    {
+        'location': 'London',
+        'id': 'lon'
+    },
+    {
+        'location': 'Sydney',
+        'id': 'syd'
+    },
+    {
+        'location': 'Hong Kong',
+        'id': 'hkg'
+    },
+    {
+        'location': 'US-First Gen',
+        'id': 'rackspace_first_gen:us'
+    },
+    {
+        'location': 'UK-First Gen',
+        'id': 'rackspace_first_gen:uk'
+    },
+]
+
+# Deprecated in Mist v5
 SUPPORTED_PROVIDERS = [
     # BareMetal
     {
@@ -1544,10 +2429,10 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.VSPHERE,
         'regions': []
     },
-    # Packet
+    # EquinixMetal
     {
-        'title': 'Packet',
-        'provider': Provider.PACKET,
+        'title': 'EquinixMetal',
+        'provider': Provider.EQUINIXMETAL,
         'regions': []
     },
     # Maxihost
@@ -1576,130 +2461,244 @@ SUPPORTED_PROVIDERS = [
     },
 ]
 
+EC2_IMAGES_FILE = 'aws_default_images.json'
+AZURE_IMAGES_FILE = 'azure_default_images.json'
+
 # Base AMIs
 EC2_IMAGES = {
     'eu-central-1': {
         'ami-e4c63e8b': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
-        'ami-060cde69': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-009b16df9fcaac611': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-2eaeb342': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-09e8a19c9eda495b3': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-ba68bad5': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-b968bad6': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-02f9ea74050d6f812': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-c425e4ab': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-25a97a4a': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-060cde69': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-0932440befd74cdba': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
     },
     'eu-west-1': {
         'ami-02ace471': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
-        'ami-a8d2d7ce': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-032e5b6af8a711f30': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-fa7cdd89': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-d1c0c4b7': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-01ccc867': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-096f43ef67d75e998': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-9186a1e2': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-00b5dfb1b867959fd': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-09447c6f': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-a8d2d7ce': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-0e5657f6d3c3ea350': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-022e8cc8f0d3c52fd': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
     },
     'eu-west-2': {
         'ami-9c363cf8': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
-        'ami-f1d7c395': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-06178cf087598769c': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-63342007': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-f1d7c395': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-09b984029e6b0326b': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-005383956f2e5fb96': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-b6daced2': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-0ffd774e02309201f': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-a9eae0cd': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-9fc7cdfb': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',  # noqa
+        'ami-0d7db5fc4b5075b0d': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+    },
+    'eu-west-3': {
+        'ami-0ec28fc9814fce254': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-0f79604849d0fcaab': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-00f6fe7d6cbb56a78': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-021a167711a65e911': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0ba7c4110ca9bfe0b': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+    },
+    'eu-north-1': {
+        'ami-02a6bfdcf8224bd77': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-00d7bb1aabce7d22c': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-09b44b5f46219ee86': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0b10b3680c5d18124': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-08bc26bf92a90ba04': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type ',  # noqa
+    },
+    'eu-south-1': {
+        'ami-00adf9322be77b621': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-08cef65729b7c8850': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-0e0812e2467b24796': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0ae9d70d4429d6724': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-04684e5a51afd7579': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
     },
     'ca-central-1': {
         'ami-9062d0f4': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-08523c5075ba75813': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-b3d965d7': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-beea56da': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-04b46a87fa4d13308': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0df58bd52157c6e83': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-0bd66a6f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-0df612970f825f04c': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-14368470': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-1562d071': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',  # noqa
+        'ami-0d8c9795f4f9f51c0': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
     },
     'us-east-1': {
         'ami-b63769a1': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-096fda3c22c1c990a': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+        'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-80861296': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-02fe94dee086c0c37': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-03d315ad33b9d49c4': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-70065467': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-668f1e70': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-c58c1dd3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-0915bcb5fa77e4892': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-fde4ebea': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0fde50fcbcd46f2f7': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8fb03898': 'ClearOS 7.2.0',
         'ami-0397f56a': 'ClearOS Community 6.4.0 ',
         'ami-ff9af896': 'ClearOS Professional 6.4.0'
     },
     'us-east-2': {
         'ami-0932686c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-03d64741867e7bb94': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+        'ami-0996d3051b72b5b2c': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-02aa7f3de34db391a': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-618fab04': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-8fab8fea': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-4191b524': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-09246ddb00c7c4fef': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-61a7fd04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-4af2a92f': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',  # noqa
+        'ami-0f052119b3c7e61d1': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
     },
     'us-west-1': {
+        'ami-09d9c5cdcfb8fc655': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-2cade64c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0ebef2838fb2605b7': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0d9b7049d327ec00d': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-2afbde4a': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-1da8f27d': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-e7a4cc87': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-066c82dabe6dd7f73': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-0f85a06f': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-7a85a01a': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-05c558c169cfe8d99': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-e09acc80': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-1da8f27d': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'us-west-2': {
+        'ami-01e78c5619c5e68b4': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-6f68cf0f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0928f4202481dfdf6': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-025102f49d03bec05': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-efd0428f': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-7c22b41c': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0174313b5af8423d7': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-baab0fda': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-09c5e030f74651050': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-c737a5a7': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-4836a428': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e4a30084': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-7c22b41c': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-northeast-1': {
+        'ami-0dc185deadd3ac449': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-5de0433c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0e039c7d64008bd84': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-09dac16017637391f': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-afb09dc8': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-d85e7fbf': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0cbc0209196a8063b': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-27fed749': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-09d28faae2e9e7138': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-30391657': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-923d12f5': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e21c7285': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-d85e7fbf': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-northeast-2': {
+        'ami-07270d166cdf39adc': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-44db152a': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
+        'ami-067abcae434ee508b': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0b50511490117e709': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-66e33108': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-9d15c7f3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-15d5077b': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-006e2f9fa7597680a': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-9d15c7f3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-097fc5cd098dd20d5': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
     },
     'sa-east-1': {
+        'ami-079b1541b6dc958ca': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-7de77b11': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0e765cee959bcbfce': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-06a550af32c7dda36': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-4090f22c': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-02777cd0ce58a1847': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-029a1e6e': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-0a0bc0fa94d632c94': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-36cfad5a': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-37cfad5b': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e1cd558d': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8df695e1': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-southeast-1': {
+        'ami-0f86a70488991335e': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-2c95344f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-09a6a7e49bd29554b': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0ae3e6717dc99c62b': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-8fcc75ec': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-0a19a669': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-1a5f9f79': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-0d06583a13678c938': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-ab5ce5c8': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-fc5ae39f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-03e8d3c5c16f119bb': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-67b21d04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-0a19a669': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-southeast-2': {
+        'ami-044c46b1952ad5861': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-39ac915a': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-0d767dd04ac152743': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-080b87fdc6d5ca853': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-96666ff5': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-807876e3': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0e413a9954960d83a': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8ea3fbed': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
+        'ami-075a72b1992cb0687': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-af2128cc': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-162c2575': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-527b4031': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-807876e3': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     },
     'ap-south-1': {
+        'ami-0a9d27a9f4f5c0efc': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
         'ami-cdbdd7a2': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
+        'ami-073c8c0760395aab8': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0e8710d48cc4ea8dd': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
         'ami-c2ee9dad': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-83a8dbec': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0eeb03e72075b9bcc': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
         'ami-52c7b43d': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-8f8afde0': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
-        'ami-83a8dbec': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-    }
+        'ami-0b3acf3edf2397475': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+    },
+    'ap-east-1': {
+      'ami-04864d873127e4b0a': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+      'ami-0a3a9dd4bc68bae02': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+      'ami-0b4017973f2328b15': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+      'ami-015e90097eca079a6': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+      'ami-f4fab885': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',
+    },
+    'me-south-1': {
+        'ami-0e3fd15abd8ba3d3c': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-095711532f1d50122': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-07bf297712e054a41': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0c288c79750011574': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0b41a37a62a4296fc': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+    },
+    'af-south-1': {
+        'ami-03dd45f91b6676f74': 'Amazon Linux 2 AMI (HVM), SSD Volume Type',
+        'ami-0950dcf60f02f2731': 'SUSE Linux Enterprise Server 15 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-0f072aafc9dfcb24f': 'Ubuntu Server 20.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0fcf986c07ff1a0c2': 'Ubuntu Server 18.04 LTS (HVM), SSD Volume Type',  # noqa
+        'ami-0f4b49fefef9be45a': 'Red Hat Enterprise Linux 8 (HVM), SSD Volume Type',  # noqa
+    },
 }
 
 DOCKER_IMAGES = {
@@ -1739,89 +2738,81 @@ WHITELIST_IP_EXPIRATION_TIME = 60 * 60 * 24
 
 # Email templates
 
-CONFIRMATION_EMAIL_SUBJECT = "[mist.io] Confirm your registration"
+CONFIRMATION_EMAIL_SUBJECT = "[{portal_name}] Confirm your registration"
 
-CONFIRMATION_EMAIL_BODY = """Hi %s,
+CONFIRMATION_EMAIL_BODY = """Hello {fname},
 
-we received a registration request to mist.io from this email address.
+we received a registration request to {portal_name} from this email address.
 
 To activate your account, please click on the following link:
 
-%s/confirm?key=%s
+{portal_uri}/confirm?key={activation_key}
 
-In the meantime, stay up-to-date by following us on https://twitter.com/mist_io
+{follow_us}This request originated from the IP address {ip_addr}.
 
-This request originated from the IP address %s. If it wasn't you, simply ignore
-this message.
+If it wasn't you, simply ignore this message.
 
 Best regards,
-The mist.io team
-
---
-%s
-Govern the clouds
+The {portal_name} team
 """
 
-RESET_PASSWORD_EMAIL_SUBJECT = "[mist.io] Password reset request"
+FOLLOW_US = "In the meantime, stay up-to-date by following us on"\
+    "https://twitter.com/mist_io"
 
-RESET_PASSWORD_EMAIL_BODY = """Hi %s,
+
+RESET_PASSWORD_EMAIL_SUBJECT = "[{portal_name}] Password reset request"
+
+RESET_PASSWORD_EMAIL_BODY = """Hello {fname},
 
 We have received a request to change your password.
 Please click on the following link:
 
-%s/reset-password?key=%s
+{portal_uri}/reset-password?key={activation_key}
 
-This request originated from the IP address %s. If it wasn't you, simply ignore
-this message. Your password has not been changed.
+This request originated from the IP address {ip_addr}.
+
+If it wasn't you, simply ignore this message.
+Your password has not been changed.
 
 
 Best regards,
-The mist.io team
-
---
-%s
-Govern the clouds
+The {portal_name} team
 """
 
-MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = "[mist.io] Machine is about to expire"
+MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = \
+    "[{portal_name}] Machine is about to expire"
 
-MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
+MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Hello {fname},
 
-Your machine `%s` will expire on %s
+Your machine `{machine_name}` will expire on {expiration}
 
-If you'd like to prevent that, please update the expiration date at %s
-%s
+If you'd like to prevent that, please update the expiration date at {uri}
+{custom_msg}
 Best regards,
-The mist.io team
-
---
-%s
-Govern the clouds
+The {portal_name} team
 """
 
-WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
+WHITELIST_IP_EMAIL_SUBJECT = "[{portal_name}] Account IP whitelist request"
 
-WHITELIST_IP_EMAIL_BODY = """Hi %s,
+WHITELIST_IP_EMAIL_BODY = """Hello {fname},
 
 We have received a request to whitelist the IP you just tried to login with.
 Please click on the following link to finish this action:
 
-%s/confirm-whitelist?key=%s
+{portal_uri}/confirm-whitelist?key={confirmation_key}
 
-This request originated from the IP address %s. If it wasn't you, simply ignore
-this message. The above IP will not be whitelisted.
+This request originated from the IP address {ip_addr}.
+If it wasn't you, simply ignore this message.
+The above IP will not be whitelisted.
 
 
 Best regards,
-The mist.io team
-
---
-%s
-Govern the clouds
+The {portal_name} team
 """
 
 
-FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT = "[mist.io] Failed login attempts warning"
+FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT = \
+    "[{portal_name}] Failed login attempts warning"
 
 FAILED_LOGIN_ATTEMPTS_EMAIL_BODY = """
 ================= Failed login attempts warning =================
@@ -1830,110 +2821,88 @@ Too many failed login attempts for the same account and from the same IP
 address occurred. Future login attempts for this user/ip will be
 temporarily blocked to thwart a brute-force attack.
 
-User: %s
-IP address: %s
-Number of failed attempts: %s
-Time period of failed login attempts: %s
-Blocking period: %s
+User: {email}
+IP address: {ip_addr}
+Number of failed attempts: {failed_attempts}
+Time period of failed login attempts: {time_period}
+Blocking period: {block_period}
 """
 
-ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT = ("Your status in an organization has"
-                                        " changed")
+ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT = \
+    "[{portal_name}] Your status in an organization has changed"
 
-ORG_NOTIFICATION_EMAIL_SUBJECT = "[mist.io] Subscribed to team"
+ORG_NOTIFICATION_EMAIL_SUBJECT = "[{portal_name}] Subscribed to team"
 
-USER_NOTIFY_ORG_TEAM_ADDITION = """Hi
+USER_NOTIFY_ORG_TEAM_ADDITION = """Hello {fname}
 
-You have been added to the team "%s" of organization %s.
+You have been added to the team "{team}" of organization {org}.
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-USER_CONFIRM_ORG_INVITATION_EMAIL_BODY = """Hi
+USER_CONFIRM_ORG_INVITATION_EMAIL_BODY = """Hi {fname}
 
-You have been invited by %s to join the %s organization
-as a member of the %s.
+You have been invited by {invited_by} to join the "{org}" organization
+as a member of the "{team}" team.
 
 To confirm your invitation, please click on the following link:
 
-%s/confirm-invitation?invitoken=%s
+{portal_uri}/confirm-invitation?invitoken={invitoken}
 
 Once you are done with the confirmation process,
 you will be able to login to your Mist.io user account
-as a member of the team%s.
+as a member of the team "{team}".
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-ORG_INVITATION_EMAIL_SUBJECT = "[mist.io] Confirm your invitation"
+ORG_INVITATION_EMAIL_SUBJECT = "[{portal_name}] Confirm your invitation"
 
-REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY = """Hi
+REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY = """Hello {fname}
 
-You have been invited by %s to join the %s organization
-as a member of the %s.
+You have been invited by {invited_by} to join the "{org}" organization
+as a member of the "{team}" team.
 
-Before joining the team you must also activate your account in  mist.io and set
-a password. To activate your account and join the team, please click on the
+In order to accept the invitation, please click on the
 following link:
 
-%s/confirm?key=%s&invitoken=%s
-
-Once you are done with the registration process,
-you will be able to login to your Mist.io user account
-as a member of the team%s.
+{portal_uri}/confirm?key={activation_key}&invitoken={invitoken}
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-NOTIFY_REMOVED_FROM_TEAM = """Hi
+NOTIFY_REMOVED_FROM_TEAM = """Hello {fname}
 
-You have been removed from team %s of organization %s by the
-administrator %s.
+You have been removed from team "{team}" of organization "{org}" by the
+administrator "{admin}".
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-NOTIFY_REMOVED_FROM_ORG = """Hi
+NOTIFY_REMOVED_FROM_ORG = """Hello {fname}
 
-You are no longer a member of the organization %s.
+You are no longer a member of the organization "{org}".
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-NOTIFY_INVITATION_REVOKED_SUBJECT = "Invitation for organization revoked"
+NOTIFY_INVITATION_REVOKED_SUBJECT = \
+    "[{portal_name}] Invitation for organization revoked"
 
-NOTIFY_INVITATION_REVOKED = """Hi
+NOTIFY_INVITATION_REVOKED = """Hello {fname}
 
-Your invitation to the organization %s has been revoked.
+Your invitation to the organization "{org}" has been revoked.
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-NO_DATA_ALERT_SUPPRESSION_SUBJECT = "Suppressed no-data rule"
+NO_DATA_ALERT_SUPPRESSION_SUBJECT = "[{portal_name}] Suppressed no-data rule"
 
 NO_DATA_ALERT_SUPPRESSION_BODY = """
            ********** %(rule)s triggered and suppressed **********
@@ -1953,6 +2922,21 @@ Click the link below to unsuppress all suppressed alerts:
 Note that the above action will actually send the alerts, if the corresponding
 rules are re-triggered during the next evaluation cycle.
 """
+CREATE_APITOKEN_SUBJECT = "[{portal_name}] New API Token has been issued"
+
+CREATE_APITOKEN_BODY = """Hello {fname},
+
+You requested a new API token which has been issued.
+The request originated from the IP address {ip_addr}.
+
+If it was not you we suggest that you:
+1. Revoke the new token immediately at {portal_uri}/my-account/tokens
+2. Change your password
+3. Contact {support_email}
+
+Best regards,
+The {portal_name} team
+"""
 
 CTA = {
     "rbac": {
@@ -1968,10 +2952,15 @@ REDIRECT_HOME_TO_SIGNIN = False
 ALLOW_SIGNUP_EMAIL = True
 ALLOW_SIGNUP_GOOGLE = False
 ALLOW_SIGNUP_GITHUB = False
+ALLOW_SIGNUP_MS365 = False
+ALLOW_SIGNUP_CILOGON = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
+ALLOW_SIGNIN_MS365 = False
+ALLOW_SIGNIN_CILOGON = False
 LDAP_SETTINGS = {}
+DEFAULT_SIGNIN_METHOD = 'email'
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1989,6 +2978,9 @@ CURRENCY = {
 }
 ENABLE_VSPHERE_REST = False
 VSPHERE_IMAGE_FOLDERS = []
+VSPHERE_FETCH_ALL_EXTRA = True
+UGLY_RBAC = ""
+
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
@@ -2053,8 +3045,8 @@ for plugin in PLUGINS:
                 locals()[key] = plugin_env[key]
         log.warn("Imported config of `%s` plugin" % plugin)
     except Exception as exc:
-        log.error("Failed to import config of `%s` plugin" %
-                  plugin)
+        log.error("Failed to import config of `%s` plugin: %r" % (
+            plugin, exc))
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
@@ -2200,6 +3192,7 @@ HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
     'cta': CTA,
+    'description': DESCRIPTION,
     'features': {
         'monitoring': ENABLE_MONITORING,
         'rbac': HAS_RBAC,
@@ -2212,11 +3205,16 @@ HOMEPAGE_INPUTS = {
         'signup_email': ALLOW_SIGNUP_EMAIL,
         'signup_google': ALLOW_SIGNUP_GOOGLE,
         'signup_github': ALLOW_SIGNUP_GITHUB,
+        'signup_ms365': ALLOW_SIGNUP_MS365,
+        'signup_cilogon': ALLOW_SIGNUP_CILOGON,
         'signin_email': ALLOW_SIGNIN_EMAIL,
         'signin_google': ALLOW_SIGNIN_GOOGLE,
         'signin_github': ALLOW_SIGNIN_GITHUB,
         'signin_ldap': ALLOW_SIGNIN_LDAP,
         'signin_ad': ALLOW_SIGNIN_AD,
+        'signin_ms365': ALLOW_SIGNIN_MS365,
+        'signin_cilogon': ALLOW_SIGNIN_CILOGON,
+        'default_signin_method': DEFAULT_SIGNIN_METHOD.lower(),
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,
@@ -2229,7 +3227,7 @@ HOMEPAGE_INPUTS = {
         'sales': EMAIL_SALES
     },
     'fb_id': FB_ID,
-    'olark_id': OLARK_ID,
+    'chatwoot_token': CHATWOOT_TOKEN,
     'google_analytics_id': GOOGLE_ANALYTICS_ID,
     'mixpanel_id': MIXPANEL_ID,
     'categories': LANDING_CATEGORIES
@@ -2246,5 +3244,5 @@ VERSION = {}
 try:
     with open('/mist-version.json', 'r') as fobj:
         VERSION = json.load(fobj)
-except Exception as exc:
+except Exception:
     log.error("Couldn't load version info.")

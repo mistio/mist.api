@@ -1,0 +1,27 @@
+#!/usr/bin/env python
+import os
+import importlib
+
+
+os.system("pip install -U 'dramatiq[rabbitmq]'")
+
+BROKER = 'mist.api.dramatiq_app'
+QUEUES = ['dramatiq_create_machine',
+          'dramatiq_post_deploy_steps',
+          'dramatiq_ssh_tasks',
+          'dramatiq_mappings']
+
+POSSIBLE_MODULES = ['mist.api.dramatiq_tasks', 'mist.rbac.dramatiq_tasks']
+modules = []
+
+for module in POSSIBLE_MODULES:
+    try:
+        importlib.import_module(module)
+    except ModuleNotFoundError:
+        continue
+    modules.append(module)
+    print(f"  * {module}")
+
+print(f"Will execute command: dramatiq {BROKER} {' '.join(modules)} -Q {' '.join(QUEUES)}")
+
+os.system(f"dramatiq {BROKER} {' '.join(modules)} -Q {' '.join(QUEUES)}")
