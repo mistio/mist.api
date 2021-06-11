@@ -2678,12 +2678,8 @@ class VSphereComputeController(BaseComputeController):
         machine.actions.clone = True
         machine.actions.rename = True
         machine.actions.create_snapshot = True
-        if len(machine.extra.get('snapshots', [])):
-            machine.actions.remove_snapshot = True
-            machine.actions.revert_to_snapshot = True
-        else:
-            machine.actions.remove_snapshot = False
-            machine.actions.revert_to_snapshot = False
+        machine.actions.remove_snapshot = True
+        machine.actions.revert_to_snapshot = True
 
     def _stop_machine(self, machine, node):
         return self.connection.stop_node(node)
@@ -2733,7 +2729,7 @@ class VSphereComputeController(BaseComputeController):
         locations = self.connection.list_locations()
         node_location = None
         if not machine.location:
-            vm = self.connection._find_template_by_uuid(node.id)
+            vm = self.connection.find_by_uuid(node.id)
             location_id = vm.summary.runtime.host.name
         else:
             location_id = machine.location.external_id
@@ -2742,12 +2738,27 @@ class VSphereComputeController(BaseComputeController):
                 node_location = location
                 break
         folder = node.extra.get('folder', None)
+
+        if not folder:
+            try:
+                folder = vm.parent._moId
+        except Exception as exc:
+            raise BadRequestError(
+                "Failed to find folder the folder containing the machine")
+            log.error(
+                "Clone Machine: Exception when looking for folder: {}".format(
+                    exc))
         datastore = node.extra.get('datastore', None)
         return self.connection.create_node(name=name, image=node,
                                            size=node.size,
                                            location=node_location,
                                            ex_folder=folder,
                                            ex_datastore=datastore)
+
+    def _get_libcloud_node(self, machine):
+        vm = self.connection.find_by_uuid(machine.machine_id)
+        return self.connection._to_node_recursiver(vm)
+
 
 
 class VCloudComputeController(BaseComputeController):
