@@ -621,13 +621,7 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
             if i < 6:
                 time.sleep(i * 10)
                 continue
-            try:
-                cloud.ctl.compute.list_machines()
-            except Exception as e:
-                if i > 8:
-                    raise(e)
-                else:
-                    continue
+
     for key_association in [ka for ka in KeyMachineAssociation.objects(
                 machine=machine)]:
         if auth_context.check_perm('key', 'read', key_association.key.id):
