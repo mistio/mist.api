@@ -614,7 +614,8 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
         )
     for i in range(0, 10):
         try:
-            cloned_machine = Machine.objects.get(cloud=machine.cloud, machine_id=node.get('id', ''))
+            cloned_machine = Machine.objects.get(cloud=machine.cloud,
+                                                 machine_id=node.get('id', ''))
             cloned_machine.assign_to(auth_context.user)
             break
         except me.DoesNotExist:
@@ -622,8 +623,9 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
                 time.sleep(i * 10)
                 continue
 
-    for key_association in [ka for ka in KeyMachineAssociation.objects(
-                machine=machine)]:
+    for key_association in [
+            ka for ka in KeyMachineAssociation.objects(machine=machine)]:
+
         if auth_context.check_perm('key', 'read', key_association.key.id):
             cloned_machine.ctl.associate_key(key=key_association.key,
                                              username=key_association.ssh_user,
