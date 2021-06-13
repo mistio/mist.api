@@ -881,9 +881,10 @@ def machine_actions(request):
         clone_async = True  # False for debug
         ret = {}
         if clone_async:
-            args = (auth_context.serialize(), machine.id, name)
+            argz = (auth_context.serialize(), machine.id, name)
             kwargs = {'job': job, 'job_id': job_id}
-            tasks.clone_machine_async.apply_async(args, kwargs, countdown=2)
+            tasks.clone_machine_async.apply_async(argz, kwargs,
+                                                  countdown=2)
         else:
             ret = getattr(machine.ctl, action)(name)
         ret.update({'job': job, 'job_id': job_id})
