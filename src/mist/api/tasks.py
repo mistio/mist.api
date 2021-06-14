@@ -590,12 +590,11 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
     machine = Machine.objects.get(id=machine_id)
     auth_context = AuthContext.deserialize(auth_context_serialized)
     job_id = job_id or uuid.uuid4().hex
-    msg = f"starting for {machine_id} with name {machine.name}"
+    msg = f"clone job starting for {machine_id} with name {machine.name}"
     log.warn(msg)
-    log_event(auth_context.owner.id, 'job', 'async_clone_machine_started',
+    log_event(auth_context.owner.id, 'job', 'clone_machine_started',
               user_id=auth_context.user.id, job_id=job_id, job=job,
               cloud_id=machine.cloud.id, machine_name=machine.name)
-    log.info(f"NAME IS: {name}")
     error = False
     node = {}
     try:
