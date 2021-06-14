@@ -520,6 +520,33 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     List resources of any type.
 
     Supports filtering, sorting, pagination. Enforces RBAC.
+
+    Parameters:
+        auth_context(AuthContext): The AuthContext of the user
+            to list resources for.
+        resource_type(str): One of Mist resources:
+            cloud, bucket, machine, zone, record, script, key,
+            schedule, network, subnet, volume, location, image,
+            rule, size, team, template, stack, tunnel.
+        search(str): The pattern to search for, can contain one or both of:
+            a) key(field)-value pairs seperated by one of the operators:
+                :, =, >, <, <=, >=, !=
+            b) a single value that will be set to resource_type's ID or name.
+            Example:
+            >>> 't2.nano cpus>1 ram>=1024'
+        cloud(str): List resources from these clouds only,
+            with the same pattern as `search`.
+        only(str): The fields to load from the resource_type's document,
+            comma-seperated.
+        sort(str): The field to order the query results by; field may be
+            prefixed with “+” or a “-” to determine the ordering direction.
+        start(int): The index of the first item to return.
+        limit(int): Return up to this many items.
+        deref(str):
+
+    Returns:
+        tuple(A mongoengine QuerySet containing the objects found,
+             the total number of items found)
     """
     from mist.api.helpers import get_resource_model
     from mist.api.clouds.models import CLOUDS
@@ -660,8 +687,13 @@ def list_resources(auth_context, resource_type, search='', cloud='',
             query &= Q(id__in=ids)
             result = resource_model.objects(query)
 
+    try:
+        from mist.rbac.models import PERMISSIONS
+    except ImportError:
+        return result[start:start + limit], result.count()
+
     if result.count():
-        if not auth_context.is_owner():
+        if not auth_context.is_owner() and resource_type in PERMISSIONS.keys():
             # get_allowed_resources uses plural
             rtype = resource_type if resource_type.endswith(
                 's') else resource_type + 's'

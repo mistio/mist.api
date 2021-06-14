@@ -602,7 +602,7 @@ def create_machine_async(
     softlayer_backend_vlan_id=None, machine_username='',
     folder=None, datastore=None,
     ephemeral=False, lxd_image_source=None,
-    volumes=[], ip_addresses=[], expiration={}, sec_group='', vnfs=[],
+    volumes=[], ip_addresses=[], expiration={}, sec_groups=None, vnfs=[],
     description='', port_forwards={}
 ):
     from concurrent.futures import ThreadPoolExecutor
@@ -659,7 +659,7 @@ def create_machine_async(
              'expiration': expiration,
              'ephemeral': ephemeral,
              'lxd_image_source': lxd_image_source,
-             'sec_group': sec_group,
+             'sec_groups': sec_groups,
              'folder': folder,
              'datastore': datastore,
              'vnfs': vnfs,

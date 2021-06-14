@@ -1109,6 +1109,93 @@ class LinodeComputeController(BaseComputeController):
             return 'system'
         return 'custom'
 
+    def _list_sizes__get_cpu(self, size):
+        if self.cloud.apiversion is not None:
+            return super()._list_sizes__get_cpu(size)
+        return int(size.extra.get('vcpus') or 1)
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        persist_across_boots = True if volume_dict.get(
+            'persist_across_boots', True) is True else False
+        ret = {
+            'id': vol_obj.id,
+            'name': vol_obj.name,
+            'persist_across_boots': persist_across_boots
+        }
+        return ret
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size parameter is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+
+        if size < 10:
+            raise BadRequestError('Volume size should be at least 10 GBs')
+
+        try:
+            name = str(volume_dict['name'])
+        except KeyError:
+            raise BadRequestError('Volume name parameter is required')
+
+        return {'name': name, 'size': size}
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        private_ip = True if networks_dict.get(
+            'private_ip', True) is True else False
+        return {'private_ip': private_ip}
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        from mist.api.helpers import (generate_secure_password,
+                                      validate_password)
+        try:
+            root_pass = extra['root_pass']
+        except KeyError:
+            root_pass = generate_secure_password()
+        else:
+            if validate_password(root_pass) is False:
+                raise BadRequestError(
+                    "Your password must contain at least one "
+                    "lowercase character, one uppercase and one digit")
+        plan['root_pass'] = root_pass
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        key = kwargs.pop('auth')
+        kwargs['ex_authorized_keys'] = [key.public]
+        kwargs['ex_private_ip'] = plan['networks']['private_ip']
+        kwargs['root_pass'] = plan['root_pass']
+        return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        from mist.api.volumes.models import Volume
+        from libcloud.compute.base import StorageVolume
+        volumes = plan.get('volumes', [])
+        for volume in volumes:
+            if volume.get('id'):
+                vol = Volume.objects.get(id=volume['id'])
+                libcloud_vol = StorageVolume(id=vol.external_id,
+                                             name=vol.name,
+                                             size=vol.size,
+                                             driver=self.connection,
+                                             extra=vol.extra)
+                try:
+                    self.connection.attach_volume(
+                        node,
+                        libcloud_vol,
+                        persist_across_boots=volume['persist_across_boots'])
+                except Exception as exc:
+                    log.exception('Failed to attach volume')
+            else:
+                try:
+                    self.connection.create_volume(volume['name'],
+                                                  volume['size'],
+                                                  node=node)
+                except Exception as exc:
+                    log.exception('Failed to create volume')
+
 
 class RackSpaceComputeController(BaseComputeController):
 
@@ -2591,12 +2678,8 @@ class VSphereComputeController(BaseComputeController):
         machine.actions.clone = True
         machine.actions.rename = True
         machine.actions.create_snapshot = True
-        if len(machine.extra.get('snapshots', [])):
-            machine.actions.remove_snapshot = True
-            machine.actions.revert_to_snapshot = True
-        else:
-            machine.actions.remove_snapshot = False
-            machine.actions.revert_to_snapshot = False
+        machine.actions.remove_snapshot = True
+        machine.actions.revert_to_snapshot = True
 
     def _stop_machine(self, machine, node):
         return self.connection.stop_node(node)
@@ -2646,7 +2729,7 @@ class VSphereComputeController(BaseComputeController):
         locations = self.connection.list_locations()
         node_location = None
         if not machine.location:
-            vm = self.connection._find_template_by_uuid(node.id)
+            vm = self.connection.find_by_uuid(node.id)
             location_id = vm.summary.runtime.host.name
         else:
             location_id = machine.location.external_id
@@ -2655,12 +2738,26 @@ class VSphereComputeController(BaseComputeController):
                 node_location = location
                 break
         folder = node.extra.get('folder', None)
+
+        if not folder:
+            try:
+                folder = vm.parent._moId
+            except Exception as exc:
+                raise BadRequestError(
+                    "Failed to find folder the folder containing the machine")
+                log.error(
+                    "Clone Machine: Exception when "
+                    "looking for folder: {}".format(exc))
         datastore = node.extra.get('datastore', None)
         return self.connection.create_node(name=name, image=node,
                                            size=node.size,
                                            location=node_location,
                                            ex_folder=folder,
                                            ex_datastore=datastore)
+
+    def _get_libcloud_node(self, machine):
+        vm = self.connection.find_by_uuid(machine.machine_id)
+        return self.connection._to_node_recursive(vm)
 
 
 class VCloudComputeController(BaseComputeController):
