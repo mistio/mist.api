@@ -2312,20 +2312,21 @@ class BaseComputeController(BaseController):
                                                       name)
 
         tags, constraints = auth_context.check_perm('machine', 'create', None)
+        constraints = constraints or {}
 
-        tags = compute_tags(auth_context, tags=tags,
-                            request_tags=request_tags)
+        tags = compute_tags(auth_context, tags, request_tags)
         if tags:
             plan['tags'] = tags
 
         expiration = self._generate_plan__parse_expiration(auth_context,
                                                            expiration)
-        check_expiration_constraint(auth_context, expiration,
-                                    constraints=constraints)
+        exp_constraint = constraints.get('expiration', {})
+        check_expiration_constraint(expiration, exp_constraint)
         if expiration:
             plan['expiration'] = expiration
 
-        check_cost_constraint(auth_context, constraints=constraints)
+        cost_constraint = constraints.get('cost', {})
+        check_cost_constraint(auth_context, cost_constraint)
 
         images, image_extra_attrs = self._generate_plan__parse_image(
             auth_context, image)
@@ -2342,8 +2343,8 @@ class BaseComputeController(BaseController):
             auth_context, size)
         size_extra_attrs = size_extra_attrs or {}
 
-        sizes = check_size_constraint(auth_context, sizes,
-                                      constraints=constraints)
+        size_constraint = constraints.get('size', {})
+        sizes = check_size_constraint(self.cloud.id, size_constraint, sizes)
 
         comb_list = self._get_allowed_image_size_location_combinations(
             images, locations, sizes, image_extra_attrs, size_extra_attrs)
@@ -2405,7 +2406,7 @@ class BaseComputeController(BaseController):
         if fqdn and self.cloud.ctl.has_feature('dns'):
             plan['fqdn'] = fqdn
 
-        plan['monitoring'] = monitoring if monitoring is not None else False
+        plan['monitoring'] = True if monitoring is True else False
         plan['quantity'] = quantity if quantity else 1
 
         self._generate_plan__post_parse_plan(plan)
@@ -2440,7 +2441,19 @@ class BaseComputeController(BaseController):
         )
         if not count:
             raise NotFoundError('Image not found')
-        return images, None
+
+        ret_images = []
+        for image in images:
+            try:
+                auth_context.check_perm('image',
+                                        'create_resources',
+                                        image.id)
+            except PolicyUnauthorizedError:
+                continue
+            else:
+                ret_images.append(image)
+
+        return ret_images, None
 
     def _generate_plan__parse_custom_image(self, image_dict):
         """Get an image that is not saved in mongo.
@@ -2474,7 +2487,7 @@ class BaseComputeController(BaseController):
             else:
                 ret_locations.append(location)
 
-        return locations
+        return ret_locations
 
     def _generate_plan__parse_size(self, auth_context, size_obj):
         """Parse the size parameter from request.
