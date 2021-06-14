@@ -25,7 +25,7 @@ from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
 from mist.api.dns.models import Zone
 from mist.api.volumes.models import Volume
-from mist.api.machines.models import Machine
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.images.models import CloudImage
 from mist.api.objectstorage.models import Bucket
 from mist.api.scripts.models import Script
@@ -581,6 +581,56 @@ def rackspace_first_gen_post_create_steps(
     except Exception as exc:
         if str(exc).startswith('Retry'):
             raise
+
+
+@app.task
+def clone_machine_async(auth_context_serialized, machine_id, name,
+                        job=None, job_id=None):
+    from mist.api.exceptions import MachineCreationError
+    machine = Machine.objects.get(id=machine_id)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
+    job_id = job_id or uuid.uuid4().hex
+    msg = f"clone job starting for {machine_id} with name {machine.name}"
+    log.warn(msg)
+    log_event(auth_context.owner.id, 'job', 'clone_machine_started',
+              user_id=auth_context.user.id, job_id=job_id, job=job,
+              cloud_id=machine.cloud.id, machine_name=machine.name)
+    error = False
+    node = {}
+    try:
+        node = getattr(machine.ctl, 'clone')(name)
+    except MachineCreationError as err:
+        error = str(err)
+    except Exception as exc:
+        error = repr(exc)
+    finally:
+        log_event(
+            auth_context.owner.id, 'job', 'clone_machine_finished',
+            job=job, job_id=job_id, cloud_id=machine.cloud.id,
+            machine_name=name, error=error,
+            id=node.get('id', ''),
+            user_id=auth_context.user.id
+        )
+    for i in range(0, 10):
+        try:
+            cloned_machine = Machine.objects.get(cloud=machine.cloud,
+                                                 machine_id=node.get('id', ''))
+            cloned_machine.assign_to(auth_context.user)
+            break
+        except me.DoesNotExist:
+            if i < 6:
+                time.sleep(i * 10)
+                continue
+
+    for key_association in [
+            ka for ka in KeyMachineAssociation.objects(machine=machine)]:
+
+        if auth_context.check_perm('key', 'read', key_association.key.id):
+            cloned_machine.ctl.associate_key(key=key_association.key,
+                                             username=key_association.ssh_user,
+                                             port=key_association.port,
+                                             no_connect=True)
+    print('clone_machine_async: results: {}'.format(node))
 
 
 @app.task
