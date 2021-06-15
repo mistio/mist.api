@@ -55,7 +55,6 @@ from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
-from mist.api.exceptions import PortForwardCreationError
 from mist.api.exceptions import ForbiddenError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening

@@ -24,9 +24,6 @@ from libcloud.container.base import ContainerImage
 from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.base import NodeAuthPassword
 
-from libcloud.common.types import MalformedResponseError
-from libcloud.common.exceptions import BaseHTTPError
-
 from tempfile import NamedTemporaryFile
 
 import mist.api.tasks

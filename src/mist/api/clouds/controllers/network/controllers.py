@@ -12,13 +12,10 @@ from mist.api.helpers import rename_kwargs
 from mist.api.exceptions import SubnetNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import MistNotImplementedError
-from mist.api.exceptions import MachineNotFoundError
-from mist.api.exceptions import PortForwardCreationError
 
 from mist.api.clouds.controllers.network.base import BaseNetworkController
 
 from libcloud.compute.drivers.azure_arm import AzureNetwork
-from libcloud.common.exceptions import BaseHTTPError
 
 
 log = logging.getLogger(__name__)
