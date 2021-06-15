@@ -629,9 +629,9 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
         if auth_context.check_perm('key', 'read', key_assoc.key.id):
             try:
                 cloned_machine.ctl.associate_key(key=key_assoc.key,
-                                                username=key_assoc.ssh_user,
-                                                port=key_assoc.port,
-                                                no_connect=True)
+                                                 username=key_assoc.ssh_user,
+                                                 port=key_assoc.port,
+                                                 no_connect=True)
             except NameError:
                 log.error("Cloned machine is not present in the database yet."
                           "Key association failed.")
