@@ -616,20 +616,25 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
             cloned_machine = Machine.objects.get(cloud=machine.cloud,
                                                  machine_id=node.get('id', ''))
             cloned_machine.assign_to(auth_context.user)
+
             break
         except me.DoesNotExist:
             if i < 6:
-                time.sleep(i * 10)
+                sleep(i * 10)
                 continue
 
-    for key_association in [
+    for key_assoc in [
             ka for ka in KeyMachineAssociation.objects(machine=machine)]:
 
-        if auth_context.check_perm('key', 'read', key_association.key.id):
-            cloned_machine.ctl.associate_key(key=key_association.key,
-                                             username=key_association.ssh_user,
-                                             port=key_association.port,
-                                             no_connect=True)
+        if auth_context.check_perm('key', 'read', key_assoc.key.id):
+            try:
+                cloned_machine.ctl.associate_key(key=key_assoc.key,
+                                                username=key_assoc.ssh_user,
+                                                port=key_assoc.port,
+                                                no_connect=True)
+            except NameError:
+                log.error("Cloned machine is not present in the database yet."
+                          "Key association failed.")
     print('clone_machine_async: results: {}'.format(node))
 
 
