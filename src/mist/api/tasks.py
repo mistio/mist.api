@@ -16,7 +16,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 from paramiko.ssh_exception import SSHException
 
-from mist.api.exceptions import MistError
+from mist.api.exceptions import MistError, PolicyUnauthorizedError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api.shell import Shell
 
@@ -625,17 +625,20 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
         cloned_machine.assign_to(auth_context.user)
         for key_assoc in [
                 ka for ka in KeyMachineAssociation.objects(machine=machine)]:
-
-            if auth_context.check_perm('key', 'read', key_assoc.key.id):
-
+            try:
+                auth_context.check_perm('key', 'read', key_assoc.key.id)
                 cloned_machine.ctl.associate_key(key=key_assoc.key,
                                                  username=key_assoc.ssh_user,
                                                  port=key_assoc.port,
                                                  no_connect=True)
+            except PolicyUnauthorizedError:
+                continue
+        cloned_machine.cloud.ctl.compute.produce_and_publish_patch(
+            [before], [cloned_machine])
     except NameError:
         log.error("Cloned machine is not present in the database yet."
-                    "Key association failed.")
-    cloned_machine.cloud.ctl.compute.produce_and_publish_patch([before], [cloned_machine])
+                  "Key association and owner assignment failed.")
+
     print('clone_machine_async: results: {}'.format(node))
 
 
