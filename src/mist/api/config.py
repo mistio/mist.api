@@ -34,11 +34,11 @@ log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 ###############################################################################
 ###############################################################################
 
-PORTAL_NAME = "Mist"
+PORTAL_NAME = "Mist CE"
 DESCRIPTION = "A secure cloud management platform for automation,\
  orchestration, cost and usage monitoring of public and private clouds,\
  hypervisors and container hosts. Provides multi-cloud RBAC. Enables\
- self service provisioning. Cost analysis and cloud spending optimization"
+ self service provisioning. Cost analytics and cloud spending optimization"
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
@@ -76,7 +76,7 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-DATABASE_VERSION = 11
+DATABASE_VERSION = 12
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -435,6 +435,225 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                         "fetch(\"{id}.disk.*\.free\"" +
                         ", start=\"{start}\", stop=\"{stop}\"" +
                         ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }],
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [
+                    {
+                        "refId": "A1",
+                        "target": "system_load1"
+                    },
+                    {
+                        "refId": "A2",
+                        "target": "system_load5"
+                    },
+                    {
+                        "refId": "A3",
+                        "target": "system_load15"
+                    }
+                ],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [
+                    {
+                        "refId": "B1",
+                        "target": "mem_free"
+                    },
+                    {
+                        "refId": "B2",
+                        "target": "mem_used"
+                    },
+                    {
+                        "refId": "B3",
+                        "target": "mem_cached"
+                    },
+                    {
+                        "refId": "B4",
+                        "target": "mem_buffered"
+                    }
+                ],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [
+                    {
+                        "refId": "C1",
+                        "target": 'cpu_usage_guest{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C2",
+                        "target": 'cpu_usage_iowait{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C3",
+                        "target": 'cpu_usage_user{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C4",
+                        "target": 'cpu_usage_nice{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C5",
+                        "target": 'cpu_usage_softirq{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C6",
+                        "target": 'cpu_usage_idle{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C7",
+                        "target": 'cpu_usage_irq{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C8",
+                        "target": 'cpu_usage_system{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C9",
+                        "target": 'cpu_usage_steal{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C10",
+                        "target": 'cpu_usage_guest_nice{cpu="cpu-total"}'
+                    }
+                ],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": "cpu_usage_idle"
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": "net_bytes_recv"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": "net_bytes_sent"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": "diskio_read_bytes"
+                }],
+                "x-axis": True,
+                "y-axis": True,
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": "diskio_write_bytes"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 12,
+                "height": 400,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": "disk_free"
                 }],
                 "yaxes": [{
                     "label": "B"
@@ -949,11 +1168,14 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
-    'telegraf-tsfdb'
+    'telegraf-tsfdb',
+    'telegraf-victoriametrics'
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
+
+VICTORIAMETRICS_URI = "http://vmselect:8481/select/<org_id>/prometheus"
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
@@ -966,6 +1188,9 @@ CILIA_INFLUXDB_NODATA_TARGETS = (
 )
 CILIA_FOUNDATIONDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
+CILIA_VICTORIAMETRICS_NODATA_TARGETS = (
+    "system_load1", "system_n_cpus", 'cpu_usage_user{cpu="cpu0"}'
 )
 
 # Shard Manager settings. Can also be set through env variables.
@@ -1130,7 +1355,7 @@ CELERY_SETTINGS = {
     # metadata.
     # 'worker_log_format': PY_LOG_FORMAT,
     # 'worker_task_log_format': PY_LOG_FORMAT,
-    'worker_concurrency': 8,
+    'worker_concurrency': 16,
     'worker_max_tasks_per_child': 32,
     'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
     'worker_send_task_events': True,
@@ -1171,7 +1396,7 @@ CELERY_SETTINGS = {
             'queue': 'deployments'},
         'mist.api.tasks.rackspace_first_gen_post_create_steps': {
             'queue': 'deployments'},
-        'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        # 'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
 
         # List networks
@@ -1182,6 +1407,9 @@ CELERY_SETTINGS = {
 
         # List zones
         'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
+
+        # List buckets
+        'mist.api.poller.tasks.list_buckets': {'queue': 'buckets'},
 
     },
 }
@@ -1225,12 +1453,12 @@ STAR_IMAGE_ON_MACHINE_CREATE = True
 
 EC2_SECURITYGROUP = {
     'name': 'mistio',
-    'description': 'Security group created by mist.io'
+    'description': 'Security group created by {portal_name}'
 }
 
 ECS_VPC = {
     'name': 'mistio',
-    'description': 'Vpc created by mist.io'
+    'description': 'Vpc created by {portal_name}'
 }
 
 # Linode datacenter ids/names mapping
@@ -1247,6 +1475,8 @@ LINODE_DATACENTERS = {
 
 PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd',
                                'kubevirt', 'cloudsigma']
+
+PROVIDERS_WITH_TERMINATED_MACHINES_VISIBLE = ['ec2', 'libvirt', 'azure_arm']
 
 PROVIDERS = {
     'amazon': {
@@ -1267,7 +1497,8 @@ PROVIDERS = {
             },
             'dns': True,
             'storage': True,
-            'networks': True
+            'networks': True,
+            'objectstorage': True
         }
     },
     'azure': {
@@ -1480,6 +1711,7 @@ PROVIDERS = {
                 },
             },
             'storage': True,
+            'objectstorage': True
         }
     },
     'onapp': {
@@ -2480,89 +2712,81 @@ WHITELIST_IP_EXPIRATION_TIME = 60 * 60 * 24
 
 # Email templates
 
-CONFIRMATION_EMAIL_SUBJECT = "[mist.io] Confirm your registration"
+CONFIRMATION_EMAIL_SUBJECT = "[{portal_name}] Confirm your registration"
 
-CONFIRMATION_EMAIL_BODY = """Hi %s,
+CONFIRMATION_EMAIL_BODY = """Hello {fname},
 
-we received a registration request to mist.io from this email address.
+we received a registration request to {portal_name} from this email address.
 
 To activate your account, please click on the following link:
 
-%s/confirm?key=%s
+{portal_uri}/confirm?key={activation_key}
 
-In the meantime, stay up-to-date by following us on https://twitter.com/mist_io
+{follow_us}This request originated from the IP address {ip_addr}.
 
-This request originated from the IP address %s. If it wasn't you, simply ignore
-this message.
+If it wasn't you, simply ignore this message.
 
 Best regards,
-The mist.io team
-
---
-%s
-Govern the clouds
+The {portal_name} team
 """
 
-RESET_PASSWORD_EMAIL_SUBJECT = "[mist.io] Password reset request"
+FOLLOW_US = "In the meantime, stay up-to-date by following us on"\
+    "https://twitter.com/mist_io"
 
-RESET_PASSWORD_EMAIL_BODY = """Hi %s,
+
+RESET_PASSWORD_EMAIL_SUBJECT = "[{portal_name}] Password reset request"
+
+RESET_PASSWORD_EMAIL_BODY = """Hello {fname},
 
 We have received a request to change your password.
 Please click on the following link:
 
-%s/reset-password?key=%s
+{portal_uri}/reset-password?key={activation_key}
 
-This request originated from the IP address %s. If it wasn't you, simply ignore
-this message. Your password has not been changed.
+This request originated from the IP address {ip_addr}.
+
+If it wasn't you, simply ignore this message.
+Your password has not been changed.
 
 
 Best regards,
-The mist.io team
-
---
-%s
-Govern the clouds
+The {portal_name} team
 """
 
-MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = "[mist.io] Machine is about to expire"
+MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = \
+    "[{portal_name}] Machine is about to expire"
 
-MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
+MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Hello {fname},
 
-Your machine `%s` will expire on %s
+Your machine `{machine_name}` will expire on {expiration}
 
-If you'd like to prevent that, please update the expiration date at %s
-%s
+If you'd like to prevent that, please update the expiration date at {uri}
+{custom_msg}
 Best regards,
-The mist.io team
-
---
-%s
-Govern the clouds
+The {portal_name} team
 """
 
-WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
+WHITELIST_IP_EMAIL_SUBJECT = "[{portal_name}] Account IP whitelist request"
 
-WHITELIST_IP_EMAIL_BODY = """Hi %s,
+WHITELIST_IP_EMAIL_BODY = """Hello {fname},
 
 We have received a request to whitelist the IP you just tried to login with.
 Please click on the following link to finish this action:
 
-%s/confirm-whitelist?key=%s
+{portal_uri}/confirm-whitelist?key={confirmation_key}
 
-This request originated from the IP address %s. If it wasn't you, simply ignore
-this message. The above IP will not be whitelisted.
+This request originated from the IP address {ip_addr}.
+If it wasn't you, simply ignore this message.
+The above IP will not be whitelisted.
 
 
 Best regards,
-The mist.io team
-
---
-%s
-Govern the clouds
+The {portal_name} team
 """
 
 
-FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT = "[mist.io] Failed login attempts warning"
+FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT = \
+    "[{portal_name}] Failed login attempts warning"
 
 FAILED_LOGIN_ATTEMPTS_EMAIL_BODY = """
 ================= Failed login attempts warning =================
@@ -2571,110 +2795,88 @@ Too many failed login attempts for the same account and from the same IP
 address occurred. Future login attempts for this user/ip will be
 temporarily blocked to thwart a brute-force attack.
 
-User: %s
-IP address: %s
-Number of failed attempts: %s
-Time period of failed login attempts: %s
-Blocking period: %s
+User: {email}
+IP address: {ip_addr}
+Number of failed attempts: {failed_attempts}
+Time period of failed login attempts: {time_period}
+Blocking period: {block_period}
 """
 
-ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT = ("Your status in an organization has"
-                                        " changed")
+ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT = \
+    "[{portal_name}] Your status in an organization has changed"
 
-ORG_NOTIFICATION_EMAIL_SUBJECT = "[mist.io] Subscribed to team"
+ORG_NOTIFICATION_EMAIL_SUBJECT = "[{portal_name}] Subscribed to team"
 
-USER_NOTIFY_ORG_TEAM_ADDITION = """Hi
+USER_NOTIFY_ORG_TEAM_ADDITION = """Hello {fname}
 
-You have been added to the team "%s" of organization %s.
+You have been added to the team "{team}" of organization {org}.
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-USER_CONFIRM_ORG_INVITATION_EMAIL_BODY = """Hi
+USER_CONFIRM_ORG_INVITATION_EMAIL_BODY = """Hi {fname}
 
-You have been invited by %s to join the %s organization
-as a member of the %s.
+You have been invited by {invited_by} to join the "{org}" organization
+as a member of the "{team}" team.
 
 To confirm your invitation, please click on the following link:
 
-%s/confirm-invitation?invitoken=%s
+{portal_uri}/confirm-invitation?invitoken={invitoken}
 
 Once you are done with the confirmation process,
 you will be able to login to your Mist.io user account
-as a member of the team%s.
+as a member of the team "{team}".
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-ORG_INVITATION_EMAIL_SUBJECT = "[mist.io] Confirm your invitation"
+ORG_INVITATION_EMAIL_SUBJECT = "[{portal_name}] Confirm your invitation"
 
-REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY = """Hi
+REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY = """Hello {fname}
 
-You have been invited by %s to join the %s organization
-as a member of the %s.
+You have been invited by {invited_by} to join the "{org}" organization
+as a member of the "{team}" team.
 
-Before joining the team you must also activate your account in  mist.io and set
-a password. To activate your account and join the team, please click on the
+In order to accept the invitation, please click on the
 following link:
 
-%s/confirm?key=%s&invitoken=%s
-
-Once you are done with the registration process,
-you will be able to login to your Mist.io user account
-as a member of the team%s.
+{portal_uri}/confirm?key={activation_key}&invitoken={invitoken}
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-NOTIFY_REMOVED_FROM_TEAM = """Hi
+NOTIFY_REMOVED_FROM_TEAM = """Hello {fname}
 
-You have been removed from team %s of organization %s by the
-administrator %s.
+You have been removed from team "{team}" of organization "{org}" by the
+administrator "{admin}".
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-NOTIFY_REMOVED_FROM_ORG = """Hi
+NOTIFY_REMOVED_FROM_ORG = """Hello {fname}
 
-You are no longer a member of the organization %s.
+You are no longer a member of the organization "{org}".
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-NOTIFY_INVITATION_REVOKED_SUBJECT = "Invitation for organization revoked"
+NOTIFY_INVITATION_REVOKED_SUBJECT = \
+    "[{portal_name}] Invitation for organization revoked"
 
-NOTIFY_INVITATION_REVOKED = """Hi
+NOTIFY_INVITATION_REVOKED = """Hello {fname}
 
-Your invitation to the organization %s has been revoked.
+Your invitation to the organization "{org}" has been revoked.
 
 Best regards,
-The mist.io team
-
---
-%s
+The {portal_name} team
 """
 
-NO_DATA_ALERT_SUPPRESSION_SUBJECT = "Suppressed no-data rule"
+NO_DATA_ALERT_SUPPRESSION_SUBJECT = "[{portal_name}] Suppressed no-data rule"
 
 NO_DATA_ALERT_SUPPRESSION_BODY = """
            ********** %(rule)s triggered and suppressed **********
@@ -2693,6 +2895,21 @@ Click the link below to unsuppress all suppressed alerts:
 
 Note that the above action will actually send the alerts, if the corresponding
 rules are re-triggered during the next evaluation cycle.
+"""
+CREATE_APITOKEN_SUBJECT = "[{portal_name}] New API Token has been issued"
+
+CREATE_APITOKEN_BODY = """Hello {fname},
+
+You requested a new API token which has been issued.
+The request originated from the IP address {ip_addr}.
+
+If it was not you we suggest that you:
+1. Revoke the new token immediately at {portal_uri}/my-account/tokens
+2. Change your password
+3. Contact {support_email}
+
+Best regards,
+The {portal_name} team
 """
 
 CTA = {
@@ -2735,6 +2952,7 @@ CURRENCY = {
 }
 ENABLE_VSPHERE_REST = False
 VSPHERE_IMAGE_FOLDERS = []
+VSPHERE_FETCH_ALL_EXTRA = True
 UGLY_RBAC = ""
 
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
@@ -2801,8 +3019,8 @@ for plugin in PLUGINS:
                 locals()[key] = plugin_env[key]
         log.warn("Imported config of `%s` plugin" % plugin)
     except Exception as exc:
-        log.error("Failed to import config of `%s` plugin" %
-                  plugin)
+        log.error("Failed to import config of `%s` plugin: %r" % (
+            plugin, exc))
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
@@ -3000,5 +3218,5 @@ VERSION = {}
 try:
     with open('/mist-version.json', 'r') as fobj:
         VERSION = json.load(fobj)
-except Exception as exc:
+except Exception:
     log.error("Couldn't load version info.")

@@ -33,6 +33,7 @@ from mist.api.clouds.controllers.network.base import BaseNetworkController
 from mist.api.clouds.controllers.compute.base import BaseComputeController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.clouds.controllers.storage.base import BaseStorageController
+from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
 
 
 log = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ class BaseMainController(object):
     NetworkController = None
     DnsController = None
     StorageController = None
+    ObjectStorageController = None
 
     def __init__(self, cloud):
         """Initialize main cloud controller given a cloud
@@ -126,6 +128,12 @@ class BaseMainController(object):
             assert issubclass(self.StorageController, BaseStorageController)
             self.storage = self.StorageController(self)
 
+        # Initialize Object store controller.
+        if self.ObjectStorageController is not None:
+            assert issubclass(self.ObjectStorageController,
+                              BaseObjectStorageController)
+            self.objectstorage = self.ObjectStorageController(self)
+
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
 
@@ -153,6 +161,8 @@ class BaseMainController(object):
 
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
+        self.cloud.object_storage_enabled = \
+            kwargs.pop('object_storage_enabled', False) is True
         self.cloud.observation_logs_enabled = True
         self.cloud.polling_interval = kwargs.pop('polling_interval', 30 * 60)
 
@@ -356,6 +366,20 @@ class BaseMainController(object):
         self.cloud.dns_enabled = False
         self.cloud.save()
 
+    def object_storage_enable(self):
+        from mist.api.poller.models import ListBucketsPollingSchedule
+        self.cloud.object_storage_enabled = True
+        self.cloud.save()
+        if hasattr(self.cloud.ctl, 'objectstorage'):
+            schedule = ListBucketsPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
+            schedule.set_default_interval(60 * 60 * 24)
+            schedule.save()
+
+    def object_storage_disable(self):
+        self.cloud.object_storage_enabled = False
+        self.cloud.save()
+
     def observation_logs_enable(self):
         self.cloud.observation_logs_enabled = True
         self.cloud.save()
@@ -391,6 +415,7 @@ class BaseMainController(object):
         from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
+        from mist.api.poller.models import ListBucketsPollingSchedule
 
         # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(
@@ -410,6 +435,13 @@ class BaseMainController(object):
         if hasattr(self.cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(
                 cloud=self.cloud, run_immediately=True)
+
+        if hasattr(self.cloud.ctl, 'objectstorage') and \
+                self.cloud.object_storage_enabled:
+            schedule = ListBucketsPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
+            schedule.set_default_interval(60 * 60 * 24)
+            schedule.save()
 
         # Add extra cloud-level polling schedules with lower frequency. Such
         # schedules poll resources that should hardly ever change. Thus, we

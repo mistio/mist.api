@@ -250,7 +250,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
-                   sec_group='', folder=None, datastore=None, vnfs=[],
+                   sec_groups=None, folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
                    description='', port_forwards={},
                    ):
@@ -465,11 +465,16 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_rackspace(conn, machine_name, image,
                                          size, user_data=cloud_init)
     elif cloud.ctl.provider in [Provider.OPENSTACK.value]:
+        sec_groups = sec_groups or []
         node = _create_machine_openstack(conn, public_key,
                                          key.name, machine_name, image, size,
                                          networks, volumes,
-                                         cloud_init)
+                                         cloud_init, sec_groups)
     elif cloud.ctl.provider is Provider.EC2.value:
+        try:
+            sec_group = sec_groups[0]
+        except (IndexError, TypeError):
+            sec_group = ''
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location.id:
@@ -601,7 +606,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 time.sleep(i * 10)
                 continue
             try:
-                cloud.ctl.compute._list_machines()
+                cloud.ctl.compute.list_machines()
             except Exception as e:
                 if i > 8:
                     raise(e)
@@ -635,10 +640,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
-    fresh_machines = cloud.ctl.compute._list_machines()
+    # Emit jsonpatch with new key association
+    fresh_machines = cloud.ctl.compute.list_cached_machines()
     cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines,
-                                                first_run=True)
+                                                fresh_machines)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if cloud.ctl.provider == Provider.AZURE.value:
@@ -744,7 +749,7 @@ def _create_machine_rackspace(conn, machine_name, image, size, user_data):
 
 def _create_machine_openstack(conn, public_key, key_name,
                               machine_name, image, size, networks,
-                              volumes, user_data):
+                              volumes, user_data, sec_groups):
     """Create a machine in Openstack.
     """
     key = str(public_key).replace('\n', '')
@@ -783,6 +788,18 @@ def _create_machine_openstack(conn, public_key, key_name,
         chosen_networks = []
 
     blockdevicemappings = []
+    sec_groups = sec_groups or []
+    sec_groups_objects = []
+    if sec_groups:
+        try:
+            security_groups = conn.ex_list_security_groups()
+        except Exception as e:
+            raise MachineCreationError("OpenStack, got exception %s" % e, e)
+
+        for security_group in security_groups:
+            if security_group.id in sec_groups:
+                sec_groups_objects.append(security_group)
+
     try:
         if volumes:
             if volumes[0].get('size'):
@@ -811,7 +828,8 @@ def _create_machine_openstack(conn, public_key, key_name,
             ex_keyname=server_key,
             networks=chosen_networks,
             ex_blockdevicemappings=blockdevicemappings,
-            ex_userdata=user_data)
+            ex_userdata=user_data,
+            ex_security_groups=sec_groups_objects)
     except Exception as e:
         raise MachineCreationError("OpenStack, got exception %s" % e, e)
     return node
@@ -823,9 +841,13 @@ def _create_machine_aliyun(conn, key_name, public_key,
     """Create a machine in Alibaba Aliyun ECS.
     """
     sec_gr_name = config.EC2_SECURITYGROUP.get('name', '')
-    sec_gr_description = config.EC2_SECURITYGROUP.get('description', '')
+    sec_gr_description = \
+        config.EC2_SECURITYGROUP.get('description', '').format(
+            portal_name=config.PORTAL_NAME)
     vpc_name = config.ECS_VPC.get('name', '')
-    vpc_description = config.ECS_VPC.get('description', '')
+    vpc_description = config.ECS_VPC.get('description', '').format(
+        portal_name=config.PORTAL_NAME
+    )
     security_groups = conn.ex_list_security_groups()
     mist_sg = [sg for sg in security_groups if sg.name == sec_gr_name]
 

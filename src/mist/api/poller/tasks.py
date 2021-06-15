@@ -103,6 +103,18 @@ def list_volumes(schedule_id):
     sched.cloud.ctl.storage.list_volumes(persist=False)
 
 
+@app.task(time_limit=60, soft_time_limit=55)
+def list_buckets(schedule_id):
+    """
+    Perform list buckets.
+    Cloud controller stores results in mongodb.
+    """
+
+    from mist.api.poller.models import ListBucketsPollingSchedule
+    sched = ListBucketsPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.objectstorage.list_buckets(persist=False)
+
+
 @app.task(time_limit=45, soft_time_limit=40)
 def ping_probe(schedule_id):
     """Perform ping probe"""

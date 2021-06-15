@@ -28,6 +28,8 @@ from mist.api.exceptions import MistNotImplementedError, MethodNotAllowedError
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
 
+from mist.api.clouds.models import CloudSize
+
 from mist.api import config
 
 if config.HAS_VPN:
@@ -251,7 +253,10 @@ def create_machine(request):
           object
     security_group:
       type: string
-      description: Machine will join this security group
+      description: Machine will join this security group. AWS parameter
+    security_groups:
+      type: list
+      description: Openstack security groups
     vnfs:
       description: Network Virtual Functions to configure in machine
       type: array
@@ -334,6 +339,13 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
+    if isinstance(sec_group, list):
+        sec_groups = sec_group
+    elif sec_group:
+        sec_groups = [sec_group]
+    else:
+        sec_groups = params.get('security_groups', [])
+
     vnfs = params.get('vnfs', [])
     port_forwards = params.get('port_forwards', {})
     expiration = params.get('expiration', {})
@@ -443,16 +455,18 @@ def create_machine(request):
         except ImportError:
             pass
 
-    # constraints do not apply on custom sizes
-    if not isinstance(size, dict):
-        # check size constraint
-        size_constraint = constraints.get('size', {})
-        if size_constraint:
-            try:
-                from mist.rbac.methods import check_size
-                check_size(auth_context.org, size_constraint, size)
-            except ImportError:
-                pass
+    # check for size constraints
+    size_constraint = constraints.get('size', {})
+    if size_constraint:
+        try:
+            from mist.rbac.methods import check_size
+            if isinstance(size, dict):
+                size_object = size
+            else:
+                size_object = CloudSize.objects.get(id=size)
+            check_size(cloud_id, size_constraint, size_object)
+        except ImportError:
+            pass
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
@@ -490,7 +504,7 @@ def create_machine(request):
               'datastore': datastore,
               'ephemeral': params.get('ephemeral', False),
               'lxd_image_source': params.get('lxd_image_source', None),
-              'sec_group': sec_group,
+              'sec_groups': sec_groups,
               'description': description,
               'port_forwards': port_forwards}
     if not run_async:
@@ -849,10 +863,27 @@ def machine_actions(request):
             auth_context.check_perm('network', 'edit', machine.network)
         methods.validate_portforwards(port_forwards)
         result = getattr(machine.ctl, action)(port_forwards)
-    elif action in {'rename', 'clone'}:
+    elif action == 'rename':
         if not name:
             raise BadRequestError("You must give a name!")
         result = getattr(machine.ctl, action)(name)
+    elif action == 'clone':
+        if not name:
+            raise BadRequestError("You must give a name!")
+        job = 'clone_machine'
+        job_id = uuid.uuid4().hex
+        clone_async = True  # False for debug
+        ret = {}
+        if clone_async:
+            argz = (auth_context.serialize(), machine.id, name)
+            kwargs = {'job': job, 'job_id': job_id}
+            tasks.clone_machine_async.apply_async(argz, kwargs,
+                                                  countdown=2)
+        else:
+            ret = getattr(machine.ctl, action)(name)
+        ret.update({'job': job, 'job_id': job_id})
+        return ret
+
     elif action == 'resize':
         _, constraints = auth_context.check_perm("machine", "resize",
                                                  machine.id)
@@ -869,7 +900,8 @@ def machine_actions(request):
         if size_constraint:
             try:
                 from mist.rbac.methods import check_size
-                check_size(auth_context.org, size_constraint, size_id)
+                size = CloudSize.objects.get(id=size_id)
+                check_size(cloud_id, size_constraint, size)
             except ImportError:
                 pass
 
