@@ -4128,6 +4128,41 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                 updated = True
         return updated
 
+    def _list_machines__get_custom_size(self, node_dict):
+        node_type = node_dict['type']
+        node_size = node_dict.get('size')
+        if node_type != 'node' or node_size is None:
+            return None
+        from mist.api.clouds.models import CloudSize
+        updated = False
+        size_id = node_size.get('id')
+        try:
+            size = CloudSize.objects.get(
+                cloud=self.cloud, external_id=str(size_id))
+        except me.DoesNotExist:
+            size = CloudSize(cloud=self.cloud,
+                             external_id=str(size_id))
+            updated = True
+        ram = node_size.get('ram')
+        if size.ram != ram:
+            size.ram = ram
+            updated = True
+        cpu = node_size.get('cpu')
+        if size.cpus != cpu:
+            size.cpus = cpu
+            updated = True
+        disk = node_size.get('disk')
+        if size.disk != disk:
+            size.disk = disk
+            updated = True
+        name = node_size.get('name')
+        if size.name != name:
+            size.name = name
+            updated = True
+        if updated:
+            size.save()
+        return size
+
     def _list_machines__get_machine_extra(self, machine, node_dict):
         node_extra = node_dict.get('extra')
         return copy.copy(node_extra) if node_extra else {}
