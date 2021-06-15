@@ -4053,10 +4053,10 @@ class _KubernetesBaseComputeController(BaseComputeController):
                         volume.attached_to.remove(machine.id)
 
     def _list_machines__get_location(self, node):
-        return node['extra'].get('namespace', "")
+        return node.get('extra', {}).get('namespace', "")
 
     def _list_machines__get_size(self, node):
-        return node['size'].get('id')
+        return node.get('size', {}).get('id')
 
     def _list_sizes__get_cpu(self, size):
         cpu = int(size.extra.get('cpus') or 1)
