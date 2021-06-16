@@ -76,7 +76,7 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-DATABASE_VERSION = 11
+DATABASE_VERSION = 12
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -435,6 +435,225 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                         "fetch(\"{id}.disk.*\.free\"" +
                         ", start=\"{start}\", stop=\"{stop}\"" +
                         ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }],
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [
+                    {
+                        "refId": "A1",
+                        "target": "system_load1"
+                    },
+                    {
+                        "refId": "A2",
+                        "target": "system_load5"
+                    },
+                    {
+                        "refId": "A3",
+                        "target": "system_load15"
+                    }
+                ],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [
+                    {
+                        "refId": "B1",
+                        "target": "mem_free"
+                    },
+                    {
+                        "refId": "B2",
+                        "target": "mem_used"
+                    },
+                    {
+                        "refId": "B3",
+                        "target": "mem_cached"
+                    },
+                    {
+                        "refId": "B4",
+                        "target": "mem_buffered"
+                    }
+                ],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [
+                    {
+                        "refId": "C1",
+                        "target": 'cpu_usage_guest{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C2",
+                        "target": 'cpu_usage_iowait{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C3",
+                        "target": 'cpu_usage_user{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C4",
+                        "target": 'cpu_usage_nice{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C5",
+                        "target": 'cpu_usage_softirq{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C6",
+                        "target": 'cpu_usage_idle{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C7",
+                        "target": 'cpu_usage_irq{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C8",
+                        "target": 'cpu_usage_system{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C9",
+                        "target": 'cpu_usage_steal{cpu="cpu-total"}'
+                    },
+                    {
+                        "refId": "C10",
+                        "target": 'cpu_usage_guest_nice{cpu="cpu-total"}'
+                    }
+                ],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": "cpu_usage_idle"
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": "net_bytes_recv"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": "net_bytes_sent"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": "diskio_read_bytes"
+                }],
+                "x-axis": True,
+                "y-axis": True,
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": "diskio_write_bytes"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 12,
+                "height": 400,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": "disk_free"
                 }],
                 "yaxes": [{
                     "label": "B"
@@ -949,11 +1168,14 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
-    'telegraf-tsfdb'
+    'telegraf-tsfdb',
+    'telegraf-victoriametrics'
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
+
+VICTORIAMETRICS_URI = "http://vmselect:8481/select/<org_id>/prometheus"
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
@@ -966,6 +1188,9 @@ CILIA_INFLUXDB_NODATA_TARGETS = (
 )
 CILIA_FOUNDATIONDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
+CILIA_VICTORIAMETRICS_NODATA_TARGETS = (
+    "system_load1", "system_n_cpus", 'cpu_usage_user{cpu="cpu0"}'
 )
 
 # Shard Manager settings. Can also be set through env variables.
@@ -1171,7 +1396,7 @@ CELERY_SETTINGS = {
             'queue': 'deployments'},
         'mist.api.tasks.rackspace_first_gen_post_create_steps': {
             'queue': 'deployments'},
-        'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        # 'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
 
         # List networks

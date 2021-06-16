@@ -49,6 +49,15 @@ from mist.api.monitoring.foundationdb.methods import get_cores as fdb_get_cores
 from mist.api.monitoring.foundationdb.methods \
     import find_metrics as fdb_find_metrics
 
+from mist.api.monitoring.victoriametrics.methods \
+    import get_stats as victoria_get_stats
+from mist.api.monitoring.victoriametrics.methods \
+    import get_load as victoria_get_load
+from mist.api.monitoring.victoriametrics.methods \
+    import get_cores as victoria_get_cores
+from mist.api.monitoring.victoriametrics.methods \
+    import find_metrics as victoria_find_metrics
+
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
@@ -80,6 +89,7 @@ def get_stats(
         - stop: the time until which to query for stats
         - step: the step at which to return stats
         - metrics: the metrics to query for, if explicitly specified
+        - monitoring_method: override default monitoring method
 
     """
     if not monitoring_method:
@@ -141,6 +151,15 @@ def get_stats(
             metrics
         )
 
+    elif monitoring_method == "telegraf-victoriametrics":
+        return victoria_get_stats(
+            machine,
+            start,
+            stop,
+            step,
+            metrics
+        )
+
     else:
         raise Exception("Invalid monitoring method")
 
@@ -148,11 +167,15 @@ def get_stats(
 def get_load(owner, start="", stop="", step="", uuids=None):
     """Get shortterm load for all monitored machines."""
     clouds = Cloud.objects(owner=owner, deleted=None).only("id")
-    machines = Machine.objects(
-        cloud__in=clouds, monitoring__hasmonitoring=True
-    )
     if uuids:
-        machines.filter(id__in=uuids)
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, id__in=uuids,
+            monitoring__hasmonitoring=True
+        )
+    else:
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, monitoring__hasmonitoring=True
+        )
 
     graphite_uuids = [
         machine.id
@@ -169,10 +192,16 @@ def get_load(owner, start="", stop="", step="", uuids=None):
         for machine in machines
         if machine.monitoring.method.endswith("-tsfdb")
     ]
+    victoria_uuids = [
+        machine.id
+        for machine in machines
+        if machine.monitoring.method.endswith("-victoriametrics")
+    ]
 
     graphite_data = {}
     influx_data = {}
     fdb_data = {}
+    victoria_data = {}
 
     if graphite_uuids:
         graphite_data = graphite_get_load(
@@ -195,11 +224,16 @@ def get_load(owner, start="", stop="", step="", uuids=None):
     if fdb_uuids:
         fdb_data = fdb_get_load(owner, fdb_uuids, start, stop, step)
 
-    if graphite_data or influx_data or fdb_data:
+    if victoria_uuids:
+        victoria_data = victoria_get_load(
+            owner, victoria_uuids, start, stop, step)
+
+    if graphite_data or influx_data or fdb_data or victoria_data:
         return dict(
             list(graphite_data.items()) +
             list(influx_data.items()) +
-            list(fdb_data.items())
+            list(fdb_data.items()) +
+            list(victoria_data.items())
         )
     else:
         raise NotFoundError("No machine has monitoring enabled")
@@ -208,11 +242,15 @@ def get_load(owner, start="", stop="", step="", uuids=None):
 def get_cores(owner, start="", stop="", step="", uuids=None):
     """Get cores for all monitored machines."""
     clouds = Cloud.objects(owner=owner, deleted=None).only("id")
-    machines = Machine.objects(
-        cloud__in=clouds, monitoring__hasmonitoring=True
-    )
     if uuids:
-        machines.filter(id__in=uuids)
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, id__in=uuids,
+            monitoring__hasmonitoring=True
+        )
+    else:
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, monitoring__hasmonitoring=True
+        )
 
     graphite_uuids = [
         machine.id
@@ -229,10 +267,16 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
         for machine in machines
         if machine.monitoring.method.endswith("-tsfdb")
     ]
+    victoria_uuids = [
+        machine.id
+        for machine in machines
+        if machine.monitoring.method.endswith("-victoriametrics")
+    ]
 
     graphite_data = {}
     influx_data = {}
     fdb_data = {}
+    victoria_data = {}
 
     if graphite_uuids:
         graphite_data = graphite_get_cores(
@@ -254,11 +298,16 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
     if fdb_uuids:
         fdb_data = fdb_get_cores(owner, fdb_uuids, start, stop, step)
 
-    if graphite_data or influx_data or fdb_data:
+    if victoria_uuids:
+        victoria_data = victoria_get_cores(
+            owner, victoria_uuids, start, stop, step)
+
+    if graphite_data or influx_data or fdb_data or victoria_data:
         return dict(
             list(graphite_data.items()) +
             list(influx_data.items()) +
-            list(fdb_data.items())
+            list(fdb_data.items()) +
+            list(victoria_data.items())
         )
     else:
         raise NotFoundError("No machine has monitoring enabled")
@@ -324,6 +373,14 @@ def check_monitoring(owner):
             }
         )
     elif config.DEFAULT_MONITORING_METHOD.endswith("tsfdb"):
+        ret.update(
+            {
+                # Keep for backwards compatibility
+                "builtin_metrics": {},
+                # "builtin_metrics_tsfdb": config.FDB_BUILTIN_METRICS,
+            }
+        )
+    elif config.DEFAULT_MONITORING_METHOD.endswith("victoriametrics"):
         ret.update(
             {
                 # Keep for backwards compatibility
@@ -410,6 +467,7 @@ def enable_monitoring(
         "telegraf-influxdb",
         "telegraf-graphite",
         "telegraf-tsfdb",
+        "telegraf-victoriametrics"
     ):
         extra_vars = {"uuid": machine.id, "monitor": config.INFLUX["host"]}
     else:
@@ -442,6 +500,7 @@ def enable_monitoring(
             "telegraf-influxdb",
             "telegraf-graphite",
             "telegraf-tsfdb",
+            "telegraf-victoriametrics"
         ):
             traefik.reset_config()
     except Exception as exc:
@@ -472,6 +531,7 @@ def enable_monitoring(
             "telegraf-influxdb",
             "telegraf-graphite",
             "telegraf-tsfdb",
+            "telegraf-victoriametrics"
         ):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
@@ -527,6 +587,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
             "telegraf-influxdb",
             "telegraf-graphite",
             "telegraf-tsfdb",
+            "telegraf-victoriametrics"
         ):
             # Schedule undeployment of Telegraf.
             mist.api.monitoring.tasks.uninstall_telegraf.delay(
@@ -555,6 +616,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
             "telegraf-influxdb",
             "telegraf-graphite",
             "telegraf-tsfdb",
+            "telegraf-victoriametrics"
         ):
             traefik.reset_config()
     except Exception as exc:
@@ -624,6 +686,8 @@ def find_metrics(resource):
         return metrics
     elif resource.monitoring.method == "telegraf-tsfdb":
         return fdb_find_metrics(resource)
+    elif resource.monitoring.method == "telegraf-victoriametrics":
+        return victoria_find_metrics(resource)
     else:
         raise Exception("Invalid monitoring method")
 

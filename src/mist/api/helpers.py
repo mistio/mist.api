@@ -22,6 +22,7 @@ import socket
 import smtplib
 import logging
 import codecs
+import secrets
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -80,7 +81,7 @@ from mist.api.auth.models import ApiToken, datetime_to_str
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
-from mist.api.exceptions import WorkflowExecutionError
+from mist.api.exceptions import WorkflowExecutionError, BadRequestError
 
 from mist.api import config
 
@@ -1498,31 +1499,57 @@ def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
     return ret
 
 
-def compute_tags(auth_context, tags=None, request_tags=None):
+def compute_tags(auth_context, tags, request_tags):
+    """Merge security tags with user requested tags."""
+
+    tags = tags or {}
+    request_tags = request_tags or {}
+
     security_tags = auth_context.get_security_tags()
-    for mt in request_tags:
-        if mt in security_tags:
-            raise ForbiddenError(
-                'You may not assign tags included in a Team access policy:'
-                ' `%s`' % mt)
-    tags.update(request_tags)
+    try:
+        for mt in request_tags:
+            if mt in security_tags:
+                raise ForbiddenError(
+                    'You may not assign tags included in a Team access policy:'
+                    ' `%s`' % mt)
+        tags.update(request_tags)
+    except ValueError:
+        raise BadRequestError('Invalid tags format.'
+                              'Expecting a  dictionary of tags')
+
     return tags
 
 
-def check_expiration_constraint(auth_context, expiration, constraints=None):
-    constraints = constraints or {}
-    exp_constraint = constraints.get('expiration', {})
+def check_expiration_constraint(expiration, exp_constraint):
     if exp_constraint:
         try:
             from mist.rbac.methods import check_expiration
-            check_expiration(expiration, exp_constraint)
         except ImportError:
-            pass
+            return
+
+        # FIXME remove this workaround and parse
+        # datetime correctly in check_expiration
+
+        # convert notify datetime string to seconds from now
+        # as check_expiration expects it in seconds
+        notify = expiration.get('notify')
+        if notify:
+            dt = datetime.datetime.strptime(notify, '%Y-%m-%d %H:%M:%S')
+            time_delta = dt - datetime.datetime.now()
+            temp_notify = int(time_delta.total_seconds())
+            expiration['notify'] = temp_notify
+
+        try:
+            check_expiration(expiration, exp_constraint)
+        except PolicyUnauthorizedError:
+            # TODO if no expiration is passed
+            # create a default expiration based on exp_constraint
+            raise
+
+        expiration['notify'] = notify
 
 
-def check_cost_constraint(auth_context, constraints=None):
-    constraints = constraints or {}
-    cost_constraint = constraints.get('cost', {})
+def check_cost_constraint(auth_context, cost_constraint):
     if cost_constraint:
         try:
             from mist.rbac.methods import check_cost
@@ -1531,28 +1558,24 @@ def check_cost_constraint(auth_context, constraints=None):
             pass
 
 
-def check_size_constraint(auth_context, sizes, constraints=None):
+def check_size_constraint(cloud_id, size_constraint, sizes):
+    """Filter sizes list based on RBAC permissions"""
+
     try:
         from mist.rbac.methods import check_size
     except ImportError:
         return sizes
-
-    constraints = constraints or {}
-    size_constraint = constraints.get('size', {})
 
     if not size_constraint:
         return sizes
 
     permitted_sizes = []
     for size in sizes:
-        # constraints do not apply on custom sizes
-        if not isinstance(size, dict):
-            try:
-                check_size(auth_context.org, size_constraint, size.id)
-            except PolicyUnauthorizedError:
-                continue
-            else:
-                permitted_sizes.append(size)
+        try:
+            check_size(cloud_id, size_constraint, size)
+        except PolicyUnauthorizedError:
+            continue
+        permitted_sizes.append(size)
 
     return permitted_sizes
 
@@ -1652,3 +1675,32 @@ def search_parser(search):
 
 def startsandendswith(main_str, char):
     return main_str.startswith(char) and main_str.endswith(char)
+
+
+def generate_secure_password(min_chars=12, max_chars=21):
+    """Generate a twelve to twenty characters password with at least
+    one lowercase character, at least one uppercase character
+    and at least three digits.
+
+    """
+    alphabet = string.ascii_letters + string.digits
+    length = secrets.choice(range(min_chars, max_chars))
+    while True:
+        password = ''.join(secrets.choice(alphabet) for i in range(length))
+        if (any(c.islower() for c in password) and
+            any(c.isupper() for c in password) and
+                sum(c.isdigit() for c in password) >= 3):
+            break
+
+    return password
+
+
+def validate_password(password):
+    """A simple password validator
+    """
+    length = len(password) > 7
+    lower_case = any(c.islower() for c in password)
+    upper_case = any(c.isupper() for c in password)
+    digit = any(c.isdigit() for c in password)
+
+    return length and lower_case and upper_case and digit

@@ -267,7 +267,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
-                   sec_group='', folder=None, datastore=None, vnfs=[],
+                   sec_groups=None, folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
                    description='', port_forwards={},
                    ):
@@ -442,6 +442,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if port_forwards:
         validate_portforwards(port_forwards)
 
+    cached_machines = [m.as_dict()
+                       for m in cloud.ctl.compute.list_cached_machines()]
+
     if cloud.ctl.provider is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
@@ -480,11 +483,16 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_rackspace(conn, machine_name, image,
                                          size, user_data=cloud_init)
     elif cloud.ctl.provider in [Provider.OPENSTACK.value]:
+        sec_groups = sec_groups or []
         node = _create_machine_openstack(conn, public_key,
                                          key.name, machine_name, image, size,
                                          networks, volumes,
-                                         cloud_init)
+                                         cloud_init, sec_groups)
     elif cloud.ctl.provider is Provider.EC2.value:
+        try:
+            sec_group = sec_groups[0]
+        except (IndexError, TypeError):
+            sec_group = ''
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location.id:
@@ -629,14 +637,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                     raise(e)
                 else:
                     continue
-
-    # since machine was found in mongo, a patch has already
-    # been published with the newly created machine,
-    # so the json patch that will be produced here
-    # should only contain machine expiration,
-    # key association, tags and owner/creator
-    cached_machines = [m.as_dict()
-                       for m in cloud.ctl.compute.list_cached_machines()]
 
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
@@ -848,7 +848,7 @@ def _create_machine_rackspace(conn, machine_name, image, size, user_data):
 
 def _create_machine_openstack(conn, public_key, key_name,
                               machine_name, image, size, networks,
-                              volumes, user_data):
+                              volumes, user_data, sec_groups):
     """Create a machine in Openstack.
     """
     key = str(public_key).replace('\n', '')
@@ -887,6 +887,18 @@ def _create_machine_openstack(conn, public_key, key_name,
         chosen_networks = []
 
     blockdevicemappings = []
+    sec_groups = sec_groups or []
+    sec_groups_objects = []
+    if sec_groups:
+        try:
+            security_groups = conn.ex_list_security_groups()
+        except Exception as e:
+            raise MachineCreationError("OpenStack, got exception %s" % e, e)
+
+        for security_group in security_groups:
+            if security_group.id in sec_groups:
+                sec_groups_objects.append(security_group)
+
     try:
         if volumes:
             if volumes[0].get('size'):
@@ -915,7 +927,8 @@ def _create_machine_openstack(conn, public_key, key_name,
             ex_keyname=server_key,
             networks=chosen_networks,
             ex_blockdevicemappings=blockdevicemappings,
-            ex_userdata=user_data)
+            ex_userdata=user_data,
+            ex_security_groups=sec_groups_objects)
     except Exception as e:
         raise MachineCreationError("OpenStack, got exception %s" % e, e)
     return node

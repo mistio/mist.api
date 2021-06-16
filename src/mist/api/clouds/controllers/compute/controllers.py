@@ -1109,6 +1109,93 @@ class LinodeComputeController(BaseComputeController):
             return 'system'
         return 'custom'
 
+    def _list_sizes__get_cpu(self, size):
+        if self.cloud.apiversion is not None:
+            return super()._list_sizes__get_cpu(size)
+        return int(size.extra.get('vcpus') or 1)
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        persist_across_boots = True if volume_dict.get(
+            'persist_across_boots', True) is True else False
+        ret = {
+            'id': vol_obj.id,
+            'name': vol_obj.name,
+            'persist_across_boots': persist_across_boots
+        }
+        return ret
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size parameter is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+
+        if size < 10:
+            raise BadRequestError('Volume size should be at least 10 GBs')
+
+        try:
+            name = str(volume_dict['name'])
+        except KeyError:
+            raise BadRequestError('Volume name parameter is required')
+
+        return {'name': name, 'size': size}
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        private_ip = True if networks_dict.get(
+            'private_ip', True) is True else False
+        return {'private_ip': private_ip}
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        from mist.api.helpers import (generate_secure_password,
+                                      validate_password)
+        try:
+            root_pass = extra['root_pass']
+        except KeyError:
+            root_pass = generate_secure_password()
+        else:
+            if validate_password(root_pass) is False:
+                raise BadRequestError(
+                    "Your password must contain at least one "
+                    "lowercase character, one uppercase and one digit")
+        plan['root_pass'] = root_pass
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        key = kwargs.pop('auth')
+        kwargs['ex_authorized_keys'] = [key.public]
+        kwargs['ex_private_ip'] = plan['networks']['private_ip']
+        kwargs['root_pass'] = plan['root_pass']
+        return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        from mist.api.volumes.models import Volume
+        from libcloud.compute.base import StorageVolume
+        volumes = plan.get('volumes', [])
+        for volume in volumes:
+            if volume.get('id'):
+                vol = Volume.objects.get(id=volume['id'])
+                libcloud_vol = StorageVolume(id=vol.external_id,
+                                             name=vol.name,
+                                             size=vol.size,
+                                             driver=self.connection,
+                                             extra=vol.extra)
+                try:
+                    self.connection.attach_volume(
+                        node,
+                        libcloud_vol,
+                        persist_across_boots=volume['persist_across_boots'])
+                except Exception as exc:
+                    log.exception('Failed to attach volume')
+            else:
+                try:
+                    self.connection.create_volume(volume['name'],
+                                                  volume['size'],
+                                                  node=node)
+                except Exception as exc:
+                    log.exception('Failed to create volume')
+
 
 class RackSpaceComputeController(BaseComputeController):
 
@@ -1204,7 +1291,19 @@ class SoftLayerComputeController(BaseComputeController):
                                               self.cloud.apikey)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
-        return node_dict['extra'].get('created')  # iso8601 string
+        try:
+            created_at = node_dict['extra']['created']
+        except KeyError:
+            return None
+
+        try:
+            created_at = iso8601.parse_date(created_at)
+        except iso8601.ParseError as exc:
+            log.error(str(exc))
+            return created_at
+
+        created_at = pytz.UTC.normalize(created_at)
+        return created_at
 
     def _list_machines__postparse_machine(self, machine, node_dict):
         updated = False
@@ -1461,6 +1560,16 @@ class AzureArmComputeController(BaseComputeController):
         return CloudSize.objects(cloud=self.cloud,
                                  external_id__in=libcloud_size_ids)
 
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        # workaround to avoid overwriting creation time
+        # as Azure updates it when a machine stops, reboots etc.
+
+        if machine.created is not None:
+            return machine.created
+
+        return super()._list_machines__machine_creation_date(machine,
+                                                             node_dict)
+
 
 class GoogleComputeController(BaseComputeController):
 
@@ -1485,8 +1594,19 @@ class GoogleComputeController(BaseComputeController):
         return extra
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
-        # iso8601 string
-        return node_dict['extra'].get('creationTimestamp')
+        try:
+            created_at = node_dict['extra']['creationTimestamp']
+        except KeyError:
+            return None
+
+        try:
+            created_at = iso8601.parse_date(created_at)
+        except iso8601.ParseError as exc:
+            log.error(str(exc))
+            return created_at
+
+        created_at = pytz.UTC.normalize(created_at)
+        return created_at
 
     def _list_machines__get_custom_size(self, node):
         machine_type = node['extra'].get('machineType', "").split("/")[-1]
@@ -1855,13 +1975,7 @@ class GoogleComputeController(BaseComputeController):
             network = 'default'
 
         networks['network'] = network
-        '''
-        When creating an instance, if neither the network
-        nor the subnetwork is specified,
-        the default network global/networks/default is used;
-        if the network is not specified but the subnetwork is specified,
-        the network is inferred.
-        '''
+
         if subnetwork:
             try:
                 [subnet], _ = list_resources(auth_context, 'subnet',
@@ -1874,33 +1988,204 @@ class GoogleComputeController(BaseComputeController):
 
         return networks
 
-    def _generate_plan__post_parse_plan(self, plan):
-        if not plan.get('volumes'):
-            from mist.api.images.models import CloudImage
-            image = CloudImage.objects.get(id=plan['image'])
-            # get minimum disk size required from image
+    def _generate_plan__parse_key(self, auth_context, key_obj):
+        key, _ = super()._generate_plan__parse_key(auth_context, key_obj)
+
+        # extract ssh user from key param
+        try:
+            ssh_user = key_obj.get('user') or 'user'
+        except AttributeError:
+            # key_obj is a string
+            ssh_user = 'user'
+
+        if not isinstance(ssh_user, str):
+            raise BadRequestError('Invalid type for user')
+
+        extra_attrs = {
+            'user': ssh_user,
+        }
+        return key, extra_attrs
+
+    def _generate_plan__parse_size(self, auth_context, size_obj):
+        sizes, _ = super()._generate_plan__parse_size(auth_context, size_obj)
+        extra_attrs = None
+
+        try:
+            accelerators = size_obj.get('accelerators')
+        except AttributeError:
+            # size_obj is a string
+            accelerators = None
+
+        if accelerators:
             try:
-                size = image.extra.get('diskSizeGb')
-            except AttributeError:
-                size = 10
-            plan['volumes'] = [{'size': size}]
+                accelerator_type = accelerators['accelerator_type']
+                accelerator_count = accelerators['accelerator_count']
+            except KeyError:
+                raise BadRequestError(
+                    'Both accelerator_type and accelerator_count'
+                    ' are required')
+            except TypeError:
+                raise BadRequestError('Invalid type for accelerators')
+
+            if not isinstance(accelerator_count, int):
+                raise BadRequestError('Invalid type for accelerator_count')
+
+            if accelerator_count <= 0:
+                raise BadRequestError('Invalid value for accelerator_type')
+
+            # accelerators are currrently supported only on N1 sizes
+            # https://cloud.google.com/compute/docs/gpus#introduction
+            sizes = [size for size in sizes
+                     if size.name.startswith('n1') and
+                     size.extra.get('isSharedCpu') is False]
+
+            extra_attrs = {
+                'accelerator_type': accelerator_type,
+                'accelerator_count': accelerator_count,
+            }
+
+        return sizes, extra_attrs
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        ret_dict = {
+            'id': vol_obj.id,
+            'name': vol_obj.name
+        }
+
+        boot = volume_dict.get('boot')
+        if boot is True:
+            ret_dict['boot'] = boot
+
+        return ret_dict
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size parameter is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+
+        if size < 1:
+            raise BadRequestError('Volume size should be at least 1 GB')
+
+        boot = volume_dict.get('boot')
+        name = None
+        try:
+            name = str(volume_dict['name'])
+        except KeyError:
+            # name is not required in boot volume
+            if boot is not True:
+                raise BadRequestError('Volume name parameter is required')
+
+        volume_type = volume_dict.get('type', 'pd-standard')
+        if volume_type not in ('pd-standard', 'pd-ssd'):
+            raise BadRequestError(
+                'Invalid value for volume type, valid values are: '
+                'pd-standard, pd-ssd'
+            )
+
+        ret_dict = {
+            'size': size,
+            'type': volume_type
+        }
+        # boot volumes use machine's name
+        if name and boot is not True:
+            ret_dict['name'] = name
+
+        if boot is True:
+            ret_dict['boot'] = boot
+
+        return ret_dict
+
+    def _get_allowed_image_size_location_combinations(self,
+                                                      images,
+                                                      locations,
+                                                      sizes,
+                                                      image_extra_attrs,
+                                                      size_extra_attrs):
+        # pre-filter locations based on selected accelerator type availability
+        size_extra_attrs = size_extra_attrs or {}
+        accelerator_type = size_extra_attrs.get('accelerator_type')
+        accelerator_count = size_extra_attrs.get('accelerator_count')
+        if accelerator_type and accelerator_count:
+            filtered_locations = []
+            for location in locations:
+                try:
+                    max_accelerators = \
+                        location.extra['acceleratorTypes'][accelerator_type]
+                except (KeyError, TypeError):
+                    continue
+
+                # check if location supports these many accelerators
+                if max_accelerators >= accelerator_count:
+                    filtered_locations.append(location)
+
+            locations = filtered_locations
+
+        return super()._get_allowed_image_size_location_combinations(
+            images, locations, sizes,
+            image_extra_attrs,
+            size_extra_attrs)
+
+    def _generate_plan__post_parse_plan(self, plan):
+        from mist.api.images.models import CloudImage
+        image = CloudImage.objects.get(id=plan['image']['id'])
+
+        try:
+            image_min_size = int(image.min_disk_size)
+        except TypeError:
+            image_min_size = 10
+
+        volumes = plan.get('volumes', [])
+        # make sure boot drive is first if it exists
+        volumes.sort(key=lambda k: k.get('boot') or False,
+                     reverse=True)
+
+        if len(volumes) > 1:
+            # make sure only one boot volume is set
+            if volumes[1].get('boot') is True:
+                raise BadRequestError('Up to 1 volume must be set as boot')
+
+        if len(volumes) == 0 or volumes[0].get('boot') is not True:
+            boot_volume = {
+                'size': image_min_size,
+                'type': 'pd-standard',
+                'boot': True,
+            }
+            volumes.insert(0, boot_volume)
+
+        boot_volume = volumes[0]
+        if boot_volume.get('size') and boot_volume['size'] < image_min_size:
+            raise BadRequestError(f'Boot volume must be '
+                                  f'at least {image_min_size} GBs '
+                                  f'for image: {image.name}')
+        elif boot_volume.get('id'):
+            from mist.api.volumes.models import Volume
+            vol = Volume.objects.get(id=boot_volume['id'])
+            if vol.size < image_min_size:
+                raise BadRequestError(f'Boot volume must be '
+                                      f'at least {image_min_size} GBs '
+                                      f'for image: {image.name}')
+
+        plan['volumes'] = volumes
 
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
         key = kwargs.pop('auth')
-        username = plan.get('username') or 'user'
+        username = plan.get('key', {}).get('user') or 'user'
         metadata = {
             'sshKeys': '%s:%s' % (username, key.public)
         }
         if plan.get('cloudinit'):
-            metadata['startup-script'] = plan('cloudinit')
+            metadata['startup-script'] = plan['cloudinit']
         kwargs['ex_metadata'] = metadata
 
-        volume = plan['volumes'][0]
-        if volume.get('id'):
+        boot_volume = plan['volumes'].pop(0)
+        if boot_volume.get('id'):
             from mist.api.volumes.models import Volume
             from libcloud.compute.base import StorageVolume
-            vol = Volume.objects.get(id=volume['id'])
+            vol = Volume.objects.get(id=boot_volume['id'])
             libcloud_vol = StorageVolume(id=vol.external_id,
                                          name=vol.name,
                                          size=vol.size,
@@ -1908,12 +2193,58 @@ class GoogleComputeController(BaseComputeController):
                                          extra=vol.extra)
             kwargs['ex_boot_disk'] = libcloud_vol
         else:
-            kwargs['disk_size'] = volume.get('size')
+            kwargs['disk_size'] = boot_volume.get('size')
+            kwargs['ex_disk_type'] = boot_volume.get('type') or 'pd-standard'
 
         kwargs['ex_network'] = plan['networks'].get('network')
         kwargs['ex_subnetwork'] = plan['networks'].get('subnet')
 
+        if plan['size'].get('accelerator_type'):
+            kwargs['ex_accelerator_type'] = plan['size']['accelerator_type']
+            kwargs['ex_accelerator_count'] = plan['size']['accelerator_count']
+            # required when attaching accelerators to an instance
+            kwargs['ex_on_host_maintenance'] = 'TERMINATE'
+
         return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        from mist.api.volumes.models import Volume
+        from libcloud.compute.base import StorageVolume
+        location = kwargs['location']
+        volumes = plan['volumes']
+        for volume in volumes:
+            if volume.get('id'):
+                vol = Volume.objects.get(id=volume['id'])
+                libcloud_vol = StorageVolume(id=vol.external_id,
+                                             name=vol.name,
+                                             size=vol.size,
+                                             driver=self.connection,
+                                             extra=vol.extra)
+                try:
+                    self.connection.attach_volume(node, libcloud_vol)
+                except Exception as exc:
+                    log.exception('Attaching volume failed')
+            else:
+                try:
+                    size = volume['size']
+                    name = volume['name']
+                    volume_type = volume.get('type') or 'pd-standard'
+                except KeyError:
+                    log.exception('Missing required volume parameter')
+                    continue
+                try:
+                    libcloud_vol = self.connection.create_volume(
+                        size,
+                        name,
+                        location=location,
+                        ex_disk_type=volume_type)
+                except Exception as exc:
+                    log.exception('Failed to create volume')
+                    continue
+                try:
+                    self.connection.attach_volume(node, libcloud_vol)
+                except Exception as exc:
+                    log.exception('Attaching volume failed')
 
     def _create_machine__get_size_object(self, size):
         # when providing a Libcloud NodeSize object
@@ -2347,12 +2678,8 @@ class VSphereComputeController(BaseComputeController):
         machine.actions.clone = True
         machine.actions.rename = True
         machine.actions.create_snapshot = True
-        if len(machine.extra.get('snapshots', [])):
-            machine.actions.remove_snapshot = True
-            machine.actions.revert_to_snapshot = True
-        else:
-            machine.actions.remove_snapshot = False
-            machine.actions.revert_to_snapshot = False
+        machine.actions.remove_snapshot = True
+        machine.actions.revert_to_snapshot = True
 
     def _stop_machine(self, machine, node):
         return self.connection.stop_node(node)
@@ -2401,17 +2728,36 @@ class VSphereComputeController(BaseComputeController):
     def _clone_machine(self, machine, node, name, resume):
         locations = self.connection.list_locations()
         node_location = None
+        if not machine.location:
+            vm = self.connection.find_by_uuid(node.id)
+            location_id = vm.summary.runtime.host.name
+        else:
+            location_id = machine.location.external_id
         for location in locations:
-            if location.id == machine.location.external_id:
+            if location.id == location_id:
                 node_location = location
                 break
         folder = node.extra.get('folder', None)
+
+        if not folder:
+            try:
+                folder = vm.parent._moId
+            except Exception as exc:
+                raise BadRequestError(
+                    "Failed to find folder the folder containing the machine")
+                log.error(
+                    "Clone Machine: Exception when "
+                    "looking for folder: {}".format(exc))
         datastore = node.extra.get('datastore', None)
         return self.connection.create_node(name=name, image=node,
                                            size=node.size,
                                            location=node_location,
                                            ex_folder=folder,
                                            ex_datastore=datastore)
+
+    def _get_libcloud_node(self, machine):
+        vm = self.connection.find_by_uuid(machine.machine_id)
+        return self.connection._to_node_recursive(vm)
 
 
 class VCloudComputeController(BaseComputeController):
