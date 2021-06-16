@@ -50,12 +50,14 @@ from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
 from libcloud.common.exceptions import BaseHTTPError
+from libcloud.common.types import InvalidCredsError
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import ForbiddenError
+from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
@@ -4073,6 +4075,12 @@ class _KubernetesBaseComputeController(BaseComputeController):
 class KubernetesComputeController(_KubernetesBaseComputeController):
     def _connect(self, **kwargs):
         return super()._connect(Container_Provider.KUBERNETES, **kwargs)
+
+    def check_connection(self):
+        try:
+            self._connect().list_clusters()
+        except InvalidCredsError as e:
+            raise CloudUnauthorizedError(str(e))
 
     def _list_machines__fetch_machines(self):
         """List all kubernetes machines: nodes, pods and containers"""
