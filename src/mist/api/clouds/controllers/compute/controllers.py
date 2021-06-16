@@ -4097,7 +4097,6 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
             container.type = 'container'
             container.public_ips, container.private_ips = [], []
             container.parent_id = pod_map.get(container.extra['pod'])
-            container.size = None
             container.image = container.image.name
             containers.append(node_to_dict(container))
         machines = nodes + pods + containers
