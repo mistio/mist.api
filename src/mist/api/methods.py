@@ -702,9 +702,7 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     if result.count():
         if resource_type in {'user', 'users'} and not auth_context.is_owner():
             result = result.filter(id__in=[auth_context.user.id])
-        # orgs don't have permissions yet
-        elif resource_type not in {
-            'org', 'orgs'} and not auth_context.is_owner():
+        elif not auth_context.is_owner() and resource_type in PERMISSIONS.keys():
             allowed_resources = auth_context.get_allowed_resources(
                 rtype=rtype)
             result = result.filter(id__in=allowed_resources)
