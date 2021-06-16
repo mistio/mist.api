@@ -1785,12 +1785,6 @@ class BaseComputeController(BaseController):
         """
         self.connection.ex_resize_node(node, node_size)
 
-    def expose_port(self, port_forwards):
-        """Expose a machine's private port to a public one.
-        Currently only availble for GigG8
-        """
-        raise MistNotImplementedError()
-
     def rename_machine(self, machine, name):
         """Rename machine
 

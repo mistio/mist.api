@@ -24,9 +24,6 @@ from libcloud.container.base import ContainerImage
 from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.base import NodeAuthPassword
 
-from libcloud.common.types import MalformedResponseError
-from libcloud.common.exceptions import BaseHTTPError
-
 from tempfile import NamedTemporaryFile
 
 import mist.api.tasks
@@ -188,23 +185,6 @@ def validate_portforwards(port_forwards):
                 raise BadRequestError("Protocol should be either TCP or UPD.")
 
 
-def validate_portforwards_g8(port_forwards, network):
-    for pf in port_forwards.get('ports'):
-        if len(pf['port'].split(':')) == 2:
-            if pf['port'].split(':')[0] != network.publicipaddres:
-                raise BadRequestError("You can only expose a port to the \
-                    network's public ip address, which is \
-                        %s" % network.publicipaddress)
-        if len(pf['target_port'].split(':')) == 2:
-            if pf['target_port'].split(':')[0] not in {'localhost',
-                                                       '172.17.0.1',
-                                                       '0.0.0.0'}:
-                raise BadRequestError("The address in target_port "
-                                      "must be the localhost!")
-        if pf['protocol'].lower() not in {'udp', 'tcp'}:
-            raise BadRequestError('Allowed protocols are "UDP" or "TCP"')
-
-
 def validate_portforwards_kubevirt(port_forwards):
     service_type = port_forwards.get('service_type')
     if service_type not in {"ClusterIP", "NodePort", "LoadBalancer"}:
@@ -313,7 +293,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                   Container_Provider.DOCKER,
                                   Provider.ONAPP.value,
                                   Provider.AZURE_ARM.value,
-                                  Provider.GIG_G8.value,
                                   Provider.VSPHERE.value,
                                   Provider.KUBEVIRT.value,
                                   Container_Provider.LXD]:
@@ -524,13 +503,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             location, bare_metal, cloud_init,
             hourly, softlayer_backend_vlan_id
         )
-    elif cloud.ctl.provider is Provider.GIG_G8.value:
-        node = create_machine_g8(
-            conn, machine_name, image, size_ram, size_cpu,
-            size_disk_primary, public_key, description, networks,
-            volumes, cloud_init, port_forwards
-        )
-        ssh_port = node.extra.get('ssh_port', 22)
     elif cloud.ctl.provider is Provider.ONAPP.value:
         node = _create_machine_onapp(
             conn, public_key,
@@ -731,80 +703,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         ret.update({'public_ips': [],
                     'private_ips': []})
     return ret
-
-
-def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
-                      public_key, description, networks, volumes,
-                      cloud_init, port_forwards):
-    auth = None
-    ex_expose_ssh = False
-    if public_key:
-        key = public_key.replace('\n', '')
-        auth = NodeAuthSSHKey(pubkey=key)
-        ex_expose_ssh = True
-
-    try:
-        mist_net = Network.objects.get(id=networks[0])
-    except me.DoesNotExist:
-        raise NetworkNotFoundError()
-
-    try:
-        libcloud_networks = conn.ex_list_networks()
-    except MalformedResponseError as exc:
-        if 'AccessDenied' in exc.body:
-            raise MachineCreationError("G8 got exception 'Access Denied'. \
-                Make sure your JWT token has not expired.")
-    ex_network = None
-    for libcloud_net in libcloud_networks:
-        if mist_net.network_id == libcloud_net.id:
-            ex_network = libcloud_net
-            break
-
-    # g8-specific validation
-    if port_forwards:
-        validate_portforwards_g8(port_forwards, ex_network)
-
-    ex_create_attr = {
-        "memory": ram,
-        "vcpus": cpu,
-        "disk_size": disk
-    }
-
-    if volumes:
-        disks = [volume.get('size') for volume in volumes]
-        ex_create_attr.update({"data_disks": disks})
-
-    if cloud_init:
-        ex_create_attr.update({"user_data": cloud_init})
-
-    try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            ex_network=ex_network,
-            ex_description=description,
-            auth=auth,
-            ex_create_attr=ex_create_attr,
-            ex_expose_ssh=ex_expose_ssh
-        )
-    except Exception as e:
-        raise MachineCreationError("Gig G8, got exception %s" % e, e)
-
-    if port_forwards:
-        for pf in port_forwards['ports']:
-            public_port = pf['port'].split(":")[-1]
-            private_port = pf['target_port'].split(":")[-1]
-            if not private_port:
-                private_port = public_port
-            protocol = pf.get('protocol', 'tcp').lower()
-
-            try:
-                conn.ex_create_portforward(ex_network, node, public_port,
-                                           private_port, protocol)
-            except BaseHTTPError as exc:
-                raise BadRequestError(exc.message)
-
-    return node
 
 
 def _create_machine_rackspace(conn, machine_name, image, size, user_data):

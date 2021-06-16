@@ -58,6 +58,8 @@ def _populate_clouds():
     for key, value in list(globals().items()):
         if key.endswith('Cloud') and key != 'Cloud':
             value = globals()[key]
+            if not value._controller_cls:
+                continue
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
     CLOUDS['amazon'] = CLOUDS['ec2']
@@ -496,13 +498,15 @@ class MaxihostCloud(Cloud):
 
 
 class GigG8Cloud(Cloud):
+    """
+    DEPRECATED
+    """
 
     apikey = me.StringField(required=True)
     user_id = me.IntField(required=True)
     url = me.StringField(required=True)
 
     _private_fields = ('apikey', )
-    _controller_cls = controllers.GigG8MainController
 
 
 class LinodeCloud(Cloud):
