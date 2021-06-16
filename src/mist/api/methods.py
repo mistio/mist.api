@@ -515,7 +515,8 @@ def create_dns_a_record(owner, domain_name, ip_addr):
 
 
 def list_resources(auth_context, resource_type, search='', cloud='',
-                   only='', sort='', start=0, limit=100, deref='', all_orgs=False):
+                   only='', sort='', start=0, limit=100, deref='',
+                   all_orgs=False):
     """
     List resources of any type.
 
@@ -575,7 +576,7 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     # if all_orgs is falsy or user is not admin
     # get only orgs that have user as member
     if resource_type in {'org', 'orgs'} and not (
-        auth_context.user.role == 'Admin' and all_orgs):
+            auth_context.user.role == 'Admin' and all_orgs):
         query = Q(members=auth_context.user)
 
     search = search or ''
@@ -702,7 +703,8 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     if result.count():
         if resource_type in {'user', 'users'} and not auth_context.is_owner():
             result = result.filter(id__in=[auth_context.user.id])
-        elif not auth_context.is_owner() and resource_type in PERMISSIONS.keys():
+        elif not auth_context.is_owner() \
+                and resource_type in PERMISSIONS.keys():
             # get_allowed_resources uses plural
             rtype = resource_type if resource_type.endswith(
                 's') else resource_type + 's'
