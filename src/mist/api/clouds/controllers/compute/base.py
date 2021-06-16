@@ -477,29 +477,19 @@ class BaseComputeController(BaseController):
                 machine.location = locations_map.get(location_id)
                 updated = True
 
-        # Discover image of machine
-        image_id = ''
-
-        if isinstance(node.get('image'), dict) and node['image'].get('id'):
-            image_id = node['image']['id']
-        elif node.get('image'):
-            image_id = node.get('image')
-        elif isinstance(node.get('extra', {}).get('image'), dict):
-            image_id = str(node['extra'].get('image').get('id'))
-
-        if not image_id:
-            image_id = str(node.get('image') or node.get(
-                           'extra', {}).get('imageId') or
-                           node.get('extra', {}).get('image_id') or
-                           node.get('extra', {}).get('image'))
-        if not image_id:
-            image_id = node.get('extra', {}).get('operating_system')
-            if isinstance(image_id, dict):
-                image_id = image_id.get('name')
-
-        if machine.image != images_map.get(image_id):
-            machine.image = images_map.get(image_id)
-            updated = True
+        # Attempt to map machine's image to a CloudImage object. If not
+        # successful, try to discover custom image.
+        try:
+            image = self._list_machines__get_image(node)
+            if image and image in images_map:
+                image = images_map.get(image)
+            else:
+                image = self._list_machines__get_custom_image(node)
+            if machine.image != image:
+                machine.image = image
+                updated = True
+        except Exception as exc:
+            log.error("Error getting image of %s: %r", machine, exc)
 
         # set machine's os_type from image's os_type, but if
         # info of os_type can be obtained from libcloud node, then
@@ -682,6 +672,33 @@ class BaseComputeController(BaseController):
         if KeyMachineAssociation.objects(machine=machine).count():
             machine.actions.reboot = True
         machine.actions.tag = True
+
+    def _list_machines__get_image(self, node):
+        """Return key of images_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        image_id = ''
+        if isinstance(node.get('image'), dict) and node['image'].get('id'):
+            image_id = node['image']['id']
+        elif node.get('image'):
+            image_id = node.get('image')
+        elif isinstance(node.get('extra', {}).get('image'), dict):
+            image_id = str(node['extra'].get('image').get('id'))
+        if not image_id:
+            image_id = str(node.get('image') or node.get(
+                           'extra', {}).get('imageId') or
+                           node.get('extra', {}).get('image_id') or
+                           node.get('extra', {}).get('image'))
+        if not image_id:
+            image_id = node.get('extra', {}).get('operating_system')
+            if isinstance(image_id, dict):
+                image_id = image_id.get('name')
+        return image_id
+
+    def _list_machines__get_custom_image(self, node):
+        """Return image metadata for node"""
+        return None
 
     def _list_machines__get_size(self, node):
         """Return key of size_map dict for a specific node

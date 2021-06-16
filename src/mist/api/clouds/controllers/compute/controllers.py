@@ -4055,6 +4055,9 @@ class _KubernetesBaseComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.get('extra', {}).get('namespace', "")
 
+    def _list_machines__get_image(self, node):
+        return node.get('image', {}).get('id')
+
     def _list_machines__get_size(self, node):
         return node.get('size', {}).get('id')
 
@@ -4097,7 +4100,6 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
             container.type = 'container'
             container.public_ips, container.private_ips = [], []
             container.parent_id = pod_map.get(container.extra['pod'])
-            container.image = container.image.name
             containers.append(node_to_dict(container))
         machines = nodes + pods + containers
         return machines
@@ -4126,6 +4128,28 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                 machine.cores = node_cpu
                 updated = True
         return updated
+
+    def _list_machines__get_custom_image(self, node_dict):
+        updated = False
+        from mist.api.images.models import CloudImage
+        node_image = node_dict.get('image')
+        if node_image is None:
+            return None
+        image_id = node_image.get('id')
+        if image_id is None or image_id == 'undefined':
+            return None
+        try:
+            image = CloudImage.objects.get(cloud=self.cloud,
+                                           external_id=image_id)
+        except CloudImage.DoesNotExist:
+            image = CloudImage(cloud=self.cloud,
+                               external_id=str(image_id),
+                               name=node_image.get('name'),
+                               extra=node_image.get('extra'))
+            updated = True
+        if updated:
+            image.save()
+        return image
 
     def _list_machines__get_custom_size(self, node_dict):
         node_type = node_dict['type']
