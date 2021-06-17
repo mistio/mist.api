@@ -540,7 +540,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                       size, public_key, networks)
     elif cloud.ctl.provider is Provider.VSPHERE.value:
         size.ram = size_ram
-        size.extra['cpu'] = size_cpu
+        size.extra['cpus'] = size_cpu
         size.disk = size_disk_primary
         node = _create_machine_vsphere(conn, machine_name, image,
                                        size, location, networks, folder,
