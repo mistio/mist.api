@@ -59,6 +59,8 @@ def _populate_clouds():
     for key, value in list(globals().items()):
         if not key.startswith('_') and key.endswith(
                 'Cloud') and key != 'Cloud':
+            if not value._controller_cls:
+                continue
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
     CLOUDS['amazon'] = CLOUDS['ec2']
