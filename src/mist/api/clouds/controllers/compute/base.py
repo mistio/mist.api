@@ -477,39 +477,43 @@ class BaseComputeController(BaseController):
                 machine.location = locations_map.get(location_id)
                 updated = True
 
-        # Attempt to map machine's image to a CloudImage object. If not
-        # successful, try to discover custom image.
-        try:
-            image = self._list_machines__get_image(node)
-            if image and image in images_map:
-                image = images_map.get(image)
-            else:
-                image = self._list_machines__get_custom_image(node)
-            if machine.image != image:
-                machine.image = image
-                updated = True
-        except Exception as exc:
-            log.error("Error getting image of %s: %r", machine, exc)
+        def set_custom_machine_object(obj_map, getter_func,
+                                      custom_getter_func,
+                                      machine_attr='object'):
+            """Attempt to map machine's object to a Cloud* object. If not
+            successful, try to discover custom object.
+            """
+            nonlocal updated
+            try:
+                obj = getter_func(node)
+                if obj and obj in obj_map:
+                    obj = obj_map.get(obj)
+                else:
+                    obj = custom_getter_func(node)
+                if getattr(machine, machine_attr) != obj:
+                    setattr(machine, machine_attr, obj)
+                    updated = True
+            except Exception as exc:
+                log.error(f'Error getting {machine_attr} of %s: %r',
+                          machine, exc)
+        # Set image
+        set_custom_machine_object(
+            images_map,
+            self._list_machines__get_image,
+            self._list_machines__get_custom_image,
+            machine_attr='image')
+        # Set size
+        set_custom_machine_object(
+            sizes_map,
+            self._list_machines__get_size,
+            self._list_machines__get_custom_size,
+            machine_attr='size')
 
         # set machine's os_type from image's os_type, but if
         # info of os_type can be obtained from libcloud node, then
         # machine.os_type will be overwritten in `postparse_machine`
         if machine.image:
             machine.os_type = machine.image.os_type
-
-        # Attempt to map machine's size to a CloudSize object. If not
-        # successful, try to discover custom size.
-        try:
-            size = self._list_machines__get_size(node)
-            if size and size in sizes_map:
-                size = sizes_map.get(size)
-            else:
-                size = self._list_machines__get_custom_size(node)
-            if machine.size != size:
-                machine.size = size
-                updated = True
-        except Exception as exc:
-            log.error("Error getting size of %s: %r", machine, exc)
 
         if machine.name != node['name']:
             machine.name = node['name']
