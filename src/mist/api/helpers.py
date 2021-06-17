@@ -1441,11 +1441,12 @@ def convert_to_timedelta(time_val):
                              ' input may be an int representing seconds')
     return None
 
+
 def convert_to_datetime(time_val):
     """
-    Input should  be a string in the format xT where 
-     x is an int and T is one of s, m, h, d, w, mo 
-     which stand for 
+    Input should  be a string in the format xT where
+     x is an int and T is one of s, m, h, d, w, mo
+     which stand for
      seconds, minutes, hours, days, weeks, months.
      Eg. '3mo' or '5d' or '342s'
 
@@ -1472,6 +1473,8 @@ def convert_to_datetime(time_val):
                          '{number}{time letter} where time letter is one of '
                          's, m, h, d, w, mo. Valid values could be '
                          '5mo or 300s or 2d etc...')
+
+
 def node_to_dict(node):
     if isinstance(node, str):
         return node

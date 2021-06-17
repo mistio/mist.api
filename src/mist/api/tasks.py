@@ -636,7 +636,7 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
             except PolicyUnauthorizedError:
                 continue
         _, constraints = auth_context.check_perm('machine', 'create',
-                                                machine.id)
+                                                 machine.id)
         expiration = constraints.get('expiration')
         if expiration:
             expiry_date = convert_to_datetime(expiration['default'])
@@ -655,14 +655,16 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
                 'description': 'Scheduled to run when machine expires',
                 'schedule_entry': expiry_timestamp,
                 'action': expiration_action,
-                'selectors': [{'type': 'machines', 'ids': [cloned_machine.id]}],
+                'selectors': [
+                    {'type': 'machines', 'ids': [cloned_machine.id]}],
                 'task_enabled': True,
                 'notify': notify,
                 'notify_msg': notify_msg
             }
             name = cloned_machine.name + '-expiration-' + str(randrange(1000))
             from mist.api.schedules.models import Schedule
-            cloned_machine.expiration = Schedule.add(auth_context, name, **params)
+            cloned_machine.expiration = Schedule.add(auth_context, name,
+                                                     **params)
             cloned_machine.save()
             cloned_machine.cloud.ctl.compute.produce_and_publish_patch(
                 [before], [cloned_machine])
