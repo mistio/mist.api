@@ -4082,6 +4082,9 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         except InvalidCredsError as e:
             raise CloudUnauthorizedError(str(e))
 
+    def list_clusters(self):
+        return [node_to_dict(c) for c in self.connection.list_clusters()]
+
     def _list_machines__fetch_machines(self):
         """List all kubernetes machines: nodes, pods and containers"""
         node_map = {}
