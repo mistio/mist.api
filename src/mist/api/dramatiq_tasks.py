@@ -72,6 +72,7 @@ def dramatiq_multicreate_async(
     log_event(auth_context.owner.id, 'job', 'async_machine_creation_started',
               user_id=auth_context.user.id, job_id=job_id, job=job,
               **plan)
+
     messages = []
     name = plan['machine_name']
     quantity = plan['quantity']
@@ -102,13 +103,19 @@ def dramatiq_create_machine_async(
 
     cached_machines = [m.as_dict()
                        for m in cloud.ctl.compute.list_cached_machines()]
+
+    log_event(
+        auth_context.owner.id, 'job', 'sending_create_machine_request',
+        job=job, job_id=job_id, cloud_id=plan['cloud']['id'],
+        machine_name=plan['machine_name'], user_id=auth_context.user.id,)
+
     try:
         node = cloud.ctl.compute.create_machine(plan)
     except Exception as exc:
         error = f"Machine creation failed with exception: {str(exc)}"
         tmp_log_error(error)
         log_event(
-            auth_context.owner.id, 'job', 'machine_creation_finished',
+            auth_context.owner.id, 'job', 'machine_creation_failed',
             job=job, job_id=job_id, cloud_id=plan['cloud']['id'],
             machine_name=plan['machine_name'], user_id=auth_context.user.id,
             error=error
@@ -134,7 +141,7 @@ def dramatiq_create_machine_async(
         error = f"Machine with external_id: {node.id} was not found"
         tmp_log_error(error)
         log_event(
-            auth_context.owner.id, 'job', 'machine_creation_finished',
+            auth_context.owner.id, 'job', 'machine_not_found',
             job=job, job_id=job_id, cloud_id=plan['cloud']['id'],
             machine_name=plan['machine_name'], external_id=node.id,
             user_id=auth_context.user.id, error=error
@@ -190,8 +197,6 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
                          machine_id, external_id, plan,
                          job_id=None, job=None):
 
-    # TODO check how dramatiq handles different
-    # num of retries based on some conditions
     auth_context = AuthContext.deserialize(auth_context_serialized)
     job_id = job_id or uuid.uuid4().hex
 
@@ -212,7 +217,7 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
         if isinstance(cloud, DockerCloud):
             nodes = conn.list_containers()
         else:
-            nodes = conn.list_nodes()  # TODO: use cache
+            nodes = conn.list_nodes()
         for n in nodes:
             if n.id == external_id:
                 node = n
@@ -243,8 +248,13 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
 
     if node.state != NodeState.RUNNING:
         tmp_log_error("not running state")
-        # raise Retry(delay=120000)
         raise Retry(delay=60000)
+
+    try:
+        machine = Machine.objects.get(cloud=cloud, machine_id=external_id,
+                                      state__ne='terminated')
+    except Machine.DoesNotExist:
+        raise Retry(delay=10000)
 
     log_dict = {
         "owner_id": auth_context.owner.id,
@@ -258,8 +268,8 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
         "key_id": plan.get("key", {}).get("id"),
     }
 
-    add_schedules(auth_context, external_id, machine_id,
-                  log_dict, plan.get("schedules"))
+    add_schedules(auth_context, machine, log_dict, plan.get("schedules"))
+
     add_dns_record(auth_context, host, log_dict, plan.get("fqdn"))
 
     dramatiq_ssh_tasks.send(auth_context_serialized, cloud_id,
@@ -299,7 +309,6 @@ def dramatiq_ssh_tasks(auth_context_serialized, cloud_id, key_id, host,
                               plugins=plugins, deploy_async=False)
         except Exception as e:
             print(repr(e))
-            error = True
             notify_user(
                 auth_context.owner,
                 "Enable monitoring failed for machine %s" % machine_id,
@@ -331,46 +340,42 @@ def add_expiration_for_machine(auth_context, expiration, machine):
         "notify": expiration.get("notify", ""),
         "notify_msg": expiration.get("notify_msg", ""),
     }
-    name = machine.name + "-expiration-" + str(randrange(1000))
+    name = (f'{machine.name}-expiration-{machine.machine_id[:4]}'
+            f'-{secrets.token_hex(3)}')
     machine.expiration = Schedule.add(auth_context, name, **params)
     machine.save()
 
 
-def add_schedules(auth_context, external_id, machine_id,
-                  log_dict, schedules):
+def add_schedules(auth_context, machine, log_dict, schedules):
     schedules = schedules or []
     for schedule in schedules:
-        if schedule and schedule.get('name'):  # ugly hack to prevent dupes
-            # FIXME this causes errors if multiple schedules are
-            # added with the same action
-            action = schedule.get('action', '')
-            try:
-                name = (
-                    action + "-" + schedule.pop("name") + "-" + external_id[:4]
-                )
-                tmp_log("Add scheduler entry %s", name)
-                schedule["selectors"] = [{"type": "machines",
-                                          "ids": [machine_id]}]
-                schedule_info = Schedule.add(auth_context, name, **schedule)
-                tmp_log("A new scheduler was added")
-                log_event(
-                    action="Add scheduler entry",
-                    scheduler=schedule_info.as_dict(),
-                    **log_dict
-                )
-            except Exception as e:
-                tmp_log_error("Exception occured %s", repr(e))
-                error = repr(e)
-                notify_user(
-                    auth_context.owner,
-                    "Add scheduler entry failed for machine %s" % external_id,
-                    repr(e),
-                    error=error,
-                )
-                log_event(
-                    action="Add scheduler entry failed", error=error,
-                    **log_dict
-                )
+        type_ = schedule.get('action') or 'script'
+        try:
+            name = (f'{machine.name}-{type_}-'
+                    f'{machine.machine_id[:4]}-{secrets.token_hex(3)}')
+            tmp_log("Add scheduler entry %s", name)
+            schedule["selectors"] = [{"type": "machines",
+                                      "ids": [machine.id]}]
+            schedule_info = Schedule.add(auth_context, name, **schedule)
+            tmp_log("A new scheduler was added")
+            log_event(
+                action="add_schedule_entry_succeeded",
+                scheduler=schedule_info.as_dict(),
+                **log_dict
+            )
+        except Exception as e:
+            tmp_log_error("Exception occured %s", repr(e))
+            error = repr(e)
+            notify_user(
+                auth_context.owner,
+                "Add scheduler entry failed for machine %s" % machine.machine_id,
+                repr(e),
+                error=error,
+            )
+            log_event(
+                action="add_schedule_entry_failed", error=error,
+                **log_dict
+            )
 
 
 def add_dns_record(auth_context, host, log_dict, fqdn):
@@ -384,10 +389,10 @@ def add_dns_record(auth_context, host, log_dict, fqdn):
 
             dns_cls = RECORDS[kwargs["type"]]
             dns_cls.add(owner=auth_context.owner, **kwargs)
-            log_event(action="Create_A_record", hostname=fqdn, **log_dict)
+            log_event(action="create_A_record", hostname=fqdn, **log_dict)
             tmp_log("Added A Record, fqdn: %s IP: %s", fqdn, host)
         except Exception as exc:
-            log_event(action="Create_A_record", hostname=fqdn,
+            log_event(action="create_A_record_failed", hostname=fqdn,
                       error=str(exc), **log_dict)
 
 
