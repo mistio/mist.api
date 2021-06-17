@@ -4088,6 +4088,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         nodes = []
         for node in self.connection.ex_list_nodes():
             node.type = 'node'
+            node.os = node.extra.get('os')
             node_map[node.name] = node.id
             nodes.append(node_to_dict(node))
         pod_map = {}
@@ -4133,6 +4134,10 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         node_cpu = node_dict.get('extra', {}).get('cpu')
         if node_cpu and (isinstance(node_cpu, int) or node_cpu.is_digit()):
             machine.cores = node_cpu
+            updated = True
+        os_type = node_dict.get('extra', {}).get('os')
+        if machine.os_type != os_type:
+            machine.os_type = os_type
             updated = True
         return updated
 
