@@ -738,6 +738,11 @@ class KubeVirtCloud(_KubernetesBaseCloud):
 class KubernetesCloud(_KubernetesBaseCloud):
     _controller_cls = controllers.KubernetesMainController
 
+    def as_dict_v2(self, *args, **kwargs):
+        ret = super().as_dict_v2(*args, **kwargs)
+        ret['clusters'] = self.ctl.compute.list_clusters()
+        return ret
+
 
 class CloudSigmaCloud(Cloud):
 
