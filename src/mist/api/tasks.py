@@ -6,6 +6,7 @@ import datetime
 import mongoengine as me
 
 from time import time, sleep
+from random import randrange
 
 import paramiko
 
@@ -51,6 +52,7 @@ from mist.api.poller.models import ListBucketsPollingSchedule
 from mist.api.helpers import docker_connect, docker_run
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import trigger_session_update
+from mist.api.helpers import convert_to_timedelta, convert_to_datetime
 
 from mist.api.auth.methods import AuthContext
 
@@ -633,12 +635,40 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
                                                  no_connect=True)
             except PolicyUnauthorizedError:
                 continue
-        cloned_machine.cloud.ctl.compute.produce_and_publish_patch(
-            [before], [cloned_machine])
+        _, constraints = auth_context.check_perm('machine', 'create',
+                                                machine.id)
+        expiration = constraints.get('expiration')
+        if expiration:
+            expiry_date = convert_to_datetime(expiration['default'])
+            expiry_timestamp = int(expiry_date.timestamp())
+            expiration_action = expiration['actions']['default']
+            notify = None
+            notify_msg = ''
+            if expiration['notify']:
+                notify_val = expiration['notify']['default']
+                notify_delta = convert_to_timedelta(notify_val)
+                notify = notify_delta.days * 86400 + notify_delta.seconds
+                notify_msg = expiration['notify'].get('msg', '')
+
+            params = {
+                'schedule_type': 'one_off',
+                'description': 'Scheduled to run when machine expires',
+                'schedule_entry': expiry_timestamp,
+                'action': expiration_action,
+                'selectors': [{'type': 'machines', 'ids': [cloned_machine.id]}],
+                'task_enabled': True,
+                'notify': notify,
+                'notify_msg': notify_msg
+            }
+            name = cloned_machine.name + '-expiration-' + str(randrange(1000))
+            from mist.api.schedules.models import Schedule
+            cloned_machine.expiration = Schedule.add(auth_context, name, **params)
+            cloned_machine.save()
+            cloned_machine.cloud.ctl.compute.produce_and_publish_patch(
+                [before], [cloned_machine])
     except NameError:
         log.error("Cloned machine is not present in the database yet."
                   "Key association and owner assignment failed.")
-
     print('clone_machine_async: results: {}'.format(node))
 
 
