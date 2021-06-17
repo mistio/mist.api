@@ -4130,11 +4130,10 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                 if machine.parent != machine_parent:
                     machine.parent = machine_parent
                     updated = True
-        if node_type == 'node':
-            node_cpu = node_dict['extra'].get('cpu')
-            if node_cpu and (isinstance(node_cpu, int) or node_cpu.is_digit()):
-                machine.cores = node_cpu
-                updated = True
+        node_cpu = node_dict.get('extra', {}).get('cpu')
+        if node_cpu and (isinstance(node_cpu, int) or node_cpu.is_digit()):
+            machine.cores = node_cpu
+            updated = True
         return updated
 
     def _list_machines__get_custom_image(self, node_dict):
@@ -4160,9 +4159,8 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         return image
 
     def _list_machines__get_custom_size(self, node_dict):
-        node_type = node_dict['type']
         node_size = node_dict.get('size')
-        if node_type != 'node' or node_size is None:
+        if node_size is None:
             return None
         from mist.api.clouds.models import CloudSize
         updated = False
