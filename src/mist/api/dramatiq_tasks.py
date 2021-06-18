@@ -2,7 +2,6 @@ import time
 import datetime
 import uuid
 import logging
-from random import randrange
 import secrets
 import dramatiq
 
@@ -368,7 +367,8 @@ def add_schedules(auth_context, machine, log_dict, schedules):
             error = repr(e)
             notify_user(
                 auth_context.owner,
-                "Add scheduler entry failed for machine %s" % machine.machine_id,
+                "Add scheduler entry failed for machine %s"
+                % machine.machine_id,
                 repr(e),
                 error=error,
             )

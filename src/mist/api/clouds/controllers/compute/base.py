@@ -2389,7 +2389,6 @@ class BaseComputeController(BaseController):
         self._generate_plan__parse_extra(extra, plan)
 
         schedules = self._generate_plan__parse_schedules(auth_context,
-                                                         plan['machine_name'],
                                                          schedules)
         if schedules:
             plan['schedules'] = schedules
@@ -2777,8 +2776,7 @@ class BaseComputeController(BaseController):
         """
         pass
 
-    def _generate_plan__parse_schedules(self, auth_context,
-                                        machine_name, schedules):
+    def _generate_plan__parse_schedules(self, auth_context, schedules):
         """
         Schedule attributes:
             `schedule_type`: 'one_off', 'interval', 'crontab'
@@ -2820,7 +2818,6 @@ class BaseComputeController(BaseController):
                                       'these (crontab, interval, one_off)]')
 
             ret_schedule = {
-                'name': machine_name,
                 'schedule_type': schedule_type,
                 'description': schedule.get('description', ''),
                 'task_enabled': True,
