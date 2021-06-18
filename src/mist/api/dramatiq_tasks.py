@@ -114,7 +114,7 @@ def dramatiq_create_machine_async(
         error = f"Machine creation failed with exception: {str(exc)}"
         tmp_log_error(error)
         log_event(
-            auth_context.owner.id, 'job', 'machine_creation_failed',
+            auth_context.owner.id, 'job', 'machine_creation_finished',
             job=job, job_id=job_id, cloud_id=plan['cloud']['id'],
             machine_name=plan['machine_name'], user_id=auth_context.user.id,
             error=error
@@ -140,7 +140,7 @@ def dramatiq_create_machine_async(
         error = f"Machine with external_id: {node.id} was not found"
         tmp_log_error(error)
         log_event(
-            auth_context.owner.id, 'job', 'machine_not_found',
+            auth_context.owner.id, 'job', 'machine_creation_finished',
             job=job, job_id=job_id, cloud_id=plan['cloud']['id'],
             machine_name=plan['machine_name'], external_id=node.id,
             user_id=auth_context.user.id, error=error
@@ -358,7 +358,7 @@ def add_schedules(auth_context, machine, log_dict, schedules):
             schedule_info = Schedule.add(auth_context, name, **schedule)
             tmp_log("A new scheduler was added")
             log_event(
-                action="add_schedule_entry_succeeded",
+                action="add_schedule_entry",
                 scheduler=schedule_info.as_dict(),
                 **log_dict
             )
@@ -373,7 +373,7 @@ def add_schedules(auth_context, machine, log_dict, schedules):
                 error=error,
             )
             log_event(
-                action="add_schedule_entry_failed", error=error,
+                action="add_schedule_entry", error=error,
                 **log_dict
             )
 
@@ -392,7 +392,7 @@ def add_dns_record(auth_context, host, log_dict, fqdn):
             log_event(action="create_A_record", hostname=fqdn, **log_dict)
             tmp_log("Added A Record, fqdn: %s IP: %s", fqdn, host)
         except Exception as exc:
-            log_event(action="create_A_record_failed", hostname=fqdn,
+            log_event(action="create_A_record", hostname=fqdn,
                       error=str(exc), **log_dict)
 
 
@@ -466,7 +466,7 @@ def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
             tmp_log('executed script_id %s', script['id'])
         elif script.get('inline'):
             tmp_log('will run inline script')
-            log_event(action='inline_script_started', command=script,
+            log_event(action='script_started', command=script,
                       **log_dict)
             start_time = time.time()
             retval, output = shell.command(script['inline'])
@@ -478,7 +478,7 @@ def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
                         machine_id=machine_id, machine_name=machine_name,
                         command=script, output=output, duration=execution_time,
                         retval=retval, error=retval > 0)
-            log_event(action='inline_script_finished',
+            log_event(action='script_finished',
                       error=retval > 0, return_value=retval,
                       command=script, stdout=output,
                       **log_dict)
