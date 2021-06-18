@@ -4096,9 +4096,11 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
             nodes.append(node_to_dict(node))
         pod_map = {}
         pods = []
+        pod_containers = []
         for pod in self.connection.ex_list_pods():
             pod.type = 'pod'
             pod_map[pod.name] = pod.id
+            pod_containers += pod.containers
             pod.parent_id = node_map.get(pod.node_name)
             pod.public_ips, pod.private_ips = [], []
             for ip in pod.ip_addresses:
@@ -4108,7 +4110,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                     pod.public_ips.append(ip)
             pods.append(node_to_dict(pod))
         containers = []
-        for container in self.connection.list_containers():
+        for container in pod_containers:
             container.type = 'container'
             container.public_ips, container.private_ips = [], []
             container.parent_id = pod_map.get(container.extra['pod'])
