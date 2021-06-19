@@ -26,6 +26,7 @@ ipython
 iso8601
 jsonpatch
 jsonpickle
+kombu
 mongoengine
 mongomock
 names
