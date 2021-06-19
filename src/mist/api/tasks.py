@@ -16,7 +16,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 from paramiko.ssh_exception import SSHException
 
-from mist.api.exceptions import MistError
+from mist.api.exceptions import MistError, PolicyUnauthorizedError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api.shell import Shell
 
@@ -25,7 +25,7 @@ from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
 from mist.api.dns.models import Zone
 from mist.api.volumes.models import Volume
-from mist.api.machines.models import Machine
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.images.models import CloudImage
 from mist.api.objectstorage.models import Bucket
 from mist.api.scripts.models import Script
@@ -604,6 +604,65 @@ def rackspace_first_gen_post_create_steps(
 
 
 @app.task
+def clone_machine_async(auth_context_serialized, machine_id, name,
+                        job=None, job_id=None):
+    from mist.api.exceptions import MachineCreationError
+    machine = Machine.objects.get(id=machine_id)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
+    job_id = job_id or uuid.uuid4().hex
+    msg = f"clone job starting for {machine_id} with name {machine.name}"
+    log.warn(msg)
+    log_event(auth_context.owner.id, 'job', 'clone_machine_started',
+              user_id=auth_context.user.id, job_id=job_id, job=job,
+              cloud_id=machine.cloud.id, machine_name=machine.name)
+    error = False
+    node = {}
+    try:
+        node = getattr(machine.ctl, 'clone')(name)
+    except MachineCreationError as err:
+        error = str(err)
+    except Exception as exc:
+        error = repr(exc)
+    finally:
+        log_event(
+            auth_context.owner.id, 'job', 'clone_machine_finished',
+            job=job, job_id=job_id, cloud_id=machine.cloud.id,
+            machine_name=name, error=error,
+            id=node.get('id', ''),
+            user_id=auth_context.user.id
+        )
+    for i in range(0, 10):
+        try:
+            cloned_machine = Machine.objects.get(cloud=machine.cloud,
+                                                 machine_id=node.get('id', ''))
+            break
+        except me.DoesNotExist:
+            if i < 6:
+                sleep(i * 10)
+                continue
+    try:
+        before = cloned_machine.as_dict()
+        cloned_machine.assign_to(auth_context.user)
+        for key_assoc in [
+                ka for ka in KeyMachineAssociation.objects(machine=machine)]:
+            try:
+                auth_context.check_perm('key', 'read', key_assoc.key.id)
+                cloned_machine.ctl.associate_key(key=key_assoc.key,
+                                                 username=key_assoc.ssh_user,
+                                                 port=key_assoc.port,
+                                                 no_connect=True)
+            except PolicyUnauthorizedError:
+                continue
+        cloned_machine.cloud.ctl.compute.produce_and_publish_patch(
+            [before], [cloned_machine])
+    except NameError:
+        log.error("Cloned machine is not present in the database yet."
+                  "Key association and owner assignment failed.")
+
+    print('clone_machine_async: results: {}'.format(node))
+
+
+@app.task
 def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
@@ -622,7 +681,7 @@ def create_machine_async(
     softlayer_backend_vlan_id=None, machine_username='',
     folder=None, datastore=None,
     ephemeral=False, lxd_image_source=None,
-    volumes=[], ip_addresses=[], expiration={}, sec_group='', vnfs=[],
+    volumes=[], ip_addresses=[], expiration={}, sec_groups=None, vnfs=[],
     description='', port_forwards={}
 ):
     from concurrent.futures import ThreadPoolExecutor
@@ -679,7 +738,7 @@ def create_machine_async(
              'expiration': expiration,
              'ephemeral': ephemeral,
              'lxd_image_source': lxd_image_source,
-             'sec_group': sec_group,
+             'sec_groups': sec_groups,
              'folder': folder,
              'datastore': datastore,
              'vnfs': vnfs,
