@@ -583,32 +583,6 @@ class LXDStorageController(BaseStorageController):
             raise MistError(exc=e)
 
 
-class GigG8StorageController(BaseStorageController):
-
-    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
-        # Find the machine to which the volume is attached
-        volume.attached_to = []
-        machine_id = libcloud_volume.extra.get('node_id', None)
-        if machine_id:
-            try:
-                from mist.api.machines.models import Machine
-                machine = Machine.objects.get(
-                    machine_id=str(machine_id), cloud=self.cloud,
-                    missing_since=None
-                )
-                volume.attached_to = [machine]
-            except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume,
-                          machine_id)
-
-    def _create_volume__prepare_args(self, kwargs):
-        kwargs['ex_description'] = kwargs.pop('description')
-
-    def _detach_volume(self, libcloud_volume, libcloud_node):
-        self.cloud.ctl.compute.connection.detach_volume(libcloud_node,
-                                                        libcloud_volume)
-
-
 class LinodeStorageController(BaseStorageController):
 
     def _create_volume__prepare_args(self, kwargs):
