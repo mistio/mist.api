@@ -1,4 +1,3 @@
-import operator
 import logging
 
 from mist.api import config
@@ -9,12 +8,10 @@ from mist.api.helpers import get_resource_model
 
 from mist.api.notifications.helpers import _log_alert
 
-from mist.api.dramatiq_tasks import actors
-
 from mist.api.rules.models import Rule
 from mist.api.rules.models import NoDataAction
 from mist.api.rules.models import NotificationAction
-from functools import reduce
+from mist.api.dramatiq_tasks import actors
 
 
 log = logging.getLogger(__name__)
@@ -60,7 +57,7 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
     if not (triggered and triggered_now):
         action = rule.actions[0]
         if isinstance(action, NotificationAction):
-            run_action_by_id.send(
+            actors['run_action_by_id'].send(
                 rule_id, incident_id, action.id, resource_id,
                 resource_type, value, triggered, timestamp,
             )
@@ -69,7 +66,7 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
     # Get a list of task signatures for every task, excluding the first one.
     tasks = []
     for action in rule.actions[1:]:
-        task = run_action_by_id.message(
+        task = actors['run_action_by_id'].message(
             rule_id, incident_id, action.id, resource_id,
             resource_type, value, triggered, timestamp,
         )
@@ -78,7 +75,7 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
     delay = 0
     # Buffer no-data alerts so that we can decide on false-positives.
     if isinstance(rule.actions[0], NoDataAction):
-        delay=config.NO_DATA_ALERT_BUFFER_PERIOD * 1000
+        delay = config.NO_DATA_ALERT_BUFFER_PERIOD * 1000
 
     # Apply all tasks in parallel
     from dramatiq import group
