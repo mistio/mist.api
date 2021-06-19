@@ -10,7 +10,7 @@ import mist.api
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(this_dir)
-paths = ['src', 'libcloud', 'celerybeat-mongo']
+paths = ['src', 'libcloud']
 for p in paths:
     sys.path.append(os.path.join(parent_dir, p))
 BASE_FILE_PATH = os.path.join(this_dir, 'base.yml')
