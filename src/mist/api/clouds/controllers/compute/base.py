@@ -308,9 +308,11 @@ class BaseComputeController(BaseController):
         """
         # Try to query list of machines from provider API.
         try:
+            from time import time
+            start = time()
             nodes = self._list_machines__fetch_machines()
-            log.info("List nodes returned %d results for %s.",
-                     len(nodes), self.cloud)
+            log.info("List nodes returned %d results for %s in %d.",
+                     len(nodes), self.cloud, time() - start)
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_nodes on %s: %s",
                         self.cloud, exc)
