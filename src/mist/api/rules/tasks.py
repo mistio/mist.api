@@ -1,6 +1,6 @@
 import logging
 
-from mist.api.celery_app import app
+from mist.api.dramatiq_app import dramatiq
 
 from mist.api.helpers import get_resource_model
 from mist.api.helpers import rtype_to_classpath
@@ -25,14 +25,14 @@ __all__ = [
 ]
 
 
-@app.task
+@dramatiq.actor
 def evaluate(rule_id):
     """Perform a full rule evaluation."""
     rule = Rule.objects.get(id=rule_id)
     rule.ctl.evaluate(update_state=True, trigger_actions=True)
 
 
-@app.task
+@dramatiq.actor
 def add_nodata_rule(owner_id, backend='graphite'):
     """Idempotently setup a NoDataRule for the given Organization."""
     try:
@@ -42,8 +42,8 @@ def add_nodata_rule(owner_id, backend='graphite'):
         NoDataRule(owner_id=owner_id).ctl.auto_setup(backend=backend)
 
 
-@app.task(bind=True, default_retry_delay=5, max_retries=3)
-def run_action_by_id(self, rule_id, incident_id, action_id,
+@dramatiq.actor(max_retries=3)
+def run_action_by_id(rule_id, incident_id, action_id,
                      resource_id, resource_type, value, triggered, timestamp):
     """Run a Rule's action asynchronously.
 
@@ -76,16 +76,10 @@ def run_action_by_id(self, rule_id, incident_id, action_id,
         action.run(resource, value, triggered, timestamp, incident_id)
     except (ServiceUnavailableError, CloudUnavailableError) as err:
         # Catch errors due to SSH connectivity issues and the cloud provider's
-        # API being unresponsive. Log the failure if there are no more retries.
-        if self.request.retries >= self.max_retries:
-            _log_alert(resource, rule, value, triggered,
-                       timestamp, incident_id, error=str(err))
-        # Retry task with a linear back-off to minimize the chances of hitting
-        # the same error again.
-        countdown = (self.default_retry_delay * (self.request.retries + 1))
-        # After max_retries have been exceeded, this will re-raise the original
-        # exception.
-        self.retry(exc=err, countdown=countdown)
+        # API being unresponsive. Log the failure even if it will be retried
+        _log_alert(resource, rule, value, triggered,
+                   timestamp, incident_id, error=str(err))
+        raise
     except MachineUnauthorizedError as err:
         # Catch exception, log it, and re-raise to improve auditing. Re-raising
         # the exception is important in order to stop the chain's execution.

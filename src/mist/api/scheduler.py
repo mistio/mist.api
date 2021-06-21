@@ -1,17 +1,15 @@
+import datetime
 import logging
 import importlib
 import pytz
 
 from time import sleep
 
-import dramatiq
-
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.base import JobLookupError
 
 from mist.api import config
-from mist.api.dramatiq_app import broker
 from mist.api.models import Schedule
 from mist.api.poller.models import PollingSchedule
 from mist.api.rules.models import Rule
@@ -28,14 +26,14 @@ def schedule_to_actor(schedule):
         task_path = schedule.task_type.task.split('.')
     method = task_path[-1]
     module = '.'.join(task_path[:-1])
-    task = getattr(importlib.import_module(module), method)
-    return dramatiq.actor(
-        task,
-        queue_name="dramatiq_schedules",
-        time_limit=30 * 60 * 1000,  # 30 minutes
-        max_retries=None,
-        broker=broker
-    )
+    return getattr(importlib.import_module(module), method)
+    # return dramatiq.actor(
+    #     task,
+    #     queue_name="dramatiq_schedules",
+    #     time_limit=30 * 60 * 1000,  # 30 minutes
+    #     max_retries=None,
+    #     broker=broker
+    # )
 
 
 def add_job(scheduler, schedule, actor):
@@ -99,8 +97,11 @@ def update_job(scheduler, schedule, actor, existing):
     else:
         if schedule.schedule_type.type == 'interval' and interval:
             # Update interval
+            delta = datetime.timedelta(**{
+                schedule.schedule_type.period: schedule.schedule_type.every
+            })
             if interval.total_seconds() != \
-                    schedule.schedule_type.schedule.seconds:
+                    delta.total_seconds():
                 changes[schedule.schedule_type['period']] = \
                     schedule.schedule_type['every']
         elif schedule.schedule_type.type == 'crontab':
@@ -153,14 +154,7 @@ def load_config_schedules(scheduler):
         task_path = config._schedule[sched]['task'].split('.')
         method = task_path[-1]
         module = '.'.join(task_path[:-1])
-        task = getattr(importlib.import_module(module), method)
-        actor = dramatiq.actor(
-            task,
-            queue_name="dramatiq_schedules",
-            time_limit=5 * 60 * 1000,  # 5 minutes
-            max_retries=None,
-            broker=broker
-        )
+        actor = getattr(importlib.import_module(module), method)
         interval = config._schedule[sched]['schedule'].total_seconds()
         scheduler.add_job(
             actor.send, trigger='interval', seconds=interval, name=sched)
@@ -193,22 +187,41 @@ def load_schedules_from_db(scheduler, schedules):
     old_schedule_ids = new_schedule_ids
 
 
-def start():
+def start(**kwargs):
+    if not kwargs.keys():
+        kwargs['builtin'] = True
+        kwargs['user'] = True
+        kwargs['polling'] = True
+        kwargs['rules'] = True
+
     # Init scheduler
     scheduler = BackgroundScheduler()
 
     # Load schedules from config
-    load_config_schedules(scheduler)
+    if kwargs.get('builtin'):
+        load_config_schedules(scheduler)
 
     try:  # Start scheduler
         scheduler.start()
         while True:  # Start main loop
-            log.info('Reloading schedules')
-            load_schedules_from_db(scheduler, Schedule.objects(deleted=False))
-            log.info('Reloading polling schedules')
-            load_schedules_from_db(scheduler, PollingSchedule.objects())
-            log.info('Reloading rules')
-            load_schedules_from_db(scheduler, Rule.objects())
+            if kwargs.get('user'):
+                log.info('Reloading user schedules')
+                load_schedules_from_db(
+                    scheduler,
+                    Schedule.objects(deleted=False)
+                )
+            if kwargs.get('polling'):
+                log.info('Reloading polling schedules')
+                load_schedules_from_db(
+                    scheduler,
+                    PollingSchedule.objects()
+                )
+            if kwargs.get('rules'):
+                log.info('Reloading rules')
+                load_schedules_from_db(
+                    scheduler,
+                    Rule.objects()
+                )
             sleep(RELOAD_INTERVAL)
     except KeyboardInterrupt:
         import ipdb

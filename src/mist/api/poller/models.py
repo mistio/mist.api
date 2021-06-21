@@ -51,13 +51,6 @@ class PollingSchedule(ShardedScheduleMixin, me.Document):
     # the `clean` method.
     name = me.StringField(unique=True)
 
-    # The following fields are defined in celerybeatmongo.models.PeriodicTask.
-    # Here, we define no fields in the base class, and expect subclasses to
-    # either define their fields, or simply use properties.
-    # task = me.StringField(required=True)
-    # args = me.ListField()
-    # kwargs = me.DictField()
-
     # Scheduling information. Don't edit them directly, just use the model
     # methods.
     default_interval = me.EmbeddedDocumentField(
@@ -125,14 +118,6 @@ class PollingSchedule(ShardedScheduleMixin, me.Document):
                     interval = i
         return interval
 
-    # @property
-    # def schedule(self):
-    #     """Return a celery schedule instance
-
-    #     This is used internally by celerybeatmongo scheduler
-    #     """
-    #     return celery.schedules.schedule(self.interval.timedelta)
-
     @property
     def expires(self):
         return None
@@ -185,6 +170,10 @@ class DebugPollingSchedule(PollingSchedule):
 class OwnerPollingSchedule(PollingSchedule):
 
     owner = me.ReferenceField('Organization', reverse_delete_rule=me.CASCADE)
+
+    @property
+    def org(self):
+        return self.owner
 
     @classmethod
     def add(cls, owner, run_immediately=True, interval=None, ttl=300):

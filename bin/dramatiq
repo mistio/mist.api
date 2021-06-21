@@ -2,20 +2,44 @@
 import os
 import importlib
 
-
-os.system("pip install -U 'dramatiq[rabbitmq]'")
+from mist.api import config
 
 BROKER = 'mist.api.dramatiq_app'
 QUEUES = ['dramatiq_create_machine',
           'dramatiq_post_deploy_steps',
           'dramatiq_ssh_tasks',
           'dramatiq_mappings',
-          'dramatiq_schedules']
+          'dramatiq_schedules',
+          'default']
 
-POSSIBLE_MODULES = ['mist.api.dramatiq_tasks', 'mist.rbac.dramatiq_tasks']
+POSSIBLE_MODULES = [] # 'mist.api.dramatiq_tasks', 'mist.rbac.dramatiq_tasks']
+
+for root, dirs, files in os.walk("src"):
+    for file in files:
+        if file.endswith('tasks.py'):
+            module = os.path.join(
+                root, file[:-3]).split('src/')[1].replace('/', '.')
+            POSSIBLE_MODULES.append(module)
+            print(module)
+
+for root, dirs, files in os.walk("/opt"):
+    for file in files:
+        if file.endswith('tasks.py'):
+            print('.'.join(os.path.join(root, file[:-3]).split('/')[3:]))
+
+
 modules = []
 
 for module in POSSIBLE_MODULES:
+    try:
+        importlib.import_module(module)
+    except ModuleNotFoundError:
+        continue
+    modules.append(module)
+    print(f"  * {module}")
+
+for plugin in config.PLUGINS:
+    module = 'mist.' + plugin + '.tasks'
     try:
         importlib.import_module(module)
     except ModuleNotFoundError:

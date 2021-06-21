@@ -646,23 +646,23 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if cloud.ctl.provider == Provider.AZURE.value:
         # for Azure, connect with the generated password, deploy the ssh key
         # when this is ok, it calls post_deploy for script/monitoring
-        mist.api.tasks.azure_post_create_steps.delay(
+        mist.api.tasks.azure_post_create_steps.send(
             auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('username'), node.extra.get('password'), public_key,
-            script=script,
-            script_id=script_id, script_params=script_params, job_id=job_id,
-            hostname=hostname, plugins=plugins, post_script_id=post_script_id,
+            script=script, script_id=script_id, script_params=script_params,
+            job_id=job_id, hostname=hostname, plugins=plugins,
+            post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule, job=job,
         )
     elif cloud.ctl.provider == Provider.OPENSTACK.value:
         if associate_floating_ip:
             networks = list_networks(auth_context.owner, cloud_id)
-            mist.api.tasks.openstack_post_create_steps.delay(
+            mist.api.tasks.openstack_post_create_steps.send(
                 auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
                 node.extra.get('username'), node.extra.get('password'),
                 public_key, script=script, script_id=script_id,
-                script_params=script_params,
-                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
+                script_params=script_params, job_id=job_id, job=job,
+                hostname=hostname, plugins=plugins,
                 post_script_params=post_script_params,
                 networks=networks, schedule=schedule,
             )
@@ -670,7 +670,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         # for Rackspace First Gen, cannot specify ssh keys. When node is
         # created we have the generated password, so deploy the ssh key
         # when this is ok and call post_deploy for script/monitoring
-        mist.api.tasks.rackspace_first_gen_post_create_steps.delay(
+        mist.api.tasks.rackspace_first_gen_post_create_steps.send(
             auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('password'), public_key, script=script,
             script_id=script_id, script_params=script_params,
@@ -680,7 +680,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         )
 
     else:
-        mist.api.tasks.post_deploy_steps.delay(
+        mist.api.tasks.post_deploy_steps.send(
             auth_context.owner.id, cloud_id, node.id, monitoring,
             script=script, key_id=key_id, script_id=script_id,
             script_params=script_params, job_id=job_id, job=job, port=ssh_port,

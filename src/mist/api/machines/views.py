@@ -512,7 +512,8 @@ def create_machine(request):
     else:
         args = (auth_context.serialize(), ) + args
         kwargs.update({'quantity': quantity, 'persist': persist})
-        tasks.create_machine_async.apply_async(args, kwargs, countdown=2)
+        tasks.create_machine_async.send_with_options(
+            args=args, kwargs=kwargs, delay=2)
         ret = {'job_id': job_id}
     ret.update({'job': job})
     return ret
@@ -875,10 +876,10 @@ def machine_actions(request):
         clone_async = True  # False for debug
         ret = {}
         if clone_async:
-            argz = (auth_context.serialize(), machine.id, name)
+            args = (auth_context.serialize(), machine.id, name)
             kwargs = {'job': job, 'job_id': job_id}
-            tasks.clone_machine_async.apply_async(argz, kwargs,
-                                                  countdown=2)
+            tasks.clone_machine_async.send_with_options(
+                args=args, kwargs=kwargs, delay=2)
         else:
             ret = getattr(machine.ctl, action)(name)
         ret.update({'job': job, 'job_id': job_id})

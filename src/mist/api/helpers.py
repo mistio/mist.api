@@ -1288,29 +1288,6 @@ def mac_verify(kwargs=None, key='', mac_len=0, mac_format='hex'):
             del kwargs[kw]
 
 
-def maybe_submit_cloud_task(cloud, task_name):
-    """Decide whether a task should be submitted to celery
-
-    This method helps us prevent submitting new celery tasks, which are
-    guaranteed to return/exit immediately without performing any actual
-    actions.
-
-    For instance, such cases include async tasks for listing DNS zones
-    for clouds that have no DNS support or DNS is temporarily disabled.
-
-    Note that this is just a helper method used to make an initial decision.
-
-    The `cloud` argument must be a `mist.api.clouds.models.Cloud` mongoengine
-    objects and `task_name` must be the name/identifier of the corresponding
-    celery task.
-
-    """
-    if task_name == 'list_projects':
-        if cloud.ctl.provider != 'equinixmetal':
-            return False
-    return True
-
-
 def is_resource_missing(obj):
     """Return True if either resource or its parent is missing or has been
     deleted. Note that `obj` is meant to be a subclass of me.Document."""

@@ -6,9 +6,6 @@
 ## ensures that the build won't break because of a new release of some
 ## dependency.
 
-# amqp v2 requires explicit call to connect, and use of drain_events
-# see https://github.com/celery/py-amqp/issues/105
-# compatible with kombu's requirement
 amqp<3.0
 apscheduler
 beautifulsoup4

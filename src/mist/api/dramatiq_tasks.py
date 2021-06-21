@@ -45,13 +45,13 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 task_modules = [
-    'mist.api.tasks',
-    'mist.api.auth.tasks',
-    'mist.api.metering.tasks',
-    'mist.api.portal.tasks',
-    'mist.api.poller.tasks',
-    'mist.api.rules.tasks',
-    'mist.api.monitoring.tasks'
+    # 'mist.api.tasks',
+    # 'mist.api.auth.tasks',
+    # 'mist.api.metering.tasks',
+    # 'mist.api.portal.tasks',
+    # 'mist.api.poller.tasks',
+    # 'mist.api.rules.tasks',
+    # 'mist.api.monitoring.tasks'
 ]
 task_map = {
     module: (lambda x: getattr(importlib.import_module(x), '__all__'))(module)
@@ -64,15 +64,16 @@ print('Loading task modules')
 for task_module in task_map.keys():
     print(' * %s:' % task_module)
     for task_name in task_map[task_module]:
-        task = getattr(importlib.import_module(task_module), task_name)
-        actors[task_name] = actor(
-            task,
-            actor_name=task_name,
-            time_limit=task.time_limit or 5 * 60 * 1000,  # 5 minutes
-            max_retries=task.max_retries,
-            broker=broker,
-            queue_name='dramatiq_schedules'
-        )
+        actors[task_name] = getattr(
+            importlib.import_module(task_module), task_name)
+        # actors[task_name] = actor(
+        #     task,
+        #     actor_name=task_name,
+        #     time_limit=task.time_limit or 5 * 60 * 1000,  # 5 minutes
+        #     max_retries=task.max_retries,
+        #     broker=broker,
+        #     queue_name='dramatiq_schedules'
+        # )
         print('  - %s' % task_name)
 
 

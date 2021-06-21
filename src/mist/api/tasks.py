@@ -12,8 +12,6 @@ import paramiko
 from libcloud.compute.types import NodeState
 from libcloud.container.base import Container
 
-from celery.exceptions import SoftTimeLimitExceeded
-
 from paramiko.ssh_exception import SSHException
 
 from mist.api.exceptions import MistError, PolicyUnauthorizedError
@@ -23,7 +21,6 @@ from mist.api.shell import Shell
 from mist.api.users.models import Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
-from mist.api.dns.models import Zone
 from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.images.models import CloudImage
@@ -56,9 +53,9 @@ from mist.api.auth.methods import AuthContext
 
 from mist.api.logs.methods import log_event
 
-from mist.api import config
+from mist.api.dramatiq_app import dramatiq
 
-from mist.api.celery_app import app
+from mist.api import config
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -87,7 +84,7 @@ __all__ = [
 ]
 
 
-@app.task
+@dramatiq.actor
 def ssh_command(owner_id, cloud_id, machine_id, host, command,
                 key_id=None, username=None, password=None, port=22):
 
@@ -103,8 +100,8 @@ def ssh_command(owner_id, cloud_id, machine_id, host, command,
                     (machine_id, host), output)
 
 
-@app.task(bind=True, default_retry_delay=3 * 60)
-def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
+@dramatiq.actor
+def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
                       key_id=None, username=None, password=None, port=22,
                       script_id='', script_params='', job_id=None, job=None,
                       hostname='', plugins=None, script='',
@@ -141,8 +138,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
             msg += "Machine:\n  Name: %s\n  Id: %s\n" % (node.name, node.id)
             tmp_log('Machine found, proceeding to post deploy steps\n%s' % msg)
-        except:
-            raise self.retry(exc=Exception(), countdown=10, max_retries=10)
+        except Exception as e:
+            log.error('%r' % e)
+            raise e
 
         if node and isinstance(node, Container):
             node = cloud.ctl.compute.inspect_node(node)
@@ -152,21 +150,21 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             ips = [ip for ip in node.public_ips + node.private_ips
                    if ':' not in ip]
             if not ips:
-                raise self.retry(exc=Exception(), countdown=60, max_retries=20)
+                raise
             host = ips[0]
         else:
             tmp_log('ip not found, retrying')
-            raise self.retry(exc=Exception(), countdown=60, max_retries=20)
+            raise
 
         if node.state != NodeState.RUNNING:
             tmp_log('not running state')
-            raise self.retry(exc=Exception(), countdown=120, max_retries=30)
+            raise
 
         try:
             machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
                                           state__ne='terminated')
         except Machine.DoesNotExist:
-            raise self.retry(countdown=60, max_retries=60)
+            raise
 
         log_dict = {
             'owner_id': owner.id,
@@ -354,7 +352,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
         except (ServiceUnavailableError, SSHException) as exc:
             tmp_log(repr(exc))
-            raise self.retry(exc=exc, countdown=60, max_retries=15)
+            raise
     except Exception as exc:
         tmp_log(repr(exc))
         if str(exc).startswith('Retry'):
@@ -377,8 +375,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         )
 
 
-@app.task(bind=True, default_retry_delay=2 * 60)
-def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
+@dramatiq.actor
+def openstack_post_create_steps(owner_id, cloud_id, machine_id,
                                 monitoring, key_id, username, password,
                                 public_key, script='',
                                 script_id='', script_params='', job_id=None,
@@ -400,7 +398,7 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                 break
 
         if node and node.state == 0 and len(node.public_ips):
-            post_deploy_steps.delay(
+            post_deploy_steps.send(
                 owner.id, cloud_id, machine_id, monitoring, key_id,
                 script=script, script_id=script_id,
                 script_params=script_params, job_id=job_id, job=job,
@@ -443,7 +441,7 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                     ext_net_id = networks['public'][0]['network_id']
                     conn.ex_create_floating_ip(ext_net_id, machine_port_id)
 
-                post_deploy_steps.delay(
+                post_deploy_steps.send(
                     owner.id, cloud_id, machine_id, monitoring, key_id,
                     script=script,
                     script_id=script_id, script_params=script_params,
@@ -453,14 +451,14 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                 )
 
             except:
-                raise self.retry(exc=Exception(), max_retries=20)
+                raise
     except Exception as exc:
         if str(exc).startswith('Retry'):
             raise
 
 
-@app.task(bind=True, default_retry_delay=2 * 60)
-def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
+@dramatiq.actor
+def azure_post_create_steps(owner_id, cloud_id, machine_id, monitoring,
                             key_id, username, password, public_key, script='',
                             script_id='', script_params='', job_id=None,
                             job=None, hostname='', plugins=None,
@@ -484,7 +482,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
             ips = [ip for ip in node.public_ips if ':' not in ip]
             host = ips[0]
         else:
-            raise self.retry(exc=Exception(), max_retries=20)
+            raise
 
         try:
             # login with user, password. Deploy the public key, enable sudo
@@ -523,7 +521,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
             ssh.close()
 
-            post_deploy_steps.delay(
+            post_deploy_steps.send(
                 owner.id, cloud_id, machine_id, monitoring, key_id,
                 script=script,
                 script_id=script_id, script_params=script_params,
@@ -533,15 +531,15 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
             )
 
         except Exception as exc:
-            raise self.retry(exc=exc, countdown=10, max_retries=15)
+            raise
     except Exception as exc:
         if str(exc).startswith('Retry'):
             raise
 
 
-@app.task(bind=True, default_retry_delay=2 * 60)
+@dramatiq.actor
 def rackspace_first_gen_post_create_steps(
-        self, owner_id, cloud_id, machine_id, monitoring, key_id, password,
+        owner_id, cloud_id, machine_id, monitoring, key_id, password,
         public_key, username='root', script='', script_id='', script_params='',
         job_id=None, job=None, hostname='', plugins=None, post_script_id='',
         post_script_params='', schedule={}):
@@ -564,7 +562,7 @@ def rackspace_first_gen_post_create_steps(
             ips = [ip for ip in node.public_ips if ':' not in ip]
             host = ips[0]
         else:
-            raise self.retry(exc=Exception(), max_retries=20)
+            raise
 
         try:
             # login with user, password and deploy the ssh public key.
@@ -587,7 +585,7 @@ def rackspace_first_gen_post_create_steps(
 
             ssh.close()
 
-            post_deploy_steps.delay(
+            post_deploy_steps.send(
                 owner.id, cloud_id, machine_id, monitoring, key_id,
                 script=script,
                 script_id=script_id, script_params=script_params,
@@ -597,13 +595,12 @@ def rackspace_first_gen_post_create_steps(
             )
 
         except Exception as exc:
-            raise self.retry(exc=exc, countdown=10, max_retries=15)
-    except Exception as exc:
-        if str(exc).startswith('Retry'):
             raise
+    except Exception as exc:
+        raise
 
 
-@app.task
+@dramatiq.actor
 def clone_machine_async(auth_context_serialized, machine_id, name,
                         job=None, job_id=None):
     from mist.api.exceptions import MachineCreationError
@@ -662,7 +659,7 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
     print('clone_machine_async: results: {}'.format(node))
 
 
-@app.task
+@dramatiq.actor
 def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
@@ -773,17 +770,17 @@ def create_machine_async(
     print('create_machine_async: results: {}'.format(real_results))
 
 
-@app.task(bind=True, default_retry_delay=5, max_retries=3)
-def send_email(self, subject, body, recipients, sender=None, bcc=None,
+@dramatiq.actor(max_retries=3)
+def send_email(subject, body, recipients, sender=None, bcc=None,
                html_body=None):
     if not helper_send_email(subject, body, recipients,
                              sender=sender, bcc=bcc, attempts=1,
                              html_body=html_body):
-        raise self.retry()
+        raise
     return True
 
 
-@app.task
+@dramatiq.actor
 def group_machines_actions(owner_id, action, name, machines_uuids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
@@ -814,7 +811,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     }
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
-
+    tasks = []
     for machine_uuid in machines_uuids:
         found = False
         _action = action
@@ -834,16 +831,20 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
                 _action = 'stop'
 
             try:
-                run_machine_action.s(owner_id, _action, name,
-                                     machine_uuid)()
+                task = run_machine_action.message(owner_id, _action, name,
+                                                  machine_uuid)
+                tasks.append(task)
             except Exception as exc:
                 log_dict['error'] = '%s %r\n' % (log_dict.get('error', ''),
                                                  exc)
-
-    log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
-                    'total_run_count': schedule.total_run_count or 0,
-                     'error': log_dict['error']}
-                    )
+    # Apply all tasks in parallel
+    from dramatiq import group
+    g = group(tasks).run()
+    log_dict.update({
+        'last_run_at': str(schedule.last_run_at or ''),
+        'total_run_count': schedule.total_run_count or 0,
+        'error': log_dict['error']
+    })
     log_event(action='schedule_finished', **log_dict)
     if log_dict['error']:
         log.info('Schedule action failed: %s', log_dict)
@@ -854,7 +855,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     return log_dict
 
 
-@app.task(soft_time_limit=3600, time_limit=3630)
+@dramatiq.actor(time_limit=3_600_000)
 def run_machine_action(owner_id, action, name, machine_uuid):
     """
     Calls specific action for a machine and log the info
@@ -997,7 +998,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         )
 
 
-@app.task
+@dramatiq.actor
 def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
@@ -1031,15 +1032,18 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
 
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule started: %s', log_dict)
-
+    tasks = []
     for machine_uuid in machines_uuids:
         try:
-            run_script.s(owner_id, script_id, machine_uuid,
-                         params=params,
-                         job_id=job_id, job='schedule')()
+            task = run_script.message(owner_id, script_id, machine_uuid,
+                                      params=params, job_id=job_id,
+                                      job='schedule')
+            tasks.append(task)
         except Exception as exc:
-            log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
-
+            log_dict['error'] = "%s %r\n" % (log_dict.get('error', ''), exc)
+    # Apply all tasks in parallel
+    from dramatiq import group
+    g = group(tasks).run()
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                      'total_run_count': schedule.total_run_count or 0,
                      'error': log_dict['error']}
@@ -1054,7 +1058,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     return log_dict
 
 
-@app.task(soft_time_limit=3600, time_limit=3630)
+@dramatiq.actor(time_limit=3_600_000)
 def run_script(owner, script_id, machine_uuid, params='', host='',
                key_id='', username='', password='', port=22, job_id='', job='',
                action_prefix='', su=False, env=""):
@@ -1215,8 +1219,9 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
                 pass
             if exit_code > 0:
                 ret['error'] = 'Script exited with return code %s' % exit_code
-        except SoftTimeLimitExceeded:
-            ret['error'] = 'Script execution time limit exceeded'
+        # TODO: Fix for dramatiq
+        # except SoftTimeLimitExceeded:
+        #     ret['error'] = 'Script execution time limit exceeded'
         except Exception as exc:
             ret['error'] = str(exc)
     log_event(event_type='job', action=action_prefix + 'script_finished',
@@ -1248,7 +1253,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     return ret
 
 
-@app.task
+@dramatiq.actor
 def update_poller(org_id):
     org = Organization.objects.get(id=org_id)
     update_threshold = datetime.datetime.now() - datetime.timedelta(
@@ -1290,9 +1295,9 @@ def update_poller(org_id):
     org.save()
 
 
-@app.task
+@dramatiq.actor
 def gc_schedulers():
-    """Delete disabled celerybeat schedules.
+    """Delete disabled schedules.
 
     This takes care of:
 
@@ -1302,9 +1307,7 @@ def gc_schedulers():
     3. Removing inactive no-data rules. They are added idempotently the
        first time get_stats receives data for a newly monitored machine.
 
-    Note that this task does not run GC on user-defined schedules. The
-    UserScheduler has its own mechanism for choosing which documents to
-    load.
+    Note that this task does not run GC on user-defined schedules.
 
     """
     for collection in (PollingSchedule, NoDataRule, ):
@@ -1319,16 +1322,16 @@ def gc_schedulers():
                 log.error(exc)
 
 
-@app.task
+@dramatiq.actor
 def set_missing_since(cloud_id):
     for Model in (Machine, CloudLocation, CloudSize, CloudImage,
-                  Network, Volume, Bucket, Zone):
+                  Network, Volume, Bucket):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
 
 
-@app.task
+@dramatiq.actor
 def delete_periodic_tasks(cloud_id):
     from mist.api.concurrency.models import PeriodicTaskInfo
     for section in ['machines', 'volumes', 'networks', 'zones', 'buckets']:
@@ -1340,7 +1343,7 @@ def delete_periodic_tasks(cloud_id):
             pass
 
 
-@app.task
+@dramatiq.actor
 def create_backup():
     """Create mongo backup if s3 creds are set.
     """
@@ -1390,7 +1393,7 @@ def create_backup():
                 config.BACKUP['bucket'], portal_host, dt))
 
 
-@app.task
+@dramatiq.actor
 def async_session_update(owner, sections=None):
     if sections is None:
         sections = [
