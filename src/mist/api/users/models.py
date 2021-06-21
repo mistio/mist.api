@@ -358,10 +358,10 @@ class User(Owner):
                                         deref, only)
         if ret.get('last_login'):
             ret['last_login'] = datetime.datetime.fromtimestamp(
-                ret['last_login']).strftime("%A, %B %d, %Y %I:%M:%S")
+                ret['last_login']).isoformat()
         if ret.get('registration_date'):
             ret['registration_date'] = datetime.datetime.fromtimestamp(
-                ret['registration_date']).strftime("%A, %B %d, %Y %I:%M:%S")
+                ret['registration_date']).isoformat()
         else:
             ret['registration_date'] = ""
         return ret
@@ -621,13 +621,13 @@ class Organization(Owner):
         from mist.api.helpers import prepare_dereferenced_dict
 
         standard_fields = ['id', 'name', 'clouds_count',
-                           'teams_count', 'created',
+                           'teams_count', 'created', 'total_machine_count',
                            'enterprise_plan', 'selected_plan', 'enable_r12ns',
                            'default_monitoring_method', 'insights_enabled',
                            'ownership_enabled']
         ret = prepare_dereferenced_dict(standard_fields, {}, self, deref, only)
         if ret.get('created'):
-            ret['created'] = ret['created'].strftime("%A, %B %d, %Y %I:%M:%S")
+            ret['created'] = ret['created'].isoformat()
         return ret
 
     def clean(self):
