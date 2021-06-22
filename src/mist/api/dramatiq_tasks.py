@@ -100,9 +100,6 @@ def dramatiq_create_machine_async(
     auth_context = AuthContext.deserialize(auth_context_serialized)
     cloud = Cloud.objects.get(id=plan["cloud"]["id"])
 
-    cached_machines = [m.as_dict()
-                       for m in cloud.ctl.compute.list_cached_machines()]
-
     log_event(
         auth_context.owner.id, 'job', 'sending_create_machine_request',
         job=job, job_id=job_id, cloud_id=plan['cloud']['id'],
@@ -171,9 +168,13 @@ def dramatiq_create_machine_async(
         resolve_id_and_set_tags(auth_context.owner, 'machine', node.id,
                                 plan['tags'], cloud_id=cloud.id)
 
-    fresh_machines = cloud.ctl.compute.list_cached_machines()
-    cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines,
+    machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+
+    # first_run is set to True becase poller has already
+    # logged an observation event for this machine
+    # and we don't want to send it again.
+    cloud.ctl.compute.produce_and_publish_patch({},
+                                                [machine],
                                                 first_run=True
                                                 )
 
