@@ -4090,10 +4090,16 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         """List all kubernetes machines: nodes, pods and containers"""
         node_map = {}
         nodes = []
+        nodes_metrics = self.connection.list_nodes_metrics()
+        nodes_metrics_dict = {node_metrics['metadata']['name']: node_metrics
+                              for node_metrics in nodes_metrics}
         for node in self.connection.ex_list_nodes():
+            node_map[node.name] = node.id
             node.type = 'node'
             node.os = node.extra.get('os')
-            node_map[node.name] = node.id
+            node_metrics = nodes_metrics_dict.get(node.name)
+            if node_metrics:
+                node.extra['usage'] = node_metrics['usage']
             nodes.append(node_to_dict(node))
         pod_map = {}
         pods = []
