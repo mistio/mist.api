@@ -33,6 +33,7 @@ from mist.api.monitoring.methods import enable_monitoring
 from mist.api.shell import Shell
 from mist.api.tasks import run_script
 from mist.api.helpers import trigger_session_update
+from mist.api.poller. models import ListMachinesPollingSchedule
 
 
 logging.basicConfig(
@@ -120,21 +121,18 @@ def dramatiq_create_machine_async(
         )
         raise
 
-    for i in range(0, 10):
+    tmp_log('Overriding default polling interval')
+    schedule = ListMachinesPollingSchedule.objects.get(
+        cloud=plan['cloud']['id'])
+    schedule.add_interval(10, ttl=600)
+    schedule.save()
+
+    for i in range(1, 11):
         try:
             machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
             break
         except me.DoesNotExist:
-            if i < 6:
-                time.sleep(i * 10)
-                continue
-            try:
-                cloud.ctl.compute.list_machines()
-            except Exception as e:
-                if i > 8:
-                    raise(e)
-                else:
-                    continue
+            time.sleep(i * 10)
     else:
         error = f"Machine with external_id: {node.id} was not found"
         tmp_log_error(error)
