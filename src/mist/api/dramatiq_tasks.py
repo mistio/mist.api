@@ -10,22 +10,21 @@ import mongoengine as me
 from dramatiq import actor
 from dramatiq.errors import Retry
 
-from libcloud.compute.types import NodeState
-from libcloud.container.base import Container
-
 from paramiko.ssh_exception import SSHException
 
-from mist.api.clouds.models import Cloud, DockerCloud
+from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.schedules.models import Schedule
 from mist.api.keys.models import Key
 from mist.api.dns.models import RECORDS
 
-from mist.api.exceptions import MachineNotFoundError, ServiceUnavailableError
+from mist.api.exceptions import MachineNotFoundError
+from mist.api.exceptions import ServiceUnavailableError
+from mist.api.exceptions import MachineUnavailableError
 
 from mist.api import config
 from mist.api.dramatiq_app import broker
-from mist.api.methods import connect_provider, probe_ssh_only
+from mist.api.methods import probe_ssh_only
 from mist.api.methods import notify_user, notify_admin
 from mist.api.auth.methods import AuthContext
 from mist.api.logs.methods import log_event
@@ -191,7 +190,9 @@ def dramatiq_create_machine_async(
                               node.id, plan, job_id=job_id, job=job)
 
 
-@actor(queue_name="dramatiq_post_deploy_steps", broker=broker)
+@actor(queue_name="dramatiq_post_deploy_steps",
+       broker=broker,
+       throws=(me.DoesNotExist, MachineUnavailableError))
 def dramatiq_post_deploy(auth_context_serialized, cloud_id,
                          machine_id, external_id, plan,
                          job_id=None, job=None):
@@ -203,57 +204,41 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
         "Entering post deploy steps for %s %s %s",
         auth_context.owner.id,
         cloud_id,
-        external_id,
+        machine_id,
     )
 
-    node = None
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                                   deleted=None)
-        conn = connect_provider(cloud,
-                                location_id=plan.get('location', {}).get('id'))
+    except Cloud.DoesNotExist:
+        tmp_log_error("Cloud %s not found. Exiting", cloud_id)
+        raise me.DoesNotExist from None
 
-        if isinstance(cloud, DockerCloud):
-            nodes = conn.list_containers()
-        else:
-            nodes = conn.list_nodes()
-        for n in nodes:
-            if n.id == external_id:
-                node = n
-                break
-        msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
-        msg += "Machine:\n  Name: %s\n  Id: %s\n" % (node.name, node.id)
-        tmp_log("Machine found, proceeding to post deploy steps\n%s" % msg)
-    except Exception as exc:
-        tmp_log_error("Got exception %s, retrying" % str(exc))
-        raise Retry(delay=10000)
+    try:
+        machine = Machine.objects.get(cloud=cloud, machine_id=external_id)
+    except Machine.DoesNotExist:
+        tmp_log_error("Machine %s not found.Exiting", machine_id)
+        raise me.DoesNotExist from None
 
-    if node and isinstance(node, Container):
-        node = cloud.ctl.compute.inspect_node(node)
+    msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
+    msg += "Machine:\n  Name: %s\n  Id: %s\n" % (machine.name, machine.id)
+    tmp_log("Machine found, proceeding to post deploy steps\n%s" % msg)
 
-    if node:
-        # filter out IPv6 addresses
-        ips = [
-            ip for ip in node.public_ips + node.private_ips if ":" not in ip
-        ]
-        if not ips:
-            tmp_log_error("ip not found, retrying")
-            raise Retry(delay=60000)
-        host = ips[0]
-        tmp_log("Host Found, %s" % host)
-    else:
-        tmp_log_error("ip not found, retrying")
-        raise Retry(delay=60000)
-
-    if node.state != NodeState.RUNNING:
+    if machine.state == 'terminated':
+        tmp_log_error("Machine %s terminated. Exiting", machine_id)
+        raise MachineUnavailableError
+    elif machine.state != 'running':
         tmp_log_error("not running state")
         raise Retry(delay=60000)
 
+    ips = [
+        ip for ip in machine.public_ips + machine.private_ips if ":" not in ip
+    ]
     try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=external_id,
-                                      state__ne='terminated')
-    except Machine.DoesNotExist:
-        raise Retry(delay=10000)
+        host = ips[0]
+    except IndexError:
+        tmp_log_error("ip not found, retrying")
+        raise Retry(delay=60000) from None
 
     log_dict = {
         "owner_id": auth_context.owner.id,
@@ -273,7 +258,7 @@ def dramatiq_post_deploy(auth_context_serialized, cloud_id,
 
     dramatiq_ssh_tasks.send(auth_context_serialized, cloud_id,
                             plan.get("key", {}).get("id"), host, external_id,
-                            node.name, machine_id, plan.get('scripts'),
+                            machine.name, machine_id, plan.get('scripts'),
                             log_dict, monitoring=plan.get('monitoring', False),
                             plugins=None, job_id=job_id,
                             username=None, password=None, port=22)
