@@ -51,6 +51,7 @@ from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
+from libcloud.utils.misc import to_n_bytes_from_k8s_memory_size_str
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -4184,6 +4185,8 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
             updated = True
         ram = node_size.get('ram')
         if size.ram != ram:
+            if isinstance(ram, str) and ram.isalphanum():
+                ram = to_n_bytes_from_k8s_memory_size_str(ram)
             size.ram = ram
             updated = True
         cpu = node_size.get('cpu')
