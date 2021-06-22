@@ -4079,12 +4079,12 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
 
     def check_connection(self):
         try:
-            self._connect().list_clusters()
+            self._connect().list_namespaces()
         except InvalidCredsError as e:
             raise CloudUnauthorizedError(str(e))
 
-    def list_clusters(self):
-        return [node_to_dict(c) for c in self.connection.list_clusters()]
+    def list_namespaces(self):
+        return [node_to_dict(ns) for ns in self.connection.list_namespaces()]
 
     def _list_machines__fetch_machines(self):
         """List all kubernetes machines: nodes, pods and containers"""

@@ -740,7 +740,7 @@ class KubernetesCloud(_KubernetesBaseCloud):
 
     def as_dict_v2(self, *args, **kwargs):
         ret = super().as_dict_v2(*args, **kwargs)
-        ret['clusters'] = self.ctl.compute.list_clusters()
+        ret['namespaces'] = self.ctl.compute.list_namespaces()
         return ret
 
 
