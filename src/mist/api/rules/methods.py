@@ -65,7 +65,7 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
 
     # Get a list of task signatures for every task, excluding the first one.
     tasks = []
-    for action in rule.actions[1:]:
+    for action in rule.actions:
         task = run_action_by_id.message(
             rule_id, incident_id, action.id, resource_id,
             resource_type, value, triggered, timestamp,
@@ -78,5 +78,4 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
         delay = config.NO_DATA_ALERT_BUFFER_PERIOD * 1000
 
     # Apply all tasks in parallel
-    from dramatiq import group
     group(tasks).run(delay=delay)

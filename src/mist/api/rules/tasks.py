@@ -42,7 +42,7 @@ def add_nodata_rule(owner_id, backend='graphite'):
         NoDataRule(owner_id=owner_id).ctl.auto_setup(backend=backend)
 
 
-@dramatiq.actor(max_retries=3)
+@dramatiq.actor(max_retries=3, max_age=60_000, queue_name='rules')
 def run_action_by_id(rule_id, incident_id, action_id,
                      resource_id, resource_type, value, triggered, timestamp):
     """Run a Rule's action asynchronously.

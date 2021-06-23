@@ -10,7 +10,8 @@ QUEUES = ['dramatiq_create_machine',
           'dramatiq_ssh_tasks',
           'dramatiq_mappings',
           'dramatiq_schedules',
-          'default']
+          'default',
+          'rules']
 
 POSSIBLE_MODULES = [] # 'mist.api.dramatiq_tasks', 'mist.rbac.dramatiq_tasks']
 
