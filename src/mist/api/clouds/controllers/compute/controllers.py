@@ -52,6 +52,9 @@ from libcloud.container.base import ContainerImage, Container
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
 from libcloud.utils.misc import to_n_bytes_from_k8s_memory_size_str
+from libcloud.utils.misc import to_k8s_memory_size_str_from_n_bytes
+from libcloud.utils.misc import to_cpu_str
+from libcloud.utils.misc import to_n_cpus_from_cpu_str
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -4104,6 +4107,10 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         pod_map = {}
         pods = []
         pod_containers = []
+        pods_metrics = self.connection.list_pods_metrics()
+        pods_metrics_dict = {pods_metrics['metadata']['name']: pods_metrics
+                             for pods_metrics in pods_metrics}
+        containers_metrics_dict = {}
         for pod in self.connection.ex_list_pods():
             pod.type = 'pod'
             pod_map[pod.name] = pod.id
@@ -4115,12 +4122,38 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                     pod.private_ips.append(ip)
                 else:
                     pod.public_ips.append(ip)
+            containers_metrics = pods_metrics_dict.get(
+                pod.name, {}).get('containers')
+            if containers_metrics:
+                total_usage = {'cpu': 0, 'memory': 0}
+                for container_metrics in containers_metrics:
+                    containers_metrics_dict.setdefault(pod.id, {})[
+                        container_metrics['name']] = container_metrics
+                    ctr_cpu_usage = container_metrics['usage']['cpu']
+                    ctr_memory_usage = container_metrics['usage']['memory']
+                    total_usage['cpu'] += to_n_cpus_from_cpu_str(
+                        ctr_cpu_usage)
+                    total_usage['memory'] += \
+                        to_n_bytes_from_k8s_memory_size_str(
+                            ctr_memory_usage)
+                total_usage['cpu'] = to_cpu_str(total_usage['cpu'])
+                total_usage['memory'] = to_k8s_memory_size_str_from_n_bytes(
+                    total_usage['memory']
+                )
+                pod.extra['usage'] = {
+                    'containers': containers_metrics,
+                    'total': total_usage
+                }
             pods.append(node_to_dict(pod))
         containers = []
         for container in pod_containers:
             container.type = 'container'
             container.public_ips, container.private_ips = [], []
             container.parent_id = pod_map.get(container.extra['pod'])
+            metrics = containers_metrics_dict.get(
+                container.parent_id, {}).get(container.name)
+            if metrics:
+                container.extra['usage'] = metrics['usage']
             containers.append(node_to_dict(container))
         machines = nodes + pods + containers
         return machines
