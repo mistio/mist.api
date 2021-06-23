@@ -51,8 +51,8 @@ from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
-from libcloud.utils.misc import to_n_bytes_from_k8s_memory_size_str
-from libcloud.utils.misc import to_k8s_memory_size_str_from_n_bytes
+from libcloud.utils.misc import to_n_bytes_from_memory_str
+from libcloud.utils.misc import to_memory_str_from_n_bytes
 from libcloud.utils.misc import to_cpu_str
 from libcloud.utils.misc import to_n_cpus_from_cpu_str
 from mist.api.exceptions import MistError
@@ -4098,17 +4098,17 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         for node in nodes:
             available_cpu += to_n_cpus_from_cpu_str(
                 node['extra']['cpu'])
-            available_memory += to_n_bytes_from_k8s_memory_size_str(
+            available_memory += to_n_bytes_from_memory_str(
                 node['extra']['memory'])
             used_cpu += to_n_cpus_from_cpu_str(
                 node['extra']['usage']['cpu'])
-            used_memory += to_n_bytes_from_k8s_memory_size_str(
+            used_memory += to_n_bytes_from_memory_str(
                 node['extra']['usage']['memory'])
         return dict(cpu=to_cpu_str(available_cpu),
-                    memory=to_k8s_memory_size_str_from_n_bytes(
+                    memory=to_memory_str_from_n_bytes(
                         available_memory),
                     usage=dict(cpu=to_cpu_str(used_cpu),
-                               memory=to_k8s_memory_size_str_from_n_bytes(
+                               memory=to_memory_str_from_n_bytes(
                                    used_memory)))
 
     def _list_nodes(self, return_node_map=False):
@@ -4163,10 +4163,10 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                     total_usage['cpu'] += to_n_cpus_from_cpu_str(
                         ctr_cpu_usage)
                     total_usage['memory'] += \
-                        to_n_bytes_from_k8s_memory_size_str(
+                        to_n_bytes_from_memory_str(
                             ctr_memory_usage)
                 total_usage['cpu'] = to_cpu_str(total_usage['cpu'])
-                total_usage['memory'] = to_k8s_memory_size_str_from_n_bytes(
+                total_usage['memory'] = to_memory_str_from_n_bytes(
                     total_usage['memory']
                 )
                 pod.extra['usage'] = {
@@ -4254,7 +4254,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         ram = node_size.get('ram')
         if size.ram != ram:
             if isinstance(ram, str) and ram.isalphanum():
-                ram = to_n_bytes_from_k8s_memory_size_str(ram)
+                ram = to_n_bytes_from_memory_str(ram)
             size.ram = ram
             updated = True
         cpu = node_size.get('cpu')
