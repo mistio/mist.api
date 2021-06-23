@@ -4089,8 +4089,29 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
     def list_namespaces(self):
         return [node_to_dict(ns) for ns in self.connection.list_namespaces()]
 
-    def _list_machines__fetch_machines(self):
-        """List all kubernetes machines: nodes, pods and containers"""
+    def get_node_resources(self):
+        nodes = self._list_nodes()
+        available_cpu = 0
+        available_memory = 0
+        used_cpu = 0
+        used_memory = 0
+        for node in nodes:
+            available_cpu += to_n_cpus_from_cpu_str(
+                node['extra']['cpu'])
+            available_memory += to_n_bytes_from_k8s_memory_size_str(
+                node['extra']['memory'])
+            used_cpu += to_n_cpus_from_cpu_str(
+                node['extra']['usage']['cpu'])
+            used_memory += to_n_bytes_from_k8s_memory_size_str(
+                node['extra']['usage']['memory'])
+        return dict(cpu=to_cpu_str(available_cpu),
+                    memory=to_k8s_memory_size_str_from_n_bytes(
+                        available_memory),
+                    usage=dict(cpu=to_cpu_str(used_cpu),
+                               memory=to_k8s_memory_size_str_from_n_bytes(
+                                   used_memory)))
+
+    def _list_nodes(self, return_node_map=False):
         node_map = {}
         nodes = []
         nodes_metrics = self.connection.list_nodes_metrics()
@@ -4104,6 +4125,14 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
             if node_metrics:
                 node.extra['usage'] = node_metrics['usage']
             nodes.append(node_to_dict(node))
+        if return_node_map:
+            return nodes, node_map
+        return nodes
+
+
+    def _list_machines__fetch_machines(self):
+        """List all kubernetes machines: nodes, pods and containers"""
+        nodes, node_map = self._list_nodes(return_node_map=True)
         pod_map = {}
         pods = []
         pod_containers = []

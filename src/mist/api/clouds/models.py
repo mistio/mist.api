@@ -741,6 +741,7 @@ class KubernetesCloud(_KubernetesBaseCloud):
     def as_dict_v2(self, *args, **kwargs):
         ret = super().as_dict_v2(*args, **kwargs)
         ret['namespaces'] = self.ctl.compute.list_namespaces()
+        ret['resources'] = self.ctl.compute.get_node_resources()
         return ret
 
 
