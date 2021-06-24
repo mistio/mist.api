@@ -4089,6 +4089,9 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
     def list_namespaces(self):
         return [node_to_dict(ns) for ns in self.connection.list_namespaces()]
 
+    def list_services(self):
+        return self.connection.list_services()
+
     def get_node_resources(self):
         nodes = self._list_nodes()
         available_cpu = 0
