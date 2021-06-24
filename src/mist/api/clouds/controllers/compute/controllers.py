@@ -4135,7 +4135,6 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
             return nodes, node_map
         return nodes
 
-
     def _list_machines__fetch_machines(self):
         """List all kubernetes machines: nodes, pods and containers"""
         nodes, node_map = self._list_nodes(return_node_map=True)
