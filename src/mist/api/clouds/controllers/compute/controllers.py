@@ -4092,6 +4092,9 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
     def list_services(self):
         return self.connection.list_services()
 
+    def get_version(self):
+        return self.connection.get_version()
+
     def get_node_resources(self):
         nodes = self._list_nodes()
         available_cpu = 0

@@ -743,6 +743,7 @@ class KubernetesCloud(_KubernetesBaseCloud):
         ret['namespaces'] = self.ctl.compute.list_namespaces()
         ret['services'] = self.ctl.compute.list_services()
         ret['resources'] = self.ctl.compute.get_node_resources()
+        ret['version'] = self.ctl.compute.get_version()
         return ret
 
 
