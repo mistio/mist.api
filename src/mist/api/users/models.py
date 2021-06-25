@@ -620,7 +620,7 @@ class Organization(Owner):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
 
-        standard_fields = ['id', 'name', 'clouds_count',
+        standard_fields = ['id', 'name', 'clouds_count', 'members_count',
                            'teams_count', 'created', 'total_machine_count',
                            'enterprise_plan', 'selected_plan', 'enable_r12ns',
                            'default_monitoring_method', 'insights_enabled',
