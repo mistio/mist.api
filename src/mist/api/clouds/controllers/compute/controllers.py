@@ -59,6 +59,7 @@ from mist.api.exceptions import ForbiddenError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
+from mist.api.helpers import startsandendswith
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
@@ -1437,6 +1438,152 @@ class AzureArmComputeController(BaseComputeController):
 
         return super()._list_machines__machine_creation_date(machine,
                                                              node_dict)
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        return networks_dict.get('network')
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size parameter is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+
+        if size < 1:
+            raise BadRequestError('Volume size should be at least 1 GB')
+
+        try:
+            name = volume_dict['name']
+        except KeyError:
+            raise BadRequestError('Volume name parameter is required')
+
+        storage_account_type = volume_dict.get('storage_account_type',
+                                               'StandardSSD_LRS')
+
+        caching_type = volume_dict.get('caching_type', 'None')
+
+        return {
+            'name': name,
+            'size': size,
+            'storage_account_type': storage_account_type,
+            'caching_type': caching_type,
+        }
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        from mist.api.clouds.models import CloudLocation
+
+        location = CloudLocation.objects.get(
+            id=plan['location']['id'], cloud=self.cloud)
+
+        try:
+            resource_group_name = extra['resource_group']
+        except KeyError:
+            resource_group_name = f'mist-{location.external_id}'
+
+        # check if resource group exists
+        try:
+            self.connection.ex_get_resource_group(resource_group_name)
+        except BaseHTTPError as exc:
+            if exc.code == 404:
+                # resource group doesn't exist so we'll have to create it
+                resource_group_exists = False
+            else:
+                # TODO Consider what to raise on other status codes
+                raise BadRequestError(exc)
+        else:
+            resource_group_exists = True
+
+        try:
+            storage_account_name = extra['storage_account']
+        except KeyError:
+            storage_account_name = f'mist-{location.external_id}'
+
+        if resource_group_exists is True:
+            try:
+                storage_account = self.connection.ex_get_storage_account(
+                    storage_account_name,
+                    resource_group_name)
+            except BaseHTTPError as exc:
+                if exc.code == 404:
+                    # storage account doesn't exist so we'll have to create it
+                    storage_account_exists = False
+                else:
+                    # TODO Consider what to raise on other status codes
+                    raise BadRequestError(exc)
+            else:
+                # make sure storage_account is in the same location
+                if storage_account.location != location.external_id:
+                    raise BadRequestError(
+                        'Storage account is in a different location'
+                        ' from the one given')
+                storage_account_exists = True
+        else:
+            # if resource group is new then storage_account is also new
+            storage_account_exists = False
+
+        plan['user'] = extra.get('user') or 'azureuser'
+        if extra.get('password'):
+            plan['password'] = extra['password']
+        plan['resource_group'] = {
+            'name': resource_group_name,
+            'exists': resource_group_exists
+        }
+        plan['storage_account'] = {
+            'name': storage_account_name,
+            'exists': storage_account_exists
+        }
+
+    def _generate_plan__post_parse_plan(self, plan):
+        from mist.api.images.models import CloudImage
+        from mist.api.clouds.models import CloudLocation
+
+        location = CloudLocation.objects.get(
+            id=plan['location']['id'], cloud=self.cloud)
+        image = CloudImage.objects.get(
+            id=plan['image']['id'], cloud=self.cloud)
+
+        if plan.get('password') is None and image.os_type == 'windows':
+            raise BadRequestError('Password is required on Windows images')
+
+        if image.os_type == 'linux':
+            # we don't use password in linux images
+            # so don't return it in plan
+            plan.pop('password', None)
+            if plan.get('key') is None:
+                raise BadRequestError('Key is required on Unix-like images')
+
+        try:
+            network_name = plan.pop('networks')
+        except KeyError:
+            network_name = f'mist-{location.external_id}'
+
+        if plan['resource_group']['exists'] is True:
+            try:
+                network = self.connection.ex_get_network(
+                    network_name,
+                    plan['resource_group']['name'])
+            except BaseHTTPError as exc:
+                if exc.code == 404:
+                    # network doesn't exist so we'll have to create it
+                    network_exists = False
+                else:
+                    # TODO Consider what to raise on other status codes
+                    raise BadRequestError(exc)
+            else:
+                # make sure network is in the same location
+                if network.location != location.external_id:
+                    raise BadRequestError(
+                        'Network is in a different location'
+                        ' from the one given')
+                network_exists = True
+        else:
+            network_exists = False
+
+        plan['networks'] = {
+            'name': network_name,
+            'exists': network_exists
+        }
 
 
 class GoogleComputeController(BaseComputeController):
