@@ -1511,6 +1511,9 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'key': {
+                    'required': False,
+                },
                 'restrictions': {
                     'size-image-restriction': False,
                     'location-size-restriction': True,

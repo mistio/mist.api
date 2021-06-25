@@ -59,7 +59,6 @@ from mist.api.exceptions import ForbiddenError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
-from mist.api.helpers import startsandendswith
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
@@ -1476,51 +1475,12 @@ class AzureArmComputeController(BaseComputeController):
         location = CloudLocation.objects.get(
             id=plan['location']['id'], cloud=self.cloud)
 
-        try:
-            resource_group_name = extra['resource_group']
-        except KeyError:
-            resource_group_name = f'mist-{location.external_id}'
+        resource_group_name = extra.get('resource_group') or 'mist'
+        if not re.match(r'^[-\w\._\(\)]+$', resource_group_name):
+            raise BadRequestError('Invalid resource group name')
 
-        # check if resource group exists
-        try:
-            self.connection.ex_get_resource_group(resource_group_name)
-        except BaseHTTPError as exc:
-            if exc.code == 404:
-                # resource group doesn't exist so we'll have to create it
-                resource_group_exists = False
-            else:
-                # TODO Consider what to raise on other status codes
-                raise BadRequestError(exc)
-        else:
-            resource_group_exists = True
-
-        try:
-            storage_account_name = extra['storage_account']
-        except KeyError:
-            storage_account_name = f'mist-{location.external_id}'
-
-        if resource_group_exists is True:
-            try:
-                storage_account = self.connection.ex_get_storage_account(
-                    storage_account_name,
-                    resource_group_name)
-            except BaseHTTPError as exc:
-                if exc.code == 404:
-                    # storage account doesn't exist so we'll have to create it
-                    storage_account_exists = False
-                else:
-                    # TODO Consider what to raise on other status codes
-                    raise BadRequestError(exc)
-            else:
-                # make sure storage_account is in the same location
-                if storage_account.location != location.external_id:
-                    raise BadRequestError(
-                        'Storage account is in a different location'
-                        ' from the one given')
-                storage_account_exists = True
-        else:
-            # if resource group is new then storage_account is also new
-            storage_account_exists = False
+        resource_group_exists = self.connection.ex_resource_group_exists(
+            resource_group_name)
 
         plan['user'] = extra.get('user') or 'azureuser'
         if extra.get('password'):
@@ -1528,10 +1488,6 @@ class AzureArmComputeController(BaseComputeController):
         plan['resource_group'] = {
             'name': resource_group_name,
             'exists': resource_group_exists
-        }
-        plan['storage_account'] = {
-            'name': storage_account_name,
-            'exists': storage_account_exists
         }
 
     def _generate_plan__post_parse_plan(self, plan):
@@ -1556,7 +1512,11 @@ class AzureArmComputeController(BaseComputeController):
         try:
             network_name = plan.pop('networks')
         except KeyError:
-            network_name = f'mist-{location.external_id}'
+            if plan['resource_group']['name'] == 'mist':
+                network_name = (f'mist-{location.external_id}')
+            else:
+                network_name = (f"mist-{plan['resource_group']['name']}"
+                                f"-{location.external_id}")
 
         if plan['resource_group']['exists'] is True:
             try:
