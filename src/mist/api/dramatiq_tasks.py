@@ -160,8 +160,9 @@ def dramatiq_create_machine_async(
     if plan.get('key'):
         try:
             key = Key.objects.get(id=plan["key"]["id"])
-            username = plan['key'].get('user') or \
-                node.extra.get("username", "")
+            username = (plan['key'].get('user') or
+                        plan.get('user') or
+                        node.extra.get("username", ""))
             # TODO port could be something else
             machine.ctl.associate_key(
                 key, username=username, port=22, no_connect=True

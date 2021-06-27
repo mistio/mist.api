@@ -2709,6 +2709,48 @@ GCE_IMAGES = ['debian-cloud',
               'ubuntu-os-cloud',
               'windows-cloud']
 
+AZURE_SECURITY_RULES = [
+    {
+        "name": "allowSSHInbound",
+        "properties": {
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "access": "Allow",
+            "destinationPortRange": "22",
+            "sourcePortRange": "*",
+            "priority": 200,
+            "direction": "Inbound"
+        }
+    },
+    {
+        "name": "allowRDPInbound",
+        "properties": {
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "access": "Allow",
+            "destinationPortRange": "3389",
+            "sourcePortRange": "*",
+            "priority": 201,
+            "direction": "Inbound"
+        }
+    },
+    {
+        "name": "allowMonitoringOutbound",
+        "properties": {
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "access": "Allow",
+            "destinationPortRange": "25826",
+            "sourcePortRange": "*",
+            "priority": 202,
+            "direction": "Outbound"
+        }
+    }
+]
+
 RESET_PASSWORD_EXPIRATION_TIME = 60 * 60 * 24
 
 WHITELIST_IP_EXPIRATION_TIME = 60 * 60 * 24

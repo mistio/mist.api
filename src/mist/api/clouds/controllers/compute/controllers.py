@@ -32,6 +32,7 @@ import pytz
 import asyncio
 import os
 import json
+import time
 
 import mongoengine as me
 
@@ -42,7 +43,7 @@ from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price, get_pricing
 from libcloud.compute.base import Node, NodeImage, NodeLocation
-from libcloud.compute.base import NodeAuthSSHKey
+from libcloud.compute.base import NodeAuthSSHKey, NodeAuthPassword
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -56,6 +57,7 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import ForbiddenError
+from mist.api.exceptions import MachineCreationError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
@@ -1499,8 +1501,10 @@ class AzureArmComputeController(BaseComputeController):
         image = CloudImage.objects.get(
             id=plan['image']['id'], cloud=self.cloud)
 
-        if plan.get('password') is None and image.os_type == 'windows':
-            raise BadRequestError('Password is required on Windows images')
+        if image.os_type == 'windows':
+            plan.pop('key', None)
+            if plan.get('password') is None:
+                raise BadRequestError('Password is required on Windows images')
 
         if image.os_type == 'linux':
             # we don't use password in linux images
@@ -1545,6 +1549,102 @@ class AzureArmComputeController(BaseComputeController):
             'exists': network_exists
         }
 
+    def _create_machine__get_image_object(self, image):
+        from mist.api.images.models import CloudImage
+        from libcloud.compute.drivers.azure_arm import AzureImage
+        cloud_image = CloudImage.objects.get(id=image)
+
+        publisher, offer, sku, version = cloud_image.external_id.split(':')
+        image_obj = AzureImage(version, sku, offer, publisher, None, None)
+        return image_obj
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        # TODO
+        # ex_data_disks=data_disks,
+        # ex_storage_account_type=storage_account_type
+        kwargs['ex_user_name'] = plan['user']
+        kwargs['ex_use_managed_disks'] = True
+        kwargs['ex_customdata'] = plan.get('cloudinit', '')
+
+        key = kwargs.pop('auth', None)
+        if key:
+            kwargs['auth'] = NodeAuthSSHKey(key.public)
+        else:
+            kwargs['auth'] = NodeAuthPassword(plan['password'])
+
+        if plan['resource_group']['exists'] is False:
+            try:
+                self.connection.ex_create_resource_group(
+                    plan['resource_group']['name'], kwargs['location'])
+            except BaseHTTPError as exc:
+                raise MachineCreationError(
+                    'Could not create resource group: %s' % exc)
+            # add delay because sometimes the resource group is not yet ready
+            time.sleep(5)
+        kwargs['ex_resource_group'] = plan['resource_group']['name']
+
+        if plan['networks']['exists'] is False:
+            try:
+                security_group = self.connection.ex_create_network_security_group(
+                    plan['networks']['name'],
+                    kwargs['ex_resource_group'],
+                    location=kwargs['location'],
+                    securityRules=config.AZURE_SECURITY_RULES
+                )
+            except BaseHTTPError as exc:
+                raise MachineCreationError(
+                    'Could not create security group: %s' % exc)
+
+            # add delay because sometimes the security group is not yet ready
+            time.sleep(3)
+
+            try:
+                network = self.connection.ex_create_network(
+                    plan['networks']['name'],
+                    kwargs['ex_resource_group'],
+                    location=kwargs['location'],
+                    networkSecurityGroup=security_group.id)
+            except BaseHTTPError as exc:
+                raise MachineCreationError(
+                    'Could not create network: %s' % exc)
+            time.sleep(3)
+        else:
+            try:
+                network = self.connection.ex_get_network(
+                    plan['networks']['name'],
+                    kwargs['ex_resource_group'],
+                )
+            except BaseHTTPError as exc:
+                raise MachineCreationError(
+                    'Could not fetch network: %s' % exc)
+
+        try:
+            subnet = self.connection.ex_list_subnets(network)[0]
+        except BaseHTTPError as exc:
+            raise MachineCreationError(
+                'Could not create network: %s' % exc)
+
+        try:
+            ip = self.connection.ex_create_public_ip(
+                kwargs['name'],
+                kwargs['ex_resource_group'],
+                kwargs['location'])
+        except BaseHTTPError as exc:
+            raise MachineCreationError('Could not create new ip: %s' % exc)
+
+        try:
+            nic = self.connection.ex_create_network_interface(
+                kwargs['name'],
+                subnet,
+                kwargs['ex_resource_group'],
+                location=kwargs['location'],
+                public_ip=ip)
+        except Exception as exc:
+            raise MachineCreationError(
+                'Could not create network interface: %s' % exc)
+        kwargs['ex_nic'] = nic
+        return kwargs
 
 class GoogleComputeController(BaseComputeController):
 
@@ -3781,7 +3881,6 @@ class LibvirtComputeController(BaseComputeController):
 
     def _create_machine__compute_kwargs(self, plan):
         from mist.api.machines.models import Machine
-        from mist.api.exceptions import MachineCreationError
         kwargs = super()._create_machine__compute_kwargs(plan)
         location_id = kwargs.pop('location')
         try:
