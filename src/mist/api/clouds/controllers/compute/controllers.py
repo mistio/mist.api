@@ -4090,10 +4090,10 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         return [node_to_dict(ns) for ns in self.connection.list_namespaces()]
 
     def list_services(self):
-        return self.connection.list_services()
+        return self.connection.ex_list_services()
 
     def get_version(self):
-        return self.connection.get_version()
+        return self.connection.ex_get_version()
 
     def get_node_resources(self):
         nodes = self._list_nodes()
@@ -4120,7 +4120,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
     def _list_nodes(self, return_node_map=False):
         node_map = {}
         nodes = []
-        nodes_metrics = self.connection.list_nodes_metrics()
+        nodes_metrics = self.connection.ex_list_nodes_metrics()
         nodes_metrics_dict = {node_metrics['metadata']['name']: node_metrics
                               for node_metrics in nodes_metrics}
         for node in self.connection.ex_list_nodes():
@@ -4141,7 +4141,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         pod_map = {}
         pods = []
         pod_containers = []
-        pods_metrics = self.connection.list_pods_metrics()
+        pods_metrics = self.connection.ex_list_pods_metrics()
         pods_metrics_dict = {pods_metrics['metadata']['name']: pods_metrics
                              for pods_metrics in pods_metrics}
         containers_metrics_dict = {}
