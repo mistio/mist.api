@@ -33,6 +33,7 @@ import asyncio
 import os
 import json
 import time
+import secrets
 
 import mongoengine as me
 
@@ -1461,8 +1462,21 @@ class AzureArmComputeController(BaseComputeController):
 
         storage_account_type = volume_dict.get('storage_account_type',
                                                'StandardSSD_LRS')
+        # https://docs.microsoft.com/en-us/rest/api/compute/virtual-machines/create-or-update#storageaccounttypes  noqa
+        if storage_account_type not in {'Premium_LRS',
+                                        'Premium_ZRS',
+                                        'StandardSSD_LRS',
+                                        'Standard_LRS',
+                                        'StandardSSD_ZRS',
+                                        'UltraSSD_LRS'}:
+            raise BadRequestError('Invalid storage account type for volume')
 
         caching_type = volume_dict.get('caching_type', 'None')
+        if caching_type not in {'None',
+                                'ReadOnly',
+                                'ReadWrite',
+                                }:
+            raise BadRequestError('Invalid caching type')
 
         return {
             'name': name,
@@ -1483,14 +1497,25 @@ class AzureArmComputeController(BaseComputeController):
 
         resource_group_exists = self.connection.ex_resource_group_exists(
             resource_group_name)
-
-        plan['user'] = extra.get('user') or 'azureuser'
-        if extra.get('password'):
-            plan['password'] = extra['password']
         plan['resource_group'] = {
             'name': resource_group_name,
             'exists': resource_group_exists
         }
+
+        storage_account_type = extra.get('storage_account_type',
+                                         'StandardSSD_LRS')
+        # https://docs.microsoft.com/en-us/rest/api/compute/virtual-machines/create-or-update#storageaccounttypes  noqa
+        if storage_account_type not in {'Premium_LRS',
+                                        'Premium_ZRS',
+                                        'StandardSSD_LRS',
+                                        'StandardSSD_ZRS',
+                                        'Standard_LRS'}:
+            raise BadRequestError('Invalid storage account type for OS disk')
+        plan['storage_account_type'] = storage_account_type
+
+        plan['user'] = extra.get('user') or 'azureuser'
+        if extra.get('password'):
+            plan['password'] = extra['password']
 
     def _generate_plan__post_parse_plan(self, plan):
         from mist.api.images.models import CloudImage
@@ -1543,7 +1568,6 @@ class AzureArmComputeController(BaseComputeController):
                 network_exists = True
         else:
             network_exists = False
-
         plan['networks'] = {
             'name': network_name,
             'exists': network_exists
@@ -1560,11 +1584,9 @@ class AzureArmComputeController(BaseComputeController):
 
     def _create_machine__compute_kwargs(self, plan):
         kwargs = super()._create_machine__compute_kwargs(plan)
-        # TODO
-        # ex_data_disks=data_disks,
-        # ex_storage_account_type=storage_account_type
         kwargs['ex_user_name'] = plan['user']
         kwargs['ex_use_managed_disks'] = True
+        kwargs['ex_storage_account_type'] = plan['storage_account_type']
         kwargs['ex_customdata'] = plan.get('cloudinit', '')
 
         key = kwargs.pop('auth', None)
@@ -1625,9 +1647,11 @@ class AzureArmComputeController(BaseComputeController):
             raise MachineCreationError(
                 'Could not create network: %s' % exc)
 
+        # avoid naming collisions when nic/ip with the same name exists
+        temp_name = f"{kwargs['name']}-{secrets.token_hex(3)}"
         try:
             ip = self.connection.ex_create_public_ip(
-                kwargs['name'],
+                temp_name,
                 kwargs['ex_resource_group'],
                 kwargs['location'])
         except BaseHTTPError as exc:
@@ -1635,7 +1659,7 @@ class AzureArmComputeController(BaseComputeController):
 
         try:
             nic = self.connection.ex_create_network_interface(
-                kwargs['name'],
+                temp_name,
                 subnet,
                 kwargs['ex_resource_group'],
                 location=kwargs['location'],
@@ -1644,7 +1668,27 @@ class AzureArmComputeController(BaseComputeController):
             raise MachineCreationError(
                 'Could not create network interface: %s' % exc)
         kwargs['ex_nic'] = nic
+
+        data_disks = []
+        for volume in plan.get('volumes', []):
+            if volume.get('id'):
+                from mist.api.volumes.models import Volume
+                try:
+                    mist_vol = Volume.objects.get(id=volume['id'])
+                except me.DoesNotExist:
+                    continue
+                data_disks.append({'id': mist_vol.external_id})
+            else:
+                data_disks.append({
+                    'name': volume['name'],
+                    'size': volume['size'],
+                    'storage_account_type': volume['storage_account_type'],
+                    'host_caching': volume['caching_type'],
+                })
+        if data_disks:
+            kwargs['ex_data_disks'] = data_disks
         return kwargs
+
 
 class GoogleComputeController(BaseComputeController):
 
