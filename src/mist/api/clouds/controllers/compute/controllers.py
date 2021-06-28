@@ -62,6 +62,7 @@ from mist.api.exceptions import MachineCreationError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
+from mist.api.helpers import generate_secure_password, validate_password
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
@@ -1019,8 +1020,6 @@ class LinodeComputeController(BaseComputeController):
         return {'private_ip': private_ip}
 
     def _generate_plan__parse_extra(self, extra, plan):
-        from mist.api.helpers import (generate_secure_password,
-                                      validate_password)
         try:
             root_pass = extra['root_pass']
         except KeyError:
@@ -1462,7 +1461,7 @@ class AzureArmComputeController(BaseComputeController):
 
         storage_account_type = volume_dict.get('storage_account_type',
                                                'StandardSSD_LRS')
-        # https://docs.microsoft.com/en-us/rest/api/compute/virtual-machines/create-or-update#storageaccounttypes  noqa
+        # https://docs.microsoft.com/en-us/rest/api/compute/virtual-machines/create-or-update#storageaccounttypes  # noqa
         if storage_account_type not in {'Premium_LRS',
                                         'Premium_ZRS',
                                         'StandardSSD_LRS',
@@ -1504,7 +1503,7 @@ class AzureArmComputeController(BaseComputeController):
 
         storage_account_type = extra.get('storage_account_type',
                                          'StandardSSD_LRS')
-        # https://docs.microsoft.com/en-us/rest/api/compute/virtual-machines/create-or-update#storageaccounttypes  noqa
+        # https://docs.microsoft.com/en-us/rest/api/compute/virtual-machines/create-or-update#storageaccounttypes    # noqa
         if storage_account_type not in {'Premium_LRS',
                                         'Premium_ZRS',
                                         'StandardSSD_LRS',
@@ -1515,6 +1514,11 @@ class AzureArmComputeController(BaseComputeController):
 
         plan['user'] = extra.get('user') or 'azureuser'
         if extra.get('password'):
+            if validate_password(extra['password']) is False:
+                raise BadRequestError(
+                    'Password  must be between 8-123 characters long and '
+                    'contain: an uppercase character, a lowercase character'
+                    ' and a numeric digit')
             plan['password'] = extra['password']
 
     def _generate_plan__post_parse_plan(self, plan):
@@ -1608,7 +1612,7 @@ class AzureArmComputeController(BaseComputeController):
 
         if plan['networks']['exists'] is False:
             try:
-                security_group = self.connection.ex_create_network_security_group(
+                security_group = self.connection.ex_create_network_security_group(  # noqa
                     plan['networks']['name'],
                     kwargs['ex_resource_group'],
                     location=kwargs['location'],
