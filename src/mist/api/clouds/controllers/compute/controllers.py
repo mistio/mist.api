@@ -4211,7 +4211,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                     machine.parent = machine_parent
                     updated = True
         node_cpu = node_dict.get('extra', {}).get('cpu')
-        if node_cpu and (isinstance(node_cpu, int) or node_cpu.is_digit()):
+        if node_cpu and (isinstance(node_cpu, int) or node_cpu.isdigit()):
             machine.cores = node_cpu
             updated = True
         os_type = node_dict.get('extra', {}).get('os')
