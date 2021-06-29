@@ -4259,7 +4259,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
             updated = True
         ram = node_size.get('ram')
         if size.ram != ram:
-            if isinstance(ram, str) and ram.isalphanum():
+            if isinstance(ram, str) and ram.isalnum():
                 ram = to_n_bytes_from_memory_str(ram)
             size.ram = ram
             updated = True
