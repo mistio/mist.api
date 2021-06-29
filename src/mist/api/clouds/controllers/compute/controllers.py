@@ -4178,6 +4178,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                     'containers': containers_metrics,
                     'total': total_usage
                 }
+            pod.extra['namespace'] = pod.namespace
             pods.append(node_to_dict(pod))
         containers = []
         for container in pod_containers:
