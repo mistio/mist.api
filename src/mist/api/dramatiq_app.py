@@ -7,10 +7,13 @@ import dramatiq
 
 from dramatiq.middleware import Middleware
 from dramatiq.brokers.rabbitmq import RabbitmqBroker
+from dramatiq.results.backends import MemcachedBackend
+from dramatiq.results import Results
 
 from mist.api import config
 from mist.api.poller.models import PollingSchedule
 from mist.api.rules.models import Rule
+from mist.api.schedules.models import Schedule
 
 log = logging.getLogger(__name__)
 
@@ -24,12 +27,26 @@ class LoggingMiddleware(Middleware):
         msg_id = '{}[{}]'.format(message.actor_name, message.message_id)
         msg = 'Starting task:  %s' % msg_id
         try:
+            sched = None
             if message._message.args:
-                try:
-                    sched = PollingSchedule.objects.get(
-                        id=message._message.args[0])
-                except me.ValidationError:
-                    sched = Rule.objects.get(id=message._message.args[0])
+                args = message._message.args
+                if len(args) > 4:
+                    try:
+                        sched = Schedule.objects.get(
+                            name=args[2], owner=args[0], deleted=None)
+                    except Schedule.DoesNotExist:
+                        pass
+                if not sched and args:
+                    try:
+                        sched = PollingSchedule.objects.get(
+                            id=message._message.args[0])
+                    except me.ValidationError:
+                        try:
+                            sched = Rule.objects.get(
+                                id=message._message.args[0])
+                        except Rule.DoesNotExist:
+                            log.warn("args: ", message._message,
+                                     dir(message._message))
                 if getattr(sched, 'org', None):
                     msg += "\nOrg: %s" % sched.org.name
                 elif getattr(sched, 'cloud', None):
@@ -39,6 +56,9 @@ class LoggingMiddleware(Middleware):
                     msg += "\nMachine: %s\nCloud: %s\nOrg: %s" % (
                         sched.machine.name, sched.machine.cloud.name,
                         sched.machine.org.name)
+                elif getattr(sched, 'get_resources', None):
+                    msg += "\nSchedule: %s\nResources: %s" % (
+                        sched.name, sched.get_resources())
                 else:
                     msg += "\n%s - %s" % (sched.__class__, sched.task)
                 log.info(msg)
@@ -74,4 +94,6 @@ class MongoConnectMiddleware(Middleware):
 broker = RabbitmqBroker(url=config.BROKER_URL + '?heartbeat=600')
 broker.add_middleware(LoggingMiddleware())
 broker.add_middleware(MongoConnectMiddleware())
+result_backend = MemcachedBackend(servers=[config.MEMCACHED_HOST])
+broker.add_middleware(Results(backend=result_backend))
 dramatiq.set_broker(broker)

@@ -76,6 +76,7 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
+MEMCACHED_HOST = "memcached"
 DATABASE_VERSION = 13
 
 UI_TEMPLATE_URL = "http://ui"

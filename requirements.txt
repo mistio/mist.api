@@ -37,6 +37,7 @@ pingparsing
 pretty
 prometheus-client
 pycryptodome
+pylibmc
 pymongo
 pyyaml
 pyramid

@@ -355,9 +355,10 @@ class BaseMainController(object):
         # to `None`. For that, we schedule a task in the future to ensure that
         # dramatiq has executed all respective poller tasks first.
         from mist.api.tasks import set_missing_since, delete_periodic_tasks
-        set_missing_since.send_with_options(args=(self.cloud.id, ), delay=30)
+        set_missing_since.send_with_options(
+            args=(self.cloud.id, ), delay=30_000)
         delete_periodic_tasks.send_with_options(
-            args=(self.cloud.id, ), delay=30)
+            args=(self.cloud.id, ), delay=30_000)
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
@@ -484,7 +485,7 @@ class BaseMainController(object):
             self.cloud.deleted = datetime.datetime.utcnow()
             self.cloud.save()
             set_missing_since.send_with_options(
-                args=(self.cloud.id, ), delay=30)
+                args=(self.cloud.id, ), delay=30_000)
 
     def disconnect(self):
         self.compute.disconnect()

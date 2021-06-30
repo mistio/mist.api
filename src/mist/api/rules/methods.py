@@ -76,6 +76,6 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
     # Buffer no-data alerts so that we can decide on false-positives.
     if isinstance(rule.actions[0], NoDataAction):
         delay = config.NO_DATA_ALERT_BUFFER_PERIOD * 1000
-
+    from mist.api.dramatiq_app import dramatiq
     # Apply all tasks in parallel
-    group(tasks).run(delay=delay)
+    dramatiq.group(tasks).run(delay=delay)

@@ -513,7 +513,7 @@ def create_machine(request):
         args = (auth_context.serialize(), ) + args
         kwargs.update({'quantity': quantity, 'persist': persist})
         tasks.create_machine_async.send_with_options(
-            args=args, kwargs=kwargs, delay=2)
+            args=args, kwargs=kwargs, delay=1_000)
         ret = {'job_id': job_id}
     ret.update({'job': job})
     return ret
@@ -879,7 +879,7 @@ def machine_actions(request):
             args = (auth_context.serialize(), machine.id, name)
             kwargs = {'job': job, 'job_id': job_id}
             tasks.clone_machine_async.send_with_options(
-                args=args, kwargs=kwargs, delay=2)
+                args=args, kwargs=kwargs, delay=1_000)
         else:
             ret = getattr(machine.ctl, action)(name)
         ret.update({'job': job, 'job_id': job_id})

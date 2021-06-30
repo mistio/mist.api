@@ -233,7 +233,8 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
         raise Exception("Can not reissue an API token session.")
 
     if after:
-        revoke_token.send(args=(session.token, ), countdown=after)
+        revoke_token.send_with_options(
+            args=(session.token, ), delay=after * 1000)
     else:
         session.invalidate()
         session.save()

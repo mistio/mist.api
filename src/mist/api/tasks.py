@@ -780,7 +780,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None,
     return True
 
 
-@dramatiq.actor
+@dramatiq.actor(store_results=True)
 def group_machines_actions(owner_id, action, name, machines_uuids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
@@ -840,6 +840,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     # Apply all tasks in parallel
     from dramatiq import group
     g = group(tasks).run()
+    g.wait(timeout=3600_000)
     log_dict.update({
         'last_run_at': str(schedule.last_run_at or ''),
         'total_run_count': schedule.total_run_count or 0,
@@ -998,7 +999,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         )
 
 
-@dramatiq.actor
+@dramatiq.actor(store_results=True)
 def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
@@ -1044,6 +1045,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     # Apply all tasks in parallel
     from dramatiq import group
     g = group(tasks).run()
+    g.wait(timeout=3_600_000)
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                      'total_run_count': schedule.total_run_count or 0,
                      'error': log_dict['error']}
@@ -1058,7 +1060,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     return log_dict
 
 
-@dramatiq.actor(time_limit=3_600_000)
+@dramatiq.actor(time_limit=3_600_000, store_results=True)
 def run_script(owner, script_id, machine_uuid, params='', host='',
                key_id='', username='', password='', port=22, job_id='', job='',
                action_prefix='', su=False, env=""):
@@ -1154,27 +1156,15 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
                 shell, params=params, job_id=ret.get('job_id')
             )
 
-            with open(os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(
-                    os.path.dirname(os.path.abspath(__file__))))),
-                'run_script', 'run.py'
-            )) as fobj:
-                wscript = fobj.read()
+            command = "chmod +x %s && %s %s" % (path, path, params)
 
-            # check whether python exists
-
-            exit_code, wstdout = shell.command("command -v python")
-
-            if exit_code > 0:
-                command = "chmod +x %s && %s %s" % (path, path, params)
-            else:
-                command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
             if su:
                 command = "sudo sh -c '%s'" % command
             ret['command'] = command
     except Exception as exc:
         ret['error'] = str(exc)
     log_event(event_type='job', action=action_prefix + 'script_started', **ret)
+    ret.pop('command')
     log.info('Script started: %s', ret)
     if not ret['error']:
         try:
@@ -1198,25 +1188,8 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
                 exit_code, wstdout = shell.command(command)
                 shell.disconnect()
             wstdout = wstdout.replace('\r\n', '\n').replace('\r', '\n')
-            ret['wrapper_stdout'] = wstdout
             ret['exit_code'] = exit_code
             ret['stdout'] = wstdout
-            try:
-                parts = re.findall(
-                    r'-----part-([^-]*)-([^-]*)-----\n(.*?)-----part-end-\2-----\n',  # noqa
-                    wstdout, re.DOTALL)
-                if parts:
-                    randid = parts[0][1]
-                    for part in parts:
-                        if part[1] != randid:
-                            raise Exception('Different rand ids')
-                    for part in parts:
-                        if part[0] == 'script':
-                            ret['stdout'] = part[2]
-                        elif part[0] == 'outfile':
-                            ret['extra_output'] = part[2]
-            except Exception as exc:
-                pass
             if exit_code > 0:
                 ret['error'] = 'Script exited with return code %s' % exit_code
         # TODO: Fix for dramatiq
