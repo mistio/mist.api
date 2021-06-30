@@ -636,11 +636,9 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
             except PolicyUnauthorizedError:
                 continue
 
-        expiration = None
-        if config.HAS_RBAC:
-            from mist.rbac.methods import get_expiration_from_constraint
-            expiration = get_expiration_from_constraint(auth_context)
-
+        _, constraints = auth_context.check_perm('machine', 'create',
+                                                 None)
+        expiration = contraints.get('expiration')
         if expiration:
             expiry_date = convert_to_datetime(expiration['default'])
             expiry_timestamp = int(expiry_date.timestamp())
