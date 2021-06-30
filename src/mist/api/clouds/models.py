@@ -69,6 +69,7 @@ def _populate_clouds():
     CLOUDS['google'] = CLOUDS['gce']
     CLOUDS['ibm'] = CLOUDS['softlayer']
     CLOUDS['equinix'] = CLOUDS['equinixmetal']
+    CLOUDS['azure'] = CLOUDS['azure_arm']
 
 
 class Cloud(OwnershipMixin, me.Document):
