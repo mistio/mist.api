@@ -42,7 +42,8 @@ __all__ = [
     "LibvirtCloud",
     "OnAppCloud",
     "OtherCloud",
-    "KubeVirtCloud"
+    "KubeVirtCloud",
+    "KubernetesCloud"
 ]
 # This is a map from provider name to provider class, eg:
 # 'linode': LinodeCloud
@@ -56,8 +57,8 @@ log = logging.getLogger(__name__)
 def _populate_clouds():
     """Populates CLOUDS variable with mappings from providers to clouds"""
     for key, value in list(globals().items()):
-        if key.endswith('Cloud') and key != 'Cloud':
-            value = globals()[key]
+        if not key.startswith('_') and key.endswith(
+                'Cloud') and key != 'Cloud':
             if not value._controller_cls:
                 continue
             if issubclass(value, Cloud) and value is not Cloud:
@@ -713,29 +714,38 @@ class OtherCloud(Cloud):
     _controller_cls = controllers.OtherMainController
 
 
-class KubeVirtCloud(Cloud):
+class _KubernetesBaseCloud(Cloud):
     host = me.StringField(required=True)
     port = me.IntField(required=True, default=6443)
-
     # USER / PASS authentication optional
     username = me.StringField(required=False)
     password = me.StringField(required=False)
-
     # Bearer Token authentication optional
     token = me.StringField(required=False)
-
     # TLS Authentication
     key_file = me.StringField(required=False)
     cert_file = me.StringField(required=False)
-
     # certificate authority
     ca_cert_file = me.StringField(required=False)
-
     # certificate verification
     verify = me.BooleanField(required=False)
-
     _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
+
+
+class KubeVirtCloud(_KubernetesBaseCloud):
     _controller_cls = controllers.KubeVirtMainController
+
+
+class KubernetesCloud(_KubernetesBaseCloud):
+    _controller_cls = controllers.KubernetesMainController
+
+    def as_dict_v2(self, *args, **kwargs):
+        ret = super().as_dict_v2(*args, **kwargs)
+        ret['namespaces'] = self.ctl.compute.list_namespaces()
+        ret['services'] = self.ctl.compute.list_services()
+        ret['resources'] = self.ctl.compute.get_node_resources()
+        ret['version'] = self.ctl.compute.get_version()
+        return ret
 
 
 class CloudSigmaCloud(Cloud):

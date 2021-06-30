@@ -450,6 +450,30 @@ class BaseComputeController(BaseController):
             log.warning("Error while closing connection: %r", exc)
         return machines
 
+    def _update_machine_image(self, node, machine, images_map):
+        updated = False
+        try:
+            image = images_map.get(self._list_machines__get_image(node)) or \
+                self._list_machines__get_custom_image(node)
+            if machine.image != image:
+                machine.image = image
+                updated = True
+        except Exception as exc:
+            log.error("Error getting image of %s: %r", machine, exc)
+        return updated
+
+    def _update_machine_size(self, node, machine, sizes_map):
+        updated = False
+        try:
+            size = sizes_map.get(self._list_machines__get_size(node)) or \
+                self._list_machines__get_custom_size(node)
+            if machine.size != size:
+                machine.size = size
+                updated = True
+        except Exception as exc:
+            log.error("Error getting size of %s: %r", machine, exc)
+        return updated
+
     def _update_machine_from_node(self, node, locations_map, sizes_map,
                                   images_map, now):
         is_new = False
@@ -479,28 +503,11 @@ class BaseComputeController(BaseController):
                 machine.location = locations_map.get(location_id)
                 updated = True
 
-        # Discover image of machine
-        image_id = ''
+        updated = self._update_machine_image(
+            node, machine, images_map) or updated
 
-        if isinstance(node.get('image'), dict) and node['image'].get('id'):
-            image_id = node['image']['id']
-        elif node.get('image'):
-            image_id = node.get('image')
-        elif isinstance(node['extra'].get('image'), dict):
-            image_id = str(node['extra'].get('image').get('id'))
-
-        if not image_id:
-            image_id = str(node.get('image') or node['extra'].get('imageId') or
-                           node['extra'].get('image_id') or
-                           node['extra'].get('image'))
-        if not image_id:
-            image_id = node['extra'].get('operating_system')
-            if isinstance(image_id, dict):
-                image_id = image_id.get('name')
-
-        if machine.image != images_map.get(image_id):
-            machine.image = images_map.get(image_id)
-            updated = True
+        updated = self._update_machine_size(
+            node, machine, sizes_map) or updated
 
         # set machine's os_type from image's os_type, but if
         # info of os_type can be obtained from libcloud node, then
@@ -508,26 +515,14 @@ class BaseComputeController(BaseController):
         if machine.image:
             machine.os_type = machine.image.os_type
 
-        # Attempt to map machine's size to a CloudSize object. If not
-        # successful, try to discover custom size.
-        try:
-            size = self._list_machines__get_size(node)
-            if size and size in sizes_map:
-                size = sizes_map.get(size)
-            else:
-                size = self._list_machines__get_custom_size(node)
-            if machine.size != size:
-                machine.size = size
-                updated = True
-        except Exception as exc:
-            log.error("Error getting size of %s: %r", machine, exc)
-
         if machine.name != node['name']:
             machine.name = node['name']
             updated = True
 
-        if machine.state != config.STATES[node['state']]:
-            machine.state = config.STATES[node['state']]
+        node_state = node.get('state')
+        config_state = config.STATES.get(node_state)
+        if node_state and config_state and machine.state != config_state:
+            machine.state = config_state
             updated = True
 
         new_private_ips = list(set(node['private_ips']))
@@ -681,6 +676,33 @@ class BaseComputeController(BaseController):
         if KeyMachineAssociation.objects(machine=machine).count():
             machine.actions.reboot = True
         machine.actions.tag = True
+
+    def _list_machines__get_image(self, node):
+        """Return key of images_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        image_id = ''
+        if isinstance(node.get('image'), dict) and node['image'].get('id'):
+            image_id = node['image']['id']
+        elif node.get('image'):
+            image_id = node.get('image')
+        elif isinstance(node.get('extra', {}).get('image'), dict):
+            image_id = str(node['extra'].get('image').get('id'))
+        if not image_id:
+            image_id = str(node.get('image') or node.get(
+                           'extra', {}).get('imageId') or
+                           node.get('extra', {}).get('image_id') or
+                           node.get('extra', {}).get('image'))
+        if not image_id:
+            image_id = node.get('extra', {}).get('operating_system')
+            if isinstance(image_id, dict):
+                image_id = image_id.get('name')
+        return image_id
+
+    def _list_machines__get_custom_image(self, node):
+        """Return image metadata for node"""
+        return None
 
     def _list_machines__get_size(self, node):
         """Return key of size_map dict for a specific node
