@@ -94,6 +94,6 @@ class MongoConnectMiddleware(Middleware):
 broker = RabbitmqBroker(url=config.BROKER_URL + '?heartbeat=600')
 broker.add_middleware(LoggingMiddleware())
 broker.add_middleware(MongoConnectMiddleware())
-result_backend = MemcachedBackend(servers=[config.MEMCACHED_HOST])
+result_backend = MemcachedBackend(servers=config.MEMCACHED_HOST)
 broker.add_middleware(Results(backend=result_backend))
 dramatiq.set_broker(broker)

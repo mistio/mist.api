@@ -42,6 +42,7 @@ DESCRIPTION = "A secure cloud management platform for automation,\
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
+MEMCACHED_HOST = ["memcached":11211]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
@@ -76,7 +77,6 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-MEMCACHED_HOST = "memcached"
 DATABASE_VERSION = 13
 
 UI_TEMPLATE_URL = "http://ui"
