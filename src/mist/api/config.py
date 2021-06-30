@@ -56,6 +56,19 @@ BACKUP_INTERVAL = 24
 LANDING_CDN_URI = ""
 BLOG_CDN_URI = ""
 
+METERING_METRICS = [
+    {
+        'name': 'total_cores_hours',
+        'value': (
+            'def metering_value():\n'
+            '   if machine.state == "running":\n'
+            '       return machine.cores\n'
+            '   return 0\n'
+        ),
+        'type': 'counter'
+    }
+]
+
 # backups
 BACKUP = {
     'key': '',

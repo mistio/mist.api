@@ -254,11 +254,14 @@ class BaseComputeController(BaseController):
             amqp_publish(exchange='machines_inventory', routing_key='',
                          auto_delete=False, data=data)
 
+        if config.ENABLE_METERING:
+            self._update_metering_data(cached_machines, machines)
+
         return machines
 
     def produce_and_publish_patch(self, cached_machines, fresh_machines,
                                   first_run=False):
-        old_machines = {'%s-%s' % (m['id'], m['machine_id']): m
+        old_machines = {'%s-%s' % (m['id'], m['machine_id']): copy.copy(m)
                         for m in cached_machines}
         new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
                         for m in fresh_machines}
@@ -654,6 +657,8 @@ class BaseComputeController(BaseController):
         else:
             log.debug("Not saving machine %s (%s) %s" % (
                 machine.name, machine.id, is_new))
+
+        machine.last_seen = now
 
         return machine, is_new
 
@@ -1242,7 +1247,7 @@ class BaseComputeController(BaseController):
             if size.ram:
                 try:
                     _size.ram = int(float(re.sub("[^\d.]+", "",
-                                    str(size.ram))))
+                                                 str(size.ram))))
                 except Exception as exc:
                     log.error(repr(exc))
 
@@ -3159,3 +3164,145 @@ class BaseComputeController(BaseController):
                                 extra=cloud_size.extra,
                                 driver=self.connection)
             return size_obj
+
+    def _update_metering_data(self, cached_machines, machines):
+        machines_map = {}
+        cached_machines_map = {}
+
+        machines_map = {machine.id: machine for machine in machines}
+        cached_machines_map = {
+            machine["id"]: machine for machine in cached_machines}
+
+        read_queries = self._generate_metering_queries(
+            cached_machines_map, machines_map)
+
+        last_metering_data = self._fetch_metering_data(read_queries)
+
+        fresh_metering_data = self._generate_fresh_metering_data(
+            cached_machines_map, machines_map, last_metering_data)
+
+        self._send_metering_data(fresh_metering_data)
+
+    def _generate_metering_queries(self, cached_machines_map, machines_map):
+        # Group the machines based on their last metering timestamp
+        last_metering_dt_machines_map = {}
+        for machine_id, _ in machines_map.items():
+            if not cached_machines_map.get(machine_id):
+                continue
+            dt = None
+            if cached_machines_map[machine_id]["last_seen"]:
+                dt = cached_machines_map[machine_id]["last_seen"]
+            elif cached_machines_map[machine_id]["missing_since"]:
+                dt = cached_machines_map[machine_id]["missing_since"]
+            if not dt:
+                continue
+            if not last_metering_dt_machines_map.get(dt):
+                last_metering_dt_machines_map[dt] = []
+            last_metering_dt_machines_map[dt].append(machine_id)
+
+        # Create promql queries to fetch metering data (counters) in bulk
+        # (One query per unique timestamp across multiple machines)
+        read_queries = {}
+        metering_metrics_list = "|".join(
+            metric['name']
+            for metric in config.METERING_METRICS
+            if metric['type'] == "counter")
+        if metering_metrics_list:
+            for dt, machine_ids in last_metering_dt_machines_map.items():
+                machines_ids_list = "|".join(machine_ids)
+                read_queries[dt] = (
+                    f"{{__name__=~\"{metering_metrics_list}\""
+                    f",org=\"{self.cloud.owner.id}\","
+                    f"machine_id=~\"{machines_ids_list}\",metering=\"true\"}}")
+        return read_queries
+
+    def _fetch_metering_data(self, read_queries):
+        tenant = str(int(self.cloud.owner.id[:8], 16))
+        read_uri = config.VICTORIAMETRICS_URI.replace("<org_id>", tenant)
+        last_metering_data = {}
+
+        for dt, query in read_queries.items():
+            dt = int(datetime.datetime.timestamp(
+                datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
+            data = requests.get(
+                f"{read_uri}/api/v1/query"
+                f"?query={query}&time={dt}",
+                timeout=20)
+
+            if not data.ok:
+                log.warning(data.text)
+
+            data = data.json()
+
+            for result in data.get("data", {}).get("result", []):
+                metric_name = result["metric"]["__name__"]
+                machine_id = result["metric"]["machine_id"]
+                value = result["value"][1]
+                if not last_metering_data.get(machine_id):
+                    last_metering_data[machine_id] = {}
+                last_metering_data[machine_id].update({metric_name: value})
+        return last_metering_data
+
+    def _generate_fresh_metering_data(
+            self, cached_machines_map, machines_map, last_metering_data):
+        fresh_metering_data = ""
+        for machine_id, machine in machines_map.items():
+            if not machine.last_seen:
+                continue
+            new_dt = machine.last_seen
+            old_dt = None
+            if cached_machines_map[machine_id]["last_seen"]:
+                old_dt = datetime.datetime.strptime(
+                    cached_machines_map[machine_id]["last_seen"],
+                    '%Y-%m-%d %H:%M:%S.%f')
+            for metric in config.METERING_METRICS:
+                current_value = None
+                metering_value_code = (f"{metric['value']}\n"
+                                       f"instant_value = metering_value()")
+                local_vars = {}
+                exec(metering_value_code, {
+                    "machine": machine}, local_vars)
+                instant_value = local_vars["instant_value"]
+                if metric["type"] == "counter":
+                    old_value = last_metering_data.get(
+                        machine_id, {}).get(metric["name"])
+                    if old_value:
+                        current_value = float(old_value)
+                        # Take into account the time range only
+                        # if the machine was not missing
+                        if old_dt:
+                            dt_delta = new_dt - old_dt
+                            value_across_time = instant_value \
+                                * dt_delta.total_seconds() / (60.0 * 60.0)
+                            current_value += value_across_time
+                    else:
+                        current_value = 0
+                elif metric["type"] == "gauge":
+                    current_value = instant_value
+                else:
+                    log.warning(
+                        f"Unknown metric type: {metric['type']}"
+                        f" on metric: {metric['name']}"
+                        f" with machine_id: {machine_id}")
+                if current_value is not None:
+                    fresh_metering_data += (
+                        f"{metric['name']}{{org=\"{self.cloud.owner.id}\""
+                        f",machine_id=\"{machine_id}\",metering=\"true\"}}"
+                        f" {current_value} "
+                        f"{int(datetime.datetime.timestamp(new_dt))}\n")
+                else:
+                    log.warning(
+                        f"None value on metric: "
+                        f"{metric} with machine_id: {machine_id}")
+        return fresh_metering_data
+
+    def _send_metering_data(self, fresh_metering_data):
+        tenant = str(int(self.cloud.owner.id[:8], 16))
+        result = requests.post(
+            f"http://vminsert:8480/insert/"
+            f"{tenant}/prometheus/api/v1/import/prometheus",
+            data=fresh_metering_data, timeout=20)
+        if not result.ok:
+            log.warning(
+                f"Error when sending metering data,"
+                f" code: {result.status_code} response: {result.text}")
