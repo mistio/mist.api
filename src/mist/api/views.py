@@ -2148,6 +2148,7 @@ def invite_member_to_team(request):
 
             # if one of the org owners adds himself to team don't send email
             if user == auth_context.user:
+                trigger_session_update(auth_context.owner, ['org'])
                 return return_val
 
         tasks.send_email.delay(subject, body, user.email)
