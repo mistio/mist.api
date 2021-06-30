@@ -3166,9 +3166,6 @@ class BaseComputeController(BaseController):
             return size_obj
 
     def _update_metering_data(self, cached_machines, machines):
-        machines_map = {}
-        cached_machines_map = {}
-
         machines_map = {machine.id: machine for machine in machines}
         cached_machines_map = {
             machine["id"]: machine for machine in cached_machines}
