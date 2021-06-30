@@ -1504,6 +1504,9 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'key': {
+                    'required': False,
+                },
                 'restrictions': {
                     'size-image-restriction': False,
                     'location-size-restriction': True,
@@ -2698,6 +2701,48 @@ GCE_IMAGES = ['debian-cloud',
               'suse-cloud',
               'ubuntu-os-cloud',
               'windows-cloud']
+
+AZURE_SECURITY_RULES = [
+    {
+        "name": "allowSSHInbound",
+        "properties": {
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "access": "Allow",
+            "destinationPortRange": "22",
+            "sourcePortRange": "*",
+            "priority": 200,
+            "direction": "Inbound"
+        }
+    },
+    {
+        "name": "allowRDPInbound",
+        "properties": {
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "access": "Allow",
+            "destinationPortRange": "3389",
+            "sourcePortRange": "*",
+            "priority": 201,
+            "direction": "Inbound"
+        }
+    },
+    {
+        "name": "allowMonitoringOutbound",
+        "properties": {
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "access": "Allow",
+            "destinationPortRange": "25826",
+            "sourcePortRange": "*",
+            "priority": 202,
+            "direction": "Outbound"
+        }
+    }
+]
 
 RESET_PASSWORD_EXPIRATION_TIME = 60 * 60 * 24
 

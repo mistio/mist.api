@@ -299,7 +299,7 @@ class Machine(OwnershipMixin, me.Document):
     machine_type = me.StringField(default='machine',
                                   choices=('machine', 'vm', 'container',
                                            'hypervisor', 'container-host',
-                                           'ilo-host'))
+                                           'ilo-host', 'node', 'pod'))
     parent = me.ReferenceField('Machine', required=False,
                                reverse_delete_rule=me.NULLIFY)
 
