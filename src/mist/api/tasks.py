@@ -32,6 +32,7 @@ from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import RECORDS
 from mist.api.keys.models import SSHKey
+from mist.api.tag.methods import add_tags_to_resource
 
 from mist.api.rules.models import NoDataRule
 
@@ -653,12 +654,26 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
                                                  no_connect=True)
             except PolicyUnauthorizedError:
                 continue
+
+        tags, constraints = auth_context.check_perm('machine', 'create',
+                                                    None)
+        expiration = constraints.get('expiration')
+        if expiration:
+            try:
+                from mist.rbac.methods import apply_expiration_constraint
+                apply_expiration_constraint(auth_context, cloned_machine,
+                                            expiration)
+            except ImportError:
+                pass
+        if tags:
+            add_tags_to_resource(auth_context.owner, cloned_machine, tags)
+        cloned_machine.save()
         cloned_machine.cloud.ctl.compute.produce_and_publish_patch(
             [before], [cloned_machine])
-    except NameError:
+    except NameError as exc:
+        print(exc)
         log.error("Cloned machine is not present in the database yet."
-                  "Key association and owner assignment failed.")
-
+                  "Post clone processes failed.")
     print('clone_machine_async: results: {}'.format(node))
 
 

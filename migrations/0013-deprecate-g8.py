@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-from mist.api.clouds.models import G8Cloud
+from mist.api.clouds.models import GigG8Cloud
 from mist.api.models import Machine, Network, Volume
 
 
 def remove_g8_clouds():
 
     failed = updated = 0
-    clouds = G8Cloud.objects()
+    clouds = GigG8Cloud.objects()
     total = len(clouds)
     if not total:
         return
