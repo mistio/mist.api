@@ -33,7 +33,7 @@ from mist.api.monitoring.methods import enable_monitoring
 from mist.api.shell import Shell
 from mist.api.tasks import run_script
 from mist.api.helpers import trigger_session_update
-from mist.api.poller. models import ListMachinesPollingSchedule
+from mist.api.poller.models import ListMachinesPollingSchedule
 
 
 logging.basicConfig(
