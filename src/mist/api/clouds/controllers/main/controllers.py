@@ -804,6 +804,11 @@ class KubeVirtMainController(_KubernetesBaseMainController):
     ComputeController = compute_ctls.KubeVirtComputeController
 
 
+class OpenShiftMainController(_KubernetesBaseMainController):
+    provider = 'openshift'
+    ComputeController = compute_ctls.OpenShiftComputeController
+
+
 class CloudSigmaMainController(BaseMainController):
     provider = 'cloudsigma'
     ComputeController = compute_ctls.CloudSigmaComputeController
