@@ -43,7 +43,8 @@ __all__ = [
     "OnAppCloud",
     "OtherCloud",
     "KubeVirtCloud",
-    "KubernetesCloud"
+    "KubernetesCloud",
+    "OpenShiftCloud",
 ]
 # This is a map from provider name to provider class, eg:
 # 'linode': LinodeCloud
@@ -736,9 +737,7 @@ class KubeVirtCloud(_KubernetesBaseCloud):
     _controller_cls = controllers.KubeVirtMainController
 
 
-class KubernetesCloud(_KubernetesBaseCloud):
-    _controller_cls = controllers.KubernetesMainController
-
+class _KubernetesProxyCloud(_KubernetesBaseCloud):
     def as_dict_v2(self, *args, **kwargs):
         ret = super().as_dict_v2(*args, **kwargs)
         ret['namespaces'] = self.ctl.compute.list_namespaces()
@@ -746,6 +745,14 @@ class KubernetesCloud(_KubernetesBaseCloud):
         ret['resources'] = self.ctl.compute.get_node_resources()
         ret['version'] = self.ctl.compute.get_version()
         return ret
+
+
+class KubernetesCloud(_KubernetesProxyCloud):
+    _controller_cls = controllers.KubernetesMainController
+
+
+class OpenShiftCloud(_KubernetesProxyCloud):
+    _controller_cls = controllers.OpenShiftMainController
 
 
 class CloudSigmaCloud(Cloud):
