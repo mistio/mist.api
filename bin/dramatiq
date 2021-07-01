@@ -5,13 +5,16 @@ import importlib
 from mist.api import config
 
 BROKER = 'mist.api.dramatiq_app'
-QUEUES = ['dramatiq_create_machine',
-          'dramatiq_post_deploy_steps',
-          'dramatiq_ssh_tasks',
-          'dramatiq_mappings',
-          'dramatiq_schedules',
-          'default',
-          'rules']
+QUEUES = os.getenv('QUEUES', '').split(',') or [
+    'default',
+    'provisioning',
+    'scripts',
+    'schedules',
+    'rules',
+    'polling',
+    'mappings',
+    'ping_probe',
+    'ssh_probe']
 
 POSSIBLE_MODULES = [] # 'mist.api.dramatiq_tasks', 'mist.rbac.dramatiq_tasks']
 

@@ -29,7 +29,7 @@ def schedule_to_actor(schedule):
     return getattr(importlib.import_module(module), method)
     # return dramatiq.actor(
     #     task,
-    #     queue_name="dramatiq_schedules",
+    #     queue_name="schedules",
     #     time_limit=30 * 60 * 1000,  # 30 minutes
     #     max_retries=None,
     #     broker=broker

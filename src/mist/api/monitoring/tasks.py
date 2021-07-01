@@ -2,9 +2,8 @@ import uuid
 import time
 import logging
 
-from dramatiq import actor
 
-from mist.api.dramatiq_app import broker
+from mist.api.dramatiq_app import dramatiq
 
 import mist.api.shell
 
@@ -27,8 +26,7 @@ __all__ = [
 ]
 
 
-@actor(time_limit=600_000, max_retries=1, broker=broker,
-       queue_name='dramatiq_schedules')
+@dramatiq.actor(time_limit=600_000, max_retries=1, queue_name='scripts')
 def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     """Deploy Telegraf over SSH."""
     machine = Machine.objects.get(id=machine_id)
@@ -101,8 +99,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     trigger_session_update(machine.owner, ['monitoring'])
 
 
-@actor(time_limit=600_000, max_retries=1, broker=broker,
-       queue_name='dramatiq_schedules')
+@dramatiq.actor(time_limit=600_000, max_retries=1, queue_name='scripts')
 def uninstall_telegraf(machine_id, job=None, job_id=None):
     """Undeploy Telegraf."""
     machine = Machine.objects.get(id=machine_id)
@@ -144,8 +141,7 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
         trigger_session_update(machine.owner, ['monitoring'])
 
 
-@actor(time_limit=60_000, max_retries=1, broker=broker,
-       queue_name='dramatiq_schedules')
+@dramatiq.actor(time_limit=60_000, max_retries=1)
 def reset_traefik_config():
     try:
         _get_config()

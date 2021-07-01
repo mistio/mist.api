@@ -13,7 +13,7 @@ from mist.api.clouds.models import LibvirtCloud
 from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.clouds.methods import filter_list_clouds
 
-from mist.api import tasks
+from mist.api.tasks import create_machine_async, clone_machine_async
 
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
@@ -512,7 +512,7 @@ def create_machine(request):
     else:
         args = (auth_context.serialize(), ) + args
         kwargs.update({'quantity': quantity, 'persist': persist})
-        tasks.create_machine_async.send_with_options(
+        create_machine_async.send_with_options(
             args=args, kwargs=kwargs, delay=1_000)
         ret = {'job_id': job_id}
     ret.update({'job': job})
@@ -878,7 +878,7 @@ def machine_actions(request):
         if clone_async:
             args = (auth_context.serialize(), machine.id, name)
             kwargs = {'job': job, 'job_id': job_id}
-            tasks.clone_machine_async.send_with_options(
+            clone_machine_async.send_with_options(
                 args=args, kwargs=kwargs, delay=1_000)
         else:
             ret = getattr(machine.ctl, action)(name)
