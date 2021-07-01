@@ -13,6 +13,7 @@ import socket
 import logging
 import datetime
 import calendar
+from typing import Dict, List
 import requests
 import re
 
@@ -2286,9 +2287,27 @@ class BaseComputeController(BaseController):
             name: the clone's unique name
             resume: denotes whether to resume the original node
 
-        Differnent cloud controllers should override this private method,
+        Different cloud controllers should override this private method,
         which is called by the public method `clone_machine`.
 
+        """
+        raise MistNotImplementedError()
+
+    def list_security_groups(self) -> List[Dict]:
+        """List security groups.
+
+        A subclass that wishes to implement this functionality should override
+        the `_list_security_groups` method instead.
+        """
+        return self._list_security_groups()
+
+    def _list_security_groups(self) -> List[Dict]:
+        """Fetch security groups.
+
+        This is to be called exclusively by `self.list_security_groups`.
+
+        Subclasses that implement this functionality SHOULD override this
+        method
         """
         raise MistNotImplementedError()
 
