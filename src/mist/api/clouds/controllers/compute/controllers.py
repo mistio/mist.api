@@ -3284,9 +3284,13 @@ class DockerComputeController(BaseComputeController):
         return self.connection.stop_container(node)
 
     def _destroy_machine(self, machine, node):
-        if node.state == ContainerState.RUNNING:
-            self.connection.stop_container(node)
-        return self.connection.destroy_container(node)
+        try:
+            if node.state == ContainerState.RUNNING:
+                self.connection.stop_container(node)
+            return self.connection.destroy_container(node)
+        except Exception as e:
+            log.error('Destroy failed: %r' % e)
+            return False
 
     def _list_sizes__fetch_sizes(self):
         return []
@@ -3643,13 +3647,13 @@ class LibvirtComputeController(BaseComputeController):
         updated = False
         try:
             _size = CloudSize.objects.get(
-                cloud=self.cloud, external_id=node['size'].get('id'))
+                cloud=self.cloud, external_id=node['size'].get('name'))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
-                              external_id=node['size'].get('id'))
+                              external_id=node['size'].get('name'))
             updated = True
-        if _size.ram != node['size'].get('ram'):
-            _size.ram = node['size'].get('ram')
+        if int(_size.ram) != int(node['size'].get('ram')):
+            _size.ram = int(node['size'].get('ram'))
             updated = True
         if _size.cpus != node['size'].get('extra', {}).get('cpus'):
             _size.cpus = node['size'].get('extra', {}).get('cpus')
