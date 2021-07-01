@@ -2291,19 +2291,15 @@ def destroy_machine(user, cloud_id, machine_id):
 
     machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
 
-    if not machine.monitoring.hasmonitoring:
-        machine.ctl.destroy()
-        return
+    # if machine has monitoring, disable it.
+    if machine.monitoring.hasmonitoring:
+        try:
+            disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
+        except Exception as exc:
+            log.warning("Didn't manage to disable monitoring, maybe the "
+                        "machine never had monitoring enabled. Error: %r", exc)
 
-    # if machine has monitoring, disable it. the way we disable depends on
-    # whether this is a standalone io installation or not
-    try:
-        disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
-    except Exception as exc:
-        log.warning("Didn't manage to disable monitoring, maybe the "
-                    "machine never had monitoring enabled. Error: %r", exc)
-
-    machine.ctl.destroy()
+    return machine.ctl.destroy()
 
 
 # SEC
