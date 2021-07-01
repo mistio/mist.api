@@ -3652,7 +3652,7 @@ class LibvirtComputeController(BaseComputeController):
             _size = CloudSize(cloud=self.cloud,
                               external_id=node['size'].get('name'))
             updated = True
-        if int(_size.ram) != int(node['size'].get('ram')):
+        if int(_size.ram or 0) != int(node['size'].get('ram', 0)):
             _size.ram = int(node['size'].get('ram'))
             updated = True
         if _size.cpus != node['size'].get('extra', {}).get('cpus'):
