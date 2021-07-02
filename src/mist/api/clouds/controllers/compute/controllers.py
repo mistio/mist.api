@@ -4538,6 +4538,10 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         return copy.copy(node_extra) if node_extra else {}
 
 
+class OpenShiftComputeController(KubernetesComputeController):
+    pass
+
+
 class KubeVirtComputeController(_KubernetesBaseComputeController):
     def _connect(self, **kwargs):
         return super()._connect(Provider.KUBEVIRT,
