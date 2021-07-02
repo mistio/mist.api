@@ -42,6 +42,7 @@ DESCRIPTION = "A secure cloud management platform for automation,\
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
+MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
@@ -1346,11 +1347,6 @@ USE_EXTERNAL_AUTHENTICATION = False
 
 # celery settings
 CELERY_SETTINGS = {
-    'broker_url': BROKER_URL,
-    # Disable heartbeats because celery workers & beat fail to actually send
-    # them and the connection dies.
-    'broker_heartbeat': 0,
-    'task_serializer': 'json',
     # Disable custom log format because we miss out on worker/task specific
     # metadata.
     # 'worker_log_format': PY_LOG_FORMAT,
@@ -1359,11 +1355,8 @@ CELERY_SETTINGS = {
     'worker_max_tasks_per_child': 32,
     'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
     'worker_send_task_events': True,
-    'mongodb_scheduler_db': 'mist2',
-    'mongodb_scheduler_collection': 'schedules',
-    'mongodb_scheduler_url': MONGO_URI,
-    'task_routes': {
 
+    'task_routes': {
         # Command queue
         'mist.api.tasks.ssh_command': {'queue': 'command'},
 
@@ -3145,15 +3138,6 @@ if not TELEGRAF_TARGET:
         TELEGRAF_TARGET = CORE_URI + '/ingress'
 
 
-# Update celery settings.
-CELERY_SETTINGS.update({
-    'broker_url': BROKER_URL,
-    'mongodb_scheduler_url': MONGO_URI,
-    # Disable custom log format because we miss out on worker/task specific
-    # metadata.
-    # 'worker_log_format': PY_LOG_FORMAT,
-    # 'worker_task_log_format': PY_LOG_FORMAT,
-})
 _schedule = {}
 if VERSION_CHECK:
     _schedule['version-check'] = {
@@ -3182,9 +3166,6 @@ if ENABLE_BACKUPS:
         'task': 'mist.api.tasks.create_backup',
         'schedule': datetime.timedelta(hours=BACKUP_INTERVAL),
     }
-
-if _schedule:
-    CELERY_SETTINGS.update({'beat_schedule': _schedule})
 
 
 # Configure libcloud to not verify certain hosts.

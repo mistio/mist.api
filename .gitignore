@@ -72,10 +72,6 @@ target/
 # pyenv
 .python-version
 
-# celery beat schedule file
-celerybeat-schedule
-celerybeat-schedule-py3.db
-
 # SageMath parsed files
 *.sage.py
 
@@ -107,10 +103,6 @@ ENV/
 /src/mist/api/templates/ui.pt
 /src/mist/api/templates/landing.pt
 /src/mist/api/templates/manage.pt
-
-# Celerybeat files
-/celerybeat-schedule.dir
-/celerybeat-schedule.pag
 
 # openapi spec
 /openapi/spec.yml

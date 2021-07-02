@@ -334,7 +334,7 @@ class MainConnection(MistConnection):
 
     def update_poller(self):
         """Increase polling frequency for all clouds"""
-        tasks.update_poller.delay(self.owner.id)
+        tasks.update_poller.send(self.owner.id)
 
     def update_user(self):
         self.send('user', get_user_data(self.auth_context))

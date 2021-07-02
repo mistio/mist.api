@@ -240,7 +240,11 @@ class LibvirtNetworkController(BaseNetworkController):
         from mist.api.machines.models import Machine
         hosts = Machine.objects(cloud=self.cloud, parent=None,
                                 missing_since=None)
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
         all_nets = loop.run_until_complete(self.list_networks_all_hosts(hosts,
                                                                         loop))
         return [net for host_nets in all_nets for net in host_nets]

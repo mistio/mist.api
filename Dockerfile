@@ -1,7 +1,7 @@
 FROM mist/python3:latest
 
 # Install libvirt which requires system dependencies.
-RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget mongodb-tools
+RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget mongodb-tools libmemcached-dev
 
 RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.8.4-static_linux_amd64.tar.gz && \
     tar xvfz influxdb-1.8.4-static_linux_amd64.tar.gz && rm influxdb-1.8.4-static_linux_amd64.tar.gz
@@ -21,13 +21,11 @@ COPY requirements.txt /requirements-mist.api.txt
 WORKDIR /mist.api/
 
 COPY paramiko /mist.api/paramiko
-COPY celerybeat-mongo /mist.api/celerybeat-mongo
 COPY libcloud /mist.api/libcloud
 COPY v2 /mist.api/v2
 
 RUN pip install --no-cache-dir -r /mist.api/requirements.txt && \
     pip install -e paramiko/ && \
-    pip install -e celerybeat-mongo/ && \
     pip install -e libcloud/ && \
     pip install -e v2/ && \
     pip install --no-cache-dir -r v2/requirements.txt

@@ -18,4 +18,3 @@ exclude =
     ./libcloud/,
     ./paramiko/,
     ./run_script/,
-    ./celerybeat-mongo/,
