@@ -64,6 +64,7 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import CloudUnauthorizedError
+from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import MachineCreationError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
@@ -342,6 +343,17 @@ class AmazonComputeController(BaseComputeController):
         if image.extra.get('is_public', 'true').lower() == 'true':
             return 'system'
         return 'custom'
+
+    def _list_security_groups(self):
+        try:
+            sec_groups = \
+                self.cloud.ctl.compute.connection.ex_list_security_groups()
+        except Exception as exc:
+            log.error('Could not list security groups for cloud %s: %r',
+                      self.cloud, exc)
+            raise CloudUnavailableError(exc=exc)
+
+        return sec_groups
 
     def _generate_plan__parse_networks(self, auth_context, network_dict):
         security_group = network_dict.get('security_group')
@@ -2975,6 +2987,43 @@ class OpenStackComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node['extra'].get('flavorId')
 
+    def _list_security_groups(self):
+        if self.cloud.tenant_id is None:
+            # try to populate tenant_id field
+            try:
+                tenant_id = \
+                    self.cloud.ctl.compute.connection.ex_get_tenant_id()
+            except Exception as exc:
+                log.error(
+                    'Failed to retrieve project id for Openstack cloud %s: %r',
+                    self.cloud.id, exc)
+            else:
+                self.cloud.tenant_id = tenant_id
+                try:
+                    self.cloud.save()
+                except me.ValidationError as exc:
+                    log.error(
+                        'Error adding tenant_id to %s: %r',
+                        self.cloud.title, exc)
+        try:
+            sec_groups = \
+                self.cloud.ctl.compute.connection.ex_list_security_groups(
+                    tenant_id=self.cloud.tenant_id
+                )
+        except Exception as exc:
+            log.error('Could not list security groups for cloud %s: %r',
+                      self.cloud, exc)
+            raise CloudUnavailableError(exc=exc)
+
+        sec_groups = [{'id': sec_group.id,
+                       'name': sec_group.name,
+                       'tenant_id': sec_group.tenant_id,
+                       'description': sec_group.description,
+                       }
+                      for sec_group in sec_groups]
+
+        return sec_groups
+
 
 class DockerComputeController(BaseComputeController):
 
@@ -4540,6 +4589,10 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
     def _list_machines__get_machine_extra(self, machine, node_dict):
         node_extra = node_dict.get('extra')
         return copy.copy(node_extra) if node_extra else {}
+
+
+class OpenShiftComputeController(KubernetesComputeController):
+    pass
 
 
 class KubeVirtComputeController(_KubernetesBaseComputeController):

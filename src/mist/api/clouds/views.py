@@ -1,7 +1,6 @@
 import logging
 
 from pyramid.response import Response
-from libcloud.compute.types import Provider
 
 from mist.api.clouds.models import Cloud
 from mist.api.auth.methods import auth_context_from_request
@@ -473,20 +472,11 @@ def list_security_groups(request):
         raise NotFoundError('Cloud does not exist')
 
     try:
-        sec_groups = cloud.ctl.compute.connection.ex_list_security_groups()
-    except Exception as e:
-        log.error("Could not list security groups for cloud %s: %r" % (
-            cloud, e))
-        raise MistNotImplementedError
+        sec_groups = cloud.ctl.compute.list_security_groups()
+    except MistNotImplementedError:
+        raise BadRequestError(f'Listing security groups is not supported'
+                              f' for provider {cloud.provider}')
 
-    # openstack returns OpenStackSecurityGroup objects
-    if cloud.provider == Provider.OPENSTACK.value:
-        sec_groups = [{'id': sec_group.id,
-                       'name': sec_group.name,
-                       'tenant_id': sec_group.tenant_id,
-                       'description': sec_group.description,
-                       }
-                      for sec_group in sec_groups]
     return sec_groups
 
 
