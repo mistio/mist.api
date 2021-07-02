@@ -645,6 +645,9 @@ class OpenStackCloud(Cloud):
     domain = me.StringField(required=False)
     region = me.StringField(required=False)
     compute_endpoint = me.StringField(required=False)
+    # tenant_id will be lazily populated when
+    # a request to get security_groups is made
+    tenant_id = me.StringField(required=False)
 
     _private_fields = ('password', )
     _controller_cls = controllers.OpenStackMainController
