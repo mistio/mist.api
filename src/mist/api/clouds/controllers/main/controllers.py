@@ -784,9 +784,7 @@ class OtherMainController(BaseMainController):
         return machine
 
 
-class KubeVirtMainController(BaseMainController):
-    provider = 'kubevirt'
-    ComputeController = compute_ctls.KubeVirtComputeController
+class _KubernetesBaseMainController(BaseMainController):
     StorageController = storage_ctls.KubernetesStorageController
 
     def _update__preparse_kwargs(self, kwargs):
@@ -794,6 +792,16 @@ class KubeVirtMainController(BaseMainController):
         if host:
             host = sanitize_host(host)
             check_host(host)
+
+
+class KubernetesMainController(_KubernetesBaseMainController):
+    provider = 'kubernetes'
+    ComputeController = compute_ctls.KubernetesComputeController
+
+
+class KubeVirtMainController(_KubernetesBaseMainController):
+    provider = 'kubevirt'
+    ComputeController = compute_ctls.KubeVirtComputeController
 
 
 class CloudSigmaMainController(BaseMainController):

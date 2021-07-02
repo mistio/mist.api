@@ -38,6 +38,7 @@ import subprocess
 
 from time import time, strftime, sleep
 from datetime import timedelta
+import dateparser
 
 from base64 import urlsafe_b64encode
 
@@ -1415,8 +1416,8 @@ def convert_to_timedelta(time_val):
     """
     Receives a time_val param. time_val should be either an integer,
     or a relative delta in the following format:
-    '_s', '_m', '_h', '_d', '_mo', for seconds, minutes, hours, days
-    months respectively. Returns a timedelta object if right param is
+    '_s', '_m', '_h', '_d', _w, '_mo', for seconds, minutes, hours, days,
+    weeks and months respectively. Returns a timedelta object if right param is
     given, else None
     """
     try:
@@ -1424,23 +1425,58 @@ def convert_to_timedelta(time_val):
         return timedelta(seconds=seconds)
     except ValueError:
         try:
-            num = int(time_val[:-1])
+            num = time_val[:-1]
             if time_val.endswith('s'):
-                return timedelta(seconds=num)
+                return timedelta(seconds=int(num))
             elif time_val.endswith('m'):
-                return timedelta(minutes=num)
+                return timedelta(minutes=int(num))
             elif time_val.endswith('h'):
-                return timedelta(hours=num)
+                return timedelta(hours=int(num))
             elif time_val.endswith('d'):
-                return timedelta(days=num)
+                return timedelta(days=int(num))
+            elif time_val.endswith('w'):
+                return timedelta(days=int(num) * 7)
             elif time_val.endswith('mo'):
                 num = int(time_val[:-2])
-                return timedelta(months=num)
-        except ValueError:
-            if time_val.endswith('mo'):
-                num = int(time_val[:-2])
                 return timedelta(days=30 * num)
+        except ValueError:
+            raise ValueError('Input is expected to be in the format _s, _m,'
+                             '_h, _d, _w or _mo where _ is an int or the whole'
+                             ' input may be an int representing seconds')
     return None
+
+
+def convert_to_datetime(time_val):
+    """
+    Input should  be a string in the format xT where
+     x is an int and T is one of s, m, h, d, w, mo
+     which stand for
+     seconds, minutes, hours, days, weeks, months.
+     Eg. '3mo' or '5d' or '342s'
+
+     Return value is datetime.datetime object
+    """
+    try:
+        num = time_val[:-1]
+        letter = time_val[-1]
+        if letter == 's':
+            return dateparser.parse(f'in {int(num)} seconds')
+        if letter == 'm':
+            return dateparser.parse(f'in {int(num)} minutes')
+        if letter == 'h':
+            return dateparser.parse(f'in {int(num)} hours')
+        if letter == 'd':
+            return dateparser.parse(f'in {int(num)} days')
+        if letter == 'w':
+            return dateparser.parse(f'in {int(num)} weeks')
+        if letter == 'o':
+            num = time_val[:-2]
+            return dateparser.parse(f'in {int(num)} months')
+    except ValueError:
+        raise ValueError('Input is expected to be in the format '
+                         '{number}{time letter} where time letter is one of '
+                         's, m, h, d, w, mo. Valid values could be '
+                         '5mo or 300s or 2d etc...')
 
 
 def node_to_dict(node):
