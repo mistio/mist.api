@@ -5,7 +5,7 @@ from pyramid.response import Response
 from mist.api.clouds.models import Cloud
 from mist.api.auth.methods import auth_context_from_request
 
-from mist.api.dramatiq_tasks import dramatiq_async_session_update
+from mist.api.tasks import async_session_update
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import view_config, params_from_request
 
@@ -246,7 +246,7 @@ def add_cloud(request):
     if config.HAS_RBAC:
         owner.mapper.update(
             cloud,
-            callback=dramatiq_async_session_update,
+            callback=async_session_update,
             args=(owner.id, ['clouds'], )
         )
 

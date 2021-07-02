@@ -49,7 +49,7 @@ class AuthContext(object):
 
     def serialize(self):
         """This returns the basic context info in a dict of strings and can
-        safely be passed to celery tasks etc. To recreate the context, just
+        safely be passed to dramatiq tasks etc. To recreate the context, just
         feed it to AuthContext.deserialize"""
         return {
             'user_id': self.user.id,

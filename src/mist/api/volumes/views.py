@@ -18,7 +18,7 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
-from mist.api.dramatiq_tasks import dramatiq_async_session_update
+from mist.api.tasks import async_session_update
 
 from mist.api.helpers import params_from_request, view_config
 from mist.api.helpers import trigger_session_update
@@ -165,7 +165,7 @@ def create_volume(request):
     if config.HAS_RBAC:
         owner.mapper.update(
             volume,
-            callback=dramatiq_async_session_update,
+            callback=async_session_update,
             args=(owner.id, ['volumes'], )
         )
 

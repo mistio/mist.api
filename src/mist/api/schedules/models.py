@@ -2,12 +2,11 @@
 import datetime
 import logging
 from uuid import uuid4
-import celery.schedules
+
 import mongoengine as me
 from mist.api.tag.models import Tag
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
-from celerybeatmongo.schedulers import MongoScheduler
 from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.selectors.models import SelectorClassMixin
@@ -37,11 +36,6 @@ class Interval(BaseScheduleType):
     type = 'interval'
     every = me.IntField(min_value=0, default=0, required=True)
     period = me.StringField(choices=PERIODS)
-
-    @property
-    def schedule(self):
-        return celery.schedules.schedule(
-            datetime.timedelta(**{self.period: self.every}))
 
     @property
     def period_singular(self):
@@ -90,14 +84,6 @@ class Crontab(BaseScheduleType):
     day_of_week = me.StringField(default='*', required=True)
     day_of_month = me.StringField(default='*', required=True)
     month_of_year = me.StringField(default='*', required=True)
-
-    @property
-    def schedule(self):
-        return celery.schedules.crontab(minute=self.minute,
-                                        hour=self.hour,
-                                        day_of_week=self.day_of_week,
-                                        day_of_month=self.day_of_month,
-                                        month_of_year=self.month_of_year)
 
     def __unicode__(self):
 
@@ -240,7 +226,6 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
     queue = me.StringField()
     exchange = me.StringField()
     routing_key = me.StringField()
-    soft_time_limit = me.IntField()
 
     # mist specific fields
     schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=True)
@@ -370,27 +355,12 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
 
         """
         if isinstance(self.schedule_type, Crontab):
-            cronj_entry = self.schedule_type.as_dict()
             try:
-                for k, v in list(cronj_entry.items()):
-                    if k == 'minute':
-                        celery.schedules.crontab_parser(60).parse(v)
-                    elif k == 'hour':
-                        celery.schedules.crontab_parser(24).parse(v)
-                    elif k == 'day_of_week':
-                        celery.schedules.crontab_parser(7).parse(v)
-                    elif k == 'day_of_month':
-                        celery.schedules.crontab_parser(31, 1).parse(v)
-                    elif k == 'month_of_year':
-                        celery.schedules.crontab_parser(12, 1).parse(v)
-                    else:
-                        raise me.ValidationError(
-                            'You should provide valid period of time')
-            except celery.schedules.ParseException:
-                raise me.ValidationError('Crontab entry is not valid')
-            except Exception as exc:
-                raise me.ValidationError('Crontab entry is not valid:%s'
-                                         % str(exc))
+                from apscheduler.triggers.cron import CronTrigger
+                CronTrigger.from_crontab(self.schedule_type.as_cron())
+            except ValueError as exc:
+                raise me.ValidationError('Crontab validation failed: %s' % exc)
+
         super(Schedule, self).validate(clean=True)
 
     def clean(self):
@@ -435,26 +405,3 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
         }
 
         return sdict
-
-
-class NonDeletedSchedule(object):
-    # NOTE This wrapper class is used by the UserScheduler. It allows to trick
-    # the scheduler by providing an interface similar to that of a mongoengine
-    # Document subclass in order to prevent schedules marked as deleted from
-    # being loaded. Similarly, we could have used a custom QuerySet manager to
-    # achieve this. However, subclasses of mongoengine models, which are not a
-    # direct subclass of the main `Document` class, do not fetch the documents
-    # of the corresponding superclass. In that case, we'd have to override the
-    # QuerySet class in a more exotic way, but there is no such need for now.
-    @classmethod
-    def objects(cls):
-        return Schedule.objects(deleted=None)
-
-    @classmethod
-    def _get_collection(cls):
-        return Schedule._get_collection()
-
-
-class UserScheduler(MongoScheduler):
-    Model = NonDeletedSchedule
-    UPDATE_INTERVAL = datetime.timedelta(seconds=20)
