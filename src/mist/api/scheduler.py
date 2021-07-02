@@ -36,7 +36,7 @@ def schedule_to_actor(schedule):
     # )
 
 
-def add_job(scheduler, schedule, actor):
+def add_job(scheduler, schedule, actor, first_run=False):
     job = {
         'id': str(schedule.id),
         'name': schedule.name,
@@ -79,7 +79,11 @@ def add_job(scheduler, schedule, actor):
             )
         else:
             log.error('Invalid task type: %s' % schedule.task_type._cls)
-    scheduler.add_job(actor.send, **job)
+
+    new_job = scheduler.add_job(actor.send, **job)
+    if not first_run and schedule.run_immediately:
+        new_job.modify(next_run_time=datetime.datetime.now())
+    return new_job
 
 
 def update_job(scheduler, schedule, actor, existing):
@@ -160,7 +164,7 @@ def load_config_schedules(scheduler):
             actor.send, trigger='interval', seconds=interval, name=sched)
 
 
-def load_schedules_from_db(scheduler, schedules):
+def load_schedules_from_db(scheduler, schedules, first_run=False):
     """ Load schedules from db """
     old_schedule_ids = []
     new_schedule_ids = []
@@ -175,7 +179,7 @@ def load_schedules_from_db(scheduler, schedules):
         if existing:  # Update existing job
             update_job(scheduler, schedule, actor, existing)
         else:  # Add new job
-            add_job(scheduler, schedule, actor)
+            add_job(scheduler, schedule, actor, first_run=first_run)
 
     # Cleanup deleted schedules
     for sid in old_schedule_ids:
@@ -203,18 +207,21 @@ def start(**kwargs):
 
     try:  # Start scheduler
         scheduler.start()
+        first_run = True
         while True:  # Start main loop
             if kwargs.get('user'):
                 log.info('Reloading user schedules')
                 load_schedules_from_db(
                     scheduler,
-                    Schedule.objects(deleted=False)
+                    Schedule.objects(deleted=False),
+                    first_run=first_run
                 )
             if kwargs.get('polling'):
                 log.info('Reloading polling schedules')
                 load_schedules_from_db(
                     scheduler,
-                    PollingSchedule.objects()
+                    PollingSchedule.objects(),
+                    first_run=first_run
                 )
             if kwargs.get('rules'):
                 log.info('Reloading rules')
@@ -223,6 +230,7 @@ def start(**kwargs):
                     Rule.objects()
                 )
             sleep(RELOAD_INTERVAL)
+            first_run = False
     except KeyboardInterrupt:
         import ipdb
         ipdb.set_trace()
