@@ -27,45 +27,6 @@ class LoggingMiddleware(Middleware):
         msg_id = '{}: {}{}'.format(
             message.message_id, message.actor_name, str(message.args))
         msg = 'Starting task %s' % msg_id
-
-        # try:
-        #     sched = None
-        #     if message._message.args:
-        #         args = message._message.args
-        #         if len(args) > 4:
-        #             try:
-        #                 sched = Schedule.objects.get(
-        #                     name=args[2], owner=args[0], deleted=None)
-        #             except Schedule.DoesNotExist:
-        #                 pass
-        #         if not sched and args:
-        #             try:
-        #                 sched = PollingSchedule.objects.get(
-        #                     id=message._message.args[0])
-        #             except me.ValidationError:
-        #                 try:
-        #                     sched = Rule.objects.get(
-        #                         id=message._message.args[0])
-        #                 except Rule.DoesNotExist:
-        #                     log.warn("args: ", message._message,
-        #                              dir(message._message))
-        #         if getattr(sched, 'org', None):
-        #             msg += "\nOrg: %s" % sched.org.name
-        #         elif getattr(sched, 'cloud', None):
-        #             msg += "\nCloud: %s\nOrg: %s" % (
-        #                 sched.cloud.name, sched.cloud.org.name)
-        #         elif getattr(sched, 'machine', None):
-        #             msg += "\nMachine: %s\nCloud: %s\nOrg: %s" % (
-        #                 sched.machine.name, sched.machine.cloud.name,
-        #                 sched.machine.org.name)
-        #         elif getattr(sched, 'get_resources', None):
-        #             msg += "\nSchedule: %s\nResources: %s" % (
-        #                 sched.name, sched.get_resources())
-        #         else:
-        #             msg += "\n%s - %s" % (
-        #                 sched.__class__, getattr(sched, 'task', None)
-        # except Exception as exc:
-        #     log.error('%r' % exc)
         log.info(msg)
         self.state.msg_id = msg_id
         self.state.start = perf_counter()
