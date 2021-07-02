@@ -16,7 +16,7 @@ from mist.api.rules.models import Rule
 
 log = logging.getLogger(__name__)
 
-RELOAD_INTERVAL = 10
+RELOAD_INTERVAL = 5
 
 
 def schedule_to_actor(schedule):
@@ -27,13 +27,6 @@ def schedule_to_actor(schedule):
     method = task_path[-1]
     module = '.'.join(task_path[:-1])
     return getattr(importlib.import_module(module), method)
-    # return dramatiq.actor(
-    #     task,
-    #     queue_name="schedules",
-    #     time_limit=30 * 60 * 1000,  # 30 minutes
-    #     max_retries=None,
-    #     broker=broker
-    # )
 
 
 def add_job(scheduler, schedule, actor, first_run=False):

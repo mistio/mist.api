@@ -874,6 +874,10 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         log.info('Schedule action failed: %s', log_dict)
     else:
         log.info('Schedule action succeeded: %s', log_dict)
+
+    schedule.total_run_count += 1
+    schedule.save()
+
     owner = Owner.objects.get(id=owner_id)
     trigger_session_update(owner, ['schedules'])
     return log_dict
@@ -1078,6 +1082,10 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
         log.info('Schedule run_script failed: %s', log_dict)
     else:
         log.info('Schedule run_script succeeded: %s', log_dict)
+
+    schedule.total_run_count += 1
+    schedule.save()
+
     owner = Owner.objects.get(id=owner_id)
     trigger_session_update(owner, ['schedules'])
     return log_dict
