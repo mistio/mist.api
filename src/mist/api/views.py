@@ -190,7 +190,7 @@ def home(request):
             else:
                 uri_prefix = config.LANDING_CDN_URI or \
                     request.application_url + "/static/landing/sections/"
-            page_uri = '%s/%s.html' % (uri_prefix, page)
+            page_uri = '%s/%s.html' % (uri_prefix.rstrip('/'), page)
             try:
                 response = requests.get(page_uri)
                 if response.ok:
