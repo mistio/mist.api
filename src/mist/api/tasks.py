@@ -14,7 +14,6 @@ import paramiko
 from dramatiq.errors import Retry
 
 from libcloud.compute.types import NodeState
-from libcloud.container.base import Container
 
 from paramiko.ssh_exception import SSHException
 
@@ -26,7 +25,7 @@ from mist.api.exceptions import MachineUnavailableError
 from mist.api.shell import Shell
 
 from mist.api.users.models import Owner, Organization
-from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
+from mist.api.clouds.models import Cloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
 from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine, KeyMachineAssociation
@@ -94,7 +93,7 @@ __all__ = [
 ]
 
 
-@dramatiq.actor
+@dramatiq.actor(queue_name='scripts', store_results=True)
 def ssh_command(owner_id, cloud_id, machine_id, host, command,
                 key_id=None, username=None, password=None, port=22):
 
@@ -118,7 +117,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
                       post_script_id='', post_script_params='', schedule={},
                       location_id=None):
     # TODO: break into subtasks
-    from mist.api.methods import connect_provider, probe_ssh_only
+    from mist.api.methods import probe_ssh_only
     from mist.api.methods import notify_user, notify_admin
     from mist.api.monitoring.methods import enable_monitoring
 
@@ -129,51 +128,35 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
         log.error('Post deploy: %s' % msg, *args)
     tmp_log('Entering post deploy steps for %s %s %s',
             owner.id, cloud_id, machine_id)
+
     try:
-        # find the node we're looking for and get its hostname
-        node = None
-        try:
-            cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-            conn = connect_provider(cloud, location_id=location_id)
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    except Exception as e:
+        log.error('%r' % e)
+        raise e
 
-            if isinstance(cloud, DockerCloud):
-                nodes = conn.list_containers()
-            else:
-                nodes = conn.list_nodes()  # TODO: use cache
-            for n in nodes:
-                if n.id == machine_id:
-                    node = n
-                    break
-            msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
-            msg += "Machine:\n  Name: %s\n  Id: %s\n" % (node.name, node.id)
-            tmp_log('Machine found, proceeding to post deploy steps\n%s' % msg)
-        except Exception as e:
-            log.error('%r' % e)
-            raise e
+    try:
+        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
+                                      state__ne='terminated')
+    except Machine.DoesNotExist:
+        raise Retry(delay=10_000)
 
-        if node and isinstance(node, Container):
-            node = cloud.ctl.compute.inspect_node(node)
+    msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.name, cloud_id)
+    msg += "Machine:\n  Name: %s\n  Id: %s\n" % (machine.name, machine.id)
+    tmp_log('Machine found, proceeding to post deploy steps\n%s' % msg)
 
-        if node:
-            # filter out IPv6 addresses
-            ips = [ip for ip in node.public_ips + node.private_ips
-                   if ':' not in ip]
-            if not ips:
-                raise
-            host = ips[0]
-        else:
-            tmp_log('ip not found, retrying')
+    try:
+        # filter out IPv6 addresses
+        ips = [ip for ip in machine.public_ips + machine.private_ips
+               if ':' not in ip]
+        if not ips:
+            tmp_log('no ip available')
             raise
+        host = ips[0]
 
-        if node.state != NodeState.RUNNING:
+        if machine.state != 'running':
             tmp_log('not running state')
-            raise
-
-        try:
-            machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
-                                          state__ne='terminated')
-        except Machine.DoesNotExist:
-            raise
+            raise Retry(delay=10_000)
 
         log_dict = {
             'owner_id': owner.id,
@@ -248,9 +231,9 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
                             id=key_id).public)
                     if retval > 0:
                         notify_admin('Deploy user key failed for machine %s'
-                                     % node.name)
+                                     % machine.name)
                 command = post_deploy_step.get('script', '').replace(
-                    '${node.name}', node.name)
+                    '${machine.name}', machine.name)
                 if command and key_id:
                     tmp_log('Executing cloud post deploy cmd: %s' % command)
                     shell.autoconfigure(
@@ -260,7 +243,8 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
                     retval, output = shell.command(command)
                     if retval > 0:
                         notify_admin('Cloud post deploy command `%s` failed '
-                                     'for machine %s' % (command, node.name))
+                                     'for machine %s' % (
+                                         command, machine.name))
 
             if key_id:
                 # connect with ssh even if no command, to create association
@@ -329,7 +313,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             if monitoring:
                 try:
                     enable_monitoring(
-                        owner, cloud_id, node.id,
+                        owner, cloud_id, machine.id,
                         no_ssh=False, dry=False, job_id=job_id,
                         plugins=plugins, deploy_async=False,
                     )
@@ -364,8 +348,6 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             raise
     except Exception as exc:
         tmp_log(repr(exc))
-        if str(exc).startswith('Retry'):
-            raise
         notify_admin("Deployment script failed for machine %s (%s) in cloud %s"
                      " (%s) by user %s" % (machine.name, machine_id,
                                            cloud.title, cloud_id, str(owner)),
@@ -803,7 +785,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None,
     return True
 
 
-@dramatiq.actor(store_results=True)
+@dramatiq.actor(queue_name='schedules', store_results=True)
 def group_machines_actions(owner_id, action, name, machines_uuids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
@@ -883,7 +865,8 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     return log_dict
 
 
-@dramatiq.actor(time_limit=3_600_000)
+@dramatiq.actor(queue_name='schedules', store_results=True,
+                time_limit=3_600_000)
 def run_machine_action(owner_id, action, name, machine_uuid):
     """
     Calls specific action for a machine and log the info
@@ -1026,7 +1009,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         )
 
 
-@dramatiq.actor(store_results=True)
+@dramatiq.actor(queue_name='schedules', store_results=True)
 def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
@@ -1257,7 +1240,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     return ret
 
 
-@dramatiq.actor
+@dramatiq.actor(queue_name='polling', store_results=True)
 def update_poller(org_id):
     org = Organization.objects.get(id=org_id)
     update_threshold = datetime.datetime.now() - datetime.timedelta(
@@ -1347,7 +1330,7 @@ def delete_periodic_tasks(cloud_id):
             pass
 
 
-@dramatiq.actor
+@dramatiq.actor(store_results=True)
 def create_backup():
     """Create mongo backup if s3 creds are set.
     """
@@ -1397,7 +1380,7 @@ def create_backup():
                 config.BACKUP['bucket'], portal_host, dt))
 
 
-@dramatiq.actor
+@dramatiq.actor(queue_name='sessions', store_results=True)
 def async_session_update(owner, sections=None):
     if sections is None:
         sections = [
@@ -1415,7 +1398,7 @@ def tmp_log(msg, *args):
     log.info("Post deploy: %s" % msg, *args)
 
 
-@dramatiq.actor(queue_name="provisioning", max_retries=0)
+@dramatiq.actor(queue_name="provisioning", store_results=True, max_retries=0)
 def multicreate_async_v2(
     auth_context_serialized, plan, job_id=None, job=None
 ):
@@ -1442,7 +1425,7 @@ def multicreate_async_v2(
     dramatiq.group(messages).run()
 
 
-@dramatiq.actor(queue_name="provisioning", max_retries=0)
+@dramatiq.actor(queue_name="provisioning", store_results=True, max_retries=0)
 def create_machine_async_v2(
     auth_context_serialized, plan, job_id=None, job=None
 ):
@@ -1540,7 +1523,7 @@ def create_machine_async_v2(
                         node.id, plan, job_id=job_id, job=job)
 
 
-@dramatiq.actor(queue_name="provisioning",
+@dramatiq.actor(queue_name="provisioning", store_results=True,
                 throws=(me.DoesNotExist, MachineUnavailableError))
 def post_deploy_v2(auth_context_serialized, cloud_id, machine_id, external_id,
                    plan, job_id=None, job=None):
@@ -1607,7 +1590,7 @@ def post_deploy_v2(auth_context_serialized, cloud_id, machine_id, external_id,
                    job_id=job_id, username=None, password=None, port=22)
 
 
-@dramatiq.actor(queue_name="provisioning")
+@dramatiq.actor(queue_name="provisioning", store_results=True)
 def ssh_tasks(auth_context_serialized, cloud_id, key_id, host, external_id,
               machine_name, machine_id, scripts, log_dict, monitoring=False,
               plugins=None, job_id=None, username=None, password=None,
