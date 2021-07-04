@@ -22,7 +22,6 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.machines.models import InstallationStatus
 
-from mist.api.monitoring.influxdb.helpers import notify_machine_monitoring
 from mist.api.monitoring.influxdb.helpers import show_fields
 from mist.api.monitoring.influxdb.helpers import show_measurements
 from mist.api.monitoring.influxdb.handlers import HANDLERS as INFLUXDB_HANDLERS
@@ -63,7 +62,8 @@ from mist.api.rules.models import Rule
 
 from mist.api.tag.methods import get_tags_for_resource
 
-from mist.api.helpers import trigger_session_update
+from mist.api.helpers import trigger_session_update, amqp_publish_user
+
 
 log = logging.getLogger(__name__)
 
@@ -548,7 +548,6 @@ def enable_monitoring(
     return ret_dict
 
 
-# TODO: Switch to mongo's UUID.
 def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
     """Disable monitoring for a machine.
 
@@ -568,7 +567,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
     except Cloud.DoesNotExist:
         raise NotFoundError("Cloud does not exist")
     try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, id=machine_id)
     except Machine.DoesNotExist:
         raise NotFoundError("Machine %s doesn't exist" % machine_id)
     if not machine.monitoring.hasmonitoring:
@@ -645,7 +644,7 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
     for machine in machines:
         try:
             disable_monitoring(
-                owner, cloud_id, machine.machine_id, no_ssh=no_ssh
+                owner, cloud_id, machine.id, no_ssh=no_ssh
             )
         except Exception as exc:
             log.error(
@@ -900,3 +899,18 @@ def find_metrics_by_tags(auth_context, tags):
     metrics = loop.run_until_complete(async_find_metrics(resources))
     loop.close()
     return metrics
+
+
+def notify_machine_monitoring(machine):
+    patches = []
+    patches.append({
+        "path": "/%s-%s/monitoring" % (
+            machine.id, machine.machine_id),
+        "value": machine.monitoring.as_dict(),
+        "op": "replace"
+    })
+
+    amqp_publish_user(machine.owner.id,
+                      routing_key='patch_machines',
+                      data={'cloud_id': machine.cloud.id,
+                            'patch': patches})

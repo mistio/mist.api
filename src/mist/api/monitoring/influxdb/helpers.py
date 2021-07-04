@@ -4,11 +4,8 @@ including information on measurements, field keys and their values, and tags"""
 import logging
 import requests
 
-from amqp.connection import Connection
-
-from mist.api.config import INFLUX, AMQP_URI
+from mist.api.config import INFLUX
 from mist.api.exceptions import ServiceUnavailableError
-from mist.api.helpers import amqp_publish_user
 
 log = logging.getLogger(__name__)
 
@@ -134,18 +131,3 @@ def show_tag_values(key):
         for value in series['values']:
             tags.add(value[1])
     return list(tags)
-
-
-def notify_machine_monitoring(machine):
-    patches = []
-    patches.append({
-        "path": "/%s-%s/monitoring" % (
-            machine.id, machine.machine_id),
-        "value": machine.monitoring.as_dict(),
-        "op": "replace"
-    })
-
-    amqp_publish_user(machine.owner.id,
-                      routing_key='patch_machines',
-                      data={'cloud_id': machine.cloud.id,
-                            'patch': patches})

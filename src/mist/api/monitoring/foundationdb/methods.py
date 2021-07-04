@@ -59,9 +59,8 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     if not isinstance(machine, str):
         # set activated_at for collectd/telegraf installation status
         # if no data previously received for machine
-        from mist.api.helpers import trigger_session_update
         from mist.api.rules.tasks import add_nodata_rule
-        from mist.api.monitoring.influxdb.helpers import notify_machine_monitoring
+        from mist.api.monitoring.methods import notify_machine_monitoring
 
         istatus = machine.monitoring.installation_status
         if not istatus.activated_at:

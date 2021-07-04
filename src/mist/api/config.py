@@ -3099,6 +3099,11 @@ if ENABLE_MONITORING:
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
         'schedule': datetime.timedelta(seconds=90),
     }
+    _schedule['set-activated-at'] = {
+        'task': 'mist.api.monitoring.tasks.set_activated_at',
+        'schedule': datetime.timedelta(seconds=10),
+    }
+
 if ENABLE_BACKUPS:
     _schedule['backups'] = {
         'task': 'mist.api.tasks.create_backup',

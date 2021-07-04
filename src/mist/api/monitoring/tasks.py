@@ -1,7 +1,7 @@
 import uuid
 import time
 import logging
-
+import datetime
 
 from mist.api.dramatiq_app import dramatiq
 
@@ -148,3 +148,21 @@ def reset_traefik_config():
     except Exception as exc:
         log.error(exc)
         reset_config()
+
+
+@dramatiq.actor(time_limit=60_000, max_retries=1)
+def set_activated_at():
+    from mist.api.monitoring.methods import get_stats, disable_monitoring
+    machines = Machine.objects(
+        monitoring__hasmonitoring=True,
+        monitoring__installation_status__activated_at=None)
+    log.warn("Found %d monitored machines that remain unactivated" %
+             len(machines))
+    for machine in machines:
+        stats = get_stats(machine, start="-2mins")
+        cutoff = datetime.datetime.now() - datetime.timedelta(hours=24)
+        started_at = datetime.datetime.fromtimestamp(
+            machine.monitoring.installation_status.started_at)
+        if started_at < cutoff and \
+                not stats:
+            disable_monitoring(machine.org, machine.cloud.id, machine.id)

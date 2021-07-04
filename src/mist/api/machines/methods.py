@@ -2294,7 +2294,7 @@ def destroy_machine(user, cloud_id, machine_id):
     # if machine has monitoring, disable it.
     if machine.monitoring.hasmonitoring:
         try:
-            disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
+            disable_monitoring(user, cloud_id, machine.id, no_ssh=True)
         except Exception as exc:
             log.warning("Didn't manage to disable monitoring, maybe the "
                         "machine never had monitoring enabled. Error: %r", exc)

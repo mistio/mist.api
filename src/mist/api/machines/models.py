@@ -86,7 +86,6 @@ class Actions(me.EmbeddedDocument):
 
 
 class Monitoring(me.EmbeddedDocument):
-    # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
     collectd_password = me.StringField()  # Deprecated
@@ -328,7 +327,7 @@ class Machine(OwnershipMixin, me.Document):
         'collection': 'machines',
         'indexes': [
             'owner', 'last_seen', 'missing_since',
-            'name', 'cloud', 'machine_id',
+            'name', 'cloud', 'machine_id', 'monitoring.hasmonitoring',
             {
                 'fields': [
                     'cloud',
