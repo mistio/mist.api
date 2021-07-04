@@ -39,8 +39,8 @@ class InstallationStatus(me.EmbeddedDocument):
 
     # automatic:
     # - preparing: Set on first API call before everything else
-    # - pending: Enabled on mist.monitor, submitted celery task
-    # - installing: Celery task running
+    # - pending: Enabled on mist.monitor, submitted dramatiq task
+    # - installing: Dramatiq task running
     # - failed: Ansible job failed (also set finished_at)
     # - succeeded: Ansible job succeeded (also set finished_at)
     # manual:
@@ -299,7 +299,7 @@ class Machine(OwnershipMixin, me.Document):
     machine_type = me.StringField(default='machine',
                                   choices=('machine', 'vm', 'container',
                                            'hypervisor', 'container-host',
-                                           'ilo-host'))
+                                           'ilo-host', 'node', 'pod'))
     parent = me.ReferenceField('Machine', required=False,
                                reverse_delete_rule=me.NULLIFY)
 
@@ -351,6 +351,10 @@ class Machine(OwnershipMixin, me.Document):
     def __init__(self, *args, **kwargs):
         super(Machine, self).__init__(*args, **kwargs)
         self.ctl = MachineController(self)
+
+    @property
+    def org(self):
+        return self.owner
 
     def clean(self):
         # Remove any KeyAssociation, whose `keypair` has been deleted. Do NOT

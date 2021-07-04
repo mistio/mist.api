@@ -42,7 +42,9 @@ __all__ = [
     "LibvirtCloud",
     "OnAppCloud",
     "OtherCloud",
-    "KubeVirtCloud"
+    "KubeVirtCloud",
+    "KubernetesCloud",
+    "OpenShiftCloud",
 ]
 # This is a map from provider name to provider class, eg:
 # 'linode': LinodeCloud
@@ -56,8 +58,10 @@ log = logging.getLogger(__name__)
 def _populate_clouds():
     """Populates CLOUDS variable with mappings from providers to clouds"""
     for key, value in list(globals().items()):
-        if key.endswith('Cloud') and key != 'Cloud':
-            value = globals()[key]
+        if not key.startswith('_') and key.endswith(
+                'Cloud') and key != 'Cloud':
+            if not value._controller_cls:
+                continue
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
     CLOUDS['amazon'] = CLOUDS['ec2']
@@ -66,6 +70,7 @@ def _populate_clouds():
     CLOUDS['google'] = CLOUDS['gce']
     CLOUDS['ibm'] = CLOUDS['softlayer']
     CLOUDS['equinix'] = CLOUDS['equinixmetal']
+    CLOUDS['azure'] = CLOUDS['azure_arm']
 
 
 class Cloud(OwnershipMixin, me.Document):
@@ -177,6 +182,10 @@ class Cloud(OwnershipMixin, me.Document):
     @property
     def name(self):
         return self.title
+
+    @property
+    def org(self):
+        return self.owner
 
     @property
     def provider(self):
@@ -496,13 +505,15 @@ class MaxihostCloud(Cloud):
 
 
 class GigG8Cloud(Cloud):
+    """
+    DEPRECATED
+    """
 
     apikey = me.StringField(required=True)
     user_id = me.IntField(required=True)
     url = me.StringField(required=True)
 
     _private_fields = ('apikey', )
-    _controller_cls = controllers.GigG8MainController
 
 
 class LinodeCloud(Cloud):
@@ -638,6 +649,9 @@ class OpenStackCloud(Cloud):
     domain = me.StringField(required=False)
     region = me.StringField(required=False)
     compute_endpoint = me.StringField(required=False)
+    # tenant_id will be lazily populated when
+    # a request to get security_groups is made
+    tenant_id = me.StringField(required=False)
 
     _private_fields = ('password', )
     _controller_cls = controllers.OpenStackMainController
@@ -708,29 +722,44 @@ class OtherCloud(Cloud):
     _controller_cls = controllers.OtherMainController
 
 
-class KubeVirtCloud(Cloud):
+class _KubernetesBaseCloud(Cloud):
     host = me.StringField(required=True)
     port = me.IntField(required=True, default=6443)
-
     # USER / PASS authentication optional
     username = me.StringField(required=False)
     password = me.StringField(required=False)
-
     # Bearer Token authentication optional
     token = me.StringField(required=False)
-
     # TLS Authentication
     key_file = me.StringField(required=False)
     cert_file = me.StringField(required=False)
-
     # certificate authority
     ca_cert_file = me.StringField(required=False)
-
     # certificate verification
     verify = me.BooleanField(required=False)
-
     _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
+
+
+class KubeVirtCloud(_KubernetesBaseCloud):
     _controller_cls = controllers.KubeVirtMainController
+
+
+class _KubernetesProxyCloud(_KubernetesBaseCloud):
+    def as_dict_v2(self, *args, **kwargs):
+        ret = super().as_dict_v2(*args, **kwargs)
+        ret['namespaces'] = self.ctl.compute.list_namespaces()
+        ret['services'] = self.ctl.compute.list_services()
+        ret['resources'] = self.ctl.compute.get_node_resources()
+        ret['version'] = self.ctl.compute.get_version()
+        return ret
+
+
+class KubernetesCloud(_KubernetesProxyCloud):
+    _controller_cls = controllers.KubernetesMainController
+
+
+class OpenShiftCloud(_KubernetesProxyCloud):
+    _controller_cls = controllers.OpenShiftMainController
 
 
 class CloudSigmaCloud(Cloud):

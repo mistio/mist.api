@@ -1,43 +1,24 @@
-#!/bin/sh
+#!/usr/bin/env python
+import argparse
 
-set -e
+from mist.api.scheduler import start
 
-LOGLEVEL="INFO"
-TASKS="${TASKS:-mist.api.tasks}"
-
-USAGE="Usage: $0 [-h] [-l <LOGLEVEL>] [-t <TASKS_PATH>]
-
-Start scheduler
-
-Options:
-    -h              Show this help message and exit.
-    -l <LOGLEVEL>   Log level. Defaults to $LOGLEVEL.
-    -t <TASKS_PATH> Tasks file to import. Defaults to $TASKS.
-"
-
-while getopts "hl:t:" opt; do
-    case "$opt" in
-        h)
-            echo "$USAGE"
-            exit
-            ;;
-        l)
-            LOGLEVEL=$OPTARG
-            ;;
-        t)
-            TASKS=$OPTARG
-            ;;
-        \?)
-            echo "Invalid option: -$OPTARG" >&2
-            echo "$USAGE" >&2
-            exit 1
-    esac
-done
-
-set -x
-
-exec celery beat \
-    -A $TASKS \
-    -S mist.api.schedules.models.UserScheduler \
-    --pidfile= \
-    -l $LOGLEVEL
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Start task scheduler"
+    )
+    parser.add_argument('--builtin', default=False, action='store_true')
+    parser.add_argument('--user', default=False, action='store_true')
+    parser.add_argument('--polling', default=False, action='store_true')
+    parser.add_argument('--rules', default=False, action='store_true')
+    args = parser.parse_args()
+    if not (args.builtin or args.user or args.polling or args.rules):
+        kwargs = {}
+    else:
+        kwargs = {
+            'builtin': args.builtin,
+            'user': args.user,
+            'polling': args.polling,
+            'rules': args.rules,
+        }
+    start(**kwargs)

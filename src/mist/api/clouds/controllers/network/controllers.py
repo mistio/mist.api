@@ -12,13 +12,10 @@ from mist.api.helpers import rename_kwargs
 from mist.api.exceptions import SubnetNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import MistNotImplementedError
-from mist.api.exceptions import MachineNotFoundError
-from mist.api.exceptions import PortForwardCreationError
 
 from mist.api.clouds.controllers.network.base import BaseNetworkController
 
 from libcloud.compute.drivers.azure_arm import AzureNetwork
-from libcloud.common.exceptions import BaseHTTPError
 
 
 log = logging.getLogger(__name__)
@@ -243,7 +240,11 @@ class LibvirtNetworkController(BaseNetworkController):
         from mist.api.machines.models import Machine
         hosts = Machine.objects(cloud=self.cloud, parent=None,
                                 missing_since=None)
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
         all_nets = loop.run_until_complete(self.list_networks_all_hosts(hosts,
                                                                         loop))
         return [net for host_nets in all_nets for net in host_nets]
@@ -347,74 +348,3 @@ class LXDNetworkController(BaseNetworkController):
 
     def _list_networks__cidr_range(self, network, net):
         return net.config.get("ipv4.address")
-
-
-class GigG8NetworkController(BaseNetworkController):
-
-    def _list_networks__postparse_network(self, network, libcloud_network,
-                                          r_groups=[]):
-        network.public_ip = libcloud_network.publicipaddress
-
-    def _list_subnets__fetch_subnets(self, network):
-        return []
-
-    def _list_portforwards(self, network):
-        connection = network.cloud.ctl.compute.connection
-        g8_network = None
-
-        for _network in connection.ex_list_networks():
-            if network.network_id == _network.id:
-                g8_network = _network
-                break
-
-        return connection.ex_list_portforwards(g8_network)
-
-    def _create_portforward(self, network, **kwargs):
-        connection = network.cloud.ctl.compute.connection
-        g8_network = None
-        for _network in connection.ex_list_networks():
-            if network.network_id == _network.id:
-                g8_network = _network
-                break
-
-        from mist.api.machines.models import Machine
-        try:
-            machine = Machine.objects.get(cloud=self.cloud,
-                                          id=kwargs.get('machine_id'))
-        except Machine.DoesNotExist:
-            raise MachineNotFoundError()
-
-        libcloud_node = None
-        for node in connection.list_nodes():
-            if node.id == machine.machine_id:
-                libcloud_node = node
-                break
-
-        try:
-            pf = connection.ex_create_portforward(g8_network, libcloud_node,
-                                                  kwargs.get('public_port'),
-                                                  kwargs.get('private_port'),
-                                                  kwargs.get('protocol',
-                                                             'tcp'))
-        except BaseHTTPError as exc:
-            raise PortForwardCreationError(exc.message)
-
-        return pf
-
-    def _delete_portforward(self, network, **kwargs):
-        connection = network.cloud.ctl.compute.connection
-        g8_network = None
-        for _network in connection.ex_list_networks():
-            if network.network_id == _network.id:
-                g8_network = _network
-                break
-
-        ex_portforward = None
-        for pf in connection.ex_list_portforwards(g8_network):
-            if pf.publicport == kwargs.get('public_port') and \
-               pf.protocol == kwargs.get('protocol'):
-                ex_portforward = pf
-                break
-
-        if ex_portforward:
-            connection.ex_delete_portforward(ex_portforward)

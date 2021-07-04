@@ -108,28 +108,6 @@ class MaxihostMainController(BaseMainController):
     ComputeController = compute_ctls.MaxihostComputeController
 
 
-class GigG8MainController(BaseMainController):
-
-    provider = 'gig_g8'
-    ComputeController = compute_ctls.GigG8ComputeController
-    StorageController = storage_ctls.GigG8StorageController
-    NetworkController = network_ctls.GigG8NetworkController
-
-    def _add__preparse_kwargs(self, kwargs):
-        base_url = kwargs.pop('url')
-        if base_url.endswith('/'):
-            base_url = base_url[:-1]
-        kwargs['url'] = base_url + '/restmachine/cloudapi' if \
-            not base_url.endswith('/restmachine/cloudapi') else base_url
-
-    def _update__preparse_kwargs(self, kwargs):
-        base_url = kwargs.pop('url')
-        if base_url.endswith('/'):
-            base_url = base_url[:-1]
-        kwargs['url'] = base_url + '/restmachine/cloudapi' if \
-            not base_url.endswith('/restmachine/cloudapi') else base_url
-
-
 class LinodeMainController(BaseMainController):
 
     provider = 'linode'
@@ -806,9 +784,7 @@ class OtherMainController(BaseMainController):
         return machine
 
 
-class KubeVirtMainController(BaseMainController):
-    provider = 'kubevirt'
-    ComputeController = compute_ctls.KubeVirtComputeController
+class _KubernetesBaseMainController(BaseMainController):
     StorageController = storage_ctls.KubernetesStorageController
 
     def _update__preparse_kwargs(self, kwargs):
@@ -816,6 +792,21 @@ class KubeVirtMainController(BaseMainController):
         if host:
             host = sanitize_host(host)
             check_host(host)
+
+
+class KubernetesMainController(_KubernetesBaseMainController):
+    provider = 'kubernetes'
+    ComputeController = compute_ctls.KubernetesComputeController
+
+
+class KubeVirtMainController(_KubernetesBaseMainController):
+    provider = 'kubevirt'
+    ComputeController = compute_ctls.KubeVirtComputeController
+
+
+class OpenShiftMainController(_KubernetesBaseMainController):
+    provider = 'openshift'
+    ComputeController = compute_ctls.OpenShiftComputeController
 
 
 class CloudSigmaMainController(BaseMainController):

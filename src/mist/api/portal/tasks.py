@@ -2,7 +2,7 @@ import logging
 
 import requests
 
-from mist.api.celery_app import app
+from mist.api.dramatiq_app import dramatiq
 
 from mist.api import config
 from mist.api.portal.models import Portal, AvailableUpgrade
@@ -10,6 +10,11 @@ from mist.api.metering.methods import get_current_portal_usage
 
 
 log = logging.getLogger(__name__)
+
+__all__ = [
+    'check_new_versions',
+    'usage_survey'
+]
 
 
 def get_version_params(portal=None):
@@ -27,7 +32,7 @@ def get_version_params(portal=None):
     return params
 
 
-@app.task
+@dramatiq.actor
 def check_new_versions(url="https://mist.io/api/v1/version-check"):
     portal = Portal.get_singleton()
     params = get_version_params(portal)
@@ -59,7 +64,7 @@ def get_usage_params(portal=None):
     return params
 
 
-@app.task
+@dramatiq.actor
 def usage_survey(url="https://mist.io/api/v1/usage-survey"):
     portal = Portal.get_singleton()
     params = get_usage_params(portal)

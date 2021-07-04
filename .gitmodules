@@ -7,9 +7,6 @@
 [submodule "paramiko"]
 	path = paramiko
 	url = ../../mistio/paramiko.git
-[submodule "celerybeat-mongo"]
-	path = celerybeat-mongo
-	url = ../../mistio/celerybeat-mongo.git
 [submodule "v2"]
 	path = v2
 	url = ../mist-api-v2.git

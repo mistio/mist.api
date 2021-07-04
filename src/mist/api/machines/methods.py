@@ -24,9 +24,6 @@ from libcloud.container.base import ContainerImage
 from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.base import NodeAuthPassword
 
-from libcloud.common.types import MalformedResponseError
-from libcloud.common.exceptions import BaseHTTPError
-
 from tempfile import NamedTemporaryFile
 
 import mist.api.tasks
@@ -188,23 +185,6 @@ def validate_portforwards(port_forwards):
                 raise BadRequestError("Protocol should be either TCP or UPD.")
 
 
-def validate_portforwards_g8(port_forwards, network):
-    for pf in port_forwards.get('ports'):
-        if len(pf['port'].split(':')) == 2:
-            if pf['port'].split(':')[0] != network.publicipaddres:
-                raise BadRequestError("You can only expose a port to the \
-                    network's public ip address, which is \
-                        %s" % network.publicipaddress)
-        if len(pf['target_port'].split(':')) == 2:
-            if pf['target_port'].split(':')[0] not in {'localhost',
-                                                       '172.17.0.1',
-                                                       '0.0.0.0'}:
-                raise BadRequestError("The address in target_port "
-                                      "must be the localhost!")
-        if pf['protocol'].lower() not in {'udp', 'tcp'}:
-            raise BadRequestError('Allowed protocols are "UDP" or "TCP"')
-
-
 def validate_portforwards_kubevirt(port_forwards):
     service_type = port_forwards.get('service_type')
     if service_type not in {"ClusterIP", "NodePort", "LoadBalancer"}:
@@ -267,7 +247,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
-                   sec_group='', folder=None, datastore=None, vnfs=[],
+                   sec_groups=None, folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
                    description='', port_forwards={},
                    ):
@@ -313,7 +293,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                   Container_Provider.DOCKER,
                                   Provider.ONAPP.value,
                                   Provider.AZURE_ARM.value,
-                                  Provider.GIG_G8.value,
                                   Provider.VSPHERE.value,
                                   Provider.KUBEVIRT.value,
                                   Container_Provider.LXD]:
@@ -442,6 +421,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if port_forwards:
         validate_portforwards(port_forwards)
 
+    cached_machines = [m.as_dict()
+                       for m in cloud.ctl.compute.list_cached_machines()]
+
     if cloud.ctl.provider is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
@@ -480,11 +462,16 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_rackspace(conn, machine_name, image,
                                          size, user_data=cloud_init)
     elif cloud.ctl.provider in [Provider.OPENSTACK.value]:
+        sec_groups = sec_groups or []
         node = _create_machine_openstack(conn, public_key,
                                          key.name, machine_name, image, size,
                                          networks, volumes,
-                                         cloud_init)
+                                         cloud_init, sec_groups)
     elif cloud.ctl.provider is Provider.EC2.value:
+        try:
+            sec_group = sec_groups[0]
+        except (IndexError, TypeError):
+            sec_group = ''
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location.id:
@@ -516,13 +503,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             location, bare_metal, cloud_init,
             hourly, softlayer_backend_vlan_id
         )
-    elif cloud.ctl.provider is Provider.GIG_G8.value:
-        node = create_machine_g8(
-            conn, machine_name, image, size_ram, size_cpu,
-            size_disk_primary, public_key, description, networks,
-            volumes, cloud_init, port_forwards
-        )
-        ssh_port = node.extra.get('ssh_port', 22)
     elif cloud.ctl.provider is Provider.ONAPP.value:
         node = _create_machine_onapp(
             conn, public_key,
@@ -560,7 +540,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                       size, public_key, networks)
     elif cloud.ctl.provider is Provider.VSPHERE.value:
         size.ram = size_ram
-        size.extra['cpu'] = size_cpu
+        size.extra['cpus'] = size_cpu
         size.disk = size_disk_primary
         node = _create_machine_vsphere(conn, machine_name, image,
                                        size, location, networks, folder,
@@ -630,14 +610,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 else:
                     continue
 
-    # since machine was found in mongo, a patch has already
-    # been published with the newly created machine,
-    # so the json patch that will be produced here
-    # should only contain machine expiration,
-    # key association, tags and owner/creator
-    cached_machines = [m.as_dict()
-                       for m in cloud.ctl.compute.list_cached_machines()]
-
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
 
@@ -674,23 +646,23 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if cloud.ctl.provider == Provider.AZURE.value:
         # for Azure, connect with the generated password, deploy the ssh key
         # when this is ok, it calls post_deploy for script/monitoring
-        mist.api.tasks.azure_post_create_steps.delay(
+        mist.api.tasks.azure_post_create_steps.send(
             auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('username'), node.extra.get('password'), public_key,
-            script=script,
-            script_id=script_id, script_params=script_params, job_id=job_id,
-            hostname=hostname, plugins=plugins, post_script_id=post_script_id,
+            script=script, script_id=script_id, script_params=script_params,
+            job_id=job_id, hostname=hostname, plugins=plugins,
+            post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule, job=job,
         )
     elif cloud.ctl.provider == Provider.OPENSTACK.value:
         if associate_floating_ip:
             networks = list_networks(auth_context.owner, cloud_id)
-            mist.api.tasks.openstack_post_create_steps.delay(
+            mist.api.tasks.openstack_post_create_steps.send(
                 auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
                 node.extra.get('username'), node.extra.get('password'),
                 public_key, script=script, script_id=script_id,
-                script_params=script_params,
-                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
+                script_params=script_params, job_id=job_id, job=job,
+                hostname=hostname, plugins=plugins,
                 post_script_params=post_script_params,
                 networks=networks, schedule=schedule,
             )
@@ -698,7 +670,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         # for Rackspace First Gen, cannot specify ssh keys. When node is
         # created we have the generated password, so deploy the ssh key
         # when this is ok and call post_deploy for script/monitoring
-        mist.api.tasks.rackspace_first_gen_post_create_steps.delay(
+        mist.api.tasks.rackspace_first_gen_post_create_steps.send(
             auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('password'), public_key, script=script,
             script_id=script_id, script_params=script_params,
@@ -708,7 +680,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         )
 
     else:
-        mist.api.tasks.post_deploy_steps.delay(
+        mist.api.tasks.post_deploy_steps.send(
             auth_context.owner.id, cloud_id, node.id, monitoring,
             script=script, key_id=key_id, script_id=script_id,
             script_params=script_params, job_id=job_id, job=job, port=ssh_port,
@@ -731,80 +703,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         ret.update({'public_ips': [],
                     'private_ips': []})
     return ret
-
-
-def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
-                      public_key, description, networks, volumes,
-                      cloud_init, port_forwards):
-    auth = None
-    ex_expose_ssh = False
-    if public_key:
-        key = public_key.replace('\n', '')
-        auth = NodeAuthSSHKey(pubkey=key)
-        ex_expose_ssh = True
-
-    try:
-        mist_net = Network.objects.get(id=networks[0])
-    except me.DoesNotExist:
-        raise NetworkNotFoundError()
-
-    try:
-        libcloud_networks = conn.ex_list_networks()
-    except MalformedResponseError as exc:
-        if 'AccessDenied' in exc.body:
-            raise MachineCreationError("G8 got exception 'Access Denied'. \
-                Make sure your JWT token has not expired.")
-    ex_network = None
-    for libcloud_net in libcloud_networks:
-        if mist_net.network_id == libcloud_net.id:
-            ex_network = libcloud_net
-            break
-
-    # g8-specific validation
-    if port_forwards:
-        validate_portforwards_g8(port_forwards, ex_network)
-
-    ex_create_attr = {
-        "memory": ram,
-        "vcpus": cpu,
-        "disk_size": disk
-    }
-
-    if volumes:
-        disks = [volume.get('size') for volume in volumes]
-        ex_create_attr.update({"data_disks": disks})
-
-    if cloud_init:
-        ex_create_attr.update({"user_data": cloud_init})
-
-    try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            ex_network=ex_network,
-            ex_description=description,
-            auth=auth,
-            ex_create_attr=ex_create_attr,
-            ex_expose_ssh=ex_expose_ssh
-        )
-    except Exception as e:
-        raise MachineCreationError("Gig G8, got exception %s" % e, e)
-
-    if port_forwards:
-        for pf in port_forwards['ports']:
-            public_port = pf['port'].split(":")[-1]
-            private_port = pf['target_port'].split(":")[-1]
-            if not private_port:
-                private_port = public_port
-            protocol = pf.get('protocol', 'tcp').lower()
-
-            try:
-                conn.ex_create_portforward(ex_network, node, public_port,
-                                           private_port, protocol)
-            except BaseHTTPError as exc:
-                raise BadRequestError(exc.message)
-
-    return node
 
 
 def _create_machine_rackspace(conn, machine_name, image, size, user_data):
@@ -848,7 +746,7 @@ def _create_machine_rackspace(conn, machine_name, image, size, user_data):
 
 def _create_machine_openstack(conn, public_key, key_name,
                               machine_name, image, size, networks,
-                              volumes, user_data):
+                              volumes, user_data, sec_groups):
     """Create a machine in Openstack.
     """
     key = str(public_key).replace('\n', '')
@@ -887,6 +785,18 @@ def _create_machine_openstack(conn, public_key, key_name,
         chosen_networks = []
 
     blockdevicemappings = []
+    sec_groups = sec_groups or []
+    sec_groups_objects = []
+    if sec_groups:
+        try:
+            security_groups = conn.ex_list_security_groups()
+        except Exception as e:
+            raise MachineCreationError("OpenStack, got exception %s" % e, e)
+
+        for security_group in security_groups:
+            if security_group.id in sec_groups:
+                sec_groups_objects.append(security_group)
+
     try:
         if volumes:
             if volumes[0].get('size'):
@@ -915,7 +825,8 @@ def _create_machine_openstack(conn, public_key, key_name,
             ex_keyname=server_key,
             networks=chosen_networks,
             ex_blockdevicemappings=blockdevicemappings,
-            ex_userdata=user_data)
+            ex_userdata=user_data,
+            ex_security_groups=sec_groups_objects)
     except Exception as e:
         raise MachineCreationError("OpenStack, got exception %s" % e, e)
     return node
@@ -2380,19 +2291,15 @@ def destroy_machine(user, cloud_id, machine_id):
 
     machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
 
-    if not machine.monitoring.hasmonitoring:
-        machine.ctl.destroy()
-        return
+    # if machine has monitoring, disable it.
+    if machine.monitoring.hasmonitoring:
+        try:
+            disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
+        except Exception as exc:
+            log.warning("Didn't manage to disable monitoring, maybe the "
+                        "machine never had monitoring enabled. Error: %r", exc)
 
-    # if machine has monitoring, disable it. the way we disable depends on
-    # whether this is a standalone io installation or not
-    try:
-        disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
-    except Exception as exc:
-        log.warning("Didn't manage to disable monitoring, maybe the "
-                    "machine never had monitoring enabled. Error: %r", exc)
-
-    machine.ctl.destroy()
+    return machine.ctl.destroy()
 
 
 # SEC

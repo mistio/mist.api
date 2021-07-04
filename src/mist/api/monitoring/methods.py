@@ -537,7 +537,7 @@ def enable_monitoring(
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
-                func = func.delay
+                func = func.send
             func(machine.id, job, job_id, plugins)
         else:
             raise Exception("Invalid monitoring method")
@@ -591,7 +591,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
             "telegraf-victoriametrics"
         ):
             # Schedule undeployment of Telegraf.
-            mist.api.monitoring.tasks.uninstall_telegraf.delay(
+            mist.api.monitoring.tasks.uninstall_telegraf.send(
                 machine.id, job, job_id
             )
     if job_id:

@@ -42,6 +42,7 @@ DESCRIPTION = "A secure cloud management platform for automation,\
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
+MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
@@ -76,7 +77,7 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-DATABASE_VERSION = 12
+DATABASE_VERSION = 13
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -1346,11 +1347,6 @@ USE_EXTERNAL_AUTHENTICATION = False
 
 # celery settings
 CELERY_SETTINGS = {
-    'broker_url': BROKER_URL,
-    # Disable heartbeats because celery workers & beat fail to actually send
-    # them and the connection dies.
-    'broker_heartbeat': 0,
-    'task_serializer': 'json',
     # Disable custom log format because we miss out on worker/task specific
     # metadata.
     # 'worker_log_format': PY_LOG_FORMAT,
@@ -1359,11 +1355,8 @@ CELERY_SETTINGS = {
     'worker_max_tasks_per_child': 32,
     'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
     'worker_send_task_events': True,
-    'mongodb_scheduler_db': 'mist2',
-    'mongodb_scheduler_collection': 'schedules',
-    'mongodb_scheduler_url': MONGO_URI,
-    'task_routes': {
 
+    'task_routes': {
         # Command queue
         'mist.api.tasks.ssh_command': {'queue': 'command'},
 
@@ -1473,7 +1466,7 @@ LINODE_DATACENTERS = {
     10: 'Frankfurt, DE'
 }
 
-PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
+PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd',
                                'kubevirt', 'cloudsigma']
 
 PROVIDERS_WITH_TERMINATED_MACHINES_VISIBLE = ['ec2', 'libvirt', 'azure_arm']
@@ -1511,6 +1504,9 @@ PROVIDERS = {
             'provision': {
                 'location': True,
                 'cloudinit': True,
+                'key': {
+                    'required': False,
+                },
                 'restrictions': {
                     'size-image-restriction': False,
                     'location-size-restriction': True,
@@ -1693,26 +1689,6 @@ PROVIDERS = {
                     'location-image-restriction': False,
                 },
             },
-        }
-    },
-    'g8': {
-        'name': 'G8',
-        'aliases': ['gig g8', 'gig-g8', 'gig'],
-        'driver': 'gig_g8',
-        'category': 'private cloud',
-        'features': {
-            'compute': True,
-            'provision': {
-                'cloudinit': True,
-                'custom_size': True,
-                'location': False,
-                'restrictions': {
-                    'size-image-restriction': False,
-                    'location-size-restriction': False,
-                    'location-image-restriction': False,
-                },
-            },
-            'storage': True,
         }
     },
     'openstack': {
@@ -2447,12 +2423,6 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.KUBEVIRT,
         'regions': []
     },
-    # GigG8
-    {
-        'title': 'GigG8',
-        'provider': Provider.GIG_G8,
-        'regions': []
-    },
     # LXD
     {
         'title': 'LXD',
@@ -2731,6 +2701,48 @@ GCE_IMAGES = ['debian-cloud',
               'suse-cloud',
               'ubuntu-os-cloud',
               'windows-cloud']
+
+AZURE_SECURITY_RULES = [
+    {
+        "name": "allowSSHInbound",
+        "properties": {
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "access": "Allow",
+            "destinationPortRange": "22",
+            "sourcePortRange": "*",
+            "priority": 200,
+            "direction": "Inbound"
+        }
+    },
+    {
+        "name": "allowRDPInbound",
+        "properties": {
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "access": "Allow",
+            "destinationPortRange": "3389",
+            "sourcePortRange": "*",
+            "priority": 201,
+            "direction": "Inbound"
+        }
+    },
+    {
+        "name": "allowMonitoringOutbound",
+        "properties": {
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "access": "Allow",
+            "destinationPortRange": "25826",
+            "sourcePortRange": "*",
+            "priority": 202,
+            "direction": "Outbound"
+        }
+    }
+]
 
 RESET_PASSWORD_EXPIRATION_TIME = 60 * 60 * 24
 
@@ -3126,15 +3138,6 @@ if not TELEGRAF_TARGET:
         TELEGRAF_TARGET = CORE_URI + '/ingress'
 
 
-# Update celery settings.
-CELERY_SETTINGS.update({
-    'broker_url': BROKER_URL,
-    'mongodb_scheduler_url': MONGO_URI,
-    # Disable custom log format because we miss out on worker/task specific
-    # metadata.
-    # 'worker_log_format': PY_LOG_FORMAT,
-    # 'worker_task_log_format': PY_LOG_FORMAT,
-})
 _schedule = {}
 if VERSION_CHECK:
     _schedule['version-check'] = {
@@ -3163,9 +3166,6 @@ if ENABLE_BACKUPS:
         'task': 'mist.api.tasks.create_backup',
         'schedule': datetime.timedelta(hours=BACKUP_INTERVAL),
     }
-
-if _schedule:
-    CELERY_SETTINGS.update({'beat_schedule': _schedule})
 
 
 # Configure libcloud to not verify certain hosts.

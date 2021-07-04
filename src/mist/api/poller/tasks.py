@@ -1,7 +1,7 @@
 import logging
 import datetime
 
-from mist.api.celery_app import app
+from mist.api.dramatiq_app import dramatiq
 
 from mist.api.methods import notify_user
 
@@ -9,6 +9,20 @@ from mist.api.concurrency.models import PeriodicTaskLockTakenError
 from mist.api.concurrency.models import PeriodicTaskTooRecentLastRun
 
 log = logging.getLogger(__name__)
+
+__all__ = [
+    'debug',
+    'list_machines',
+    'list_locations',
+    'list_sizes',
+    'list_images',
+    'list_networks',
+    'list_zones',
+    'list_volumes',
+    'list_buckets',
+    'ping_probe',
+    'ssh_probe'
+]
 
 
 def autodisable_cloud(cloud):
@@ -20,7 +34,7 @@ def autodisable_cloud(cloud):
     notify_user(cloud.owner, title=cloud, message=message, email_notify=True)
 
 
-@app.task
+@dramatiq.actor
 def debug(schedule_id):
     # FIXME: Resolve circular imports
     from mist.api.poller.models import DebugPollingSchedule
@@ -32,7 +46,7 @@ def debug(schedule_id):
         fobj.write(msg)
 
 
-@app.task(time_limit=280, soft_time_limit=255)
+@dramatiq.actor(queue_name='polling', time_limit=280_000, max_age=30_000)
 def list_machines(schedule_id):
     """Perform list machines. Cloud controller stores results in mongodb."""
 
@@ -46,7 +60,7 @@ def list_machines(schedule_id):
         pass
 
 
-@app.task(time_limit=160, soft_time_limit=155)
+@dramatiq.actor(queue_name='polling', time_limit=160_000, max_age=30_000)
 def list_locations(schedule_id):
     """Perform list locations. Cloud controller stores results in mongodb."""
 
@@ -55,7 +69,7 @@ def list_locations(schedule_id):
     sched.cloud.ctl.compute.list_locations(persist=False)
 
 
-@app.task(time_limit=60, soft_time_limit=55)
+@dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
 def list_sizes(schedule_id):
     """Perform list sizes. Cloud controller stores results in mongodb."""
 
@@ -64,7 +78,7 @@ def list_sizes(schedule_id):
     sched.cloud.ctl.compute.list_sizes(persist=False)
 
 
-@app.task(time_limit=60, soft_time_limit=55)
+@dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
 def list_images(schedule_id):
     """Perform list images. Cloud controller stores results in mongodb."""
 
@@ -73,7 +87,7 @@ def list_images(schedule_id):
     sched.cloud.ctl.compute.list_images(persist=False)
 
 
-@app.task(time_limit=60, soft_time_limit=55)
+@dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
 def list_networks(schedule_id):
     """Perform list networks and subnets (inside list_networks).
     Cloud controller stores results in mongodb."""
@@ -83,7 +97,7 @@ def list_networks(schedule_id):
     sched.cloud.ctl.network.list_networks(persist=False)
 
 
-@app.task(time_limit=60, soft_time_limit=55)
+@dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
 def list_zones(schedule_id):
     """Perform list zones and records.
        Cloud controller stores results in mongodb.
@@ -94,7 +108,7 @@ def list_zones(schedule_id):
     sched.cloud.ctl.dns.list_zones(persist=False)
 
 
-@app.task(time_limit=60, soft_time_limit=55)
+@dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
 def list_volumes(schedule_id):
     """Perform list volumes. Cloud controller stores results in mongodb."""
 
@@ -103,7 +117,7 @@ def list_volumes(schedule_id):
     sched.cloud.ctl.storage.list_volumes(persist=False)
 
 
-@app.task(time_limit=60, soft_time_limit=55)
+@dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=300_000)
 def list_buckets(schedule_id):
     """
     Perform list buckets.
@@ -115,7 +129,7 @@ def list_buckets(schedule_id):
     sched.cloud.ctl.objectstorage.list_buckets(persist=False)
 
 
-@app.task(time_limit=45, soft_time_limit=40)
+@dramatiq.actor(queue_name='ping_probe', time_limit=45_000, max_age=30_000)
 def ping_probe(schedule_id):
     """Perform ping probe"""
 
@@ -131,7 +145,7 @@ def ping_probe(schedule_id):
         log.error("Error while ping-probing %s: %r", sched.machine, exc)
 
 
-@app.task(time_limit=45, soft_time_limit=40)
+@dramatiq.actor(queue_name='ssh_probe', time_limit=45_000, max_age=30_000)
 def ssh_probe(schedule_id):
     """Perform ssh probe"""
 

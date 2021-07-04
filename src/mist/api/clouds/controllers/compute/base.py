@@ -13,6 +13,7 @@ import socket
 import logging
 import datetime
 import calendar
+from typing import Dict, List
 import requests
 import re
 
@@ -308,9 +309,11 @@ class BaseComputeController(BaseController):
         """
         # Try to query list of machines from provider API.
         try:
+            from time import time
+            start = time()
             nodes = self._list_machines__fetch_machines()
-            log.info("List nodes returned %d results for %s.",
-                     len(nodes), self.cloud)
+            log.info("List nodes returned %d results for %s in %d.",
+                     len(nodes), self.cloud, time() - start)
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_nodes on %s: %s",
                         self.cloud, exc)
@@ -448,6 +451,30 @@ class BaseComputeController(BaseController):
             log.warning("Error while closing connection: %r", exc)
         return machines
 
+    def _update_machine_image(self, node, machine, images_map):
+        updated = False
+        try:
+            image = images_map.get(self._list_machines__get_image(node)) or \
+                self._list_machines__get_custom_image(node)
+            if machine.image != image:
+                machine.image = image
+                updated = True
+        except Exception as exc:
+            log.error("Error getting image of %s: %r", machine, exc)
+        return updated
+
+    def _update_machine_size(self, node, machine, sizes_map):
+        updated = False
+        try:
+            size = sizes_map.get(self._list_machines__get_size(node)) or \
+                self._list_machines__get_custom_size(node)
+            if machine.size != size:
+                machine.size = size
+                updated = True
+        except Exception as exc:
+            log.error("Error getting size of %s: %r", machine, exc)
+        return updated
+
     def _update_machine_from_node(self, node, locations_map, sizes_map,
                                   images_map, now):
         is_new = False
@@ -477,28 +504,11 @@ class BaseComputeController(BaseController):
                 machine.location = locations_map.get(location_id)
                 updated = True
 
-        # Discover image of machine
-        image_id = ''
+        updated = self._update_machine_image(
+            node, machine, images_map) or updated
 
-        if isinstance(node.get('image'), dict) and node['image'].get('id'):
-            image_id = node['image']['id']
-        elif node.get('image'):
-            image_id = node.get('image')
-        elif isinstance(node['extra'].get('image'), dict):
-            image_id = str(node['extra'].get('image').get('id'))
-
-        if not image_id:
-            image_id = str(node.get('image') or node['extra'].get('imageId') or
-                           node['extra'].get('image_id') or
-                           node['extra'].get('image'))
-        if not image_id:
-            image_id = node['extra'].get('operating_system')
-            if isinstance(image_id, dict):
-                image_id = image_id.get('name')
-
-        if machine.image != images_map.get(image_id):
-            machine.image = images_map.get(image_id)
-            updated = True
+        updated = self._update_machine_size(
+            node, machine, sizes_map) or updated
 
         # set machine's os_type from image's os_type, but if
         # info of os_type can be obtained from libcloud node, then
@@ -506,26 +516,14 @@ class BaseComputeController(BaseController):
         if machine.image:
             machine.os_type = machine.image.os_type
 
-        # Attempt to map machine's size to a CloudSize object. If not
-        # successful, try to discover custom size.
-        try:
-            size = self._list_machines__get_size(node)
-            if size and size in sizes_map:
-                size = sizes_map.get(size)
-            else:
-                size = self._list_machines__get_custom_size(node)
-            if machine.size != size:
-                machine.size = size
-                updated = True
-        except Exception as exc:
-            log.error("Error getting size of %s: %r", machine, exc)
-
         if machine.name != node['name']:
             machine.name = node['name']
             updated = True
 
-        if machine.state != config.STATES[node['state']]:
-            machine.state = config.STATES[node['state']]
+        node_state = node.get('state')
+        config_state = config.STATES.get(node_state)
+        if node_state and config_state and machine.state != config_state:
+            machine.state = config_state
             updated = True
 
         new_private_ips = list(set(node['private_ips']))
@@ -679,6 +677,33 @@ class BaseComputeController(BaseController):
         if KeyMachineAssociation.objects(machine=machine).count():
             machine.actions.reboot = True
         machine.actions.tag = True
+
+    def _list_machines__get_image(self, node):
+        """Return key of images_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        image_id = ''
+        if isinstance(node.get('image'), dict) and node['image'].get('id'):
+            image_id = node['image']['id']
+        elif node.get('image'):
+            image_id = node.get('image')
+        elif isinstance(node.get('extra', {}).get('image'), dict):
+            image_id = str(node['extra'].get('image').get('id'))
+        if not image_id:
+            image_id = str(node.get('image') or node.get(
+                           'extra', {}).get('imageId') or
+                           node.get('extra', {}).get('image_id') or
+                           node.get('extra', {}).get('image'))
+        if not image_id:
+            image_id = node.get('extra', {}).get('operating_system')
+            if isinstance(image_id, dict):
+                image_id = image_id.get('name')
+        return image_id
+
+    def _list_machines__get_custom_image(self, node):
+        """Return image metadata for node"""
+        return None
 
     def _list_machines__get_size(self, node):
         """Return key of size_map dict for a specific node
@@ -1785,12 +1810,6 @@ class BaseComputeController(BaseController):
         """
         self.connection.ex_resize_node(node, node_size)
 
-    def expose_port(self, port_forwards):
-        """Expose a machine's private port to a public one.
-        Currently only availble for GigG8
-        """
-        raise MistNotImplementedError()
-
     def rename_machine(self, machine, name):
         """Rename machine
 
@@ -2243,13 +2262,18 @@ class BaseComputeController(BaseController):
 
         node = self._get_libcloud_node(machine)
         try:
-            self._clone_machine(machine, node, name, resume)
+            clone = self._clone_machine(machine, node, name, resume)
         except MistError as exc:
             log.error("Failed to clone %s", machine)
             raise
         except Exception as exc:
             log.exception(exc)
             raise InternalServerError(exc=exc)
+        ret = {'id': clone.id,
+               'name': clone.name,
+               'extra': clone.extra
+               }
+        return ret
 
     def _clone_machine(self, machine, node, name=None,
                        resume=False):
@@ -2263,9 +2287,27 @@ class BaseComputeController(BaseController):
             name: the clone's unique name
             resume: denotes whether to resume the original node
 
-        Differnent cloud controllers should override this private method,
+        Different cloud controllers should override this private method,
         which is called by the public method `clone_machine`.
 
+        """
+        raise MistNotImplementedError()
+
+    def list_security_groups(self) -> List[Dict]:
+        """List security groups.
+
+        A subclass that wishes to implement this functionality should override
+        the `_list_security_groups` method instead.
+        """
+        return self._list_security_groups()
+
+    def _list_security_groups(self) -> List[Dict]:
+        """Fetch security groups.
+
+        This is to be called exclusively by `self.list_security_groups`.
+
+        Subclasses that implement this functionality SHOULD override this
+        method
         """
         raise MistNotImplementedError()
 
@@ -2307,20 +2349,21 @@ class BaseComputeController(BaseController):
                                                       name)
 
         tags, constraints = auth_context.check_perm('machine', 'create', None)
+        constraints = constraints or {}
 
-        tags = compute_tags(auth_context, tags=tags,
-                            request_tags=request_tags)
+        tags = compute_tags(auth_context, tags, request_tags)
         if tags:
             plan['tags'] = tags
 
         expiration = self._generate_plan__parse_expiration(auth_context,
                                                            expiration)
-        check_expiration_constraint(auth_context, expiration,
-                                    constraints=constraints)
+        exp_constraint = constraints.get('expiration', {})
+        check_expiration_constraint(expiration, exp_constraint)
         if expiration:
             plan['expiration'] = expiration
 
-        check_cost_constraint(auth_context, constraints=constraints)
+        cost_constraint = constraints.get('cost', {})
+        check_cost_constraint(auth_context, cost_constraint)
 
         images, image_extra_attrs = self._generate_plan__parse_image(
             auth_context, image)
@@ -2337,8 +2380,8 @@ class BaseComputeController(BaseController):
             auth_context, size)
         size_extra_attrs = size_extra_attrs or {}
 
-        sizes = check_size_constraint(auth_context, sizes,
-                                      constraints=constraints)
+        size_constraint = constraints.get('size', {})
+        sizes = check_size_constraint(self.cloud.id, size_constraint, sizes)
 
         comb_list = self._get_allowed_image_size_location_combinations(
             images, locations, sizes, image_extra_attrs, size_extra_attrs)
@@ -2389,7 +2432,6 @@ class BaseComputeController(BaseController):
         self._generate_plan__parse_extra(extra, plan)
 
         schedules = self._generate_plan__parse_schedules(auth_context,
-                                                         plan['machine_name'],
                                                          schedules)
         if schedules:
             plan['schedules'] = schedules
@@ -2400,7 +2442,7 @@ class BaseComputeController(BaseController):
         if fqdn and self.cloud.ctl.has_feature('dns'):
             plan['fqdn'] = fqdn
 
-        plan['monitoring'] = monitoring if monitoring is not None else False
+        plan['monitoring'] = True if monitoring is True else False
         plan['quantity'] = quantity if quantity else 1
 
         self._generate_plan__post_parse_plan(plan)
@@ -2435,7 +2477,19 @@ class BaseComputeController(BaseController):
         )
         if not count:
             raise NotFoundError('Image not found')
-        return images, None
+
+        ret_images = []
+        for image in images:
+            try:
+                auth_context.check_perm('image',
+                                        'create_resources',
+                                        image.id)
+            except PolicyUnauthorizedError:
+                continue
+            else:
+                ret_images.append(image)
+
+        return ret_images, None
 
     def _generate_plan__parse_custom_image(self, image_dict):
         """Get an image that is not saved in mongo.
@@ -2469,7 +2523,7 @@ class BaseComputeController(BaseController):
             else:
                 ret_locations.append(location)
 
-        return locations
+        return ret_locations
 
     def _generate_plan__parse_size(self, auth_context, size_obj):
         """Parse the size parameter from request.
@@ -2711,7 +2765,8 @@ class BaseComputeController(BaseController):
         something provider specific.
 
         Subclasses MAY override this method, even though overriding
-        `self._generate_plan__parse_custom_volume` should be enough for
+        `self._generate_plan__parse_custom_volume` or
+        `self._generate_plan__parse_volume_attrs` should be enough for
         most cases
         """
         ret_volumes = []
@@ -2764,8 +2819,7 @@ class BaseComputeController(BaseController):
         """
         pass
 
-    def _generate_plan__parse_schedules(self, auth_context,
-                                        machine_name, schedules):
+    def _generate_plan__parse_schedules(self, auth_context, schedules):
         """
         Schedule attributes:
             `schedule_type`: 'one_off', 'interval', 'crontab'
@@ -2807,7 +2861,6 @@ class BaseComputeController(BaseController):
                                       'these (crontab, interval, one_off)]')
 
             ret_schedule = {
-                'name': machine_name,
                 'schedule_type': schedule_type,
                 'description': schedule.get('description', ''),
                 'task_enabled': True,

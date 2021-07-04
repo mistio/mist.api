@@ -22,6 +22,7 @@ import socket
 import smtplib
 import logging
 import codecs
+import secrets
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -37,6 +38,7 @@ import subprocess
 
 from time import time, strftime, sleep
 from datetime import timedelta
+import dateparser
 
 from base64 import urlsafe_b64encode
 
@@ -80,7 +82,7 @@ from mist.api.auth.models import ApiToken, datetime_to_str
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
-from mist.api.exceptions import WorkflowExecutionError
+from mist.api.exceptions import WorkflowExecutionError, BadRequestError
 
 from mist.api import config
 
@@ -753,7 +755,11 @@ rtype_to_classpath = {
     'image': 'mist.api.images.models.CloudImage',
     'rule': 'mist.api.rules.models.Rule',
     'size': 'mist.api.clouds.models.CloudSize',
-    'team': 'mist.api.users.models.Team'
+    'team': 'mist.api.users.models.Team',
+    'users': 'mist.api.users.models.User',
+    'user': 'mist.api.users.models.User',
+    'orgs': 'mist.api.users.models.Organization',
+    'org': 'mist.api.users.models.Organization'
 }
 
 if config.HAS_VPN:
@@ -1287,29 +1293,6 @@ def mac_verify(kwargs=None, key='', mac_len=0, mac_format='hex'):
             del kwargs[kw]
 
 
-def maybe_submit_cloud_task(cloud, task_name):
-    """Decide whether a task should be submitted to celery
-
-    This method helps us prevent submitting new celery tasks, which are
-    guaranteed to return/exit immediately without performing any actual
-    actions.
-
-    For instance, such cases include async tasks for listing DNS zones
-    for clouds that have no DNS support or DNS is temporarily disabled.
-
-    Note that this is just a helper method used to make an initial decision.
-
-    The `cloud` argument must be a `mist.api.clouds.models.Cloud` mongoengine
-    objects and `task_name` must be the name/identifier of the corresponding
-    celery task.
-
-    """
-    if task_name == 'list_projects':
-        if cloud.ctl.provider != 'equinixmetal':
-            return False
-    return True
-
-
 def is_resource_missing(obj):
     """Return True if either resource or its parent is missing or has been
     deleted. Note that `obj` is meant to be a subclass of me.Document."""
@@ -1410,8 +1393,8 @@ def convert_to_timedelta(time_val):
     """
     Receives a time_val param. time_val should be either an integer,
     or a relative delta in the following format:
-    '_s', '_m', '_h', '_d', '_mo', for seconds, minutes, hours, days
-    months respectively. Returns a timedelta object if right param is
+    '_s', '_m', '_h', '_d', _w, '_mo', for seconds, minutes, hours, days,
+    weeks and months respectively. Returns a timedelta object if right param is
     given, else None
     """
     try:
@@ -1419,23 +1402,58 @@ def convert_to_timedelta(time_val):
         return timedelta(seconds=seconds)
     except ValueError:
         try:
-            num = int(time_val[:-1])
+            num = time_val[:-1]
             if time_val.endswith('s'):
-                return timedelta(seconds=num)
+                return timedelta(seconds=int(num))
             elif time_val.endswith('m'):
-                return timedelta(minutes=num)
+                return timedelta(minutes=int(num))
             elif time_val.endswith('h'):
-                return timedelta(hours=num)
+                return timedelta(hours=int(num))
             elif time_val.endswith('d'):
-                return timedelta(days=num)
+                return timedelta(days=int(num))
+            elif time_val.endswith('w'):
+                return timedelta(days=int(num) * 7)
             elif time_val.endswith('mo'):
                 num = int(time_val[:-2])
-                return timedelta(months=num)
-        except ValueError:
-            if time_val.endswith('mo'):
-                num = int(time_val[:-2])
                 return timedelta(days=30 * num)
+        except ValueError:
+            raise ValueError('Input is expected to be in the format _s, _m,'
+                             '_h, _d, _w or _mo where _ is an int or the whole'
+                             ' input may be an int representing seconds')
     return None
+
+
+def convert_to_datetime(time_val):
+    """
+    Input should  be a string in the format xT where
+     x is an int and T is one of s, m, h, d, w, mo
+     which stand for
+     seconds, minutes, hours, days, weeks, months.
+     Eg. '3mo' or '5d' or '342s'
+
+     Return value is datetime.datetime object
+    """
+    try:
+        num = time_val[:-1]
+        letter = time_val[-1]
+        if letter == 's':
+            return dateparser.parse(f'in {int(num)} seconds')
+        if letter == 'm':
+            return dateparser.parse(f'in {int(num)} minutes')
+        if letter == 'h':
+            return dateparser.parse(f'in {int(num)} hours')
+        if letter == 'd':
+            return dateparser.parse(f'in {int(num)} days')
+        if letter == 'w':
+            return dateparser.parse(f'in {int(num)} weeks')
+        if letter == 'o':
+            num = time_val[:-2]
+            return dateparser.parse(f'in {int(num)} months')
+    except ValueError:
+        raise ValueError('Input is expected to be in the format '
+                         '{number}{time letter} where time letter is one of '
+                         's, m, h, d, w, mo. Valid values could be '
+                         '5mo or 300s or 2d etc...')
 
 
 def node_to_dict(node):
@@ -1494,31 +1512,57 @@ def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
     return ret
 
 
-def compute_tags(auth_context, tags=None, request_tags=None):
+def compute_tags(auth_context, tags, request_tags):
+    """Merge security tags with user requested tags."""
+
+    tags = tags or {}
+    request_tags = request_tags or {}
+
     security_tags = auth_context.get_security_tags()
-    for mt in request_tags:
-        if mt in security_tags:
-            raise ForbiddenError(
-                'You may not assign tags included in a Team access policy:'
-                ' `%s`' % mt)
-    tags.update(request_tags)
+    try:
+        for mt in request_tags:
+            if mt in security_tags:
+                raise ForbiddenError(
+                    'You may not assign tags included in a Team access policy:'
+                    ' `%s`' % mt)
+        tags.update(request_tags)
+    except ValueError:
+        raise BadRequestError('Invalid tags format.'
+                              'Expecting a  dictionary of tags')
+
     return tags
 
 
-def check_expiration_constraint(auth_context, expiration, constraints=None):
-    constraints = constraints or {}
-    exp_constraint = constraints.get('expiration', {})
+def check_expiration_constraint(expiration, exp_constraint):
     if exp_constraint:
         try:
             from mist.rbac.methods import check_expiration
-            check_expiration(expiration, exp_constraint)
         except ImportError:
-            pass
+            return
+
+        # FIXME remove this workaround and parse
+        # datetime correctly in check_expiration
+
+        # convert notify datetime string to seconds from now
+        # as check_expiration expects it in seconds
+        notify = expiration.get('notify')
+        if notify:
+            dt = datetime.datetime.strptime(notify, '%Y-%m-%d %H:%M:%S')
+            time_delta = dt - datetime.datetime.now()
+            temp_notify = int(time_delta.total_seconds())
+            expiration['notify'] = temp_notify
+
+        try:
+            check_expiration(expiration, exp_constraint)
+        except PolicyUnauthorizedError:
+            # TODO if no expiration is passed
+            # create a default expiration based on exp_constraint
+            raise
+
+        expiration['notify'] = notify
 
 
-def check_cost_constraint(auth_context, constraints=None):
-    constraints = constraints or {}
-    cost_constraint = constraints.get('cost', {})
+def check_cost_constraint(auth_context, cost_constraint):
     if cost_constraint:
         try:
             from mist.rbac.methods import check_cost
@@ -1527,28 +1571,24 @@ def check_cost_constraint(auth_context, constraints=None):
             pass
 
 
-def check_size_constraint(auth_context, sizes, constraints=None):
+def check_size_constraint(cloud_id, size_constraint, sizes):
+    """Filter sizes list based on RBAC permissions"""
+
     try:
         from mist.rbac.methods import check_size
     except ImportError:
         return sizes
-
-    constraints = constraints or {}
-    size_constraint = constraints.get('size', {})
 
     if not size_constraint:
         return sizes
 
     permitted_sizes = []
     for size in sizes:
-        # constraints do not apply on custom sizes
-        if not isinstance(size, dict):
-            try:
-                check_size(auth_context.org, size_constraint, size.id)
-            except PolicyUnauthorizedError:
-                continue
-            else:
-                permitted_sizes.append(size)
+        try:
+            check_size(cloud_id, size_constraint, size)
+        except PolicyUnauthorizedError:
+            continue
+        permitted_sizes.append(size)
 
     return permitted_sizes
 
@@ -1648,3 +1688,32 @@ def search_parser(search):
 
 def startsandendswith(main_str, char):
     return main_str.startswith(char) and main_str.endswith(char)
+
+
+def generate_secure_password(min_chars=12, max_chars=21):
+    """Generate a twelve to twenty characters password with at least
+    one lowercase character, at least one uppercase character
+    and at least three digits.
+
+    """
+    alphabet = string.ascii_letters + string.digits
+    length = secrets.choice(range(min_chars, max_chars))
+    while True:
+        password = ''.join(secrets.choice(alphabet) for i in range(length))
+        if (any(c.islower() for c in password) and
+            any(c.isupper() for c in password) and
+                sum(c.isdigit() for c in password) >= 3):
+            break
+
+    return password
+
+
+def validate_password(password):
+    """A simple password validator
+    """
+    length = len(password) > 7
+    lower_case = any(c.islower() for c in password)
+    upper_case = any(c.isupper() for c in password)
+    digit = any(c.isdigit() for c in password)
+
+    return length and lower_case and upper_case and digit

@@ -201,7 +201,7 @@ def list_storage_accounts(owner, cloud_id):
 
 # TODO deprecate this!
 # We should decouple probe_ssh_only from ping.
-# Use them as two separate functions instead & through celery
+# Use them as two separate functions instead & through dramatiq
 def probe(owner, cloud_id, machine_id, host, key_id='', ssh_user=''):
     """Ping and SSH to machine and collect various metrics."""
 
@@ -520,6 +520,33 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     List resources of any type.
 
     Supports filtering, sorting, pagination. Enforces RBAC.
+
+    Parameters:
+        auth_context(AuthContext): The AuthContext of the user
+            to list resources for.
+        resource_type(str): One of Mist resources:
+            cloud, bucket, machine, zone, record, script, key,
+            schedule, network, subnet, volume, location, image,
+            rule, size, team, template, stack, tunnel.
+        search(str): The pattern to search for, can contain one or both of:
+            a) key(field)-value pairs seperated by one of the operators:
+                :, =, >, <, <=, >=, !=
+            b) a single value that will be set to resource_type's ID or name.
+            Example:
+            >>> 't2.nano cpus>1 ram>=1024'
+        cloud(str): List resources from these clouds only,
+            with the same pattern as `search`.
+        only(str): The fields to load from the resource_type's document,
+            comma-seperated.
+        sort(str): The field to order the query results by; field may be
+            prefixed with “+” or a “-” to determine the ordering direction.
+        start(int): The index of the first item to return.
+        limit(int): Return up to this many items.
+        deref(str):
+
+    Returns:
+        tuple(A mongoengine QuerySet containing the objects found,
+             the total number of items found)
     """
     from mist.api.helpers import get_resource_model
     from mist.api.clouds.models import CLOUDS
@@ -543,6 +570,16 @@ def list_resources(auth_context, resource_type, search='', cloud='',
             auth_context, 'cloud', search=cloud, only='id'
         )
         query &= Q(cloud__in=clouds)
+
+    # filter organizations
+    # if user is not an admin
+    # get only orgs that have user as member
+    if resource_type in {'org', 'orgs'} and not (
+            auth_context.user.role == 'Admin'):
+        query = Q(members=auth_context.user)
+
+    if resource_type in {'user', 'users'} and not auth_context.is_owner():
+        query = Q(id__in=[auth_context.user.id])
 
     search = search or ''
     sort = sort or ''
@@ -581,7 +618,7 @@ def list_resources(auth_context, resource_type, search='', cloud='',
         else:
             id_implicit = True
             k, v = 'id', term
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+            mongo_operator = '' if startsandendswith(v, '"') else '__icontains'
 
         v = v.strip('"')
         attr = getattr(resource_model, k, None)
@@ -660,10 +697,19 @@ def list_resources(auth_context, resource_type, search='', cloud='',
             query &= Q(id__in=ids)
             result = resource_model.objects(query)
 
+    try:
+        from mist.rbac.models import PERMISSIONS
+    except ImportError:
+        return result[start:start + limit], result.count()
+
     if result.count():
-        if not auth_context.is_owner():
+        if not auth_context.is_owner() \
+                and resource_type in PERMISSIONS.keys():
+            # get_allowed_resources uses plural
+            rtype = resource_type if resource_type.endswith(
+                's') else resource_type + 's'
             allowed_resources = auth_context.get_allowed_resources(
-                rtype=resource_type)
+                rtype=rtype)
             result = result.filter(id__in=allowed_resources)
         result = result.order_by(sort)
 

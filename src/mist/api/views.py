@@ -190,7 +190,7 @@ def home(request):
             else:
                 uri_prefix = config.LANDING_CDN_URI or \
                     request.application_url + "/static/landing/sections/"
-            page_uri = '%s/%s.html' % (uri_prefix, page)
+            page_uri = '%s/%s.html' % (uri_prefix.rstrip('/'), page)
             try:
                 response = requests.get(page_uri)
                 if response.ok:
@@ -618,8 +618,7 @@ def register(request):
         # if user requested a demo then notify the mist.api team
         subject = "Demo request"
         body = "User %s has requested a demo\n" % user.email
-        tasks.send_email.delay(subject, body,
-                               config.NOTIFICATION_EMAIL['demo'])
+        tasks.send_email.send(subject, body, config.NOTIFICATION_EMAIL['demo'])
         user.requested_demo = True
         user.demo_request_date = time()
         user.save()
@@ -636,8 +635,7 @@ def register(request):
         subject = "Private beta request"
         body = "User %s <%s> has requested access to the private beta\n" % (
             params.get('name').encode('utf-8', 'ignore'), email)
-        tasks.send_email.delay(subject, body,
-                               config.NOTIFICATION_EMAIL['demo'])
+        tasks.send_email.send(subject, body, config.NOTIFICATION_EMAIL['demo'])
 
         msg = (
             "Dear %s, we will contact you within 24 hours with more "
@@ -2148,9 +2146,10 @@ def invite_member_to_team(request):
 
             # if one of the org owners adds himself to team don't send email
             if user == auth_context.user:
+                trigger_session_update(auth_context.owner, ['org'])
                 return return_val
 
-        tasks.send_email.delay(subject, body, user.email)
+        tasks.send_email.send(subject, body, user.email)
         ret.append(return_val)
 
     trigger_session_update(auth_context.owner, ['org'])
@@ -2226,7 +2225,7 @@ def delete_member_from_team(request):
                 except me.OperationError:
                     raise TeamOperationError()
                 # notify user that his invitation has been revoked
-                tasks.send_email.delay(subject, body, user.email)
+                tasks.send_email.send(subject, body, user.email)
             else:
                 try:
                     invitation.save()
@@ -2276,7 +2275,7 @@ def delete_member_from_team(request):
         raise TeamOperationError()
 
     if user != auth_context.user:
-        tasks.send_email.delay(subject, body, user.email)
+        tasks.send_email.send(subject, body, user.email)
 
     trigger_session_update(auth_context.owner, ['org'])
 
