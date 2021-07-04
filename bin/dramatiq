@@ -11,6 +11,7 @@ QUEUES = os.getenv('QUEUES', '').split(',') or [
     'scripts',
     'schedules',
     'rules',
+    'sessions',
     'polling',
     'mappings',
     'ping_probe',

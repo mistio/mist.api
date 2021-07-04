@@ -232,3 +232,7 @@ def start(**kwargs):
         print('Exception: %r' % e)
         import ipdb
         ipdb.set_trace()
+
+
+class MongoScheduler():
+    pass
