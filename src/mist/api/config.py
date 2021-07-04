@@ -1345,68 +1345,6 @@ GOOGLE_ANALYTICS_ID = ""
 
 USE_EXTERNAL_AUTHENTICATION = False
 
-# celery settings
-CELERY_SETTINGS = {
-    # Disable custom log format because we miss out on worker/task specific
-    # metadata.
-    # 'worker_log_format': PY_LOG_FORMAT,
-    # 'worker_task_log_format': PY_LOG_FORMAT,
-    'worker_concurrency': 16,
-    'worker_max_tasks_per_child': 32,
-    'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
-    'worker_send_task_events': True,
-
-    'task_routes': {
-        # Command queue
-        'mist.api.tasks.ssh_command': {'queue': 'command'},
-
-        # Machines queue
-        'mist.api.poller.tasks.list_machines': {'queue': 'machines'},
-
-        # Scripts queue (handled by gevent)
-        'mist.api.tasks.group_run_script': {'queue': 'scripts'},
-        'mist.api.tasks.run_script': {'queue': 'scripts'},
-        'mist.api.tasks.group_machines_actions': {'queue': 'scripts'},
-        'mist.api.tasks.machine_action': {'queue': 'scripts'},
-
-        # SSH probe queue (handled by gevent)
-        'mist.api.poller.tasks.ssh_probe': {'queue': 'probe'},
-
-        # Ping probe queue (handled by gevent)
-        'mist.api.poller.tasks.ping_probe': {'queue': 'ping'},
-
-        # Rule evaluation queue (handled by gevent)
-        'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
-
-        # Deployment tasks
-        'mist.api.tasks.create_machine_async': {
-            'queue': 'deployments'},
-        'mist.api.tasks.post_deploy_steps': {
-            'queue': 'deployments'},
-        'mist.api.tasks.openstack_post_create_steps': {
-            'queue': 'deployments'},
-        'mist.api.tasks.azure_post_create_steps': {
-            'queue': 'deployments'},
-        'mist.api.tasks.rackspace_first_gen_post_create_steps': {
-            'queue': 'deployments'},
-        # 'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
-        'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
-
-        # List networks
-        'mist.api.poller.tasks.list_networks': {'queue': 'networks'},
-
-        # List volumes
-        'mist.api.poller.tasks.list_volumes': {'queue': 'volumes'},
-
-        # List zones
-        'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
-
-        # List buckets
-        'mist.api.poller.tasks.list_buckets': {'queue': 'buckets'},
-
-    },
-}
-
 LANDING_CATEGORIES = [{
     'href': '/',
     'name': 'home',
