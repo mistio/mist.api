@@ -43,20 +43,25 @@ from html import unescape
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price, get_pricing
+
 from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.base import NodeAuthSSHKey, NodeAuthPassword
 from libcloud.compute.providers import get_driver
-from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
+
+from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
+
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
+
 from libcloud.utils.misc import to_n_bytes
 from libcloud.utils.misc import to_memory_str
 from libcloud.utils.misc import to_cpu_str
 from libcloud.utils.misc import to_n_cpus
+
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -66,6 +71,7 @@ from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import MachineCreationError
+
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
