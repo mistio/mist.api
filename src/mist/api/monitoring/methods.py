@@ -440,7 +440,7 @@ def enable_monitoring(
     except Cloud.DoesNotExist:
         raise NotFoundError("Cloud does not exist")
     try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, id=machine_id)
     except Machine.DoesNotExist:
         raise NotFoundError("Machine %s doesn't exist" % machine_id)
     if machine.monitoring.hasmonitoring:

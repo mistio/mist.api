@@ -220,11 +220,11 @@ def update_monitoring(request):
     if action == 'enable':
         return mist.api.monitoring.methods.enable_monitoring(
             owner=auth_context.owner, cloud_id=machine.cloud.id,
-            machine_id=machine.machine_id, no_ssh=no_ssh, dry=dry)
+            machine_id=machine.id, no_ssh=no_ssh, dry=dry)
     elif action == 'disable':
         return mist.api.monitoring.methods.disable_monitoring(
             owner=auth_context.owner, cloud_id=machine.cloud.id,
-            machine_id=machine.machine_id, no_ssh=no_ssh)
+            machine_id=machine.id, no_ssh=no_ssh)
 
 
 @view_config(route_name='api_v1_monitoring',

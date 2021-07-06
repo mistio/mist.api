@@ -313,7 +313,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
         if monitoring:
             try:
                 enable_monitoring(
-                    owner, cloud_id, machine_id,
+                    owner, cloud_id, machine.id,
                     no_ssh=False, dry=False, job_id=job_id,
                     plugins=plugins, deploy_async=False,
                 )
@@ -1615,7 +1615,7 @@ def ssh_tasks(auth_context_serialized, cloud_id, key_id, host, external_id,
 
     if monitoring:
         try:
-            enable_monitoring(auth_context.owner, cloud_id, external_id,
+            enable_monitoring(auth_context.owner, cloud_id, machine_id,
                               no_ssh=False, dry=False, job_id=job_id,
                               plugins=plugins, deploy_async=False)
         except Exception as e:

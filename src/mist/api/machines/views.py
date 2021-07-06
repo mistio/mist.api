@@ -614,7 +614,7 @@ def add_machine(request):
     # Enable monitoring
     if monitoring:
         monitor = enable_monitoring(
-            auth_context.owner, cloud.id, machine.machine_id,
+            auth_context.owner, cloud.id, machine.id,
             no_ssh=not (machine.os_type == 'unix' and
                         KeyMachineAssociation.objects(machine=machine))
         )
