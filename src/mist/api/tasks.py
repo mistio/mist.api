@@ -145,207 +145,207 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
     msg += "Machine:\n  Name: %s\n  Id: %s\n" % (machine.name, machine.id)
     tmp_log('Machine found, proceeding to post deploy steps\n%s' % msg)
 
+    # filter out IPv6 addresses
+    ips = [ip for ip in machine.public_ips + machine.private_ips
+           if ':' not in ip]
+    if not ips:
+        tmp_log('no ip available')
+        raise Retry(delay=30_000)
+    host = ips[0]
+
+    if machine.state != 'running':
+        tmp_log('not running state')
+        raise Retry(delay=30_000)
+
+    log_dict = {
+        'owner_id': owner.id,
+        'event_type': 'job',
+        'cloud_id': cloud_id,
+        'machine_id': machine.id,
+        'external_id': machine_id,
+        'job_id': job_id,
+        'job': job,
+        'host': host,
+        'key_id': key_id,
+    }
+
+    if schedule and schedule.get('name'):  # ugly hack to prevent dupes
+        try:
+            name = (schedule.get('action') + '-' + schedule.pop('name') +
+                    '-' + machine_id[:4])
+
+            auth_context = AuthContext.deserialize(
+                schedule.pop('auth_context'))
+            tmp_log('Add scheduler entry %s', name)
+            schedule['selectors'] = [{
+                'type': 'machines',
+                'ids': [machine.id]
+            }]
+            schedule_info = Schedule.add(auth_context, name, **schedule)
+            tmp_log("A new scheduler was added")
+            log_event(action='Add scheduler entry',
+                      scheduler=schedule_info.as_dict(), **log_dict)
+        except Exception as e:
+            print(repr(e))
+            error = repr(e)
+            notify_user(owner, "add scheduler entry failed for "
+                               "machine %s" % machine_id, repr(e),
+                        error=error)
+            log_event(action='Add scheduler entry failed',
+                      error=error, **log_dict)
+    if hostname:
+        try:
+            kwargs = {}
+            kwargs['name'] = hostname
+            kwargs['type'] = 'A'
+            kwargs['data'] = host
+            kwargs['ttl'] = 3600
+
+            dns_cls = RECORDS[kwargs['type']]
+            dns_cls.add(owner=owner, **kwargs)
+            log_event(action='Create_A_record', hostname=hostname,
+                      **log_dict)
+        except Exception as exc:
+            log_event(action='Create_A_record', hostname=hostname,
+                      error=str(exc), **log_dict)
+
     try:
-        # filter out IPv6 addresses
-        ips = [ip for ip in machine.public_ips + machine.private_ips
-               if ':' not in ip]
-        if not ips:
-            tmp_log('no ip available')
-            raise
-        host = ips[0]
+        cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(
+            cloud_id, [])
+    except AttributeError:
+        cloud_post_deploy_steps = []
 
-        if machine.state != 'running':
-            tmp_log('not running state')
-            raise Retry(delay=10_000)
+    try:
+        from mist.api.shell import Shell
+        shell = Shell(host)
+        for post_deploy_step in cloud_post_deploy_steps:
+            predeployed_key_id = post_deploy_step.get('key')
+            if predeployed_key_id and key_id:
+                # Use predeployed key to deploy the user selected key
+                shell.autoconfigure(
+                    owner, cloud_id, machine.id, predeployed_key_id,
+                    username, password, port
+                )
+                retval, output = shell.command(
+                    'echo %s >> ~/.ssh/authorized_keys' % Key.objects.get(
+                        id=key_id).public)
+                if retval > 0:
+                    notify_admin('Deploy user key failed for machine %s'
+                                 % machine.name)
+            command = post_deploy_step.get('script', '').replace(
+                '${machine.name}', machine.name)
+            if command and key_id:
+                tmp_log('Executing cloud post deploy cmd: %s' % command)
+                shell.autoconfigure(
+                    owner, cloud_id, machine.id, key_id, username,
+                    password, port
+                )
+                retval, output = shell.command(command)
+                if retval > 0:
+                    notify_admin('Cloud post deploy command `%s` failed '
+                                 'for machine %s' % (
+                                     command, machine.name))
 
-        log_dict = {
-            'owner_id': owner.id,
-            'event_type': 'job',
-            'cloud_id': cloud_id,
-            'machine_id': machine.id,
-            'external_id': machine_id,
-            'job_id': job_id,
-            'job': job,
-            'host': host,
-            'key_id': key_id,
-        }
-        if schedule and schedule.get('name'):  # ugly hack to prevent dupes
+        if key_id:
+            # connect with ssh even if no command, to create association
+            # to be able to enable monitoring
+            tmp_log('attempting to connect to shell')
+            key_id, ssh_user = shell.autoconfigure(
+                owner, cloud_id, machine.id, key_id, username, password,
+                port
+            )
+            tmp_log('connected to shell')
+            result = probe_ssh_only(owner, cloud_id, machine.id, host=None,
+                                    key_id=key_id, ssh_user=ssh_user,
+                                    shell=shell)
+            log_dict = {
+                'owner_id': owner.id,
+                'event_type': 'job',
+                'cloud_id': cloud_id,
+                'machine_id': machine.id,
+                'external_id': machine_id,
+                'job_id': job_id,
+                'job': job,
+                'host': host,
+                'key_id': key_id,
+                'ssh_user': ssh_user,
+            }
+            log_event(action='probe', result=result, **log_dict)
+
+        error = False
+        if script_id:
+            tmp_log('will run script_id %s', script_id)
+            ret = run_script.run(
+                owner, script_id, machine.id,
+                params=script_params, host=host, job_id=job_id
+            )
+            error = ret['error']
+            tmp_log('executed script_id %s', script_id)
+        elif script:
+            tmp_log('will run script')
+            log_event(action='deployment_script_started', command=script,
+                      **log_dict)
+            start_time = time()
+            retval, output = shell.command(script)
+            tmp_log('executed script %s', script)
+            execution_time = time() - start_time
+            title = "Deployment script %s" % ('failed' if retval
+                                              else 'succeeded')
+            error = retval > 0
+            notify_user(owner, title,
+                        cloud_id=cloud_id,
+                        machine_id=machine_id,
+                        machine_name=machine.name,
+                        command=script,
+                        output=output,
+                        duration=execution_time,
+                        retval=retval,
+                        error=retval > 0)
+            log_event(action='deployment_script_finished',
+                      error=retval > 0,
+                      return_value=retval,
+                      command=script,
+                      stdout=output,
+                      **log_dict)
+
+        shell.disconnect()
+
+        if monitoring:
             try:
-                name = (schedule.get('action') + '-' + schedule.pop('name') +
-                        '-' + machine_id[:4])
-
-                auth_context = AuthContext.deserialize(
-                    schedule.pop('auth_context'))
-                tmp_log('Add scheduler entry %s', name)
-                schedule['selectors'] = [{
-                    'type': 'machines',
-                    'ids': [machine.id]
-                }]
-                schedule_info = Schedule.add(auth_context, name, **schedule)
-                tmp_log("A new scheduler was added")
-                log_event(action='Add scheduler entry',
-                          scheduler=schedule_info.as_dict(), **log_dict)
+                enable_monitoring(
+                    owner, cloud_id, machine_id,
+                    no_ssh=False, dry=False, job_id=job_id,
+                    plugins=plugins, deploy_async=False,
+                )
             except Exception as e:
                 print(repr(e))
-                error = repr(e)
-                notify_user(owner, "add scheduler entry failed for "
-                                   "machine %s" % machine_id, repr(e),
-                            error=error)
-                log_event(action='Add scheduler entry failed',
-                          error=error, **log_dict)
-
-        try:
-            if hostname:
-                try:
-                    kwargs = {}
-                    kwargs['name'] = hostname
-                    kwargs['type'] = 'A'
-                    kwargs['data'] = host
-                    kwargs['ttl'] = 3600
-
-                    dns_cls = RECORDS[kwargs['type']]
-                    dns_cls.add(owner=owner, **kwargs)
-                    log_event(action='Create_A_record', hostname=hostname,
-                              **log_dict)
-                except Exception as exc:
-                    log_event(action='Create_A_record', hostname=hostname,
-                              error=str(exc), **log_dict)
-
-            from mist.api.shell import Shell
-            shell = Shell(host)
-            try:
-                cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(
-                    cloud_id, [])
-            except AttributeError:
-                cloud_post_deploy_steps = []
-            for post_deploy_step in cloud_post_deploy_steps:
-                predeployed_key_id = post_deploy_step.get('key')
-                if predeployed_key_id and key_id:
-                    # Use predeployed key to deploy the user selected key
-                    shell.autoconfigure(
-                        owner, cloud_id, machine.id, predeployed_key_id,
-                        username, password, port
-                    )
-                    retval, output = shell.command(
-                        'echo %s >> ~/.ssh/authorized_keys' % Key.objects.get(
-                            id=key_id).public)
-                    if retval > 0:
-                        notify_admin('Deploy user key failed for machine %s'
-                                     % machine.name)
-                command = post_deploy_step.get('script', '').replace(
-                    '${machine.name}', machine.name)
-                if command and key_id:
-                    tmp_log('Executing cloud post deploy cmd: %s' % command)
-                    shell.autoconfigure(
-                        owner, cloud_id, machine.id, key_id, username,
-                        password, port
-                    )
-                    retval, output = shell.command(command)
-                    if retval > 0:
-                        notify_admin('Cloud post deploy command `%s` failed '
-                                     'for machine %s' % (
-                                         command, machine.name))
-
-            if key_id:
-                # connect with ssh even if no command, to create association
-                # to be able to enable monitoring
-                tmp_log('attempting to connect to shell')
-                key_id, ssh_user = shell.autoconfigure(
-                    owner, cloud_id, machine.id, key_id, username, password,
-                    port
+                error = True
+                notify_user(
+                    owner,
+                    "Enable monitoring failed for machine %s" % machine_id,
+                    repr(e)
                 )
-                tmp_log('connected to shell')
-                result = probe_ssh_only(owner, cloud_id, machine.id, host=None,
-                                        key_id=key_id, ssh_user=ssh_user,
-                                        shell=shell)
-                log_dict = {
-                    'owner_id': owner.id,
-                    'event_type': 'job',
-                    'cloud_id': cloud_id,
-                    'machine_id': machine.id,
-                    'external_id': machine_id,
-                    'job_id': job_id,
-                    'job': job,
-                    'host': host,
-                    'key_id': key_id,
-                    'ssh_user': ssh_user,
-                }
-                log_event(action='probe', result=result, **log_dict)
-
-            error = False
-            if script_id:
-                tmp_log('will run script_id %s', script_id)
-                ret = run_script.run(
-                    owner, script_id, machine.id,
-                    params=script_params, host=host, job_id=job_id
-                )
-                error = ret['error']
-                tmp_log('executed script_id %s', script_id)
-            elif script:
-                tmp_log('will run script')
-                log_event(action='deployment_script_started', command=script,
-                          **log_dict)
-                start_time = time()
-                retval, output = shell.command(script)
-                tmp_log('executed script %s', script)
-                execution_time = time() - start_time
-                title = "Deployment script %s" % ('failed' if retval
-                                                  else 'succeeded')
-                error = retval > 0
-                notify_user(owner, title,
-                            cloud_id=cloud_id,
-                            machine_id=machine_id,
-                            machine_name=machine.name,
-                            command=script,
-                            output=output,
-                            duration=execution_time,
-                            retval=retval,
-                            error=retval > 0)
-                log_event(action='deployment_script_finished',
-                          error=retval > 0,
-                          return_value=retval,
-                          command=script,
-                          stdout=output,
+                notify_admin('Enable monitoring on creation failed for '
+                             'user %s machine %s: %r' % (
+                                 str(owner), machine_id, e))
+                log_event(action='enable_monitoring_failed', error=repr(e),
                           **log_dict)
 
-            shell.disconnect()
+        if post_script_id:
+            tmp_log('will run post_script_id %s', post_script_id)
+            ret = run_script.run(
+                owner, post_script_id, machine.id,
+                params=post_script_params, host=host, job_id=job_id,
+                action_prefix='post_',
+            )
+            error = ret['error']
+            tmp_log('executed post_script_id %s', post_script_id)
 
-            if monitoring:
-                try:
-                    enable_monitoring(
-                        owner, cloud_id, machine.id,
-                        no_ssh=False, dry=False, job_id=job_id,
-                        plugins=plugins, deploy_async=False,
-                    )
-                except Exception as e:
-                    print(repr(e))
-                    error = True
-                    notify_user(
-                        owner,
-                        "Enable monitoring failed for machine %s" % machine_id,
-                        repr(e)
-                    )
-                    notify_admin('Enable monitoring on creation failed for '
-                                 'user %s machine %s: %r'
-                                 % (str(owner), machine_id, e))
-                    log_event(action='enable_monitoring_failed', error=repr(e),
-                              **log_dict)
+        log_event(action='post_deploy_finished', error=error, **log_dict)
 
-            if post_script_id:
-                tmp_log('will run post_script_id %s', post_script_id)
-                ret = run_script.run(
-                    owner, post_script_id, machine.id,
-                    params=post_script_params, host=host, job_id=job_id,
-                    action_prefix='post_',
-                )
-                error = ret['error']
-                tmp_log('executed post_script_id %s', post_script_id)
-
-            log_event(action='post_deploy_finished', error=error, **log_dict)
-
-        except (ServiceUnavailableError, SSHException) as exc:
-            tmp_log(repr(exc))
-            raise
+    except (ServiceUnavailableError, SSHException) as exc:
+        tmp_log(repr(exc))
+        raise
     except Exception as exc:
         tmp_log(repr(exc))
         notify_admin("Deployment script failed for machine %s (%s) in cloud %s"
