@@ -43,20 +43,25 @@ from html import unescape
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price, get_pricing
+
 from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.base import NodeAuthSSHKey, NodeAuthPassword
 from libcloud.compute.providers import get_driver
-from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
+
+from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
+
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.types import InvalidCredsError
-from libcloud.utils.misc import to_n_bytes_from_memory_str
-from libcloud.utils.misc import to_memory_str_from_n_bytes
+
+from libcloud.utils.misc import to_n_bytes
+from libcloud.utils.misc import to_memory_str
 from libcloud.utils.misc import to_cpu_str
-from libcloud.utils.misc import to_n_cpus_from_cpu_str
+from libcloud.utils.misc import to_n_cpus
+
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -66,6 +71,7 @@ from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import MachineCreationError
+
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
@@ -4405,19 +4411,19 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         used_cpu = 0
         used_memory = 0
         for node in nodes:
-            available_cpu += to_n_cpus_from_cpu_str(
+            available_cpu += to_n_cpus(
                 node['extra']['cpu'])
-            available_memory += to_n_bytes_from_memory_str(
+            available_memory += to_n_bytes(
                 node['extra']['memory'])
-            used_cpu += to_n_cpus_from_cpu_str(
+            used_cpu += to_n_cpus(
                 node['extra']['usage']['cpu'])
-            used_memory += to_n_bytes_from_memory_str(
+            used_memory += to_n_bytes(
                 node['extra']['usage']['memory'])
         return dict(cpu=to_cpu_str(available_cpu),
-                    memory=to_memory_str_from_n_bytes(
+                    memory=to_memory_str(
                         available_memory),
                     usage=dict(cpu=to_cpu_str(used_cpu),
-                               memory=to_memory_str_from_n_bytes(
+                               memory=to_memory_str(
                                    used_memory)))
 
     def _list_nodes(self, return_node_map=False):
@@ -4468,13 +4474,13 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                         container_metrics['name']] = container_metrics
                     ctr_cpu_usage = container_metrics['usage']['cpu']
                     ctr_memory_usage = container_metrics['usage']['memory']
-                    total_usage['cpu'] += to_n_cpus_from_cpu_str(
+                    total_usage['cpu'] += to_n_cpus(
                         ctr_cpu_usage)
                     total_usage['memory'] += \
-                        to_n_bytes_from_memory_str(
+                        to_n_bytes(
                             ctr_memory_usage)
                 total_usage['cpu'] = to_cpu_str(total_usage['cpu'])
-                total_usage['memory'] = to_memory_str_from_n_bytes(
+                total_usage['memory'] = to_memory_str(
                     total_usage['memory']
                 )
                 pod.extra['usage'] = {
@@ -4563,7 +4569,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         ram = node_size.get('ram')
         if size.ram != ram:
             if isinstance(ram, str) and ram.isalnum():
-                ram = to_n_bytes_from_memory_str(ram)
+                ram = to_n_bytes(ram)
             size.ram = ram
             updated = True
         cpu = node_size.get('cpu')
