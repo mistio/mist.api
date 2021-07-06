@@ -17,8 +17,6 @@ from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.machines.models import Machine
 
-from mist.api.monitoring.methods import notify_machine_monitoring
-
 
 log = logging.getLogger(__name__)
 
@@ -285,6 +283,7 @@ class MainStatsHandler(BaseStatsHandler):
         activation timestamps, once monitoring data is available.
 
         """
+        from mist.api.monitoring.methods import notify_machine_monitoring
         istatus = self.machine.monitoring.installation_status
         if not istatus.activated_at:
             for value in results.values():
