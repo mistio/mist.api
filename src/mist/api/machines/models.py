@@ -553,8 +553,8 @@ class Machine(OwnershipMixin, me.Document):
                 self.monitoring.as_dict() if self.monitoring and
                 self.monitoring.hasmonitoring else '',
             'key_associations':
-                [ka.as_dict() for ka in KeyMachineAssociation.objects(
-                    machine=self)],
+                {str(ka.id): ka.as_dict()
+                 for ka in KeyMachineAssociation.objects(machine=self)},
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
             'size': self.size.name if self.size else '',
