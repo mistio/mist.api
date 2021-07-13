@@ -56,18 +56,14 @@ BACKUP_INTERVAL = 24
 LANDING_CDN_URI = ""
 BLOG_CDN_URI = ""
 
-METERING_METRICS = [
-    {
-        'name': 'total_cores_hours',
-        'value': (
-            'def metering_value():\n'
-            '   if machine.state == "running":\n'
-            '       return machine.cores\n'
-            '   return 0\n'
-        ),
-        'type': 'counter'
+METERING_METRICS = {
+    "default": {
+        'total_core_hours': {'type': 'counter', 'value': lambda machine, dt: dt * (machine.cores if machine.state == 'running' else 0)},
+        'total_ram_gb_hours': {'type': 'counter', 'value': lambda machine, dt: dt * (machine.size.ram / 1000 if machine.state == 'running' and machine.size else 0)},
+        'total_cost': {'type': 'counter', 'value': lambda machine, dt: dt * (machine.cost.hourly if machine.state == 'running' else 0)},
+        'current_cores': {'type': 'gauge', 'value': lambda machine: machine.cores}
     }
-]
+}
 
 # backups
 BACKUP = {
