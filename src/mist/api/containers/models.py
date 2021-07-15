@@ -14,6 +14,7 @@ from mist.api.mongoengine_extras import MistDictField
 
 __all__ = [
     "Cluster",
+    "GKECluster",
 ]
 # This is a map from provider name to provider class, eg:
 # 'google': GKECluster
@@ -193,6 +194,14 @@ class Cluster(OwnershipMixin, me.Document):
     def __str__(self):
         return '%s cluster %s (%s) of %s' % (type(self), self.name,
                                              self.id, self.owner)
+
+
+class GKECluster(Cluster):
+    provider = 'google'
+    client_email = me.StringField(required=True)
+    private_key = me.StringField(required=True)
+    project_id = me.StringField(required=True)
+    _private_fields = ('private_key', )
 
 
 _populate_clusters()
