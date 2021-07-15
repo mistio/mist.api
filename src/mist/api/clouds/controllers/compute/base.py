@@ -3335,7 +3335,8 @@ class BaseComputeController(BaseController):
                 if current_value is not None:
                     fresh_metering_data += (
                         f"{metric_name}{{org=\"{self.cloud.owner.id}\""
-                        f",machine_id=\"{machine_id}\",metering=\"true\"}}"
+                        f",machine_id=\"{machine_id}\",metering=\"true\""
+                        f",value_type=\"{properties['type']}\"}}"
                         f" {current_value} "
                         f"{int(datetime.datetime.timestamp(new_dt))}\n")
                 else:
