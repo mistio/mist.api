@@ -2,9 +2,11 @@ import datetime
 import logging
 import importlib
 import pytz
-
+import threading
+import os
 from time import sleep
 
+import mongoengine as me
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.base import JobLookupError
@@ -15,6 +17,7 @@ from mist.api.poller.models import PollingSchedule
 from mist.api.rules.models import Rule
 
 log = logging.getLogger(__name__)
+log.setLevel('DEBUG')
 
 RELOAD_INTERVAL = 5
 
@@ -157,9 +160,9 @@ def load_config_schedules(scheduler):
             actor.send, trigger='interval', seconds=interval, name=sched)
 
 
-def load_schedules_from_db(scheduler, schedules, first_run=False):
+def load_schedules_from_db(scheduler, schedules, first_run=False,
+                           old_schedule_ids=[]):
     """ Load schedules from db """
-    old_schedule_ids = []
     new_schedule_ids = []
     for schedule in schedules:
         if not schedule.enabled:
@@ -181,7 +184,84 @@ def load_schedules_from_db(scheduler, schedules, first_run=False):
                 scheduler.remove_job(sid)
             except JobLookupError as e:
                 print('Error cleaning up job: %r' % e)
-    old_schedule_ids = new_schedule_ids
+    return new_schedule_ids
+
+
+def _start_shard_manager(schedule_cls, current_shard_id):
+    """Start the sharding process."""
+
+    # The time-frame for which a shard assignment is considered valid. If a
+    # document's `shard_update_at` field is not touched/renewed within this
+    # period of time, then the document may be re-assigned to a different
+    # shard.
+    max_shard_period = config.SHARD_MANAGER_MAX_SHARD_PERIOD
+
+    # The maximum number of documents that may be assigned to a single shard
+    # at a time. This should be set to a meaningful value to not delay shard
+    # assignment, but also prevent the majority of the documents from being
+    # assigned to the same shard.
+    max_shard_claims = config.SHARD_MANAGER_MAX_SHARD_CLAIMS
+
+    # The amount of time the sharding thread may sleep in between checks. We
+    # set this to a meaningful value to not delay shard assignment, but also
+    # give time to other processes of the scheduler to claim their piece of
+    # the pie.
+    manager_interval = config.SHARD_MANAGER_INTERVAL
+
+    assert current_shard_id
+    assert manager_interval < max_shard_period
+
+    # Perform the sharding in a separate thread.
+    t = threading.Thread(target=_do_sharding,
+                         args=(schedule_cls,
+                               current_shard_id,
+                               max_shard_period,
+                               max_shard_claims,
+                               manager_interval),
+                         daemon=True)
+
+    t.start()
+
+
+def _do_sharding(schedule_cls, current_shard_id, max_shard_period,
+                 max_shard_claims, manager_interval):
+    """Shard the schedules' collection.
+
+    This function is executed in a separate thread and is responsible for
+    sharding the respective collection. Documents, whose shard identifier
+    has not been set or renewed within a given timeframe, may be assigned
+    to another shard.
+
+    Each running thread attempts to claim as many documents as possible,
+    until all documents have been assigned to a specific shard.
+
+    Everytime a new sharding thread starts, all shard identifiers reset
+    and re-sharding occurs.
+
+    """
+
+    schedule_cls.objects.update(shard_id=None, shard_update_at=None)
+
+    while True:
+        now = datetime.datetime.utcnow()
+
+        # Touch existing documents to renew the sharding period.
+        objects = schedule_cls.objects(shard_id=current_shard_id)
+        renewed = objects.update(shard_update_at=now)
+        log.debug('%s renewed %s docs', current_shard_id, renewed)
+
+        # Fetch documents which have either not been claimed or renewed.
+        d = now - datetime.timedelta(seconds=max_shard_period)
+        q = (me.Q(shard_update_at__lt=d) | me.Q(shard_update_at=None))
+        q &= me.Q(shard_id__ne=current_shard_id)
+
+        # Claim some of the documents. Note that we have to iterate the
+        # limited cursor, instead of applying a bulk update.
+        for doc in schedule_cls.objects(q).limit(max_shard_claims):
+            doc.update(shard_id=current_shard_id, shard_update_at=now)
+            log.debug('%s claimed %s', current_shard_id, doc.name)
+
+        sleep(manager_interval)
 
 
 def start(**kwargs):
@@ -201,26 +281,39 @@ def start(**kwargs):
     try:  # Start scheduler
         scheduler.start()
         first_run = True
+        old_schedules = {}
         while True:  # Start main loop
             if kwargs.get('user'):
                 log.info('Reloading user schedules')
-                load_schedules_from_db(
+                if not old_schedules.get('user', None):
+                    old_schedules['user'] = []
+                old_schedules['user'] = load_schedules_from_db(
                     scheduler,
                     Schedule.objects(deleted=False),
-                    first_run=first_run
+                    first_run=first_run,
+                    old_schedule_ids=old_schedules['user']
                 )
             if kwargs.get('polling'):
+                if first_run is True:
+                    current_shard_id = os.getenv('HOSTNAME', '')
+                    _start_shard_manager(PollingSchedule, current_shard_id)
                 log.info('Reloading polling schedules')
-                load_schedules_from_db(
+                if not old_schedules.get('polling', None):
+                    old_schedules['polling'] = []
+                old_schedules['polling'] = load_schedules_from_db(
                     scheduler,
-                    PollingSchedule.objects(),
-                    first_run=first_run
+                    PollingSchedule.objects(shard_id=current_shard_id),
+                    first_run=first_run,
+                    old_schedule_ids=old_schedules['polling']
                 )
             if kwargs.get('rules'):
                 log.info('Reloading rules')
-                load_schedules_from_db(
+                if not old_schedules.get('rules', None):
+                    old_schedules['rules'] = []
+                old_schedules['rules'] = load_schedules_from_db(
                     scheduler,
-                    Rule.objects()
+                    Rule.objects(),
+                    old_schedule_ids=old_schedules['rules']
                 )
             sleep(RELOAD_INTERVAL)
             first_run = False
@@ -228,11 +321,3 @@ def start(**kwargs):
         import ipdb
         ipdb.set_trace()
         scheduler.shutdown()
-    except Exception as e:
-        print('Exception: %r' % e)
-        import ipdb
-        ipdb.set_trace()
-
-
-class MongoScheduler():
-    pass
