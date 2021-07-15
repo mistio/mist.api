@@ -462,11 +462,11 @@ def run_script(request):
     )
     key_id = KeyMachineAssociation.objects(id=key_association_id)[0].key.id
 
-    tasks.run_script.delay(auth_context.owner.id, script.id,
-                           machine.id, params=script_params,
-                           env=env, su=su, job_id=job_id, job=job,
-                           key_id=key_id, host=host,
-                           username=username, port=port)
+    tasks.run_script.send(auth_context.owner.id, script.id,
+                          machine.id, params=script_params,
+                          env=env, su=su, job_id=job_id, job=job,
+                          key_id=key_id, host=host,
+                          username=username, port=port)
     return {'job_id': job_id, 'job': job}
 
 

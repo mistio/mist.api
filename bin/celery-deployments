@@ -1,9 +1,0 @@
-#!/bin/sh
-
-set -e
-
-CONCURRENCY=${CONCURRENCY:-16}
-
-export QUEUES="${QUEUES:-deployments,mappings,command,scripts,celery}"
-
-exec ./bin/celery $@

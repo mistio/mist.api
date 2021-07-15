@@ -201,7 +201,7 @@ def list_storage_accounts(owner, cloud_id):
 
 # TODO deprecate this!
 # We should decouple probe_ssh_only from ping.
-# Use them as two separate functions instead & through celery
+# Use them as two separate functions instead & through dramatiq
 def probe(owner, cloud_id, machine_id, host, key_id='', ssh_user=''):
     """Ping and SSH to machine and collect various metrics."""
 

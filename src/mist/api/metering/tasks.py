@@ -2,8 +2,9 @@ import logging
 import requests
 import datetime
 
+from mist.api.dramatiq_app import dramatiq
+
 from mist.api import config
-from mist.api.celery_app import app
 from mist.api.rules.models import Rule
 from mist.api.machines.models import Machine
 from mist.api.monitoring.methods import get_stats
@@ -11,6 +12,11 @@ from mist.api.monitoring.methods import get_cores
 
 
 log = logging.getLogger(__name__)
+
+__all__ = [
+    'find_machine_cores',
+    'push_metering_info',
+]
 
 
 def _skip_metering(machine):
@@ -24,7 +30,7 @@ def _skip_metering(machine):
     return False
 
 
-@app.task
+@dramatiq.actor
 def find_machine_cores(machine_id):
     """Decide on the number of vCPUs for all machines"""
 
@@ -73,7 +79,7 @@ def find_machine_cores(machine_id):
         log.error('Failed to get cores of machine %s: %r', machine.id, exc)
 
 
-@app.task
+@dramatiq.actor
 def push_metering_info(owner_id):
     """Collect and push new metering data to InfluxDB"""
     now = datetime.datetime.utcnow()
