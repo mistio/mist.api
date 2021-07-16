@@ -122,6 +122,7 @@ class Cloud(OwnershipMixin, me.Document):
     enabled = me.BooleanField(default=True)
 
     machine_count = me.IntField(default=0)
+    cluster_count = me.IntField(default=0)
 
     starred = me.ListField()
     unstarred = me.ListField()
