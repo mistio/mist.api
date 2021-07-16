@@ -49,6 +49,7 @@ from mist.api.keys.models import Key
 from mist.api.helpers import rename_kwargs
 from mist.api.clouds.controllers.main.base import BaseMainController
 from mist.api.clouds.controllers.compute import controllers as compute_ctls
+from mist.api.clouds.controllers.container import controllers as container_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
 from mist.api.clouds.controllers.storage import controllers as storage_ctls
@@ -173,6 +174,7 @@ class GoogleMainController(BaseMainController):
     NetworkController = network_ctls.GoogleNetworkController
     DnsController = dns_ctls.GoogleDNSController
     StorageController = storage_ctls.GoogleStorageController
+    ContainerController = container_ctls.GoogleContainerController
 
     def _update__preparse_kwargs(self, kwargs):
         private_key = kwargs.get('private_key', self.cloud.private_key)
