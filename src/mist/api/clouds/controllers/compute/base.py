@@ -865,6 +865,9 @@ class BaseComputeController(BaseController):
                              for im in self.list_cached_images()}
             images = self._list_images(search=search)
 
+        new_image_objects = [image for image in images
+                             if image.id not in cached_images.keys()]
+
         if amqp_owner_listening(self.cloud.owner.id):
             images_dict = [img.as_dict() for img in images]
             if cached_images and images_dict:
@@ -891,6 +894,9 @@ class BaseComputeController(BaseController):
                                   routing_key='list_images',
                                   data={'cloud_id': self.cloud.id,
                                         'images': images_dict})
+
+        # Update RBAC Mappings given the list of new images.
+        self.cloud.owner.mapper.update(new_image_objects, asynchronous=False)
         return images
 
     def _list_images(self, search=None):
@@ -1328,6 +1334,9 @@ class BaseComputeController(BaseController):
 
             locations = self._list_locations()
 
+        new_location_objects = [location for location in locations
+                                if location.id not in cached_locations.keys()]
+
         if amqp_owner_listening(self.cloud.owner.id):
             locations_dict = [l.as_dict() for l in locations]
             if cached_locations and locations_dict:
@@ -1353,6 +1362,10 @@ class BaseComputeController(BaseController):
                                   routing_key='list_locations',
                                   data={'cloud_id': self.cloud.id,
                                         'locations': locations_dict})
+
+        # Update RBAC Mappings given the list of new locations.
+        self.cloud.owner.mapper.update(new_location_objects,
+                                       asynchronous=False)
         return locations
 
     def _list_locations(self):
