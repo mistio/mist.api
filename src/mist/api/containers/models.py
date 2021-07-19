@@ -91,6 +91,7 @@ class Cluster(OwnershipMixin, me.Document):
                            choices=tuple(api_config.CLUSTER_STATES.values()))
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    created = me.DateTimeField()
 
     meta = {
         'strict': False,
@@ -163,6 +164,7 @@ class Cluster(OwnershipMixin, me.Document):
             'state': self.state,
             'last_seen': self.last_seen,
             'missing_since': self.missing_since,
+            'created': self.created,
             'tags': self.tags,
             'owned_by': self.owned_by.email if self.owned_by else '',
             'created_by': self.created_by.email if self.created_by else '',
@@ -187,6 +189,7 @@ class Cluster(OwnershipMixin, me.Document):
             'state',
             'last_seen',
             'missing_since',
+            'created',
             'tags'
         ]
         deref_map = {

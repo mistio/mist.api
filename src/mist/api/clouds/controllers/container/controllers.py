@@ -58,6 +58,9 @@ class GoogleContainerController(BaseContainerController):
             self.cloud.private_key,
             project=self.cloud.project_id)
 
+    def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
+        return cluster_dict.get("createTime")
+
     def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
         updated = False
         cluster.total_nodes = cluster_dict['currentNodeCount']
