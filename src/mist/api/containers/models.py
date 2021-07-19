@@ -154,7 +154,7 @@ class Cluster(OwnershipMixin, me.Document):
             'name': self.name,
             'external_id': self.external_id,
             'owner': self.owner,
-            'cloud': self.cloud,
+            'cloud': self.cloud.id,
             'provider': self.provider,
             'total_nodes': self.total_nodes,
             'total_cpus': self.total_cpus,
@@ -179,7 +179,6 @@ class Cluster(OwnershipMixin, me.Document):
             'name',
             'owner',
             'external_id',
-            'cloud',
             'provider',
             'total_nodes',
             'total_cpus',
@@ -194,6 +193,7 @@ class Cluster(OwnershipMixin, me.Document):
             'tags'
         ]
         deref_map = {
+            'cloud': 'id',
             'owned_by': 'email',
             'created_by': 'email'
         }
