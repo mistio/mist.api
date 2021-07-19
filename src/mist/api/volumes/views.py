@@ -181,7 +181,6 @@ def list_storage_classes(request):
     List the volumes of a cloud.
 
     READ permission required on cloud.
-    READ permission required on location.
     ---
     cloud:
       in: path
@@ -196,11 +195,14 @@ def list_storage_classes(request):
                                   deleted=None)
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
-    if cloud.as_dict()['provider'] != 'kubevirt':
-        raise BadRequestError('Only available for KubeVirt clouds')
+
     # SEC
     auth_context.check_perm('cloud', 'read', cloud_id)
-    storage_classes = cloud.ctl.storage.list_storage_classes()
+
+    try:
+        storage_classes = cloud.ctl.storage.list_storage_classes()
+    except NotImplementedError:
+        raise BadRequestError('Only available for KubeVirt & Openstack clouds')
 
     return storage_classes
 

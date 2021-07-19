@@ -3,6 +3,7 @@ import copy
 import json
 import time
 import datetime
+from typing import List
 import jsonpatch
 import mongoengine.errors
 
@@ -62,6 +63,7 @@ class BaseStorageController(BaseController):
     cloud specific processing, hook the code on the appropriate private method.
     Each method defined here documents its intended purpose and use.
     """
+
     def list_volumes(self, persist=True):
         """Return list of volumes for cloud
 
@@ -383,5 +385,5 @@ class BaseStorageController(BaseController):
             'Volume %s with external_id %s' % (volume.name, volume.external_id)
         )
 
-    def list_storage_classes(self):
+    def list_storage_classes(self) -> List[str]:
         raise NotImplementedError()
