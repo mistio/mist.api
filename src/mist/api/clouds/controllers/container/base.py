@@ -141,7 +141,7 @@ class BaseContainerController(BaseController):
 
         Subclasses MAY override this method.
         """
-        return ""
+        return cluster_dict['location']
 
     def _list_clusters__get_cluster_extra(self, cluster, cluster_dict):
         """Return extra dict for libcloud cluster
