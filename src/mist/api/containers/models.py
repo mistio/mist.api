@@ -77,10 +77,6 @@ class Cluster(OwnershipMixin, me.Document):
     external_id = me.StringField(required=True)
     cloud = me.ReferenceField('Cloud', required=True,
                               reverse_delete_rule=me.CASCADE)
-    owner = me.ReferenceField('Organization', required=True,
-                              reverse_delete_rule=me.CASCADE)
-    location = me.ReferenceField('CloudLocation', required=False,
-                                 reverse_delete_rule=me.DENY)
     name = me.StringField()
     total_nodes = me.IntField()
     total_cpus = me.IntField()
@@ -153,13 +149,13 @@ class Cluster(OwnershipMixin, me.Document):
             'id': self.id,
             'name': self.name,
             'external_id': self.external_id,
-            'owner': self.owner,
+            'owner': self.owner.id,
             'cloud': self.cloud.id,
             'provider': self.provider,
             'total_nodes': self.total_nodes,
             'total_cpus': self.total_cpus,
             'total_memory': self.total_memory,
-            'location': self.location,
+            'location': self.location.id,
             'config': self.config,
             'extra': self.extra,
             'state': self.state,
@@ -177,7 +173,6 @@ class Cluster(OwnershipMixin, me.Document):
         standard_fields = [
             'id',
             'name',
-            'owner',
             'external_id',
             'provider',
             'total_nodes',
@@ -194,6 +189,8 @@ class Cluster(OwnershipMixin, me.Document):
         ]
         deref_map = {
             'cloud': 'id',
+            'owner': 'id',
+            'location': 'id',
             'owned_by': 'email',
             'created_by': 'email'
         }
