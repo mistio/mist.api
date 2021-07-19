@@ -30,12 +30,45 @@ log = logging.getLogger(__name__)
 
 class GoogleContainerController(BaseContainerController):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.config_keys = [
+            'initialNodeCount',
+            'nodeConfig',
+            'addonsConfig',
+            'legacyAbac',
+            'networkPolicy',
+            'ipAllocationPolicy',
+            'masterAuthorizedNetworksConfig',
+            'binaryAuthorization',
+            'autoscaling',
+            'networkConfig',
+            'resourceUsageExportConfig',
+            'authenticatorGroupsConfig',
+            'privateClusterConfig',
+            'databaseEncryption',
+            'verticalPodAutoscaling',
+            'shieldedNodes',
+            'workloadIdentityConfig',
+        ]
+
     def _connect(self, **kwargs):
         return get_container_driver(Container_Provider.GKE)(
             self.cloud.email,
             self.cloud.private_key,
             project=self.cloud.project_id)
 
+    def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
+        updated = False
+        cluster.total_nodes = cluster_dict['currentNodeCount']
+        updated = True
+        for ck in self.config_keys:
+            config_value = cluster_dict.get(ck)
+            if config_value is not None:
+                cluster.config[ck] = config_value
+        return updated
+
     def _list_clusters__get_cluster_extra(self, cluster, cluster_dict):
         """Return extra dict for libcloud cluster"""
-        return {}
+        extra_keys = set(cluster_dict).difference(self.config_keys)
+        return {k: cluster_dict[k] for k in extra_keys}
