@@ -199,6 +199,9 @@ class OpenstackStorageController(BaseStorageController):
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
 
+    def _create_volume__prepare_args(self, kwargs):
+        kwargs['ex_volume_type'] = kwargs.pop('storage_class_name', None)
+
     def list_storage_classes(self):
         try:
             volume_types = \
