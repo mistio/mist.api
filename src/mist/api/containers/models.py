@@ -87,8 +87,9 @@ class Cluster(OwnershipMixin, me.Document):
     total_memory = me.IntField()
     config = MistDictField()
     extra = MistDictField()
-    state = me.StringField(default=api_config.CLUSTER_STATES,
-                           choices=tuple(api_config.CLUSTER_STATES.values()))
+    state = me.StringField(
+        default=api_config.CLUSTER_STATES['STATUS_UNSPECIFIED'],
+        choices=tuple(api_config.CLUSTER_STATES.values()))
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     created = me.DateTimeField()
