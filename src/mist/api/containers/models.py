@@ -12,6 +12,8 @@ from mist.api.tag.models import Tag
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
 
+from mist.api import config as api_config
+
 __all__ = [
     "Cluster",
     "GKECluster",
@@ -85,6 +87,8 @@ class Cluster(OwnershipMixin, me.Document):
     total_memory = me.IntField()
     config = MistDictField()
     extra = MistDictField()
+    state = me.StringField(default=api_config.CLUSTER_STATES,
+                           choices=tuple(api_config.CLUSTER_STATES.values()))
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
 
@@ -156,6 +160,7 @@ class Cluster(OwnershipMixin, me.Document):
             'location': self.location,
             'config': self.config,
             'extra': self.extra,
+            'state': self.state,
             'last_seen': self.last_seen,
             'missing_since': self.missing_since,
             'tags': self.tags,
@@ -179,6 +184,7 @@ class Cluster(OwnershipMixin, me.Document):
             'location',
             'config',
             'extra',
+            'state',
             'last_seen',
             'missing_since',
             'tags'

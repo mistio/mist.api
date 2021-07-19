@@ -9,6 +9,7 @@ import logging
 import datetime
 import urllib
 import urllib.parse
+
 import libcloud.security
 from libcloud.compute.types import NodeState
 from libcloud.container.types import Provider as Container_Provider
@@ -1447,6 +1448,19 @@ STATES = {
     NodeState.RECONFIGURING.value: 'reconfiguring',
     NodeState.MIGRATING.value: 'migrating',
     NodeState.NORMAL.value: 'normal',
+}
+
+CLUSTER_STATES = {
+    state: state.lower()
+    for state in [
+        'STATUS_UNSPECIFIED',
+        'PROVISIONING',
+        'RUNNING',
+        'RECONCILING',
+        'STOPPING',
+        'ERROR',
+        'DEGRADED',
+    ]
 }
 
 STAR_IMAGE_ON_MACHINE_CREATE = True
