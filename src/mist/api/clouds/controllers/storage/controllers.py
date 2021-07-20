@@ -201,6 +201,14 @@ class OpenstackStorageController(BaseStorageController):
 
     def _create_volume__prepare_args(self, kwargs):
         kwargs['ex_volume_type'] = kwargs.pop('storage_class_name', None)
+        if kwargs.get('location'):
+            from mist.api.clouds.models import CloudLocation
+            try:
+                location = CloudLocation.objects.get(id=kwargs['location'])
+            except CloudLocation.DoesNotExist:
+                raise NotFoundError(
+                    "Location with id '%s'." % kwargs['location'])
+            kwargs['location'] = location.name
 
     def list_storage_classes(self):
         try:
