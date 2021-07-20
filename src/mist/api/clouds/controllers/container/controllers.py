@@ -61,6 +61,9 @@ class GoogleContainerController(BaseContainerController):
     def _create_cluster(self, **kwargs):
         return self.connection.ex_create_cluster(**kwargs)
 
+    def _delete_cluster(self, **kwargs):
+        return self.connection.ex_delete_cluster(**kwargs)
+
     def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
         return cluster_dict.get("createTime")
 

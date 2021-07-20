@@ -62,6 +62,12 @@ class BaseContainerController(BaseController):
     def create_cluster(self, **kwargs):
         return self._create_cluster(**kwargs)
 
+    def _delete_cluster(self, **kwargs):
+        return self.connection.delete_cluster(**kwargs)
+
+    def delete_cluster(self, **kwargs):
+        return self._delete_cluster(**kwargs)
+
     def list_cached_clusters(self, timedelta=datetime.timedelta(days=1)):
         """Return list of clusters from database
 
