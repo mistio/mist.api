@@ -766,7 +766,7 @@ rtype_to_classpath = {
     'users': 'mist.api.users.models.User',
     'user': 'mist.api.users.models.User',
     'orgs': 'mist.api.users.models.Organization',
-    'org': 'mist.api.users.models.Organization'
+    'org': 'mist.api.users.models.Organization',
     'secret': 'mist.api.secrets.models.VaultSecret',
 }
 
