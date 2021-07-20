@@ -93,13 +93,14 @@ class Cluster(OwnershipMixin, me.Document):
     meta = {
         'strict': False,
         'allow_inheritance': True,
-        'collection': 'containers',
+        'collection': 'clusters',
         'indexes': [
             'owner', 'last_seen', 'missing_since',
-            'name', 'cloud',
+            'name', 'cloud', 'external_id',
             {
                 'fields': [
                     'cloud',
+                    'external_id'
                 ],
                 'sparse': False,
                 'unique': True,
