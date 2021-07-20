@@ -161,8 +161,6 @@ class KV1VaultSecretController(VaultSecretController):
         except hvac.exceptions.Forbidden:
             raise BadRequestError("Make sure your Vault token has the \
                 permissions to create secret")
-        # list secrets so is_dir property can be properly set
-        self.list_secrets(path='.', recursive=True)
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
@@ -286,8 +284,6 @@ class KV2VaultSecretController(VaultSecretController):
                 path=self.secret.name,
                 secret=secret
             )
-        # list secrets so is_dir property can be properly set
-        self.list_secrets(path='.', recursive=True)
 
     def read_secret(self):
         """ Read a Vault KV* Secret """

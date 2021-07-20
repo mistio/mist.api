@@ -149,7 +149,8 @@ class BaseMainController(object):
                               BaseObjectStorageController)
             self.objectstorage = self.ObjectStorageController(self)
 
-    def add(self, user=None, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
+    def add(self, user=None, fail_on_error=True, fail_on_invalid_params=True,
+            **kwargs):
         """Add new Cloud to the database
 
         This is only expected to be called by `Cloud.add` classmethod to create
