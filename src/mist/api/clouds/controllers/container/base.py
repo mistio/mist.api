@@ -56,6 +56,12 @@ def _update_cluster_from_dict_in_process_pool(params):
 class BaseContainerController(BaseController):
     """Abstract base class for clouds that provide container features."""
 
+    def _create_cluster(self, **kwargs):
+        return self.connection.create_cluster(**kwargs)
+
+    def create_cluster(self, **kwargs):
+        return self._create_cluster(**kwargs)
+
     def list_cached_clusters(self, timedelta=datetime.timedelta(days=1)):
         """Return list of clusters from database
 
