@@ -3030,6 +3030,9 @@ class OpenStackComputeController(BaseComputeController):
 
         return sec_groups
 
+    def _list_locations__fetch_locations(self):
+        return self.connection.ex_list_availability_zones()
+
 
 class DockerComputeController(BaseComputeController):
 
