@@ -2846,6 +2846,46 @@ class OpenStackComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node['extra'].get('flavorId')
 
+    def _list_security_groups(self):
+        if self.cloud.tenant_id is None:
+            # try to populate tenant_id field
+            try:
+                tenant_id = \
+                    self.cloud.ctl.compute.connection.ex_get_tenant_id()
+            except Exception as exc:
+                log.error(
+                    'Failed to retrieve project id for Openstack cloud %s: %r',
+                    self.cloud.id, exc)
+            else:
+                self.cloud.tenant_id = tenant_id
+                try:
+                    self.cloud.save()
+                except me.ValidationError as exc:
+                    log.error(
+                        'Error adding tenant_id to %s: %r',
+                        self.cloud.title, exc)
+        try:
+            sec_groups = \
+                self.cloud.ctl.compute.connection.ex_list_security_groups(
+                    tenant_id=self.cloud.tenant_id
+                )
+        except Exception as exc:
+            log.error('Could not list security groups for cloud %s: %r',
+                      self.cloud, exc)
+            raise CloudUnavailableError(exc=exc)
+
+        sec_groups = [{'id': sec_group.id,
+                       'name': sec_group.name,
+                       'tenant_id': sec_group.tenant_id,
+                       'description': sec_group.description,
+                       }
+                      for sec_group in sec_groups]
+
+        return sec_groups
+
+    def _list_locations__fetch_locations(self):
+        return self.connection.ex_list_availability_zones()
+
 
 class DockerComputeController(BaseComputeController):
 
