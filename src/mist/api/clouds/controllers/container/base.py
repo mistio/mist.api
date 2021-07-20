@@ -106,10 +106,11 @@ class BaseContainerController(BaseController):
             "%s-%s" % (c.id, c.external_id): c.as_dict()
             for c in fresh_clusters
         }
-        # Exclude last seen and probe fields from patch.
+        # Exclude last seen and created fields from patch.
         for cd in old_clusters, new_clusters:
             for c in list(cd.values()):
                 c.pop("last_seen")
+                c.pop("created")
         patch = jsonpatch.JsonPatch.from_diff(old_clusters, new_clusters).patch
         if patch:  # Publish patches to rabbitmq.
             if not first_run and self.cloud.observation_logs_enabled:
