@@ -93,7 +93,7 @@ class BaseContainerController(BaseController):
         except PeriodicTaskThresholdExceeded:
             self.cloud.ctl.disable()
             raise
-        # self.produce_and_publish_patch(cached_clusters, clusters, first_run)
+        self.produce_and_publish_patch(cached_clusters, clusters, first_run)
         return clusters
 
     def produce_and_publish_patch(
