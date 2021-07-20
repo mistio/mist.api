@@ -571,12 +571,21 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST,
 def transform_key_machine_associations(associations):
     try:
         transformed = [
-            [association.machine.cloud.id,
-             association.machine.machine_id,
-             association.last_used,
-             association.ssh_user,
-             association.sudo,
-             association.port]
+            {
+                'cloud_id': association.machine.cloud.id,
+                'machine_id': association.machine.id,
+                'last_used': association.last_used,
+                'ssh_user': association.ssh_user,
+                'sudo': association.sudo,
+                'port': association.port,
+                'association_id': association.id
+            }
+            # [association.machine.cloud.id,
+            #  association.machine.id,
+            #  association.last_used,
+            #  association.ssh_user,
+            #  association.sudo,
+            #  association.port]
             for association in associations
         ]
     except DoesNotExist:
@@ -584,13 +593,15 @@ def transform_key_machine_associations(associations):
         transformed = []
         for association in associations:
             try:
-                transformed.append([
-                    association.machine.cloud.id,
-                    association.machine.machine_id,
-                    association.last_used,
-                    association.ssh_user,
-                    association.sudo,
-                    association.port])
+                transformed.append({
+                    'cloud_id': association.machine.cloud.id,
+                    'machine_id': association.machine.id,
+                    'last_used': association.last_used,
+                    'ssh_user': association.ssh_user,
+                    'sudo': association.sudo,
+                    'port': association.port,
+                    'association_id': association.id
+                })
             except DoesNotExist:
                 association.delete()
     return transformed
