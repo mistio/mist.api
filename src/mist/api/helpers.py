@@ -580,12 +580,6 @@ def transform_key_machine_associations(associations):
                 'port': association.port,
                 'association_id': association.id
             }
-            # [association.machine.cloud.id,
-            #  association.machine.id,
-            #  association.last_used,
-            #  association.ssh_user,
-            #  association.sudo,
-            #  association.port]
             for association in associations
         ]
     except DoesNotExist:
