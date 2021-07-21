@@ -154,7 +154,7 @@ def add_cloud(request):
       required: True
       enum:
       - vcloud
-      - bare_metal
+      - other
       - docker
       - libvirt
       - openstack
