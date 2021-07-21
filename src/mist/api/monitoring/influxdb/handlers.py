@@ -298,7 +298,7 @@ class MainStatsHandler(BaseStatsHandler):
                         owner = self.machine.owner
                         # FIXME Resolve circular imports.
                         from mist.api.rules.tasks import add_nodata_rule
-                        add_nodata_rule.delay(owner.id, 'influxdb')
+                        add_nodata_rule.send(owner.id, 'influxdb')
                         trigger_session_update(owner, ['monitoring'])
                         return
 

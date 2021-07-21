@@ -571,12 +571,15 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST,
 def transform_key_machine_associations(associations):
     try:
         transformed = [
-            [association.machine.cloud.id,
-             association.machine.machine_id,
-             association.last_used,
-             association.ssh_user,
-             association.sudo,
-             association.port]
+            {
+                'cloud_id': association.machine.cloud.id,
+                'machine_id': association.machine.id,
+                'last_used': association.last_used,
+                'ssh_user': association.ssh_user,
+                'sudo': association.sudo,
+                'port': association.port,
+                'association_id': association.id
+            }
             for association in associations
         ]
     except DoesNotExist:
@@ -584,13 +587,15 @@ def transform_key_machine_associations(associations):
         transformed = []
         for association in associations:
             try:
-                transformed.append([
-                    association.machine.cloud.id,
-                    association.machine.machine_id,
-                    association.last_used,
-                    association.ssh_user,
-                    association.sudo,
-                    association.port])
+                transformed.append({
+                    'cloud_id': association.machine.cloud.id,
+                    'machine_id': association.machine.id,
+                    'last_used': association.last_used,
+                    'ssh_user': association.ssh_user,
+                    'sudo': association.sudo,
+                    'port': association.port,
+                    'association_id': association.id
+                })
             except DoesNotExist:
                 association.delete()
     return transformed
@@ -1293,29 +1298,6 @@ def mac_verify(kwargs=None, key='', mac_len=0, mac_format='hex'):
     for kw in ('_expires', '_mac'):
         if kw in kwargs:
             del kwargs[kw]
-
-
-def maybe_submit_cloud_task(cloud, task_name):
-    """Decide whether a task should be submitted to celery
-
-    This method helps us prevent submitting new celery tasks, which are
-    guaranteed to return/exit immediately without performing any actual
-    actions.
-
-    For instance, such cases include async tasks for listing DNS zones
-    for clouds that have no DNS support or DNS is temporarily disabled.
-
-    Note that this is just a helper method used to make an initial decision.
-
-    The `cloud` argument must be a `mist.api.clouds.models.Cloud` mongoengine
-    objects and `task_name` must be the name/identifier of the corresponding
-    celery task.
-
-    """
-    if task_name == 'list_projects':
-        if cloud.ctl.provider != 'equinixmetal':
-            return False
-    return True
 
 
 def is_resource_missing(obj):

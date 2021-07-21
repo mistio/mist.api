@@ -316,7 +316,7 @@ class BaseMainController(object):
         try:
             schedule_id = str(ListImagesPollingSchedule.objects.get(
                 cloud=self.cloud).id)
-            list_images.apply_async((schedule_id,))
+            list_images.send(schedule_id,)
         except ListImagesPollingSchedule.DoesNotExist:
             pass
 
@@ -361,10 +361,12 @@ class BaseMainController(object):
         # up the change to `self.cloud.enabled` in time to stop scheduling
         # further polling tasks. This may result in `missing_since` being reset
         # to `None`. For that, we schedule a task in the future to ensure that
-        # celery has executed all respective poller tasks first.
+        # dramatiq has executed all respective poller tasks first.
         from mist.api.tasks import set_missing_since, delete_periodic_tasks
-        set_missing_since.apply_async((self.cloud.id, ), countdown=30)
-        delete_periodic_tasks.apply_async((self.cloud.id, ), countdown=30)
+        set_missing_since.send_with_options(
+            args=(self.cloud.id, ), delay=30_000)
+        delete_periodic_tasks.send_with_options(
+            args=(self.cloud.id, ), delay=30_000)
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
@@ -490,7 +492,8 @@ class BaseMainController(object):
             from mist.api.tasks import set_missing_since
             self.cloud.deleted = datetime.datetime.utcnow()
             self.cloud.save()
-            set_missing_since.apply_async((self.cloud.id, ), countdown=30)
+            set_missing_since.send_with_options(
+                args=(self.cloud.id, ), delay=30_000)
 
     def disconnect(self):
         self.compute.disconnect()

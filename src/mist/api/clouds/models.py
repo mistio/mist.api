@@ -185,6 +185,10 @@ class Cloud(OwnershipMixin, me.Document):
         return self.title
 
     @property
+    def org(self):
+        return self.owner
+
+    @property
     def provider(self):
         return self.ctl.provider
 
