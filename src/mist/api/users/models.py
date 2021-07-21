@@ -102,7 +102,7 @@ class SocialAuthUser(me.Document):
 
     # This is the unique id that the authentication provider uses to
     # identify a user
-    uid = me.StringField(required=True, unique=True)
+    uid = me.StringField(required=True)
 
     # The id of the user that has connected with this account
     user_id = me.StringField(required=True)
@@ -347,6 +347,25 @@ class User(Owner):
             from mist.api.dummy.mappings import OwnershipMapper
         return OwnershipMapper(self, org)
 
+    def as_dict_v2(self, deref='none', only=''):
+        """Returns the API representation of the `User` object."""
+        # User has no reference to other fields nor tags
+        # deref param is kept for compatibility
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['email', 'id', 'first_name', 'last_name',
+                           'last_login', 'username', 'registration_date']
+        ret = prepare_dereferenced_dict(standard_fields, {}, self,
+                                        deref, only)
+        if ret.get('last_login'):
+            ret['last_login'] = datetime.datetime.fromtimestamp(
+                ret['last_login']).isoformat()
+        if ret.get('registration_date'):
+            ret['registration_date'] = datetime.datetime.fromtimestamp(
+                ret['registration_date']).isoformat()
+        else:
+            ret['registration_date'] = ""
+        return ret
+
 
 class Avatar(me.Document):
     id = me.StringField(primary_key=True,
@@ -409,6 +428,19 @@ class Team(me.EmbeddedDocument):
             ret['policy'] = self.policy
         return ret
 
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['name', 'id', 'description']
+        if config.HAS_RBAC:
+            standard_fields.append('policy')
+        deref_map = {
+            'members': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map,
+                                        self, deref, only)
+        if(ret.get('policy')):
+            ret['policy'] = ret['policy'].__str__()
+        ret['members_count'] = len(ret.get('members', []))
         return ret
 
     def __str__(self):
@@ -584,6 +616,27 @@ class Organization(Owner):
                 view["teams"].append(p_team)
 
         return view
+
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+
+        standard_fields = ['id', 'name', 'clouds_count', 'members_count',
+                           'teams_count', 'created', 'total_machine_count',
+                           'enterprise_plan', 'selected_plan', 'enable_r12ns',
+                           'default_monitoring_method', 'insights_enabled',
+                           'ownership_enabled']
+        ret = prepare_dereferenced_dict(standard_fields, {}, self, deref, only)
+        if ret.get('created'):
+            ret['created'] = ret['created'].isoformat()
+        org_teams = [team.as_dict_v2() for team in self.teams]
+        org_members = [member.as_dict_v2() for member in self.members]
+        for invitation in MemberInvitation.objects(org=self):
+            pending_member = invitation.user.as_dict_v2()
+            pending_member['pending'] = True
+            org_members.append(pending_member)
+        ret['teams'] = org_teams
+        ret['members'] = org_members
+        return ret
 
     def clean(self):
         # make sure that each team's name is unique

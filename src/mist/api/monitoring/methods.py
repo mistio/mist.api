@@ -4,6 +4,7 @@ import uuid
 import time
 import datetime
 import logging
+import asyncio
 
 import mongoengine as me
 
@@ -16,6 +17,7 @@ from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.users.models import Metric
 from mist.api.clouds.models import Cloud
@@ -46,6 +48,15 @@ from mist.api.monitoring.foundationdb.methods import get_load as fdb_get_load
 from mist.api.monitoring.foundationdb.methods import get_cores as fdb_get_cores
 from mist.api.monitoring.foundationdb.methods \
     import find_metrics as fdb_find_metrics
+
+from mist.api.monitoring.victoriametrics.methods \
+    import get_stats as victoria_get_stats
+from mist.api.monitoring.victoriametrics.methods \
+    import get_load as victoria_get_load
+from mist.api.monitoring.victoriametrics.methods \
+    import get_cores as victoria_get_cores
+from mist.api.monitoring.victoriametrics.methods \
+    import find_metrics as victoria_find_metrics
 
 from mist.api.monitoring import traefik
 
@@ -78,6 +89,7 @@ def get_stats(
         - stop: the time until which to query for stats
         - step: the step at which to return stats
         - metrics: the metrics to query for, if explicitly specified
+        - monitoring_method: override default monitoring method
 
     """
     if not monitoring_method:
@@ -139,6 +151,15 @@ def get_stats(
             metrics
         )
 
+    elif monitoring_method == "telegraf-victoriametrics":
+        return victoria_get_stats(
+            machine,
+            start,
+            stop,
+            step,
+            metrics
+        )
+
     else:
         raise Exception("Invalid monitoring method")
 
@@ -146,11 +167,15 @@ def get_stats(
 def get_load(owner, start="", stop="", step="", uuids=None):
     """Get shortterm load for all monitored machines."""
     clouds = Cloud.objects(owner=owner, deleted=None).only("id")
-    machines = Machine.objects(
-        cloud__in=clouds, monitoring__hasmonitoring=True
-    )
     if uuids:
-        machines.filter(id__in=uuids)
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, id__in=uuids,
+            monitoring__hasmonitoring=True
+        )
+    else:
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, monitoring__hasmonitoring=True
+        )
 
     graphite_uuids = [
         machine.id
@@ -167,10 +192,16 @@ def get_load(owner, start="", stop="", step="", uuids=None):
         for machine in machines
         if machine.monitoring.method.endswith("-tsfdb")
     ]
+    victoria_uuids = [
+        machine.id
+        for machine in machines
+        if machine.monitoring.method.endswith("-victoriametrics")
+    ]
 
     graphite_data = {}
     influx_data = {}
     fdb_data = {}
+    victoria_data = {}
 
     if graphite_uuids:
         graphite_data = graphite_get_load(
@@ -193,11 +224,16 @@ def get_load(owner, start="", stop="", step="", uuids=None):
     if fdb_uuids:
         fdb_data = fdb_get_load(owner, fdb_uuids, start, stop, step)
 
-    if graphite_data or influx_data or fdb_data:
+    if victoria_uuids:
+        victoria_data = victoria_get_load(
+            owner, victoria_uuids, start, stop, step)
+
+    if graphite_data or influx_data or fdb_data or victoria_data:
         return dict(
             list(graphite_data.items()) +
             list(influx_data.items()) +
-            list(fdb_data.items())
+            list(fdb_data.items()) +
+            list(victoria_data.items())
         )
     else:
         raise NotFoundError("No machine has monitoring enabled")
@@ -206,11 +242,15 @@ def get_load(owner, start="", stop="", step="", uuids=None):
 def get_cores(owner, start="", stop="", step="", uuids=None):
     """Get cores for all monitored machines."""
     clouds = Cloud.objects(owner=owner, deleted=None).only("id")
-    machines = Machine.objects(
-        cloud__in=clouds, monitoring__hasmonitoring=True
-    )
     if uuids:
-        machines.filter(id__in=uuids)
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, id__in=uuids,
+            monitoring__hasmonitoring=True
+        )
+    else:
+        machines = Machine.objects(
+            owner=owner, cloud__in=clouds, monitoring__hasmonitoring=True
+        )
 
     graphite_uuids = [
         machine.id
@@ -227,10 +267,16 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
         for machine in machines
         if machine.monitoring.method.endswith("-tsfdb")
     ]
+    victoria_uuids = [
+        machine.id
+        for machine in machines
+        if machine.monitoring.method.endswith("-victoriametrics")
+    ]
 
     graphite_data = {}
     influx_data = {}
     fdb_data = {}
+    victoria_data = {}
 
     if graphite_uuids:
         graphite_data = graphite_get_cores(
@@ -252,11 +298,16 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
     if fdb_uuids:
         fdb_data = fdb_get_cores(owner, fdb_uuids, start, stop, step)
 
-    if graphite_data or influx_data or fdb_data:
+    if victoria_uuids:
+        victoria_data = victoria_get_cores(
+            owner, victoria_uuids, start, stop, step)
+
+    if graphite_data or influx_data or fdb_data or victoria_data:
         return dict(
             list(graphite_data.items()) +
             list(influx_data.items()) +
-            list(fdb_data.items())
+            list(fdb_data.items()) +
+            list(victoria_data.items())
         )
     else:
         raise NotFoundError("No machine has monitoring enabled")
@@ -322,6 +373,14 @@ def check_monitoring(owner):
             }
         )
     elif config.DEFAULT_MONITORING_METHOD.endswith("tsfdb"):
+        ret.update(
+            {
+                # Keep for backwards compatibility
+                "builtin_metrics": {},
+                # "builtin_metrics_tsfdb": config.FDB_BUILTIN_METRICS,
+            }
+        )
+    elif config.DEFAULT_MONITORING_METHOD.endswith("victoriametrics"):
         ret.update(
             {
                 # Keep for backwards compatibility
@@ -408,6 +467,7 @@ def enable_monitoring(
         "telegraf-influxdb",
         "telegraf-graphite",
         "telegraf-tsfdb",
+        "telegraf-victoriametrics"
     ):
         extra_vars = {"uuid": machine.id, "monitor": config.INFLUX["host"]}
     else:
@@ -440,6 +500,7 @@ def enable_monitoring(
             "telegraf-influxdb",
             "telegraf-graphite",
             "telegraf-tsfdb",
+            "telegraf-victoriametrics"
         ):
             traefik.reset_config()
     except Exception as exc:
@@ -470,11 +531,12 @@ def enable_monitoring(
             "telegraf-influxdb",
             "telegraf-graphite",
             "telegraf-tsfdb",
+            "telegraf-victoriametrics"
         ):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
-                func = func.delay
+                func = func.send
             func(machine.id, job, job_id, plugins)
         else:
             raise Exception("Invalid monitoring method")
@@ -525,9 +587,10 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
             "telegraf-influxdb",
             "telegraf-graphite",
             "telegraf-tsfdb",
+            "telegraf-victoriametrics"
         ):
             # Schedule undeployment of Telegraf.
-            mist.api.monitoring.tasks.uninstall_telegraf.delay(
+            mist.api.monitoring.tasks.uninstall_telegraf.send(
                 machine.id, job, job_id
             )
     if job_id:
@@ -553,6 +616,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
             "telegraf-influxdb",
             "telegraf-graphite",
             "telegraf-tsfdb",
+            "telegraf-victoriametrics"
         ):
             traefik.reset_config()
     except Exception as exc:
@@ -590,6 +654,23 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
             )
 
 
+async def async_find_metrics(resources):
+    loop = asyncio.get_event_loop()
+    metrics_all = [
+        loop.run_in_executor(None, find_metrics, resource)
+        for resource in resources
+    ]
+    metrics_all = await asyncio.gather(*metrics_all, return_exceptions=True)
+    metrics_dict = {}
+    for resource, metrics in zip(resources, metrics_all):
+        if isinstance(metrics, Exception):
+            log.error("Failed to get metrics for resource %s: %r" %
+                      (resource, metrics))
+        else:
+            metrics_dict.update(metrics)
+    return metrics_dict
+
+
 def find_metrics(resource):
     """Return the metrics associated with the specified resource."""
     if not hasattr(resource, "monitoring") or \
@@ -605,6 +686,8 @@ def find_metrics(resource):
         return metrics
     elif resource.monitoring.method == "telegraf-tsfdb":
         return fdb_find_metrics(resource)
+    elif resource.monitoring.method == "telegraf-victoriametrics":
+        return victoria_find_metrics(resource)
     else:
         raise Exception("Invalid monitoring method")
 
@@ -712,11 +795,9 @@ def list_resources_by_id(resource_type, resource_id, as_dict=True):
         return [resource.as_dict() for resource in resource_objs]
     return resource_objs
 
+
 # SEC
-
-
-def filter_list_resources(
-        resource_type, auth_context, perm='read', as_dict=True):
+def filter_list_resources(resource_type, auth_context, as_dict=True):
     """Returns a list of resources, which is filtered based on RBAC Mappings for
     non-Owners.
     """
@@ -756,7 +837,7 @@ def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
                 for machine in machines:
                     metrics.update(find_metrics(machine))
                 return metrics
-        except:
+        except Cloud.DoesNotExist:
             pass
     for resource_type in resource_types:
         try:
@@ -766,7 +847,9 @@ def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
                 resource_type, resource_id, as_dict=False)
             if resource_objs:
                 return find_metrics(resource_objs[0])
-        except:
+        except NotFoundError:
+            pass
+        except PolicyUnauthorizedError:
             pass
     raise NotFoundError("resource with id:%s" % resource_id)
 
@@ -778,20 +861,22 @@ def find_metrics_by_resource_type(auth_context, resource_type, tags):
     if resource_type == "machine":
         clouds = filter_list_clouds(auth_context, as_dict=False)
         for cloud in clouds:
-            resources += filter_list_machines(
-                auth_context, cloud.id, as_dict=False)
+            try:
+                resources += filter_list_machines(
+                    auth_context, cloud.id, cached=True, as_dict=False)
+            except Cloud.DoesNotExist:
+                log.error("Cloud with id=%s does not exist" % cloud.id)
     else:
         resources = filter_list_resources(
-            resource_type, auth_context, perm='read', as_dict=False)
+            resource_type, auth_context, as_dict=False)
 
     if tags and resources:
         resources = filter_resources_by_tags(resources, tags)
 
-    metrics = {}
-
-    for resource in resources:
-        metrics.update(find_metrics(resource))
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    metrics = loop.run_until_complete(async_find_metrics(resources))
+    loop.close()
     return metrics
 
 
@@ -799,15 +884,17 @@ def find_metrics_by_tags(auth_context, tags):
     resource_types = ['cloud', 'machine']
     resources = []
     for resource_type in resource_types:
-        resources += filter_list_resources(
-            resource_type, auth_context, perm='read', as_dict=False)
+        try:
+            resources += filter_list_resources(
+                resource_type, auth_context, as_dict=False)
+        except NotFoundError as e:
+            log.error("%r" % e)
 
     if resources:
         resources = filter_resources_by_tags(resources, tags)
 
-    metrics = {}
-
-    for resource in resources:
-        metrics.update(find_metrics(resource))
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    metrics = loop.run_until_complete(async_find_metrics(resources))
+    loop.close()
     return metrics

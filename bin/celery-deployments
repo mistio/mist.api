@@ -1,7 +1,0 @@
-#!/bin/sh
-
-set -e
-
-export QUEUES="${QUEUES:-deployments,mappings,command,celery}"
-
-exec ./bin/celery $@

@@ -6,15 +6,12 @@
 ## ensures that the build won't break because of a new release of some
 ## dependency.
 
-# amqp v2 requires explicit call to connect, and use of drain_events
-# see https://github.com/celery/py-amqp/issues/105
-# compatible with kombu's requirement
 amqp<3.0
-# ansible v2 has a incompatible api
-# see https://serversforhackers.com/running-ansible-2-programmatically
-celery>=4.0,<5.0
+apscheduler
+beautifulsoup4
 dnspython
 dateparser
+dramatiq
 elasticsearch
 elasticsearch_tornado
 flake8
@@ -38,7 +35,9 @@ pastescript  # Required for uwsgi paste logging, can probably be removed.
 pika
 pingparsing
 pretty
+prometheus-client
 pycryptodome
+pylibmc
 pymongo
 pyyaml
 pyramid

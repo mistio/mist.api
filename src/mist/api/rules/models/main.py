@@ -1,5 +1,4 @@
 import uuid
-import celery
 import mongoengine as me
 
 from mist.api import config
@@ -27,6 +26,8 @@ from mist.api.rules.plugins import InfluxDBBackendPlugin
 from mist.api.rules.plugins import ElasticSearchBackendPlugin
 from mist.api.rules.plugins import FoundationDBNoDataPlugin
 from mist.api.rules.plugins import FoundationDBBackendPlugin
+from mist.api.rules.plugins import VictoriaMetricsNoDataPlugin
+from mist.api.rules.plugins import VictoriaMetricsBackendPlugin
 
 
 class Rule(me.Document):
@@ -96,11 +97,10 @@ class Rule(me.Document):
     # Disable the rule organization-wide.
     disabled = me.BooleanField(default=False)
 
-    # Fields passed to celerybeat as optional arguments.
+    # Fields passed to scheduler as optional arguments.
     queue = me.StringField()
     exchange = me.StringField()
     routing_key = me.StringField()
-    soft_time_limit = me.IntField()
 
     # Fields updated by the scheduler.
     last_run_at = me.DateTimeField()
@@ -108,7 +108,7 @@ class Rule(me.Document):
     total_run_count = me.IntField(min_value=0, default=0)
     total_check_count = me.IntField(min_value=0, default=0)
 
-    # Field updated by celery workers. This is where celery workers keep state.
+    # Field updated by dramatiq workers. This is where workers keep state.
     states = me.MapField(field=me.EmbeddedDocumentField(RuleState))
 
     meta = {
@@ -116,6 +116,7 @@ class Rule(me.Document):
         'collection': 'rules',
         'allow_inheritance': True,
         'indexes': [
+            'owner_id',
             {
                 'fields': ['owner_id', 'title'],
                 'sparse': False,
@@ -191,6 +192,13 @@ class Rule(me.Document):
         return Organization.objects.get(id=self.owner_id)
 
     @property
+    def org(self):
+        """Return the Organization (instance) owning self.
+
+        """
+        return self.owner
+
+    @property
     def plugin(self):
         """Return the instance of a backend plugin.
 
@@ -203,19 +211,16 @@ class Rule(me.Document):
 
     @property
     def name(self):
-        """Return the name of the celery task.
-
-        This must be globally unique, since celerybeat-mongo uses schedule
-        names as keys of the dictionary of schedules to run.
+        """Return the name of the task.
 
         """
         return 'Org(%s):Rule(%s)' % (self.owner_id, self.id)
 
     @property
     def task(self):
-        """Return the celery task to run.
+        """Return the dramatiq task to run.
 
-        This is the most basic celery task that should be used for most rule
+        This is the most basic dramatiq task that should be used for most rule
         evaluations. However, subclasses may provide their own property or
         class attribute based on their needs.
 
@@ -224,12 +229,12 @@ class Rule(me.Document):
 
     @property
     def args(self):
-        """Return the args of the celery task."""
+        """Return the args of the dramatiq task."""
         return (self.id, )
 
     @property
     def kwargs(self):
-        """Return the kwargs of the celery task."""
+        """Return the kwargs of the dramatiq task."""
         return {}
 
     @property
@@ -239,21 +244,12 @@ class Rule(me.Document):
 
     @property
     def enabled(self):
-        """Return True if the celery task is currently enabled.
+        """Return True if the dramatiq task is currently enabled.
 
         Subclasses MAY override or extend this property.
 
         """
         return not self.disabled
-
-    @property
-    def schedule(self):
-        """Return a celery schedule instance.
-
-        Used internally by the scheduler. Subclasses MUST NOT override this.
-
-        """
-        return celery.schedules.schedule(self.frequency.timedelta)
 
     def is_arbitrary(self):
         """Return True if self is arbitrary.
@@ -392,6 +388,8 @@ class MachineMetricRule(ResourceRule):
             return InfluxDBBackendPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
             return FoundationDBBackendPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-victoriametrics'):
+            return VictoriaMetricsBackendPlugin
         raise Exception()
 
     def clean(self):
@@ -414,6 +412,8 @@ class NoDataRule(MachineMetricRule):
             return InfluxDBNoDataPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
             return FoundationDBNoDataPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-victoriametrics'):
+            return VictoriaMetricsNoDataPlugin
         raise Exception()
 
     # FIXME All following properties are for backwards compatibility.

@@ -100,5 +100,37 @@ class Volume(OwnershipMixin, me.Document):
 
         return volume_dict
 
+    def as_dict_v2(self, deref='auto', only=''):
+        """Returns the API representation of the `Volume` object."""
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['id', 'name', 'external_id', 'extra']
+        deref_map = {
+            'cloud': 'title',
+            'location': 'name',
+            'owned_by': 'email',
+            'created_by': 'email',
+            'attached_to': 'name',
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='volume').only('key', 'value')
+            }
+
+        if 'actions' in only or not only:
+            ret['actions'] = {
+                action: self.actions[action] for action in self.actions
+            }
+
+        ret['size'] = "%dGB" % self.size if self.size else self.size
+
+        return ret
+
     def __str__(self):
         return '%s "%s" (%s)' % (self.__class__.__name__, self.name, self.id)

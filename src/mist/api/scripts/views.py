@@ -14,7 +14,7 @@ from pyramid.response import Response
 
 from mist.api import tasks
 
-from mist.api.machines.models import Machine
+from mist.api.machines.models import KeyMachineAssociation, Machine
 from mist.api.scripts.models import Script, ExecutableScript
 from mist.api.scripts.models import AnsibleScript
 
@@ -28,6 +28,7 @@ from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import mac_sign
 
 from mist.api.scripts.methods import filter_list_scripts
+from mist.api.machines.methods import find_best_ssh_params
 
 from mist.api.logs.methods import get_stories
 
@@ -455,9 +456,17 @@ def run_script(request):
     except me.DoesNotExist:
         raise NotFoundError('Script id not found')
     job_id = job_id or uuid.uuid4().hex
-    tasks.run_script.delay(auth_context.owner.id, script.id,
-                           machine.id, params=script_params,
-                           env=env, su=su, job_id=job_id, job=job)
+
+    key_association_id, host, username, port = find_best_ssh_params(
+        auth_context, machine
+    )
+    key_id = KeyMachineAssociation.objects(id=key_association_id)[0].key.id
+
+    tasks.run_script.send(auth_context.owner.id, script.id,
+                          machine.id, params=script_params,
+                          env=env, su=su, job_id=job_id, job=job,
+                          key_id=key_id, host=host,
+                          username=username, port=port)
     return {'job_id': job_id, 'job': job}
 
 

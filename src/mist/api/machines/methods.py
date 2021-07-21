@@ -4,12 +4,16 @@ import base64
 import mongoengine as me
 import time
 import requests
-import datetime
 import json
+import hmac
+import hashlib
 
 from random import randrange
+from datetime import datetime
 
 from future.utils import string_types
+
+from mongoengine import Q
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.base import StorageVolume
@@ -20,16 +24,13 @@ from libcloud.container.base import ContainerImage
 from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.base import NodeAuthPassword
 
-from libcloud.common.types import MalformedResponseError
-from libcloud.common.exceptions import BaseHTTPError
-
 from tempfile import NamedTemporaryFile
 
 import mist.api.tasks
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
-from mist.api.keys.models import Key
+from mist.api.machines.models import Machine, KeyMachineAssociation
+from mist.api.keys.models import Key, SignedSSHKey
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
 from mist.api.users.models import Owner, Organization
@@ -39,13 +40,16 @@ from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import InternalServerError
+from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import MistNotImplementedError
+from mist.api.exceptions import MachineUnauthorizedError
 
 from mist.api.helpers import check_host
+from mist.api.helpers import trigger_session_update
 
 from mist.api.methods import connect_provider
 from mist.api.methods import notify_admin
@@ -59,6 +63,13 @@ from mist.api.tag.methods import get_tags_for_resource
 from mist.api.tag.methods import remove_tags_from_resource
 
 from mist.api import config
+
+from mist.api.shell import ParamikoShell
+
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
+else:
+    from mist.api.dummy.methods import dnat
 
 import logging
 
@@ -174,23 +185,6 @@ def validate_portforwards(port_forwards):
                 raise BadRequestError("Protocol should be either TCP or UPD.")
 
 
-def validate_portforwards_g8(port_forwards, network):
-    for pf in port_forwards.get('ports'):
-        if len(pf['port'].split(':')) == 2:
-            if pf['port'].split(':')[0] != network.publicipaddres:
-                raise BadRequestError("You can only expose a port to the \
-                    network's public ip address, which is \
-                        %s" % network.publicipaddress)
-        if len(pf['target_port'].split(':')) == 2:
-            if pf['target_port'].split(':')[0] not in {'localhost',
-                                                       '172.17.0.1',
-                                                       '0.0.0.0'}:
-                raise BadRequestError("The address in target_port "
-                                      "must be the localhost!")
-        if pf['protocol'].lower() not in {'udp', 'tcp'}:
-            raise BadRequestError('Allowed protocols are "UDP" or "TCP"')
-
-
 def validate_portforwards_kubevirt(port_forwards):
     service_type = port_forwards.get('service_type')
     if service_type not in {"ClusterIP", "NodePort", "LoadBalancer"}:
@@ -253,7 +247,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
-                   sec_group='', folder=None, datastore=None, vnfs=[],
+                   sec_groups=None, folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
                    description='', port_forwards={},
                    ):
@@ -299,7 +293,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                   Container_Provider.DOCKER,
                                   Provider.ONAPP.value,
                                   Provider.AZURE_ARM.value,
-                                  Provider.GIG_G8.value,
                                   Provider.VSPHERE.value,
                                   Provider.KUBEVIRT.value,
                                   Container_Provider.LXD]:
@@ -469,11 +462,16 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_rackspace(conn, machine_name, image,
                                          size, user_data=cloud_init)
     elif cloud.ctl.provider in [Provider.OPENSTACK.value]:
+        sec_groups = sec_groups or []
         node = _create_machine_openstack(conn, public_key,
                                          key.name, machine_name, image, size,
                                          networks, volumes,
-                                         cloud_init)
+                                         cloud_init, sec_groups)
     elif cloud.ctl.provider is Provider.EC2.value:
+        try:
+            sec_group = sec_groups[0]
+        except (IndexError, TypeError):
+            sec_group = ''
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location.id:
@@ -505,13 +503,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             location, bare_metal, cloud_init,
             hourly, softlayer_backend_vlan_id
         )
-    elif cloud.ctl.provider is Provider.GIG_G8.value:
-        node = create_machine_g8(
-            conn, machine_name, image, size_ram, size_cpu,
-            size_disk_primary, public_key, description, networks,
-            volumes, cloud_init, port_forwards
-        )
-        ssh_port = node.extra.get('ssh_port', 22)
     elif cloud.ctl.provider is Provider.ONAPP.value:
         node = _create_machine_onapp(
             conn, public_key,
@@ -549,7 +540,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                       size, public_key, networks)
     elif cloud.ctl.provider is Provider.VSPHERE.value:
         size.ram = size_ram
-        size.extra['cpu'] = size_cpu
+        size.extra['cpus'] = size_cpu
         size.disk = size_disk_primary
         node = _create_machine_vsphere(conn, machine_name, image,
                                        size, location, networks, folder,
@@ -594,6 +585,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                         memory=size_ram, cpu=size_cpu,
                                         network=network,
                                         port_forwards=port_forwards)
+    elif cloud.ctl.provider == Provider.CLOUDSIGMA.value:
+        node = _create_machine_cloudsigma(conn, machine_name, image=image,
+                                          cpu=size_cpu, ram=size_ram,
+                                          disk=size_disk_primary,
+                                          public_key=public_key,
+                                          cloud_init=cloud_init)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -606,7 +603,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 time.sleep(i * 10)
                 continue
             try:
-                cloud.ctl.compute._list_machines()
+                cloud.ctl.compute.list_machines()
             except Exception as e:
                 if i > 8:
                     raise(e)
@@ -640,32 +637,32 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
-    fresh_machines = cloud.ctl.compute._list_machines()
+    # Emit jsonpatch with new key association
+    fresh_machines = cloud.ctl.compute.list_cached_machines()
     cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines,
-                                                first_run=True)
+                                                fresh_machines)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if cloud.ctl.provider == Provider.AZURE.value:
         # for Azure, connect with the generated password, deploy the ssh key
         # when this is ok, it calls post_deploy for script/monitoring
-        mist.api.tasks.azure_post_create_steps.delay(
+        mist.api.tasks.azure_post_create_steps.send(
             auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('username'), node.extra.get('password'), public_key,
-            script=script,
-            script_id=script_id, script_params=script_params, job_id=job_id,
-            hostname=hostname, plugins=plugins, post_script_id=post_script_id,
+            script=script, script_id=script_id, script_params=script_params,
+            job_id=job_id, hostname=hostname, plugins=plugins,
+            post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule, job=job,
         )
     elif cloud.ctl.provider == Provider.OPENSTACK.value:
         if associate_floating_ip:
             networks = list_networks(auth_context.owner, cloud_id)
-            mist.api.tasks.openstack_post_create_steps.delay(
+            mist.api.tasks.openstack_post_create_steps.send(
                 auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
                 node.extra.get('username'), node.extra.get('password'),
                 public_key, script=script, script_id=script_id,
-                script_params=script_params,
-                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
+                script_params=script_params, job_id=job_id, job=job,
+                hostname=hostname, plugins=plugins,
                 post_script_params=post_script_params,
                 networks=networks, schedule=schedule,
             )
@@ -673,7 +670,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         # for Rackspace First Gen, cannot specify ssh keys. When node is
         # created we have the generated password, so deploy the ssh key
         # when this is ok and call post_deploy for script/monitoring
-        mist.api.tasks.rackspace_first_gen_post_create_steps.delay(
+        mist.api.tasks.rackspace_first_gen_post_create_steps.send(
             auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('password'), public_key, script=script,
             script_id=script_id, script_params=script_params,
@@ -683,12 +680,13 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         )
 
     else:
-        mist.api.tasks.post_deploy_steps.delay(
+        mist.api.tasks.post_deploy_steps.send(
             auth_context.owner.id, cloud_id, node.id, monitoring,
             script=script, key_id=key_id, script_id=script_id,
             script_params=script_params, job_id=job_id, job=job, port=ssh_port,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
+            location_id=location_id,
         )
 
     ret = {'id': node.id,
@@ -705,80 +703,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         ret.update({'public_ips': [],
                     'private_ips': []})
     return ret
-
-
-def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
-                      public_key, description, networks, volumes,
-                      cloud_init, port_forwards):
-    auth = None
-    ex_expose_ssh = False
-    if public_key:
-        key = public_key.replace('\n', '')
-        auth = NodeAuthSSHKey(pubkey=key)
-        ex_expose_ssh = True
-
-    try:
-        mist_net = Network.objects.get(id=networks[0])
-    except me.DoesNotExist:
-        raise NetworkNotFoundError()
-
-    try:
-        libcloud_networks = conn.ex_list_networks()
-    except MalformedResponseError as exc:
-        if 'AccessDenied' in exc.body:
-            raise MachineCreationError("G8 got exception 'Access Denied'. \
-                Make sure your JWT token has not expired.")
-    ex_network = None
-    for libcloud_net in libcloud_networks:
-        if mist_net.network_id == libcloud_net.id:
-            ex_network = libcloud_net
-            break
-
-    # g8-specific validation
-    if port_forwards:
-        validate_portforwards_g8(port_forwards, ex_network)
-
-    ex_create_attr = {
-        "memory": ram,
-        "vcpus": cpu,
-        "disk_size": disk
-    }
-
-    if volumes:
-        disks = [volume.get('size') for volume in volumes]
-        ex_create_attr.update({"data_disks": disks})
-
-    if cloud_init:
-        ex_create_attr.update({"user_data": cloud_init})
-
-    try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            ex_network=ex_network,
-            ex_description=description,
-            auth=auth,
-            ex_create_attr=ex_create_attr,
-            ex_expose_ssh=ex_expose_ssh
-        )
-    except Exception as e:
-        raise MachineCreationError("Gig G8, got exception %s" % e, e)
-
-    if port_forwards:
-        for pf in port_forwards['ports']:
-            public_port = pf['port'].split(":")[-1]
-            private_port = pf['target_port'].split(":")[-1]
-            if not private_port:
-                private_port = public_port
-            protocol = pf.get('protocol', 'tcp').lower()
-
-            try:
-                conn.ex_create_portforward(ex_network, node, public_port,
-                                           private_port, protocol)
-            except BaseHTTPError as exc:
-                raise BadRequestError(exc.message)
-
-    return node
 
 
 def _create_machine_rackspace(conn, machine_name, image, size, user_data):
@@ -822,7 +746,7 @@ def _create_machine_rackspace(conn, machine_name, image, size, user_data):
 
 def _create_machine_openstack(conn, public_key, key_name,
                               machine_name, image, size, networks,
-                              volumes, user_data):
+                              volumes, user_data, sec_groups):
     """Create a machine in Openstack.
     """
     key = str(public_key).replace('\n', '')
@@ -861,6 +785,18 @@ def _create_machine_openstack(conn, public_key, key_name,
         chosen_networks = []
 
     blockdevicemappings = []
+    sec_groups = sec_groups or []
+    sec_groups_objects = []
+    if sec_groups:
+        try:
+            security_groups = conn.ex_list_security_groups()
+        except Exception as e:
+            raise MachineCreationError("OpenStack, got exception %s" % e, e)
+
+        for security_group in security_groups:
+            if security_group.id in sec_groups:
+                sec_groups_objects.append(security_group)
+
     try:
         if volumes:
             if volumes[0].get('size'):
@@ -889,7 +825,8 @@ def _create_machine_openstack(conn, public_key, key_name,
             ex_keyname=server_key,
             networks=chosen_networks,
             ex_blockdevicemappings=blockdevicemappings,
-            ex_userdata=user_data)
+            ex_userdata=user_data,
+            ex_security_groups=sec_groups_objects)
     except Exception as e:
         raise MachineCreationError("OpenStack, got exception %s" % e, e)
     return node
@@ -901,9 +838,13 @@ def _create_machine_aliyun(conn, key_name, public_key,
     """Create a machine in Alibaba Aliyun ECS.
     """
     sec_gr_name = config.EC2_SECURITYGROUP.get('name', '')
-    sec_gr_description = config.EC2_SECURITYGROUP.get('description', '')
+    sec_gr_description = \
+        config.EC2_SECURITYGROUP.get('description', '').format(
+            portal_name=config.PORTAL_NAME)
     vpc_name = config.ECS_VPC.get('name', '')
-    vpc_description = config.ECS_VPC.get('description', '')
+    vpc_description = config.ECS_VPC.get('description', '').format(
+        portal_name=config.PORTAL_NAME
+    )
     security_groups = conn.ex_list_security_groups()
     mist_sg = [sg for sg in security_groups if sg.name == sec_gr_name]
 
@@ -2153,13 +2094,20 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
     if cloud_init:
         metadata['startup-script'] = cloud_init
 
+    if isinstance(network, list) and network:
+        network = network[0]
     try:
         network = Network.objects.get(id=network).name
     except me.DoesNotExist:
         network = 'default'
 
     ex_disk = None
-    disk_size = 10
+    try:
+        # get minimum disk size required from image
+        disk_size = image.extra.get('diskSizeGb')
+    except Exception:
+        disk_size = 10
+
     if volumes:
         if volumes[0].get('volume_id'):
             from mist.api.volumes.models import Volume
@@ -2205,20 +2153,37 @@ def _create_machine_linode(conn, key_name, public_key,
     sanitized by create_machine.
 
     """
+    from libcloud.compute.drivers.linode import LinodeNodeDriverV4
+    from libcloud.utils.misc import get_secure_random_string
 
-    auth = NodeAuthSSHKey(public_key)
+    if isinstance(conn, LinodeNodeDriverV4):
+        root_pass = get_secure_random_string(size=10)
+        try:
+            node = conn.create_node(
+                location=location,
+                size=size,
+                name=machine_name,
+                image=image,
+                ex_authorized_keys=[public_key],
+                root_pass=root_pass,
+                ex_private_ip=True
+            )
+        except Exception as e:
+            raise MachineCreationError("Linode, got exception %s" % e, e)
 
-    try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            size=size,
-            location=location,
-            auth=auth,
-            ex_private=True
-        )
-    except Exception as e:
-        raise MachineCreationError("Linode, got exception %s" % e, e)
+    else:
+        auth = NodeAuthSSHKey(public_key)
+        try:
+            node = conn.create_node(
+                name=machine_name,
+                image=image,
+                size=size,
+                location=location,
+                auth=auth,
+                ex_private=True
+            )
+        except Exception as e:
+            raise MachineCreationError("Linode, got exception %s" % e, e)
     return node
 
 
@@ -2280,6 +2245,41 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
     return node
 
 
+def _create_machine_cloudsigma(conn, machine_name, image,
+                               cpu, ram, disk, public_key=None,
+                               cloud_init=None):
+
+    # check if key already exists in cloudsigma
+    key_uuid = None
+    if public_key:
+        keys = conn.list_key_pairs()
+        for key in keys:
+            if key.public_key == public_key:
+                key_uuid = [key.extra['uuid']]
+                break
+        else:
+            key = conn.import_key_pair_from_string('mistio', public_key)
+            key_uuid = [key.extra['uuid']]
+    from libcloud.compute.drivers.cloudsigma import CloudSigmaNodeSize
+    size = CloudSigmaNodeSize(id='', name='', cpu=cpu,
+                              ram=ram, disk=disk, bandwidth=None,
+                              price=None, driver=conn)
+    ex_metadata = None
+    if cloud_init:
+        ex_metadata = {
+            'base64_fields': 'cloudinit-user-data',
+            'cloudinit-user-data': base64.b64encode(cloud_init.encode('utf-8')).decode('utf-8')  # noqa
+        }
+    try:
+        node = conn.create_node(machine_name, size, image,
+                                public_keys=key_uuid, ex_metadata=ex_metadata)
+    except Exception as exc:
+        raise MachineCreationError("CloudSigma, got exception %s" % exc, exc)
+
+    node.extra['username'] = 'cloudsigma'
+    return node
+
+
 def destroy_machine(user, cloud_id, machine_id):
     """Destroys a machine on a certain cloud.
 
@@ -2291,24 +2291,19 @@ def destroy_machine(user, cloud_id, machine_id):
 
     machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
 
-    if not machine.monitoring.hasmonitoring:
-        machine.ctl.destroy()
-        return
+    # if machine has monitoring, disable it.
+    if machine.monitoring.hasmonitoring:
+        try:
+            disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
+        except Exception as exc:
+            log.warning("Didn't manage to disable monitoring, maybe the "
+                        "machine never had monitoring enabled. Error: %r", exc)
 
-    # if machine has monitoring, disable it. the way we disable depends on
-    # whether this is a standalone io installation or not
-    try:
-        disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
-    except Exception as exc:
-        log.warning("Didn't manage to disable monitoring, maybe the "
-                    "machine never had monitoring enabled. Error: %r", exc)
-
-    machine.ctl.destroy()
+    return machine.ctl.destroy()
 
 
 # SEC
 def filter_machine_ids(auth_context, cloud_id, machine_ids):
-
     if not isinstance(machine_ids, set):
         machine_ids = set(machine_ids)
 
@@ -2457,3 +2452,176 @@ def machine_safe_expire(owner_id, machine):
     machine.expiration = Schedule.add(auth_context, _name,
                                       **params)
     machine.save()
+
+
+def find_best_ssh_params(auth_context, machine):
+    # Get key associations, prefer root or sudoer ones
+    key_associations = KeyMachineAssociation.objects(
+        Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
+        or KeyMachineAssociation.objects(machine=machine)
+    if not key_associations:
+        raise ForbiddenError()
+    permitted_key_associations = []
+    for key_association in key_associations:
+        try:
+            auth_context.check_perm("key", "read", key_association.key.id)
+        except PolicyUnauthorizedError:
+            continue
+        permitted_key_associations.append(key_association)
+    if not permitted_key_associations:
+        raise ForbiddenError()
+    key_associations = permitted_key_associations
+    key_associations = [key_association
+                        for key_association in key_associations
+                        if isinstance(key_association.key, Key)]
+    if not key_associations:
+        raise ForbiddenError()
+
+    key_associations = sorted(
+        key_associations, key=lambda k: k.last_used, reverse=True)
+
+    for key_association in key_associations:
+        if (key_association.ssh_user == 'root' or key_association.sudo) and \
+            int(datetime.now().timestamp()) - key_association.last_used \
+                <= 30 * 24 * 60 * 60:
+            hostname, port = dnat(
+                machine.owner, machine.hostname, key_association.port)
+            key_association.last_used = int(
+                datetime.now().timestamp())
+            key_association.save()
+            return key_association.id, \
+                hostname, \
+                key_association.ssh_user, \
+                port
+
+    key_associations_sudo_old = [
+        key_association for key_association
+        in key_associations if (
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used >= 0]
+
+    key_associations_non_sudo_old = [
+        key_association for key_association in key_associations if not (
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used >= 0]
+
+    key_associations_sudo_failed = [
+        key_association for key_association in key_associations if (
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used < 0]
+
+    key_associations_non_sudo_failed = [
+        key_association for key_association in key_associations if not (
+            key_association.ssh_user == 'root' or key_association.sudo) and
+        key_association.last_used < 0]
+
+    # Use the default org keys as a last measure
+    default_keys = Key.objects(
+        owner=auth_context.org, default=True, deleted=None)
+    key_associations_default = []
+    for key in default_keys:
+        try:
+            auth_context.check_perm("key", "read", key.id)
+        except PolicyUnauthorizedError:
+            continue
+        key_associations_default.append(KeyMachineAssociation(
+            key=key, machine=machine))
+
+    key_associations = key_associations_sudo_old + \
+        key_associations_non_sudo_old + \
+        key_associations_sudo_failed + \
+        key_associations_non_sudo_failed + key_associations_default
+
+    users = list({key_association.ssh_user
+                  for key_association in key_associations
+                  if key_association.ssh_user})
+    if not users:
+        users = ['root', 'ubuntu', 'ec2-user', 'user', 'azureuser',
+                 'core', 'centos', 'cloud-user', 'fedora']
+
+    ports = list({key_association.port
+                  for key_association in key_associations})
+
+    if 22 not in ports:
+        ports.append(22)
+
+    for key_association in key_associations:
+        for ssh_user in users:
+            for port in ports:
+                shell = ParamikoShell(machine.hostname)
+                key = key_association.key
+                try:
+                    # store the original ssh port in case of NAT
+                    # by the OpenVPN server
+                    ssh_port = port
+                    host, port = dnat(machine.owner, machine.hostname, port)
+                    log.info("ssh -i %s %s@%s:%s",
+                             key.name, ssh_user, host, port)
+                    cert_file = ''
+                    if isinstance(key, SignedSSHKey):
+                        cert_file = key.certificate
+
+                    shell.connect(ssh_user, key=key, port=port)
+                except MachineUnauthorizedError:
+                    continue
+                retval, resp = shell.command('uptime')
+                new_ssh_user = None
+                if 'Please login as the user ' in resp:
+                    new_ssh_user = resp.split()[5].strip('"')
+                elif 'Please login as the' in resp:
+                    # for EC2 Amazon Linux machines, usually with ec2-user
+                    new_ssh_user = resp.split()[4].strip('"')
+                if new_ssh_user:
+                    log.info("retrying as %s", new_ssh_user)
+                    try:
+                        shell.disconnect()
+                        cert_file = ''
+                        if isinstance(key, SignedSSHKey):
+                            cert_file = key.certificate
+                        shell.connect(ssh_user, key=key,
+                                      port=port, cert_file=cert_file)
+                        ssh_user = new_ssh_user
+                    except MachineUnauthorizedError:
+                        continue
+                # we managed to connect successfully, return
+                # but first update key
+                trigger_session_update_flag = False
+                if key_association.ssh_user != ssh_user:
+                    key_association.ssh_user = ssh_user
+                    trigger_session_update_flag = True
+                if key_association.port != ssh_port:
+                    key_association.port = ssh_port
+                    trigger_session_update_flag = True
+                if not key_association.sudo:
+                    # Check if user has access to passwordless sudo
+                    retval, resp = shell.command(
+                        'sudo -n true &>/dev/null ; echo $?')
+                    if '0' in resp:
+                        key_association.sudo = True
+                        trigger_session_update_flag = True
+                key_association.last_used = int(
+                    datetime.now().timestamp())
+                key_association.save()
+                machine.save()
+                if trigger_session_update_flag:
+                    trigger_session_update(machine.owner.id, ['keys'])
+                return key_association.id, host, ssh_user, port
+
+
+# SEC
+def prepare_ssh_uri(auth_context, machine):
+    key_association_id, hostname, user, port = find_best_ssh_params(
+        auth_context, machine)
+    expiry = int(datetime.now().timestamp()) + 100
+    msg = '%s,%s,%s,%s,%s' % (user,
+                              hostname,
+                              port, key_association_id, expiry)
+    mac = hmac.new(
+        config.SECRET.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256).hexdigest()
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri, user,
+        hostname, port, key_association_id, expiry, mac)
+    return ssh_uri

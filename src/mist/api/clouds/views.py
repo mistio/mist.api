@@ -1,6 +1,7 @@
 import logging
 
 from pyramid.response import Response
+
 from mist.api.clouds.models import Cloud
 from mist.api.auth.methods import auth_context_from_request
 
@@ -131,12 +132,14 @@ def add_cloud(request):
       description: The name of the cloud.
       type: string
       required: True
+    object_storage_enabled:
+      type: boolean
     organization:
       type: string
       description: Required for Vcloud
     password:
       type: string
-      description: Required for OpenStack, Vcloud, vSphere
+      description: Required for OpenStack, Vcloud, vSphere, CloudSigma
     port:
       type: integer
       description: Required for Vcloud
@@ -168,11 +171,13 @@ def add_cloud(request):
       - hostvirtual
       - vultr
       - aliyun_ecs
+      - cloudsigma
       required: true
       type: string
     region:
       type: string
-      description: Required for Ec2, Alibaba, Rackspace. Optional for Openstack
+      description: Required for Ec2, Alibaba, Rackspace, CloudSigma.\
+      Optional for Openstack
     remove_on_error:
       type: string
     secret:
@@ -199,7 +204,7 @@ def add_cloud(request):
     username:
       type: string
       description: Required for Rackspace, OnApp, \
-      SoftLayer, OpenStack, Vcloud, vSphere
+      SoftLayer, OpenStack, Vcloud, vSphere, CloudSigma
     """
     auth_context = auth_context_from_request(request)
     cloud_tags, _ = auth_context.check_perm("cloud", "add", None)
@@ -241,7 +246,8 @@ def add_cloud(request):
     if config.HAS_RBAC:
         owner.mapper.update(
             cloud,
-            callback=async_session_update, args=(owner.id, ['clouds'], )
+            callback=async_session_update,
+            args=(owner.id, ['clouds'], )
         )
 
     c_count = Cloud.objects(owner=owner, deleted=None).count()
@@ -397,11 +403,15 @@ def toggle_cloud(request):
     dns_enabled = params_from_request(request).get('dns_enabled', None)
     observation_logs_enabled = params_from_request(request).get(
         'observation_logs_enabled', None)
+    object_storage_enabled = params_from_request(request).get(
+        'object_storage_enabled', None)
 
-    if new_state is None and dns_enabled is None and \
-            observation_logs_enabled is None:
+    if new_state is None and \
+       dns_enabled is None and \
+       observation_logs_enabled is None and \
+       object_storage_enabled is None:
         raise RequiredParameterMissingError('new_state or dns_enabled or \
-          observation_logs_enabled')
+          observation_logs_enabled or object_storage_enabled')
 
     if new_state == '1':
         cloud.ctl.enable()
@@ -416,6 +426,13 @@ def toggle_cloud(request):
         cloud.ctl.dns_disable()
     elif dns_enabled:
         raise BadRequestError('Invalid DNS state')
+
+    if object_storage_enabled == 1:
+        cloud.ctl.object_storage_enable()
+    elif object_storage_enabled == 0:
+        cloud.ctl.object_storage_disable()
+    elif object_storage_enabled:
+        raise BadRequestError('Invalid Object Storage state')
 
     if observation_logs_enabled == 1:
         cloud.ctl.observation_logs_enable()
@@ -435,7 +452,7 @@ def list_security_groups(request):
     Tags: security-groups
     ---
     Lists security groups on cloud.
-    Currently only supported for AWS.
+    Currently only supported for AWS, Openstack.
     READ permission required on cloud.
     ---
     cloud:
@@ -455,11 +472,10 @@ def list_security_groups(request):
         raise NotFoundError('Cloud does not exist')
 
     try:
-        sec_groups = cloud.ctl.compute.connection.ex_list_security_groups()
-    except Exception as e:
-        log.error("Could not list security groups for cloud %s: %r" % (
-            cloud, e))
-        raise MistNotImplementedError
+        sec_groups = cloud.ctl.compute.list_security_groups()
+    except MistNotImplementedError:
+        raise BadRequestError(f'Listing security groups is not supported'
+                              f' for provider {cloud.provider}')
 
     return sec_groups
 

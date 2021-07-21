@@ -11,11 +11,8 @@ be performed inside the corresponding method functions.
 
 import os
 import hashlib
+import html
 
-# Python 2 and 3 support
-from future.utils import string_types
-from future.standard_library import install_aliases
-install_aliases()
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -96,12 +93,23 @@ log = logging.getLogger(__name__)
 OK = Response("OK", 200)
 
 
-def get_ui_template():
-    get_file(config.UI_TEMPLATE_URL, 'templates/ui.pt')
+def get_ui_template(build_path=''):
+    if build_path and build_path[0] != '/':
+        build_path = '/' + build_path
+    #     template_url = config.UI_TEMPLATE_URL_URL
+    # else:
+    #     template_url = config.UI_TEMPLATE_URL_URL + ':8000'
+    template_url = config.UI_TEMPLATE_URL
+    get_file(template_url + build_path, 'templates/ui.pt')
 
 
-def get_landing_template():
-    get_file(config.LANDING_TEMPLATE_URL, 'templates/landing.pt')
+def get_landing_template(build_path=''):
+    if build_path and build_path[0] != '/':
+        build_path = '/' + build_path
+        template_url = config.LANDING_TEMPLATE_URL
+    else:
+        template_url = config.LANDING_TEMPLATE_URL + ':8000'
+    get_file(template_url + build_path, 'templates/landing.pt')
 
 
 @view_config(context=Exception)
@@ -169,17 +177,52 @@ def home(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
-        get_landing_template()
+        get_landing_template(build_path)
         page = request.path.strip('/').replace('.', '')
         if not page:
             page = 'home'
         if page not in config.LANDING_FORMS:
-            page_uri = '%s/static/landing/sections/%s.html' % (
-                request.application_url, page)
+            if 'blog' in page:
+                uri_prefix = config.BLOG_CDN_URI or \
+                    request.application_url + "/static/blog/dist"
+                if params.get('page', None):
+                    page = 'page%s' % params.get('page')
+            else:
+                uri_prefix = config.LANDING_CDN_URI or \
+                    request.application_url + "/static/landing/sections/"
+            page_uri = '%s/%s.html' % (uri_prefix.rstrip('/'), page)
             try:
                 response = requests.get(page_uri)
                 if response.ok:
-                    section = response.text
+                    try:
+                        from bs4 import BeautifulSoup
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        body = soup.select('body')[0]
+                        section = body.renderContents().decode()
+                        titles = soup.select('title')
+                        if titles:
+                            template_inputs['title'] = titles[0].text
+                        else:
+                            template_inputs['title'] = '%s :: %s' % (
+                                config.PORTAL_NAME, page)
+                        descriptions = soup.select('meta[name="description"]')
+                        if descriptions:
+                            template_inputs['description'] = \
+                                descriptions[0].get('content', '')
+                        else:
+                            template_inputs['description'] = config.DESCRIPTION
+                        images = soup.select('meta[property="og:image"]')
+                        if images:
+                            template_inputs['image'] = images[0].get(
+                                'content', '')
+                        rss = soup.select('link[type="application/rss+xml"]')
+                        if rss:
+                            template_inputs['rss'] = rss[0].get('href')
+                        template_inputs['url'] = request.url
+                    except Exception as exc:
+                        log.error("Failed to parse page `%s` from `%s`: %r" % (
+                            page, page_uri, exc))
+                        section = response.text
                     template_inputs['section'] = section
                 else:
                     log.error("Failed to fetch page `%s` from `%s`: %r" % (
@@ -200,7 +243,8 @@ def home(request):
         auth_context.owner.last_active = datetime.now()
         auth_context.owner.save()
 
-    get_ui_template()
+    get_ui_template(build_path)
+    template_inputs['ugly_rbac'] = config.UGLY_RBAC
     return render_to_response('templates/ui.pt', template_inputs)
 
 
@@ -226,11 +270,12 @@ def not_found(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
-        get_landing_template()
+        get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs,
                                   request=request)
 
-    get_ui_template()
+    get_ui_template(build_path)
+    template_inputs['ugly_rbac'] = config.UGLY_RBAC
     return render_to_response('templates/ui.pt', template_inputs,
                               request=request)
 
@@ -354,13 +399,16 @@ def login(request):
                               action='login_rate_limiting',
                               ip=ip_from_request(request))
                     # alert admins something nasty is going on
-                    subject = config.FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT
-                    body = config.FAILED_LOGIN_ATTEMPTS_EMAIL_BODY % (
-                        user.email,
-                        ip_from_request(request),
-                        max_logins,
-                        max_logins_period,
-                        block_period
+                    subject = \
+                        config.FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT.format(
+                            portal_name=config.PORTAL_NAME
+                        )
+                    body = config.FAILED_LOGIN_ATTEMPTS_EMAIL_BODY.format(
+                        email=user.email,
+                        ip_addr=ip_from_request(request),
+                        failed_attempts=max_logins,
+                        time_period=max_logins_period,
+                        block_period=block_period
                     )
                     send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
                 raise UserUnauthorizedError()
@@ -553,24 +601,24 @@ def register(request):
 
         if user.status == 'pending':
             # if user is not confirmed yet resend the email
-            subject = config.CONFIRMATION_EMAIL_SUBJECT
-            body = config.CONFIRMATION_EMAIL_BODY % ((user.first_name + " " +
-                                                      user.last_name),
-                                                     config.CORE_URI,
-                                                     user.activation_key,
-                                                     ip_from_request(request),
-                                                     config.CORE_URI)
+            subject = config.CONFIRMATION_EMAIL_SUBJECT.format(
+                portal_name=config.PORTAL_NAME)
+            body = config.CONFIRMATION_EMAIL_BODY.format(
+                fname=user.first_name, ip_addr=ip_from_request(request),
+                portal_uri=config.CORE_URI, follow_us=config.FOLLOW_US,
+                portal_name=config.PORTAL_NAME,
+                activation_key=user.activation_key)
 
             if not send_email(subject, body, user.email):
                 raise ServiceUnavailableError("Could not send "
                                               "confirmation email.")
 
+    # TODO: Move to mist.billing or remove altogether
     if request_demo:
         # if user requested a demo then notify the mist.api team
         subject = "Demo request"
         body = "User %s has requested a demo\n" % user.email
-        tasks.send_email.delay(subject, body,
-                               config.NOTIFICATION_EMAIL['demo'])
+        tasks.send_email.send(subject, body, config.NOTIFICATION_EMAIL['demo'])
         user.requested_demo = True
         user.demo_request_date = time()
         user.save()
@@ -587,8 +635,7 @@ def register(request):
         subject = "Private beta request"
         body = "User %s <%s> has requested access to the private beta\n" % (
             params.get('name').encode('utf-8', 'ignore'), email)
-        tasks.send_email.delay(subject, body,
-                               config.NOTIFICATION_EMAIL['demo'])
+        tasks.send_email.send(subject, body, config.NOTIFICATION_EMAIL['demo'])
 
         msg = (
             "Dear %s, we will contact you within 24 hours with more "
@@ -651,6 +698,13 @@ def confirm(request):
         url = '/social_auth/login/google-oauth2?key=%s' % key
     elif config.ALLOW_SIGNIN_GITHUB:
         url = '/social_auth/login/github-oauth2?key=%s' % key
+    elif config.ALLOW_SIGNIN_MS365:
+        url = '/social_auth/login/azuread-oauth2?key=%s' % key
+    elif config.ALLOW_SIGNIN_CILOGON:
+        url = '/social_auth/login/cilogon-oauth2?key=%s' % key
+    else:
+        log.error('Confirm invitation attempt with sign-in disabled')
+        raise ForbiddenError("No sign-in method configured.")
 
     if invitoken:
         try:
@@ -686,13 +740,14 @@ def forgot_password(request):
         # resend confirmation email
         user.activation_key = get_secure_rand_token()
         user.save()
-        subject = config.CONFIRMATION_EMAIL_SUBJECT
-        full_name = "%s %s" % (user.first_name or '', user.last_name or '')
-        body = config.CONFIRMATION_EMAIL_BODY % (full_name,
-                                                 config.CORE_URI,
-                                                 user.activation_key,
-                                                 ip_from_request(request),
-                                                 config.CORE_URI)
+        subject = config.CONFIRMATION_EMAIL_SUBJECT.format(
+            portal_name=config.PORTAL_NAME
+        )
+        body = config.CONFIRMATION_EMAIL_BODY.format(
+            fname=user.first_name, ip_addr=ip_from_request(request),
+            portal_uri=config.CORE_URI, follow_us=config.FOLLOW_US,
+            portal_name=config.PORTAL_NAME,
+            activation_key=user.activation_key)
 
         if not send_email(subject, body, user.email):
             raise ServiceUnavailableError("Could not send confirmation email.")
@@ -706,13 +761,15 @@ def forgot_password(request):
     log.debug("will now save (forgot)")
     user.save()
 
-    subject = config.RESET_PASSWORD_EMAIL_SUBJECT
-    body = config.RESET_PASSWORD_EMAIL_BODY
-    body = body % ((user.first_name or "") + " " + (user.last_name or ""),
-                   config.CORE_URI,
-                   encrypt("%s:%s" % (token, email), config.SECRET),
-                   user.password_reset_token_ip_addr,
-                   config.CORE_URI)
+    subject = config.RESET_PASSWORD_EMAIL_SUBJECT.format(
+        portal_name=config.PORTAL_NAME
+    )
+    body = config.RESET_PASSWORD_EMAIL_BODY.format(
+        fname=user.first_name, portal_name=config.PORTAL_NAME,
+        portal_uri=config.CORE_URI,
+        ip_addr=user.password_reset_token_ip_addr,
+        activation_key=encrypt("%s:%s" % (token, email), config.SECRET)
+    )
     if not send_email(subject, body, email):
         log.info("Failed to send email to user %s for forgot password link" %
                  user.email)
@@ -762,7 +819,7 @@ def reset_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
-        get_landing_template()
+        get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
 
@@ -809,14 +866,15 @@ def request_whitelist_ip(request):
     user.whitelist_ip_token_ip_addr = ip_from_request(request)
     log.debug("will now save (whitelist_ip)")
     user.save()
+    confirmation_key = encrypt("%s:%s" % (token, email), config.SECRET)
 
-    subject = config.WHITELIST_IP_EMAIL_SUBJECT
-    body = config.WHITELIST_IP_EMAIL_BODY
-    body = body % ((user.first_name or "") + " " + (user.last_name or ""),
-                   config.CORE_URI,
-                   encrypt("%s:%s" % (token, email), config.SECRET),
-                   user.whitelist_ip_token_ip_addr,
-                   config.CORE_URI)
+    subject = config.WHITELIST_IP_EMAIL_SUBJECT.format(
+        portal_name=config.PORTAL_NAME)
+    body = config.WHITELIST_IP_EMAIL_BODY.format(
+        fname=user.first_name, portal_name=config.PORTAL_NAME,
+        portal_uri=config.CORE_URI, confirmation_key=confirmation_key,
+        ip_addr=user.whitelist_ip_token_ip_addr
+    )
     if not send_email(subject, body, email):
         log.info("Failed to send email to user %s for whitelist IP link" %
                  user.email)
@@ -914,7 +972,7 @@ def set_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
-        get_landing_template()
+        get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
         password = params.get('password', '')
@@ -1290,7 +1348,7 @@ def list_supported_providers(request):
     Return all of our SUPPORTED PROVIDERS
     ---
     """
-    return {'supported_providers': config.SUPPORTED_PROVIDERS}
+    return {'supported_providers': list(config.PROVIDERS.values())}
 
 
 @view_config(route_name='api_v1_avatars',
@@ -1411,7 +1469,7 @@ def create_organization(request):
                                                'create organization')
     params = params_from_request(request)
 
-    name = params.get('name')
+    name = html.escape(params.get('name'))
     super_org = params.get('super_org')
 
     if not name:
@@ -1553,7 +1611,7 @@ def edit_organization(request):
 
     org_id = request.matchdict['org_id']
     params = params_from_request(request)
-    name = params.get('new_name')
+    name = html.escape(params.get('new_name'))
     alerts_email = params.get('alerts_email')
     avatar = params.get('avatar')
     enable_r12ns = params.get('enable_r12ns')
@@ -1873,7 +1931,7 @@ def delete_teams(request):
             auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
-    if not isinstance(team_ids, (list, string_types)) or len(team_ids) == 0:
+    if not isinstance(team_ids, (list, (str,))) or len(team_ids) == 0:
         raise RequiredParameterMissingError('No team ids provided')
     # remove duplicate ids if there are any
     teams_ids = sorted(team_ids)
@@ -1973,7 +2031,8 @@ def invite_member_to_team(request):
         raise RequiredParameterMissingError('emails')
 
     org = auth_context.org
-    subject = config.ORG_INVITATION_EMAIL_SUBJECT
+    subject = config.ORG_INVITATION_EMAIL_SUBJECT.format(
+        portal_name=config.PORTAL_NAME)
 
     for email in emails:
         if not email or '@' not in email:
@@ -2049,24 +2108,22 @@ def invite_member_to_team(request):
             else:
                 team_name = '"' + team.name + '" team'
             if user.status == 'pending':
-                body = config.REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY % (
-                    auth_context.user.get_nice_name(),
-                    org.name,
-                    team_name,
-                    config.CORE_URI,
-                    user.activation_key,
-                    invitoken,
-                    's' if len(pending_teams) > 1 else '',
-                    config.CORE_URI)
+                body = \
+                    config.REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY.format(
+                        fname=user.first_name, team=team_name, org=org.name,
+                        invited_by=auth_context.user.get_nice_name(),
+                        portal_uri=config.CORE_URI,
+                        portal_name=config.PORTAL_NAME,
+                        activation_key=user.activation_key,
+                        invitoken=invitoken
+                    )
             else:
-                body = config.USER_CONFIRM_ORG_INVITATION_EMAIL_BODY % (
-                    auth_context.user.get_nice_name(),
-                    org.name,
-                    team_name,
-                    config.CORE_URI,
-                    invitoken,
-                    's' if len(pending_teams) > 1 else '',
-                    config.CORE_URI)
+                body = config.USER_CONFIRM_ORG_INVITATION_EMAIL_BODY.format(
+                    fname=user.first_name,
+                    invited_by=auth_context.user.get_nice_name(),
+                    org=org.name, team=team.name, portal_uri=config.CORE_URI,
+                    portal_name=config.PORTAL_NAME, invitoken=invitoken
+                )
             return_val['pending'] = True
             log.info("Sending invitation to user with email '%s' for team %s "
                      "of org %s with token %s", user.email, team.name,
@@ -2078,17 +2135,21 @@ def invite_member_to_team(request):
                 raise MemberConflictError('Member already in team')
             org.add_member_to_team_by_id(team_id, user)
             org.save()
-            subject = config.ORG_NOTIFICATION_EMAIL_SUBJECT
-            body = config.USER_NOTIFY_ORG_TEAM_ADDITION % (team.name,
-                                                           org.name,
-                                                           config.CORE_URI)
+            subject = config.ORG_NOTIFICATION_EMAIL_SUBJECT.format(
+                portal_name=config.PORTAL_NAME
+            )
+            body = config.USER_NOTIFY_ORG_TEAM_ADDITION.format(
+                fname=user.first_name, team=team.name, org=org.name,
+                portal_name=config.PORTAL_NAME
+            )
             return_val['pending'] = False
 
             # if one of the org owners adds himself to team don't send email
             if user == auth_context.user:
+                trigger_session_update(auth_context.owner, ['org'])
                 return return_val
 
-        tasks.send_email.delay(subject, body, user.email)
+        tasks.send_email.send(subject, body, user.email)
         ret.append(return_val)
 
     trigger_session_update(auth_context.owner, ['org'])
@@ -2150,9 +2211,12 @@ def delete_member_from_team(request):
                 raise NotFoundError()
             invitation.teams.remove(team_id)
             if len(invitation.teams) == 0:
-                subject = config.NOTIFY_INVITATION_REVOKED_SUBJECT
-                body = config.NOTIFY_INVITATION_REVOKED % (
-                    auth_context.org.name, config.CORE_URI)
+                subject = config.NOTIFY_INVITATION_REVOKED_SUBJECT.format(
+                    portal_name=config.PORTAL_NAME
+                )
+                body = config.NOTIFY_INVITATION_REVOKED.format(
+                    portal_name=config.PORTAL_NAME, org=auth_context.org.name,
+                    fname=user.first_name)
                 try:
                     invitation.delete()
                 except me.ValidationError as e:
@@ -2161,7 +2225,7 @@ def delete_member_from_team(request):
                 except me.OperationError:
                     raise TeamOperationError()
                 # notify user that his invitation has been revoked
-                tasks.send_email.delay(subject, body, user.email)
+                tasks.send_email.send(subject, body, user.email)
             else:
                 try:
                     invitation.save()
@@ -2187,17 +2251,21 @@ def delete_member_from_team(request):
             remove_from_org = False
             break
 
-    subject = config.ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT
+    subject = config.ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT.format(
+        portal_name=config.PORTAL_NAME
+    )
     if remove_from_org:
-        body = config.NOTIFY_REMOVED_FROM_ORG % (
-            auth_context.org.name, config.CORE_URI)
+        body = config.NOTIFY_REMOVED_FROM_ORG.format(
+            fname=user.first_name, org=auth_context.org.name,
+            portal_name=config.PORTAL_NAME
+        )
         auth_context.org.remove_member_from_members(user)
     else:
-        body = config.NOTIFY_REMOVED_FROM_TEAM % (
-            team.name,
-            auth_context.org.name,
-            auth_context.user.get_nice_name(),
-            config.CORE_URI)
+        body = config.NOTIFY_REMOVED_FROM_TEAM.format(
+            fname=user.first_name, team=team.name,
+            org=auth_context.org.name,
+            admin=auth_context.user.get_nice_name(),
+            portal_name=config.PORTAL_NAME)
 
     try:
         auth_context.org.save()
@@ -2207,7 +2275,7 @@ def delete_member_from_team(request):
         raise TeamOperationError()
 
     if user != auth_context.user:
-        tasks.send_email.delay(subject, body, user.email)
+        tasks.send_email.send(subject, body, user.email)
 
     trigger_session_update(auth_context.owner, ['org'])
 
@@ -2375,14 +2443,34 @@ def version(request):
     return {'version': config.VERSION}
 
 
-@view_config(route_name='api_v1_section', request_method='GET',
-             renderer='json')
+@view_config(route_name='api_v1_section', request_method='GET')
 def section(request):
     '''
-    Redirect to the static JSON file that corresponds to the requested section
+    Redirect to or fetch the static HTML file that corresponds to the
+    requested section
     '''
     section_id = request.matchdict['section']
 
-    path = '/static/' + section_id.replace('--', '/sections/') + '.html'
+    if not section_id.startswith('landing--blog'):
+        path = '/static/' + section_id.replace('--', '/sections/') + '.html'
+        return HTTPFound(path)
 
-    return HTTPFound(path)
+    page = 'blog'
+    post = section_id.split('--')[-1]
+    if post != 'blog':
+        page = post if post.startswith('page') else 'blog/%s' % post
+    uri_prefix = config.BLOG_CDN_URI or \
+        request.application_url + "/static/blog/dist"
+    page_uri = '%s/%s.html' % (uri_prefix, page)
+    try:
+        response = requests.get(page_uri)
+        if response.ok:
+            return Response(response.text, 200)
+        else:
+            log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                page, page_uri, response))
+            raise ServiceUnavailableError(response)
+    except Exception as exc:
+        log.error("Failed to fetch page `%s` from `%s`: %r" % (
+            page, page_uri, exc))
+        raise ServiceUnavailableError(exc)

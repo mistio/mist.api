@@ -94,7 +94,11 @@ def main(global_config, **settings):
                                     'SOCIAL_AUTH_GITHUB_KEY',
                                     'SOCIAL_AUTH_GITHUB_SECRET',
                                     'SOCIAL_AUTH_INTRALOT_OAUTH2_KEY',
-                                    'SOCIAL_AUTH_INTRALOT_OAUTH2_SECRET')}
+                                    'SOCIAL_AUTH_INTRALOT_OAUTH2_SECRET',
+                                    'SOCIAL_AUTH_AZUREAD_OAUTH2_KEY',
+                                    'SOCIAL_AUTH_AZUREAD_OAUTH2_SECRET',
+                                    'SOCIAL_AUTH_CILOGON_OAUTH2_KEY',
+                                    'SOCIAL_AUTH_CILOGON_OAUTH2_SECRET')}
     configurator.registry.settings.update(social_auth_keys)
     configurator.registry.settings.update(getattr(config,
                                                   'SOCIAL_AUTH_SETTINGS', {}))
@@ -140,15 +144,20 @@ def add_routes(configurator):
         ui_sections = ['clouds', 'machines', 'images', 'keys', 'scripts',
                        'templates', 'stacks', 'teams', 'networks', 'volumes',
                        'tunnels', 'members', 'insights', 'my-account',
-                       'schedules', 'zones', 'rules']
-        landing_sections = ['about', 'product', 'pricing',
-                            'sign-up', 'sign-in', 'forgot-password',
-                            'buy-license', 'request-pricing', 'get-started',
-                            'privacy-policy', 'pledge', 'tos',
-                            'error', 'index']
+                       'schedules', 'zones', 'rules', 'incidents',
+                       'buckets']
+        landing_sections = ['sign-up', 'sign-in', 'forgot-password', 'about',
+                            'product', 'buy-license', 'request-pricing',
+                            'get-started', 'privacy-policy', 'pledge', 'tos',
+                            'error', 'index', 'blog']
         for section in ui_sections + landing_sections:
             if request.path.startswith('/' + section):
                 return True
+        for category in config.LANDING_CATEGORIES:
+            if category['href'] != '/' and \
+                    request.path.startswith(category['href']):
+                return True
+
         return False
 
     configurator.add_route('version', '/version')
@@ -208,6 +217,9 @@ def add_routes(configurator):
     )
     configurator.add_route('api_v1_machine_console',
                            '/api/v1/machines/{machine_uuid}/console')
+
+    configurator.add_route('api_v1_machine_ssh',
+                           '/api/v1/machines/{machine_uuid}/ssh')
 
     configurator.add_route('api_v1_machine_tags',
                            '/api/v1/clouds/{cloud}/machines/{machine}/tags')
@@ -292,6 +304,17 @@ def add_routes(configurator):
     )
     configurator.add_route('api_v1_storage_classes',
                            '/api/v1/clouds/{cloud}/storage-classes')
+
+    # Object storage
+    configurator.add_route('api_v1_buckets',
+                           '/api/v1/buckets')
+
+    configurator.add_route('api_v1_cloud_buckets',
+                           '/api/v1/clouds/{cloud}/buckets')
+
+    configurator.add_route('api_v1_bucket_content',
+                           '/api/v1/buckets/{bucket}')
+
     configurator.add_route('api_v1_keys', '/api/v1/keys')
     configurator.add_route('api_v1_key_action', '/api/v1/keys/{key}')
     configurator.add_route('api_v1_key_public', '/api/v1/keys/{key}/public')

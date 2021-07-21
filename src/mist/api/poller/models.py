@@ -1,8 +1,6 @@
 import logging
 import datetime
 
-import celery
-
 import mongoengine as me
 
 from mist.api import config
@@ -45,20 +43,13 @@ class PollingSchedule(ShardedScheduleMixin, me.Document):
     meta = {
         'allow_inheritance': True,
         'strict': False,
-        'indexes': ['shard_id']
+        'indexes': ['shard_id', 'shard_update_at']
     }
 
     # We use a unique name for easy identification and to avoid running the
     # same schedule twice. The name is autopopulated during the invocation of
     # the `clean` method.
     name = me.StringField(unique=True)
-
-    # The following fields are defined in celerybeatmongo.models.PeriodicTask.
-    # Here, we define no fields in the base class, and expect subclasses to
-    # either define their fields, or simply use properties.
-    # task = me.StringField(required=True)
-    # args = me.ListField()
-    # kwargs = me.DictField()
 
     # Scheduling information. Don't edit them directly, just use the model
     # methods.
@@ -128,14 +119,6 @@ class PollingSchedule(ShardedScheduleMixin, me.Document):
         return interval
 
     @property
-    def schedule(self):
-        """Return a celery schedule instance
-
-        This is used internally by celerybeatmongo scheduler
-        """
-        return celery.schedules.schedule(self.interval.timedelta)
-
-    @property
     def expires(self):
         return None
 
@@ -188,6 +171,10 @@ class OwnerPollingSchedule(PollingSchedule):
 
     owner = me.ReferenceField('Organization', reverse_delete_rule=me.CASCADE)
 
+    @property
+    def org(self):
+        return self.owner
+
     @classmethod
     def add(cls, owner, run_immediately=True, interval=None, ttl=300):
         try:
@@ -233,6 +220,12 @@ class MeteringPollingSchedule(OwnerPollingSchedule):
 class CloudPollingSchedule(PollingSchedule):
 
     cloud = me.ReferenceField(Cloud, reverse_delete_rule=me.CASCADE)
+
+    meta = {
+        'allow_inheritance': True,
+        'strict': False,
+        'indexes': ['cloud', 'shard_id', 'shard_update_at']
+    }
 
     def get_name(self):
         return '%s(%s)' % (super(CloudPollingSchedule, self).get_name(),
@@ -332,6 +325,16 @@ class ListVolumesPollingSchedule(CloudPollingSchedule):
     def enabled(self):
         return (super(ListVolumesPollingSchedule, self).enabled and
                 hasattr(self.cloud.ctl, 'storage'))
+
+
+class ListBucketsPollingSchedule(CloudPollingSchedule):
+    task = 'mist.api.poller.tasks.list_buckets'
+
+    @property
+    def enabled(self):
+        return (super(ListBucketsPollingSchedule, self).enabled and
+                hasattr(self.cloud.ctl, 'objectstorage') and
+                self.cloud.object_storage_enabled)
 
 
 class MachinePollingSchedule(PollingSchedule):

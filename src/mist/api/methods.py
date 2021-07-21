@@ -1,10 +1,11 @@
 import re
 import subprocess
+import distutils.util
 
 import pingparsing
 
 
-from mongoengine import DoesNotExist
+from mongoengine import DoesNotExist, Q, BooleanField
 
 from time import time
 
@@ -20,12 +21,13 @@ from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import CloudNotFoundError
 
-from mist.api.helpers import amqp_publish_user
-
+from mist.api.helpers import amqp_publish_user, search_parser
+from mist.api.helpers import startsandendswith
 from mist.api.helpers import dirty_cow, parse_os_release
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+from mist.api.users.models import User
 
 from mist.api import config
 
@@ -199,7 +201,7 @@ def list_storage_accounts(owner, cloud_id):
 
 # TODO deprecate this!
 # We should decouple probe_ssh_only from ping.
-# Use them as two separate functions instead & through celery
+# Use them as two separate functions instead & through dramatiq
 def probe(owner, cloud_id, machine_id, host, key_id='', ssh_user=''):
     """Ping and SSH to machine and collect various metrics."""
 
@@ -510,3 +512,205 @@ def create_dns_a_record(owner, domain_name, ip_addr):
         raise MistError(msg + " failed: %r" % repr(exc))
     log.info(msg + " succeeded.")
     return record
+
+
+def list_resources(auth_context, resource_type, search='', cloud='',
+                   only='', sort='', start=0, limit=100, deref=''):
+    """
+    List resources of any type.
+
+    Supports filtering, sorting, pagination. Enforces RBAC.
+
+    Parameters:
+        auth_context(AuthContext): The AuthContext of the user
+            to list resources for.
+        resource_type(str): One of Mist resources:
+            cloud, bucket, machine, zone, record, script, key,
+            schedule, network, subnet, volume, location, image,
+            rule, size, team, template, stack, tunnel.
+        search(str): The pattern to search for, can contain one or both of:
+            a) key(field)-value pairs seperated by one of the operators:
+                :, =, >, <, <=, >=, !=
+            b) a single value that will be set to resource_type's ID or name.
+            Example:
+            >>> 't2.nano cpus>1 ram>=1024'
+        cloud(str): List resources from these clouds only,
+            with the same pattern as `search`.
+        only(str): The fields to load from the resource_type's document,
+            comma-seperated.
+        sort(str): The field to order the query results by; field may be
+            prefixed with “+” or a “-” to determine the ordering direction.
+        start(int): The index of the first item to return.
+        limit(int): Return up to this many items.
+        deref(str):
+
+    Returns:
+        tuple(A mongoengine QuerySet containing the objects found,
+             the total number of items found)
+    """
+    from mist.api.helpers import get_resource_model
+    from mist.api.clouds.models import CLOUDS
+    resource_model = get_resource_model(resource_type)
+
+    # Init query object
+    if resource_type == 'rule':
+        query = Q(owner_id=auth_context.org.id)
+    elif hasattr(resource_model, 'owner'):
+        query = Q(owner=auth_context.org)
+    else:
+        query = Q()
+
+    if resource_type in ['cloud', 'key', 'script', 'template']:
+        query &= Q(deleted=False)
+    elif resource_type in ['machine', 'network', 'volume', 'image']:
+        query &= Q(missing_since=None)
+
+    if cloud:
+        clouds, _ = list_resources(
+            auth_context, 'cloud', search=cloud, only='id'
+        )
+        query &= Q(cloud__in=clouds)
+
+    # filter organizations
+    # if user is not an admin
+    # get only orgs that have user as member
+    if resource_type in {'org', 'orgs'} and not (
+            auth_context.user.role == 'Admin'):
+        query = Q(members=auth_context.user)
+
+    if resource_type in {'user', 'users'} and not auth_context.is_owner():
+        query = Q(id__in=[auth_context.user.id])
+
+    search = search or ''
+    sort = sort or ''
+    only = only or ''
+    postfilters = []
+    id_implicit = False
+    # search filter contains space separated terms
+    # if the term contains :,=,<,>,!=, <=, >= then assume key/value query
+    # otherwise search for objects with id or name matching the term
+    terms = search_parser(search)
+    for term in terms:
+        if ':' in term:
+            k, v = term.split(':')
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+        elif '!=' in term:
+            k, v = term.split('!=')
+            mongo_operator = '__ne'
+        elif '<=' in term:
+            k, v = term.split('<=')
+            mongo_operator = '__lte'
+        elif '>=' in term:
+            k, v = term.split('>=')
+            mongo_operator = '__gte'
+        elif '>' in term:
+            k, v = term.split('>')
+            mongo_operator = '__gt'
+        elif '<' in term:
+            k, v = term.split('<')
+            mongo_operator = '__lt'
+        elif '=' in term:
+            k, v = term.split('=')
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+        # TODO: support OR keyword
+        elif term.lower() in ['and', 'or'] or not term:
+            continue
+        else:
+            id_implicit = True
+            k, v = 'id', term
+            mongo_operator = '' if startsandendswith(v, '"') else '__icontains'
+
+        v = v.strip('"')
+        attr = getattr(resource_model, k, None)
+        if isinstance(attr, BooleanField):
+            try:
+                v = bool(distutils.util.strtobool(v))
+            except ValueError:
+                v = bool(v)
+
+        if k == 'provider' and 'cloud' in resource_type:
+            query &= Q(_cls=CLOUDS[v]()._cls)
+        # TODO: only allow terms on indexed fields
+        # TODO: support additional operators: >, <, !=, ~
+        elif k in ['cloud', 'location']:
+            # exact match
+            if not mongo_operator:
+                resources, _ = list_resources(auth_context, k,
+                                              search=f'"{v}"',
+                                              only='id')
+            else:
+                resources, _ = list_resources(auth_context, k, search=v,
+                                              only='id')
+            query &= Q(**{f'{k}__in': resources})
+        elif k in ['owned_by', 'created_by']:
+            if not v or v.lower() in ['none', 'nobody']:
+                query &= Q(**{k: None})
+                continue
+            try:
+                user = User.objects.get(
+                    id__in=[m.id for m in auth_context.org.members],
+                    email=v)
+                query &= Q(**{k: user.id})
+            except User.DoesNotExist:
+                query &= Q(**{k: v})
+        elif k in ['key_associations', ]:  # Looks like a postfilter
+            postfilters.append((k, v))
+        elif k == 'id':
+            if id_implicit is True:
+                if getattr(resource_model, 'name', None) and \
+                        not isinstance(getattr(resource_model, 'name'), property):  # noqa
+                    field_name = 'name'
+                else:
+                    field_name = 'title'
+                # id will always be exact match
+                query &= (Q(id=v) | Q(**{f'{field_name}{mongo_operator}': v}))
+            else:
+                query &= Q(id=v)
+        else:
+            query &= Q(**{f'{k}{mongo_operator}': v})
+
+    result = resource_model.objects(query)
+    if only:
+        only_list = [field for field in only.split(',')
+                     if field in resource_model._fields]
+        result = result.only(*only_list)
+
+    for (k, v) in postfilters:
+        if k == 'key_associations':
+            from mist.api.machines.models import KeyMachineAssociation
+            if not v or v.lower() in ['0', 'false', 'none']:
+                ids = [machine.id for machine in result
+                       if not KeyMachineAssociation.objects(
+                           machine=machine).count()]
+            elif v.lower() in ['sudo']:
+                ids = [machine.id for machine in result
+                       if KeyMachineAssociation.objects(
+                           machine=machine, sudo=True).count()]
+            elif v.lower() in ['root']:
+                ids = [machine.id for machine in result
+                       if KeyMachineAssociation.objects(
+                           machine=machine, ssh_user='root').count()]
+            else:
+                ids = [machine.id for machine in result
+                       if KeyMachineAssociation.objects(
+                           machine=machine).count()]
+            query &= Q(id__in=ids)
+            result = resource_model.objects(query)
+
+    try:
+        from mist.rbac.models import PERMISSIONS
+    except ImportError:
+        return result[start:start + limit], result.count()
+
+    if result.count():
+        if not auth_context.is_owner() \
+                and resource_type in PERMISSIONS.keys():
+            # get_allowed_resources uses plural
+            rtype = resource_type if resource_type.endswith(
+                's') else resource_type + 's'
+            allowed_resources = auth_context.get_allowed_resources(
+                rtype=rtype)
+            result = result.filter(id__in=allowed_resources)
+        result = result.order_by(sort)
+
+    return result[start:start + limit], result.count()

@@ -186,8 +186,11 @@ def suppress_nodata_alert(rule):
         'unsuppress_alerts_link': get_unsuppress_link(action='unsuppress'),
     }
     try:
-        notify_admin(title=config.NO_DATA_ALERT_SUPPRESSION_SUBJECT,
-                     message=config.NO_DATA_ALERT_SUPPRESSION_BODY % d)
+        notify_admin(
+            title=config.NO_DATA_ALERT_SUPPRESSION_SUBJECT.format(
+                portal_name=config.PORTAL_NAME),
+            message=config.NO_DATA_ALERT_SUPPRESSION_BODY % d
+        )
     except Exception as exc:
         log.error('Suppressed %s. Failed to notify admins: %r', rule, exc)
     return True

@@ -165,7 +165,8 @@ def create_volume(request):
     if config.HAS_RBAC:
         owner.mapper.update(
             volume,
-            callback=async_session_update, args=(owner.id, ['volumes'], )
+            callback=async_session_update,
+            args=(owner.id, ['volumes'], )
         )
 
     return volume.as_dict()

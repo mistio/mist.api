@@ -148,6 +148,33 @@ class Key(OwnershipMixin, me.Document):
                       if key not in self._private_fields})
         return mdict
 
+    def as_dict_v2(self, deref='auto', only=''):
+        """Returns the API representation of the `Volume` object."""
+        from mist.api.helpers import prepare_dereferenced_dict
+        from mist.api.machines.models import KeyMachineAssociation
+        from mist.api.tag.models import Tag
+        standard_fields = ['id', 'name', 'default']
+        deref_map = {
+            'owned_by': 'email',
+            'created_by': 'email',
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+        if 'associations' in only or not only:
+            ret['associations'] = [
+                km.as_dict_v2() for km in KeyMachineAssociation.objects(
+                    key=self)
+            ]
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
+            }
+        return ret
+
     def __str__(self):
         return '%s key %s (%s) of %s' % (type(self), self.name,
                                          self.id, self.owner)
