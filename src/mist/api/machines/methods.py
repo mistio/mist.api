@@ -467,7 +467,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                          key.name, machine_name, image, size,
                                          networks, volumes,
                                          cloud_init, sec_groups,
-                                         location=location.name)
+                                         location=location.id)
     elif cloud.ctl.provider is Provider.EC2.value:
         try:
             sec_group = sec_groups[0]
@@ -818,7 +818,7 @@ def _create_machine_openstack(conn, public_key, key_name,
                     'delete_on_termination': bool(volumes[0][
                         'delete_on_termination']),
                     'volume_id': vol.external_id
-                }],
+                }]
         node = conn.create_node(
             name=machine_name,
             size=size,
