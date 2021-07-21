@@ -2840,6 +2840,9 @@ class OpenStackComputeController(BaseComputeController):
             updated = True
         return updated
 
+    def _list_machines__get_location(self, node):
+        return node['extra'].get('availability_zone', '')
+
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
 
