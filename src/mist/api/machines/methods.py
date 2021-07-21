@@ -487,7 +487,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_openstack(conn, public_key,
                                          key.name, machine_name, image, size,
                                          networks, volumes,
-                                         cloud_init, sec_groups)
+                                         cloud_init, sec_groups,
+                                         location=location.name)
     elif cloud.ctl.provider is Provider.EC2.value:
         try:
             sec_group = sec_groups[0]
@@ -848,7 +849,7 @@ def _create_machine_rackspace(conn, machine_name, image, size, user_data):
 
 def _create_machine_openstack(conn, public_key, key_name,
                               machine_name, image, size, networks,
-                              volumes, user_data, sec_groups):
+                              volumes, user_data, sec_groups, location=None):
     """Create a machine in Openstack.
     """
     key = str(public_key).replace('\n', '')
@@ -928,7 +929,8 @@ def _create_machine_openstack(conn, public_key, key_name,
             networks=chosen_networks,
             ex_blockdevicemappings=blockdevicemappings,
             ex_userdata=user_data,
-            ex_security_groups=sec_groups_objects)
+            ex_security_groups=sec_groups_objects,
+            ex_availability_zone=location)
     except Exception as e:
         raise MachineCreationError("OpenStack, got exception %s" % e, e)
     return node
