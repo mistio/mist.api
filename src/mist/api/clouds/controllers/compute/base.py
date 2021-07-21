@@ -3370,8 +3370,8 @@ class BaseComputeController(BaseController):
     def _send_metering_data(self, fresh_metering_data):
         tenant = str(int(self.cloud.owner.id[:8], 16))
         result = requests.post(
-            f"http://vminsert:8480/insert/"
-            f"{tenant}/prometheus/api/v1/import/prometheus",
+            config.VICTORIAMETRICS_WRITE_URI.replace(
+                "<org_id>", tenant),
             data=fresh_metering_data, timeout=20)
         if not result.ok:
             log.warning(
