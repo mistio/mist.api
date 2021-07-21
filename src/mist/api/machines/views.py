@@ -614,7 +614,7 @@ def add_machine(request):
     # Enable monitoring
     if monitoring:
         monitor = enable_monitoring(
-            auth_context.owner, cloud.id, machine.machine_id,
+            auth_context.owner, cloud.id, machine.id,
             no_ssh=not (machine.os_type == 'unix' and
                         KeyMachineAssociation.objects(machine=machine))
         )
@@ -844,7 +844,7 @@ def machine_actions(request):
         # if machine has monitoring, disable it
         if machine.monitoring.hasmonitoring:
             try:
-                disable_monitoring(auth_context.owner, cloud_id, machine_id,
+                disable_monitoring(auth_context.owner, cloud_id, machine.id,
                                    no_ssh=True)
             except Exception as exc:
                 log.warning("Didn't manage to disable monitoring, maybe the "

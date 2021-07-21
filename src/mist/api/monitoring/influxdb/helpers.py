@@ -7,7 +7,6 @@ import requests
 from mist.api.config import INFLUX
 from mist.api.exceptions import ServiceUnavailableError
 
-
 log = logging.getLogger(__name__)
 
 

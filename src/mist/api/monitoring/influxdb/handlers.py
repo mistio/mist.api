@@ -11,7 +11,6 @@ from tornado.httpclient import AsyncHTTPClient
 
 from mist.api.config import INFLUX
 from mist.api.helpers import iso_to_seconds
-from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import ServiceUnavailableError
@@ -284,6 +283,7 @@ class MainStatsHandler(BaseStatsHandler):
         activation timestamps, once monitoring data is available.
 
         """
+        from mist.api.monitoring.methods import notify_machine_monitoring
         istatus = self.machine.monitoring.installation_status
         if not istatus.activated_at:
             for value in results.values():
@@ -299,7 +299,7 @@ class MainStatsHandler(BaseStatsHandler):
                         # FIXME Resolve circular imports.
                         from mist.api.rules.tasks import add_nodata_rule
                         add_nodata_rule.send(owner.id, 'influxdb')
-                        trigger_session_update(owner, ['monitoring'])
+                        notify_machine_monitoring(self.machine)
                         return
 
 
