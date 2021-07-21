@@ -583,7 +583,7 @@ class LibvirtMainController(BaseMainController):
 
 class OtherMainController(BaseMainController):
 
-    provider = 'bare_metal'
+    provider = 'other'
     ComputeController = compute_ctls.OtherComputeController
 
     def disable(self):

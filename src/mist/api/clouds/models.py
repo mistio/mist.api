@@ -66,7 +66,7 @@ def _populate_clouds():
                 CLOUDS[value._controller_cls.provider] = value
     CLOUDS['amazon'] = CLOUDS['ec2']
     CLOUDS['kvm'] = CLOUDS['libvirt']
-    CLOUDS['other'] = CLOUDS['bare_metal']
+    CLOUDS['bare_metal'] = CLOUDS['other']  # For backward compat
     CLOUDS['google'] = CLOUDS['gce']
     CLOUDS['ibm'] = CLOUDS['softlayer']
     CLOUDS['equinix'] = CLOUDS['equinixmetal']
