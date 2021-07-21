@@ -3176,11 +3176,13 @@ class BaseComputeController(BaseController):
         last_metering_data = self._fetch_metering_data(read_queries)
 
         fresh_metering_data = self._generate_fresh_metering_data(
-            cached_machines_map, machines_map, last_metering_data, metering_metrics)
+            cached_machines_map, machines_map, last_metering_data,
+            metering_metrics)
 
         self._send_metering_data(fresh_metering_data)
 
-    def _get_machine_metering_metrics(self, machine_id, machines_map, metering_metrics):
+    def _get_machine_metering_metrics(
+            self, machine_id, machines_map, metering_metrics):
         if metering_metrics.get(machines_map[machine_id].owner.id):
             return metering_metrics[machines_map[machine_id].owner.id]
         if metering_metrics.get(machines_map[machine_id].cloud.provider):
@@ -3192,23 +3194,34 @@ class BaseComputeController(BaseController):
     def _update_metering_metrics_map(self, machines_map):
         metering_metrics = {}
         for machine_id, _ in machines_map.items():
-            if config.METERING_METRICS.get(machines_map[machine_id].owner.id):
-                if not metering_metrics.get(machines_map[machine_id].owner.id):
-                    metering_metrics[machines_map[machine_id].owner.id] = config.METERING_METRICS.get(
-                        "default", {})
-                    metering_metrics[machines_map[machine_id].owner.id].update(config.METERING_METRICS.get(
-                        machines_map[machine_id].cloud.provider, {}))
-                    metering_metrics[machines_map[machine_id].owner.id].update(
-                        config.METERING_METRICS.get(machines_map[machine_id].owner.id, {}))
-            if config.METERING_METRICS.get(machines_map[machine_id].cloud.provider):
-                if not metering_metrics.get(machines_map[machine_id].cloud.provider):
-                    metering_metrics[machines_map[machine_id].cloud.provider] = config.METERING_METRICS.get(
-                        "default", {})
-                    metering_metrics[machines_map[machine_id].cloud.provider].update(config.METERING_METRICS.get(
-                        machines_map[machine_id].cloud.provider, {}))
-            if config.METERING_METRICS.get("default"):
-                if not metering_metrics.get("default"):
-                    metering_metrics["default"] = config.METERING_METRICS["default"]
+            if config.METERING_METRICS.get(
+                    machines_map[machine_id].owner.id) and \
+                    not metering_metrics.get(
+                        machines_map[machine_id].owner.id):
+                metering_metrics[machines_map[machine_id].owner.id] = \
+                    config.METERING_METRICS.get("default", {})
+                metering_metrics[machines_map[
+                    machine_id].owner.id].update(
+                        config.METERING_METRICS.get(
+                            machines_map[machine_id].cloud.provider, {}))
+                metering_metrics[machines_map[machine_id].owner.id].update(
+                    config.METERING_METRICS.get(machines_map[
+                        machine_id].owner.id, {}))
+            if config.METERING_METRICS.get(
+                machines_map[machine_id].cloud.provider) and \
+                    not metering_metrics.get(
+                        machines_map[machine_id].cloud.provider):
+                metering_metrics[machines_map[
+                    machine_id].cloud.provider] = config.METERING_METRICS.get(
+                    "default", {})
+                metering_metrics[machines_map[
+                    machine_id].cloud.provider].update(
+                        config.METERING_METRICS.get(
+                            machines_map[machine_id].cloud.provider, {}))
+            if config.METERING_METRICS.get("default") and \
+                    not metering_metrics.get("default"):
+                metering_metrics["default"] = config.METERING_METRICS[
+                    "default"]
         return metering_metrics
 
     def _generate_metering_queries(self, cached_machines_map, machines_map):
@@ -3237,17 +3250,23 @@ class BaseComputeController(BaseController):
 
         for dt, machine_ids in last_metering_dt_machines_map.items():
             for machine_id in machine_ids:
-                if config.METERING_METRICS.get(machines_map[machine_id].owner.id):
-                    if not machine_metrics_category_map.get((dt, machines_map[machine_id].owner.id)):
+                if config.METERING_METRICS.get(machines_map[
+                        machine_id].owner.id):
+                    if not machine_metrics_category_map.get(
+                            (dt, machines_map[machine_id].owner.id)):
                         machine_metrics_category_map[(
                             dt, machines_map[machine_id].owner.id)] = []
-                    machine_metrics_category_map[(dt, machines_map[machine_id].owner.id)].append(
+                    machine_metrics_category_map[(dt, machines_map[
+                        machine_id].owner.id)].append(
                         machine_id)
-                elif config.METERING_METRICS.get(machines_map[machine_id].cloud.provider):
-                    if not machine_metrics_category_map.get((dt, machines_map[machine_id].cloud.provider)):
+                elif config.METERING_METRICS.get(machines_map[
+                        machine_id].cloud.provider):
+                    if not machine_metrics_category_map.get(
+                            (dt, machines_map[machine_id].cloud.provider)):
                         machine_metrics_category_map[(
                             dt, machines_map[machine_id].cloud.provider)] = []
-                    machine_metrics_category_map[(dt, machines_map[machine_id].cloud.provider)].append(
+                    machine_metrics_category_map[(dt, machines_map[
+                        machine_id].cloud.provider)].append(
                         machine_id)
                 elif config.METERING_METRICS.get("default"):
                     if not machine_metrics_category_map.get((dt, "default")):
@@ -3259,7 +3278,8 @@ class BaseComputeController(BaseController):
             dt, metrics_category = key
             metering_metrics_list = "|".join(
                 metric_name
-                for metric_name, properties in metering_metrics[metrics_category].items()
+                for metric_name, properties in metering_metrics[
+                    metrics_category].items()
                 if properties['type'] == "counter")
             machines_ids_list = "|".join(machine_ids)
             read_queries[(dt, metrics_category)] = (
@@ -3297,14 +3317,16 @@ class BaseComputeController(BaseController):
         return last_metering_data
 
     def _generate_fresh_metering_data(
-            self, cached_machines_map, machines_map, last_metering_data, metering_metrics):
+            self, cached_machines_map, machines_map,
+            last_metering_data, metering_metrics):
         fresh_metering_data = ""
         for machine_id, machine in machines_map.items():
             if not machine.last_seen:
                 continue
             new_dt = machine.last_seen
             old_dt = None
-            if cached_machines_map.get(machine_id) and cached_machines_map[machine_id]["last_seen"]:
+            if cached_machines_map.get(machine_id) and \
+                    cached_machines_map[machine_id]["last_seen"]:
                 old_dt = datetime.datetime.strptime(
                     cached_machines_map[machine_id]["last_seen"],
                     '%Y-%m-%d %H:%M:%S.%f')
