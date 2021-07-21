@@ -59,20 +59,20 @@ BLOG_CDN_URI = ""
 METERING_METRICS = {
     "default": {
         'core_hours': {'type': 'counter', 'value': lambda machine, dt: dt * (
-            machine.cores if machine.state == 'running'
-            and machine.cores else 0)},
-        'ram_gb_hours': {'type': 'counter', 'value': lambda machine, dt: dt
-                         * (machine.size.ram / 1000
-                            if machine.state == 'running' and machine.size
-                             and machine.size.ram else 0)},
+            machine.cores if machine.state == 'running' and
+            machine.cores else 0)},
+        'ram_gb_hours': {'type': 'counter', 'value': lambda machine, dt: dt *
+                         (machine.size.ram / 1000
+                          if machine.state == 'running' and machine.size and
+                          machine.size.ram else 0)},
         'total_cost': {'type': 'counter', 'value': lambda machine, dt: dt * (
-            machine.cost.hourly if machine.state == 'running'
-            and machine.cost.hourly else 0)},
+            machine.cost.hourly if machine.state == 'running' and
+            machine.cost.hourly else 0)},
         'core_count': {'type': 'gauge', 'value': lambda machine: machine.cores
                        if machine.cores else 0},
         'ram_gb': {'type': 'gauge', 'value': lambda machine: (
-            machine.size.ram / 1000 if machine.state == 'running'
-            and machine.size and machine.size.ram else 0)}
+            machine.size.ram / 1000 if machine.state == 'running' and
+            machine.size and machine.size.ram else 0)}
     }
 }
 
