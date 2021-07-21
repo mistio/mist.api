@@ -2078,10 +2078,10 @@ PROVIDERS['rackspace']['regions'] = [
 
 # Deprecated in Mist v5
 SUPPORTED_PROVIDERS = [
-    # BareMetal
+    # Other
     {
         'title': 'Other Server',
-        'provider': 'bare_metal',
+        'provider': 'other',
         'regions': []
     },
     # Azure
