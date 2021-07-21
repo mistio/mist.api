@@ -3383,7 +3383,7 @@ class VSphereComputeController(BaseComputeController):
             if node.id is None:
                 log.error("Skipping machine {} on cloud {} - {}): uuid is "
                           "null".format(node.name,
-                                        self.cloud.title,
+                                        self.cloud.name,
                                         self.cloud.id))
                 continue
             machine_list.append(node_to_dict(node))
@@ -3479,7 +3479,7 @@ class VSphereComputeController(BaseComputeController):
             if image.id is None:
                 log.error("Skipping machine {} on cloud {} - {}): uuid is "
                           "null".format(image.name,
-                                        self.cloud.title,
+                                        self.cloud.name,
                                         self.cloud.id))
                 image_list.remove(image)
         return image_list
@@ -4134,7 +4134,7 @@ class DockerComputeController(BaseComputeController):
 
         # Update dockerhost machine model fields.
         changed = False
-        for attr, val in {'name': self.cloud.title,
+        for attr, val in {'name': self.cloud.name,
                           'hostname': self.cloud.host,
                           'machine_type': 'container-host'}.items():
             if getattr(machine, attr) != val:
