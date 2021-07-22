@@ -56,26 +56,6 @@ BACKUP_INTERVAL = 24
 LANDING_CDN_URI = ""
 BLOG_CDN_URI = ""
 
-METERING_METRICS = {
-    "default": {
-        'core_hours': {'type': 'counter', 'value': lambda machine, dt: dt * (
-            machine.cores if machine.state == 'running' and
-            machine.cores else 0)},
-        'ram_gb_hours': {'type': 'counter', 'value': lambda machine, dt: dt *
-                         (machine.size.ram / 1000
-                          if machine.state == 'running' and machine.size and
-                          machine.size.ram else 0)},
-        'total_cost': {'type': 'counter', 'value': lambda machine, dt: dt * (
-            machine.cost.hourly if machine.state == 'running' and
-            machine.cost.hourly else 0)},
-        'core_count': {'type': 'gauge', 'value': lambda machine: machine.cores
-                       if machine.cores else 0},
-        'ram_gb': {'type': 'gauge', 'value': lambda machine: (
-            machine.size.ram / 1000 if machine.state == 'running' and
-            machine.size and machine.size.ram else 0)}
-    }
-}
-
 # backups
 BACKUP = {
     'key': '',
@@ -1197,8 +1177,6 @@ DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 GRAPHITE_URI = "http://graphite"
 
 VICTORIAMETRICS_URI = "http://vmselect:8481/select/<org_id>/prometheus"
-VICTORIAMETRICS_WRITE_URI = (f"http://vminsert:8480/insert/<org_id>/"
-                             f"prometheus/api/v1/import/prometheus")
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
