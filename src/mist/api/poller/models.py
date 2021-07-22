@@ -280,6 +280,25 @@ class ListMachinesPollingSchedule(CloudPollingSchedule):
             log.error('Cannot get interval. Cloud is missing')
             return PollingInterval(every=0)
 
+
+class ListClustersPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_clusters'
+
+    @property
+    def interval(self):
+        try:
+            if self.default_interval.every != self.cloud.polling_interval:
+                log.warning("Schedule has different interval from cloud, "
+                            "fixing")
+                self.default_interval.every = self.cloud.polling_interval
+                self.save()
+            return super(CloudPollingSchedule, self).interval
+        except me.DoesNotExist:
+            log.error('Cannot get interval. Cloud is missing')
+            return PollingInterval(every=0)
+
+
 class ListLocationsPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_locations'
