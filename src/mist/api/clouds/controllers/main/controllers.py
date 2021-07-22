@@ -689,7 +689,7 @@ class OtherMainController(BaseMainController):
             from mist.api.monitoring.methods import enable_monitoring
             from mist.api.machines.models import KeyMachineAssociation
             enable_monitoring(
-                self.cloud.owner, self.cloud.id, machine.machine_id,
+                self.cloud.owner, self.cloud.id, machine.id,
                 no_ssh=not (machine.os_type == 'unix' and
                             KeyMachineAssociation.objects(
                                 machine=machine).count())

@@ -138,7 +138,7 @@ class NoDataAction(NotificationAction):
             # If NoData alerts are being triggered for over 24h, disable
             # monitoring and log the action to close any open incidents.
             disable_monitoring(machine.owner, machine.cloud.id,
-                               machine.machine_id, no_ssh=True)
+                               machine.id, no_ssh=True)
             log_event(
                 machine.owner.id, 'incident', 'disable_monitoring',
                 cloud_id=machine.cloud.id, machine_id=machine.id,
@@ -299,7 +299,7 @@ class MachineAction(BaseAlertAction):
             # Could also be implemented as new method inside the
             # MachineController.
             disable_monitoring(machine.owner, machine.cloud.id,
-                               machine.machine_id, no_ssh=True)
+                               machine.id, no_ssh=True)
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}

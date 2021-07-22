@@ -12,8 +12,6 @@ import mist.api.shell
 import mist.api.config as config
 import mist.api.monitoring.tasks
 
-from mist.api.helpers import trigger_session_update
-
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
@@ -63,6 +61,9 @@ from mist.api.monitoring import traefik
 from mist.api.rules.models import Rule
 
 from mist.api.tag.methods import get_tags_for_resource
+
+from mist.api.helpers import trigger_session_update, amqp_publish_user
+
 
 log = logging.getLogger(__name__)
 
@@ -394,7 +395,7 @@ def check_monitoring(owner):
     return ret
 
 
-def update_monitoring_options(owner, emails):
+def update_monitoring_options(org, emails):
     """Set `emails` as global e-mail alert's recipients."""
     from mist.api.helpers import is_email_valid
 
@@ -402,12 +403,12 @@ def update_monitoring_options(owner, emails):
     emails = emails.replace(" ", "")
     emails = emails.replace("\n", ",")
     emails = emails.replace("\r", ",")
-    owner.alerts_email = [
+    org.alerts_email = [
         email for email in emails.split(",") if is_email_valid(email)
     ]
-    owner.save()
-    trigger_session_update(owner, ["monitoring"])
-    return {"alerts_email": owner.alerts_email}
+    org.save()
+    trigger_session_update(org, ["org"])
+    return {"alerts_email": org.alerts_email}
 
 
 def enable_monitoring(
@@ -439,7 +440,7 @@ def enable_monitoring(
     except Cloud.DoesNotExist:
         raise NotFoundError("Cloud does not exist")
     try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, id=machine_id)
     except Machine.DoesNotExist:
         raise NotFoundError("Machine %s doesn't exist" % machine_id)
     if machine.monitoring.hasmonitoring:
@@ -492,7 +493,7 @@ def enable_monitoring(
     machine.monitoring.hasmonitoring = True
 
     machine.save()
-    trigger_session_update(owner, ["monitoring"])
+    notify_machine_monitoring(machine)
 
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
@@ -509,7 +510,7 @@ def enable_monitoring(
         machine.monitoring.installation_status.finished_at = time.time()
         machine.monitoring.hasmonitoring = False
         machine.save()
-        trigger_session_update(owner, ["monitoring"])
+        notify_machine_monitoring(machine)
         raise
 
     # Update installation status
@@ -518,7 +519,7 @@ def enable_monitoring(
     else:
         machine.monitoring.installation_status.state = "pending"
     machine.save()
-    trigger_session_update(owner, ["monitoring"])
+    notify_machine_monitoring(machine)
 
     if not no_ssh:
         if job_id:
@@ -547,7 +548,6 @@ def enable_monitoring(
     return ret_dict
 
 
-# TODO: Switch to mongo's UUID.
 def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
     """Disable monitoring for a machine.
 
@@ -567,7 +567,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
     except Cloud.DoesNotExist:
         raise NotFoundError("Cloud does not exist")
     try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, id=machine_id)
     except Machine.DoesNotExist:
         raise NotFoundError("Machine %s doesn't exist" % machine_id)
     if not machine.monitoring.hasmonitoring:
@@ -609,6 +609,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
     machine.monitoring.hasmonitoring = False
     machine.monitoring.activated_at = 0
     machine.save()
+    notify_machine_monitoring(machine)
 
     # tell monitor server to no longer monitor this uuid
     try:
@@ -626,7 +627,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
             exc,
         )
 
-    trigger_session_update(owner, ["monitoring"])
+    notify_machine_monitoring(machine)
+
     return ret_dict
 
 
@@ -642,7 +644,7 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
     for machine in machines:
         try:
             disable_monitoring(
-                owner, cloud_id, machine.machine_id, no_ssh=no_ssh
+                owner, cloud_id, machine.id, no_ssh=no_ssh
             )
         except Exception as exc:
             log.error(
@@ -700,7 +702,7 @@ def associate_metric(machine, metric_id, name="", unit=""):
     if metric_id not in machine.monitoring.metrics:
         machine.monitoring.metrics.append(metric_id)
         machine.save()
-    trigger_session_update(machine.owner, ["monitoring"])
+    notify_machine_monitoring(machine)
     return metric
 
 
@@ -716,7 +718,7 @@ def disassociate_metric(machine, metric_id):
         raise NotFoundError("Metric isn't associated with this Machine")
     machine.monitoring.metrics.remove(metric_id)
     machine.save()
-    trigger_session_update(machine.owner, ["monitoring"])
+    notify_machine_monitoring(machine)
 
 
 def update_metric(owner, metric_id, name="", unit=""):
@@ -730,7 +732,6 @@ def update_metric(owner, metric_id, name="", unit=""):
     if unit:
         metric.unit = unit
     metric.save()
-    trigger_session_update(owner, ["monitoring"])
     return metric
 
 
@@ -898,3 +899,18 @@ def find_metrics_by_tags(auth_context, tags):
     metrics = loop.run_until_complete(async_find_metrics(resources))
     loop.close()
     return metrics
+
+
+def notify_machine_monitoring(machine):
+    patches = []
+    patches.append({
+        "path": "/%s-%s/monitoring" % (
+            machine.id, machine.machine_id),
+        "value": machine.monitoring.as_dict(),
+        "op": "replace"
+    })
+
+    amqp_publish_user(machine.owner.id,
+                      routing_key='patch_machines',
+                      data={'cloud_id': machine.cloud.id,
+                            'patch': patches})
