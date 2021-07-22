@@ -200,7 +200,12 @@ class OpenStackNetworkController(BaseNetworkController):
             setattr(network, field, value)
 
     def _list_subnets__fetch_subnets(self, network):
-        kwargs = {'filters': {'network_id': network.network_id}}
+        kwargs = {
+            'filters': {
+                'network_id': network.network_id,
+                'ip_version': 4,
+            }
+        }
         return self.cloud.ctl.compute.connection.ex_list_subnets(**kwargs)
 
     def _list_subnets__postparse_subnet(self, subnet, libcloud_subnet):
