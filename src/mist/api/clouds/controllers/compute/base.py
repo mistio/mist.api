@@ -3316,6 +3316,32 @@ class BaseComputeController(BaseController):
                 last_metering_data[machine_id].update({metric_name: value})
         return last_metering_data
 
+    def _find_old_counter_value(self, metric_name, machine_id, properties):
+        tenant = str(int(self.cloud.owner.id[:8], 16))
+        read_uri = config.VICTORIAMETRICS_URI.replace("<org_id>", tenant)
+        query = (
+            f"last_over_time("
+            f"{metric_name}{{org=\"{self.cloud.owner.id}\""
+            f",machine_id=\"{machine_id}\",metering=\"true\""
+            f",value_type=\"{properties['type']}\"}}"
+            f"[{config.METERING_PROMQL_LOOKBACK}])"
+        )
+        data = requests.get(
+            f"{read_uri}/api/v1/query"
+            f"?query={query}",
+            timeout=20)
+
+        if not data.ok:
+            log.warning(data.text)
+
+        data = data.json()
+        results = data.get("data", {}).get("result", [])
+        if len(results) > 1:
+            log.warning("Returned more series than expected")
+        if len(results) == 0:
+            return 0
+        return results[0]["value"][1]
+
     def _generate_fresh_metering_data(
             self, cached_machines_map, machines_map,
             last_metering_data, metering_metrics):
@@ -3346,7 +3372,8 @@ class BaseComputeController(BaseController):
                             current_value += properties["value"](
                                 machine, delta_in_hours)
                     else:
-                        current_value = 0
+                        current_value = self._find_old_counter_value(
+                            metric_name, machine_id, properties)
                 elif properties["type"] == "gauge":
                     current_value = properties["value"](machine)
                 else:
