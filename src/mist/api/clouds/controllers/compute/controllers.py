@@ -57,6 +57,7 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import PortForwardCreationError
 from mist.api.exceptions import ForbiddenError
+from mist.api.exceptions import CloudUnavailableError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
