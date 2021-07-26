@@ -13,6 +13,7 @@ from mist.api.clouds.controllers.storage.base import BaseStorageController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import CloudUnavailableError
 
 from libcloud.common.types import LibcloudError
 from libcloud.compute.base import NodeLocation
@@ -197,6 +198,28 @@ class OpenstackStorageController(BaseStorageController):
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
+
+    def _create_volume__prepare_args(self, kwargs):
+        kwargs['ex_volume_type'] = kwargs.pop('storage_class_name', None)
+        if kwargs.get('location'):
+            from mist.api.clouds.models import CloudLocation
+            try:
+                location = CloudLocation.objects.get(id=kwargs['location'])
+            except CloudLocation.DoesNotExist:
+                raise NotFoundError(
+                    "Location with id '%s'." % kwargs['location'])
+            kwargs['location'] = location.name
+
+    def list_storage_classes(self):
+        try:
+            volume_types = \
+                self.cloud.ctl.compute.connection.ex_list_volume_types()
+        except Exception as exc:
+            log.exception('Error listing volume types in %s: %r',
+                          self.cloud, exc)
+            raise CloudUnavailableError(exc=exc, msg=str(exc))
+
+        return [volume_type.name for volume_type in volume_types]
 
 
 class AzureStorageController(BaseStorageController):
