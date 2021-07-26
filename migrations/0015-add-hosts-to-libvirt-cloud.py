@@ -22,7 +22,7 @@ def migrate_libvirt_clouds():
             print('Updating cloud ' + cloud['id'])
             for machine in machines:
                 if machine.machine_type == 'hypervisor' and \
-                (machine.id not in cloud.hosts):
+                   (machine.id not in cloud.hosts):
                     cloud.hosts.append(machine.id)
             cloud.save()
         except Exception:
@@ -33,7 +33,8 @@ def migrate_libvirt_clouds():
             print('OK')
             migrated += 1
 
-    print(f'Libvirt clouds with host field populated: {migrated}, out of total {len(clouds)} Libvirt clouds')
+    print(f'Libvirt clouds with host field populated: {migrated}'
+          f', out of total {len(clouds)} Libvirt clouds')
 
     c.close()
 
