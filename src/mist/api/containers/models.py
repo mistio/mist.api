@@ -17,6 +17,7 @@ from mist.api import config as api_config
 __all__ = [
     "Cluster",
     "GKECluster",
+    "EKSCluster",
 ]
 # This is a map from provider name to provider class, eg:
 # 'google': GKECluster
@@ -210,6 +211,14 @@ class GKECluster(Cluster):
     private_key = me.StringField(required=True)
     project_id = me.StringField(required=True)
     _private_fields = ('private_key', )
+
+
+class EKSCluster(Cluster):
+    provider = 'amazon'
+    apikey = me.StringField(required=True)
+    apisecret = me.StringField(required=True)
+    region = me.StringField(required=True)
+    _private_fields = ('apisecret', )
 
 
 _populate_clusters()
