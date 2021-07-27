@@ -705,6 +705,7 @@ class LXDCloud(Cloud):
 class LibvirtCloud(Cloud):
 
     _controller_cls = controllers.LibvirtMainController
+    hosts = me.ListField(me.StringField())
 
 
 class OnAppCloud(Cloud):

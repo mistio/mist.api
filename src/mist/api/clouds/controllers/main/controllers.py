@@ -329,6 +329,7 @@ class LibvirtMainController(BaseMainController):
 
     # TODO: fail_on_error True or False by default?
     def add(self, fail_on_error=True, fail_on_invalid_params=False, **kwargs):
+        self.cloud.hosts = []
         from mist.api.machines.models import Machine
         if not kwargs.get('hosts'):
             raise RequiredParameterMissingError('hosts')
@@ -404,6 +405,7 @@ class LibvirtMainController(BaseMainController):
 
                 try:
                     machine.save(write_concern={'w': 1, 'fsync': True})
+                    self.cloud.hosts.append(machine.id)
                 except me.NotUniqueError:
                     error = 'Duplicate machine entry. Maybe the same \
                             host has been added twice?'
@@ -539,7 +541,8 @@ class LibvirtMainController(BaseMainController):
             machine.delete()
             raise MistError("Couldn't connect to host '%s'."
                             % host)
-
+        self.cloud.hosts.append(machine.id)
+        self.cloud.save()
         new_machines = self.cloud.ctl.compute.list_machines()
         # Update RBAC Mappings given the list of nodes seen for the first time.
         self.cloud.owner.mapper.update(new_machines, asynchronous=False)
@@ -557,6 +560,14 @@ class LibvirtMainController(BaseMainController):
                 old_machines, new_machines)
 
         return machine
+
+    def enable(self):
+        from mist.api.machines.models import Machine
+        for id in self.cloud.hosts:
+            host_machine = Machine.objects.get(id=id)
+            host_machine.missing_since = None
+            host_machine.save()
+        super(LibvirtMainController, self).enable()
 
 
 class OtherMainController(BaseMainController):

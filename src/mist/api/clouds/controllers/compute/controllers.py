@@ -3861,7 +3861,9 @@ class LibvirtComputeController(BaseComputeController):
         KeyMachineAssociation.objects(machine=machine).delete()
         machine.missing_since = datetime.datetime.now()
         machine.save()
-
+        if machine.machine_type == 'hypervisor':
+            self.cloud.hosts.remove(machine.id)
+            self.cloud.save()
         if amqp_owner_listening(self.cloud.owner.id):
             old_machines = [m.as_dict() for m in
                             self.cloud.ctl.compute.list_cached_machines()]
