@@ -51,3 +51,11 @@ class GoogleContainerController(BaseContainerController):
         updated = True
         cluster.config = cluster_dict['config']
         return updated
+
+
+class AmazonContainerController(BaseContainerController):
+    def _connect(self, **kwargs):
+        return get_container_driver(Container_Provider.EKS)(
+            self.cloud.apikey,
+            self.cloud.apisecret,
+            self.cloud.region)
