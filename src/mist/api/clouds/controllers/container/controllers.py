@@ -18,6 +18,7 @@ it is accessed through a cloud model, using the `ctl` abbreviation, like this:
     print(cloud.ctl.container.list_clusters())
 
 """
+import re
 import logging
 
 from libcloud.container.providers import get_driver as get_container_driver
@@ -59,3 +60,10 @@ class AmazonContainerController(BaseContainerController):
             self.cloud.apikey,
             self.cloud.apisecret,
             self.cloud.region)
+
+    def _list_clusters__get_location(self, cluster_dict):
+        result = re.search('eks:([^:]*):', cluster_dict['extra']['arn'])
+        location = None
+        if result is not None:
+            location = result.group(1)
+        return location
