@@ -73,6 +73,7 @@ class AmazonMainController(BaseMainController):
     DnsController = dns_ctls.AmazonDNSController
     StorageController = storage_ctls.AmazonStorageController
     ObjectStorageController = objectstorage_ctls.AmazonS3ObjectStorageController  # noqa: E501
+    ContainerController = container_ctls.AmazonContainerController
 
     def _add__preparse_kwargs(self, kwargs):
         # Autofill apisecret from other Amazon Cloud.
