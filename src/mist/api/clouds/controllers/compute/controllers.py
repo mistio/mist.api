@@ -2987,6 +2987,9 @@ class OpenStackComputeController(BaseComputeController):
             updated = True
         return updated
 
+    def _list_machines__get_location(self, node):
+        return node['extra'].get('availability_zone', '')
+
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
 
@@ -3029,6 +3032,9 @@ class OpenStackComputeController(BaseComputeController):
                       for sec_group in sec_groups]
 
         return sec_groups
+
+    def _list_locations__fetch_locations(self):
+        return self.connection.ex_list_availability_zones()
 
 
 class DockerComputeController(BaseComputeController):
