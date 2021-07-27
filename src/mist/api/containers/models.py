@@ -157,7 +157,7 @@ class Cluster(OwnershipMixin, me.Document):
             'total_nodes': self.total_nodes,
             'total_cpus': self.total_cpus,
             'total_memory': self.total_memory,
-            'location': self.location.id,
+            'location': self.location.id if self.location else '',
             'config': self.config,
             'extra': self.extra,
             'state': self.state,
