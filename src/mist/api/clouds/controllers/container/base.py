@@ -29,6 +29,7 @@ from mist.api.exceptions import SSLError
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
+from mist.api.helpers import node_to_dict
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
@@ -145,7 +146,7 @@ class BaseContainerController(BaseController):
 
     def _list_clusters__fetch_clusters(self):
         """Perform the actual libcloud call to get list of clusters"""
-        return self.connection.list_clusters()
+        return [node_to_dict(c) for c in self.connection.list_clusters()]
 
     def _list_clusters__get_location(self, cluster_dict):
         """Find location code name/identifier from libcloud data
