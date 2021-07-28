@@ -230,8 +230,21 @@ class BaseContainerController(BaseController):
         except Exception as exc:
             log.error("Error getting location of %s: %r", cluster, exc)
         else:
-            if cluster.location != locations_map.get(location_id):
-                cluster.location = locations_map.get(location_id)
+            location = locations_map.get(location_id)
+            # Add locations such as: 'us-east-2', if locations_map contains
+            # locations such as 'us-east-2a', 'us-east-2b', etc.
+            if location is None and any(
+                    loc.startswith(location_id) for loc in locations_map):
+                from mist.api.clouds.models import CloudLocation
+                new_id = max(
+                    int(k) for k in locations_map if k.isdigit()) + 1
+                location = CloudLocation(
+                    name=location_id,
+                    cloud=self.cloud.id,
+                    external_id=str(new_id))
+                location.save()
+            if cluster.location != location:
+                cluster.location = location
                 updated = True
         if cluster.name != cluster_dict['name']:
             cluster.name = cluster_dict['name']
