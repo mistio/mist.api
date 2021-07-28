@@ -115,7 +115,12 @@ def find_metrics(machine):
     metrics = {}
     for raw_metric in data:
         metric = generate_metric_mist(raw_metric)
-        metrics.update({metric: {"id": metric, "name": metric, "unit": ""}})
+        metrics.update({metric: {
+            "id": metric,
+            "name": metric,
+            "unit": "",
+            "db_type": 'victoria_metrics'
+            }})
 
     return metrics
 
