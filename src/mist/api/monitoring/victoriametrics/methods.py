@@ -119,8 +119,7 @@ def find_metrics(machine):
             "id": metric,
             "name": metric,
             "unit": "",
-            "db_type": 'victoria_metrics'
-            }})
+            "db_type": 'victoria_metrics'}})
 
     return metrics
 
