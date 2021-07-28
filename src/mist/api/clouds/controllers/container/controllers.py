@@ -67,3 +67,9 @@ class AmazonContainerController(BaseContainerController):
         if result is not None:
             location = result.group(1)
         return location
+
+    def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
+        updated = False
+        cluster.config = cluster_dict['config']
+        updated = True
+        return updated
