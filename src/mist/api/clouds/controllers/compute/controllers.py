@@ -3778,6 +3778,8 @@ class LibvirtComputeController(BaseComputeController):
                                 missing_since=None)
         try:
             loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
         except RuntimeError:
             asyncio.set_event_loop(asyncio.new_event_loop())
             loop = asyncio.get_event_loop()
