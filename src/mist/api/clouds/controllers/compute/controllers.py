@@ -49,6 +49,8 @@ from libcloud.compute.base import NodeAuthSSHKey, NodeAuthPassword
 from libcloud.compute.providers import get_driver
 from libcloud.compute.types import Provider, NodeState
 
+from libcloud.container.drivers.kubernetes import Node as KubernetesNode
+from libcloud.container.drivers.kubernetes import KubernetesPod
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
@@ -4605,6 +4607,39 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
     def _list_machines__get_machine_extra(self, machine, node_dict):
         node_extra = node_dict.get('extra')
         return copy.copy(node_extra) if node_extra else {}
+
+    def _list_machines__machine_actions(self, machine, node_dict):
+        machine.actions.start = False
+        machine.actions.stop = False
+        machine.actions.reboot = False
+        machine.actions.rename = False
+        machine.actions.tag = False
+        machine.actions.expose = False
+        machine.actions.resume = False
+        machine.actions.suspend = False
+        machine.actions.undefine = False
+        machine.actions.destroy = True
+
+    def _get_libcloud_node(self, machine):
+        """Return an instance of a libcloud node"""
+        assert self.cloud == machine.cloud
+        nodes = self.connection.ex_list_nodes() + \
+            self.connection.ex_list_pods() + \
+            self.connection.list_containers()
+        for node in nodes:
+            if node.id == machine.machine_id:
+                return node
+        raise MachineNotFoundError(
+            "Machine with machine_id '%s'." % machine.machine_id
+        )
+
+    def _destroy_machine(self, machine, node):
+        if isinstance(node, KubernetesNode):
+            self.connection.ex_destroy_node(node.name)
+        elif isinstance(node, KubernetesPod):
+            self.connection.ex_destroy_pod(node.namespace, node.name)
+        elif isinstance(node, Container):
+            self.connection.destroy_container(node)
 
 
 class OpenShiftComputeController(KubernetesComputeController):
