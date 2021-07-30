@@ -744,6 +744,8 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
 rtype_to_classpath = {
     'cloud': 'mist.api.clouds.models.Cloud',
     'clouds': 'mist.api.clouds.models.Cloud',
+    'cluster': 'mist.api.containers.models.Cluster',
+    'clusters': 'mist.api.containers.models.Cluster',
     'bucket': 'mist.api.objectstorage.models.Bucket',
     'buckets': 'mist.api.objectstorage.models.Bucket',
     'machine': 'mist.api.machines.models.Machine',

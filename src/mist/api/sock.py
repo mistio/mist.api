@@ -424,6 +424,14 @@ class MainConnection(MistConnection):
                     ),
                 )
                 self.internal_request(
+                    'api/v2/clouds/%s/clusters' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda clusters, cloud_id=cloud.id: self.send(
+                        'list_clusters',
+                        {'cloud_id': cloud_id, 'clusters': clusters}
+                    ),
+                )
+                self.internal_request(
                     'api/v1/clouds/%s/locations' % cloud.id,
                     params={'cached': True},
                     callback=lambda locations, cloud_id=cloud.id: self.send(

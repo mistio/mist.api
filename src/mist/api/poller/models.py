@@ -6,6 +6,7 @@ import mongoengine as me
 from mist.api import config
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+from mist.api.containers.models import Cluster
 from mist.api.sharding.mixins import ShardedScheduleMixin
 
 
@@ -280,6 +281,24 @@ class ListMachinesPollingSchedule(CloudPollingSchedule):
             return PollingInterval(every=0)
 
 
+class ListClustersPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_clusters'
+
+    @property
+    def interval(self):
+        try:
+            if self.default_interval.every != self.cloud.polling_interval:
+                log.warning("Schedule has different interval from cloud, "
+                            "fixing")
+                self.default_interval.every = self.cloud.polling_interval
+                self.save()
+            return super(CloudPollingSchedule, self).interval
+        except me.DoesNotExist:
+            log.error('Cannot get interval. Cloud is missing')
+            return PollingInterval(every=0)
+
+
 class ListLocationsPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_locations'
@@ -370,6 +389,49 @@ class MachinePollingSchedule(PollingSchedule):
                 # Work around race condition where schedule was created since
                 # last time we checked.
                 schedule = cls.objects.get(machine_id=machine.id)
+        schedule.set_default_interval(60 * 60 * 2)
+        if interval is not None:
+            schedule.add_interval(interval, ttl)
+        if run_immediately:
+            schedule.run_immediately = True
+        schedule.cleanup_expired_intervals()
+        schedule.save()
+        return schedule
+
+
+class ClusterPollingSchedule(PollingSchedule):
+
+    cluster_id = me.StringField(required=True)
+
+    @property
+    def cluster(self):
+        return Cluster.objects.get(id=self.cluster_id)
+
+    @property
+    def enabled(self):
+        try:
+            cluster = Cluster.objects.get(id=self.cluster_id,
+                                          missing_since=None)
+            return cluster.cloud and cluster.cloud.enabled
+        except Cluster.DoesNotExist:
+            return False
+
+    def get_name(self):
+        return '%s(%s)' % (super(CloudPollingSchedule, self).get_name(),
+                           self.cluster_id)
+
+    @classmethod
+    def add(cls, cluster, run_immediately=True, interval=None, ttl=300):
+        try:
+            schedule = cls.objects.get(id=cluster.id)
+        except cls.DoesNotExist:
+            schedule = cls(id=cluster.id)
+            try:
+                schedule.save()
+            except me.NotUniqueError:
+                # Work around race condition where schedule was created since
+                # last time we checked.
+                schedule = cls.objects.get(id=cluster.id)
         schedule.set_default_interval(60 * 60 * 2)
         if interval is not None:
             schedule.add_interval(interval, ttl)
