@@ -4643,7 +4643,31 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
 
 
 class OpenShiftComputeController(KubernetesComputeController):
-    pass
+    def _connect(self, provider, **kwargs):
+        host, port = dnat(self.cloud.owner,
+                          self.cloud.host, self.cloud.port)
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((sanitize_host(host), int(port)))
+            so.close()
+        except Exception:
+            raise Exception("Make sure host is accessible "
+                            "and kubernetes port is specified")
+        # username/password auth
+        if self.cloud.username and self.cloud.password:
+            key = self.cloud.username
+            secret = self.cloud.password
+            return get_container_driver(provider)(key=key,
+                                                  secret=secret,
+                                                  secure=True,
+                                                  host=host,
+                                                  port=port)
+        else:
+            msg = '''Necessary parameters for authentication are missing.
+            Either a key_file/cert_file pair or a username/pass pair
+            or a bearer token.'''
+            raise ValueError(msg)
 
 
 class KubeVirtComputeController(_KubernetesBaseComputeController):
