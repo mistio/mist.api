@@ -280,6 +280,7 @@ class Machine(OwnershipMixin, me.Document):
 
     # Info gathered mostly by libcloud (or in some cases user input).
     external_id = me.StringField(required=True)
+    machine_id = me.StringField()  # Deprecated
     hostname = me.StringField()
     public_ips = me.ListField()
     private_ips = me.ListField()
