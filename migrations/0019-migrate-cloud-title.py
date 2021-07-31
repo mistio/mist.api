@@ -1,6 +1,7 @@
 import traceback
 
 from pymongo import MongoClient
+from pymongo import errors
 from mist.api.config import MONGO_URI
 
 
@@ -10,7 +11,10 @@ def migrate_clouds():
     db_clouds = db['clouds']
 
     # drop index containing title
-    db_clouds.drop_index('owner_1_title_1_deleted_1')
+    try:
+        db_clouds.drop_index('owner_1_title_1_deleted_1')
+    except errors.OperationFailure:
+        pass
 
     failed = migrated = 0
 
