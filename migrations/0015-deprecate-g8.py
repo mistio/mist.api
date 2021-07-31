@@ -6,8 +6,13 @@ from mist.api.models import Machine, Network, Volume
 def remove_g8_clouds():
 
     failed = updated = 0
-    clouds = GigG8Cloud.objects()
-    total = len(clouds)
+    try:
+        clouds = GigG8Cloud.objects()
+        total = len(clouds)
+    except NotImplementedError:
+        print('Skipping GigG8 migration step')
+        return
+
     if not total:
         return
     print(f'Removing {total} G8 clouds')
