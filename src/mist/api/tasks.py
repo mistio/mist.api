@@ -1538,7 +1538,7 @@ def post_deploy_v2(auth_context_serialized, cloud_id, machine_id, external_id,
         tmp_log_error("Machine %s not found.Exiting", machine_id)
         raise me.DoesNotExist from None
 
-    msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
+    msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.name, cloud_id)
     msg += "Machine:\n  Name: %s\n  Id: %s\n" % (machine.name, machine.id)
     tmp_log("Machine found, proceeding to post deploy steps\n%s" % msg)
 

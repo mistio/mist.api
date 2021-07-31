@@ -48,7 +48,7 @@ class Bucket(OwnershipMixin, me.Document):
         return {
             'id': self.id,
             'cloud': self.cloud.id,
-            'cloud_title': self.cloud.title,
+            'cloud_title': self.cloud.name,
             'name': self.name,
             'provider': self.cloud.provider,
             'region': self.cloud.region,

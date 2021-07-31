@@ -3467,7 +3467,7 @@ class BaseComputeController(BaseController):
         Subclasses that require special handling SHOULD override this method.
         """
         raise MachineCreationError("%s, got exception %s"
-                                   % (self.cloud.title, exc), exc)
+                                   % (self.cloud.name, exc), exc)
 
     def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
         """Post create machine actions.
