@@ -1,6 +1,6 @@
 import traceback
 
-from pymongo import MongoClient
+from pymongo import MongoClient, errors
 from mist.api.config import MONGO_URI
 
 
@@ -10,7 +10,10 @@ def migrate_machine_id():
     db_machines = db['machines']
 
     # drop index containing machine_id
-    db_machines.drop_index('cloud_1_machine_id_1')
+    try:
+        db_machines.drop_index('cloud_1_machine_id_1')
+    except errors.OperationFailure:
+        pass
 
     failed = migrated = 0
 
