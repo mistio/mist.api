@@ -1,18 +1,22 @@
 import traceback
 
-from pymongo import MongoClient
-from mist.api.config import MONGO_URI
+from pymongo.helpers import DuplicateKeyError
 
 from mist.api.clouds.models import LibvirtCloud
 from mist.api.machines.models import Machine
 
 
 def migrate_libvirt_clouds():
-    c = MongoClient(MONGO_URI)
-    db = c.get_database('mist2')
-    db_clouds = db['clouds']
 
-    clouds = LibvirtCloud.objects()
+    try:
+        clouds = LibvirtCloud.objects()
+    except DuplicateKeyError:
+        import importlib.machinery
+        loader = importlib.machinery.SourceFileLoader(
+            'cloud-title-migration',
+            '/mist.api/migrations/0016-migrate-cloud-title.py')
+        loader.load_module('cloud-title-migration').migrate_clouds()
+        clouds = LibvirtCloud.objects()
 
     failed = migrated = 0
 
@@ -35,8 +39,6 @@ def migrate_libvirt_clouds():
 
     print(f'Libvirt clouds with host field populated: {migrated}'
           f', out of total {len(clouds)} Libvirt clouds')
-
-    c.close()
 
 
 if __name__ == '__main__':
