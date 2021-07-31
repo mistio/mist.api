@@ -220,8 +220,8 @@ def migrate_cloud(old_cloud_id, new_cloud_id):
         print("Cloud with id {} not found. Exiting...".format(new_cloud_id))
 
     print("==============================================================")
-    print("=== Will migrate {} cloud to {} cloud ===".format(old_cloud.title,
-                                                             new_cloud.title))
+    print("=== Will migrate {} cloud to {} cloud ===".format(old_cloud.name,
+                                                             new_cloud.name))
     print("==============================================================")
     migrate_ownership(old_cloud, new_cloud)
     migrate_tags(old_cloud, new_cloud)
