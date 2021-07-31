@@ -3015,7 +3015,7 @@ class OpenStackComputeController(BaseComputeController):
                 except me.ValidationError as exc:
                     log.error(
                         'Error adding tenant_id to %s: %r',
-                        self.cloud.title, exc)
+                        self.cloud.name, exc)
         try:
             sec_groups = \
                 self.cloud.ctl.compute.connection.ex_list_security_groups(

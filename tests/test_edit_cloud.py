@@ -16,16 +16,16 @@ def test_update_cloud(cloud):
     print("update credentials")
 
     # choose the creds of relevant cloud provider
-    kwargs = CREDS[cloud.title]
+    kwargs = CREDS[cloud.name]
     if not kwargs:
         print('no creds provided')
         return
-    print('* for cloud %s, update these creds %s' % (cloud.title,
+    print('* for cloud %s, update these creds %s' % (cloud.name,
                                                      list(kwargs.keys())))
     cloud.ctl.update(**kwargs)
 
     assert cloud == pre_updated_cloud
-    print('- edit cloud credentials succeeded for cloud %s' % cloud.title)
+    print('- edit cloud credentials succeeded for cloud %s' % cloud.name)
 
     valid_kwargs = kwargs
 
@@ -39,19 +39,19 @@ def test_update_cloud(cloud):
     print('* test invalid credentials values')
     kwargs = dict((k, 'aa' + v) for k, v in list(valid_kwargs.items()))
 
-    if cloud.title in ['packet']:
+    if cloud.name in ['packet']:
         print('- expected to raise CloudUnauthorizedError')
         with pytest.raises(CloudUnauthorizedError):
             cloud.ctl.update(fail_on_error=True,
                              fail_on_invalid_params=True, **kwargs)
 
-    if cloud.title in ['gce']:
+    if cloud.name in ['gce']:
         print('- expected to raise CloudUnavailableError')
         with pytest.raises(CloudUnavailableError):
             cloud.ctl.update(fail_on_error=True,
                              fail_on_invalid_params=True, **kwargs)
 
-    if cloud.title in ['ec2', 'linode']:
+    if cloud.name in ['ec2', 'linode']:
         print('- expected to raise CloudUnauthorizedError')
         with pytest.raises(CloudUnauthorizedError):
             cloud.ctl.update(fail_on_error=True,
@@ -59,12 +59,12 @@ def test_update_cloud(cloud):
 
 
 def test_rename_cloud(cloud):
-    print('rename cloud with title %s' % cloud.title)
+    print('rename cloud with name %s' % cloud.name)
 
     random_word = ''.join(random.choice(string.lowercase) for i in range(6))
-    new_title = str(cloud.title) + '_' + random_word
-    print('new title is %s' % new_title)
+    new_name = str(cloud.name) + '_' + random_word
+    print('new name is %s' % new_name)
 
-    cloud.ctl.rename(new_title)
-    assert new_title == cloud.title
+    cloud.ctl.rename(new_name)
+    assert new_name == cloud.name
     print('rename cloud succeeded')
