@@ -84,10 +84,7 @@ def tag_resources(request):
         query = {}
         rtype = resource_data['type']
         rid = resource_data['item_id']
-        if rtype == 'machine':
-            query['machine_id'] = rid
-        else:
-            query['id'] = rid
+        query['id'] = rid
 
         if cloud_id:
             query['cloud'] = cloud_id
@@ -127,9 +124,9 @@ def tag_resources(request):
         if rtype in ['machine', 'network', 'volume', 'zone', 'record']:
             new_tags = get_tags_for_resource(auth_context.owner, resource_obj)
             try:
-                external_id = getattr(resource_obj, rtype + '_id')
-            except AttributeError:
                 external_id = getattr(resource_obj, 'external_id')
+            except AttributeError:
+                external_id = getattr(resource_obj, rtype + '_id')
             patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
             for item in patch:
                 item['path'] = '/%s-%s/tags%s' % (resource_obj.id,
