@@ -788,7 +788,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None,
 
 
 @dramatiq.actor(queue_name='schedules', store_results=True)
-def group_machines_actions(owner_id, action, name, machines_uuids):
+def group_machines_actions(owner_id, action, name, machine_ids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -796,7 +796,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     :param owner_id:
     :param action:
     :param name:
-    :param machines_uuids:
+    :param machine_ids:
     :return: log_dict
     """
 
@@ -819,15 +819,15 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
     tasks = []
-    for machine_uuid in machines_uuids:
+    for machine_id in machine_ids:
         found = False
         _action = action
         try:
-            machine = Machine.objects.get(id=machine_uuid)
+            machine = Machine.objects.get(id=machine_id)
             found = True
         except me.DoesNotExist:
             log_dict['error'] = "Machine with id %s does not \
-                exist." % machine_uuid
+                exist." % machine_id
 
         if found:
             if _action in ['destroy'] and config.SAFE_EXPIRATION and \
@@ -839,7 +839,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
 
             try:
                 task = run_machine_action.message(owner_id, _action, name,
-                                                  machine_uuid)
+                                                  machine_id)
                 tasks.append(task)
             except Exception as exc:
                 log_dict['error'] = '%s %r\n' % (log_dict.get('error', ''),
@@ -869,7 +869,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
 
 @dramatiq.actor(queue_name='schedules', store_results=True,
                 time_limit=3_600_000)
-def run_machine_action(owner_id, action, name, machine_uuid):
+def run_machine_action(owner_id, action, name, machine_id):
     """
     Calls specific action for a machine and log the info
     :param owner_id:
@@ -885,8 +885,8 @@ def run_machine_action(owner_id, action, name, machine_uuid):
     log_dict = {
         'owner_id': owner_id,
         'event_type': 'job',
-        'machine_uuid': machine_uuid,
-        'schedule_id': schedule.id,
+        'machine': machine_id,
+        'schedule': schedule.id,
     }
 
     external_id = ''
@@ -894,11 +894,11 @@ def run_machine_action(owner_id, action, name, machine_uuid):
     owner = Owner.objects.get(id=owner_id)
     started_at = time()
     try:
-        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        machine = Machine.objects.get(id=machine_id, state__ne='terminated')
         cloud_id = machine.cloud.id
         external_id = machine.external_id
-        log_dict.update({'cloud_id': cloud_id,
-                         'machine_id': machine_uuid,
+        log_dict.update({'cloud': cloud_id,
+                         'machine': machine_id,
                          'external_id': external_id})
     except me.DoesNotExist:
         log_dict['error'] = "Resource with that id does not exist."
@@ -1012,7 +1012,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
 
 
 @dramatiq.actor(queue_name='schedules', store_results=True)
-def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
+def group_run_script(owner_id, script_id, name, machine_ids, params=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -1046,9 +1046,9 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule started: %s', log_dict)
     tasks = []
-    for machine_uuid in machines_uuids:
+    for machine_id in machine_ids:
         try:
-            task = run_script.message(owner_id, script_id, machine_uuid,
+            task = run_script.message(owner_id, script_id, machine_id,
                                       params=params, job_id=job_id,
                                       job='schedule')
             tasks.append(task)
@@ -1077,7 +1077,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
 
 
 @dramatiq.actor(time_limit=3_600_000, store_results=True)
-def run_script(owner, script_id, machine_uuid, params='', host='',
+def run_script(owner, script_id, machine_id, params='', host='',
                key_id='', username='', password='', port=22, job_id='', job='',
                action_prefix='', su=False, env=""):
     import mist.api.shell
@@ -1093,7 +1093,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         'job': job,
         'script_id': script_id,
         # 'cloud_id': cloud_id,
-        'machine_id': machine_uuid,
+        'machine_id': machine_id,
         'params': params,
         'env': env,
         'su': su,
@@ -1113,7 +1113,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     cloud_id = ''
 
     try:
-        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        machine = Machine.objects.get(id=machine_id, state__ne='terminated')
         cloud_id = machine.cloud.id
         external_id = machine.external_id
         ret.update({'cloud_id': cloud_id, 'external_id': external_id})

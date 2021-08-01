@@ -1021,11 +1021,17 @@ def logging_view_decorator(func):
         if machine_id and not log_dict.get('machine_id'):
             log_dict['external_id'] = request.environ.get('machine_id')
 
-        machine_uuid = (request.matchdict.get('machine_uuid') or
-                        params.get('machine_uuid') or
-                        request.environ.get('machine_uuid'))
-        if machine_uuid and not log_dict.get('machine_uuid'):
-            log_dict['machine_id'] = machine_uuid
+        machine_id = (
+            request.matchdict.get(
+                'machine', request.matchdict.get('machine_id', None)
+            ) or params.get('machine', params.get('machine_id', None)) or (
+                request.environ.get(
+                    'machine', request.environ.get('machine_id', None)
+                )
+            )
+        )
+        if machine_id and not log_dict.get('machine'):
+            log_dict['machine'] = machine_id
 
         # Attempt to hide passwords, API keys, certificates, etc.
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
@@ -1069,12 +1075,12 @@ def logging_view_decorator(func):
             for key in ('job_id', 'job',):
                 if key in bdict and key not in log_dict:
                     log_dict[key] = bdict[key]
-            if 'cloud' in bdict and 'cloud_id' not in log_dict:
-                log_dict['cloud_id'] = bdict['cloud']
+            if 'cloud' in bdict and 'cloud' not in log_dict:
+                log_dict['cloud'] = bdict['cloud']
             if 'machine' in bdict and 'machine_id' not in log_dict:
-                log_dict['machine_id'] = bdict['machine']
-            if 'machine_uuid' in bdict and 'machine_id' not in log_dict:
-                log_dict['machine_id'] = bdict['machine']
+                log_dict['machine'] = bdict['machine']
+            if 'machine' in bdict and 'machine' not in log_dict:
+                log_dict['machine'] = bdict['machine']
             # Match resource type based on the action performed.
             for rtype in ['cloud', 'machine', 'key', 'script', 'tunnel',
                           'stack', 'template', 'schedule', 'volume',

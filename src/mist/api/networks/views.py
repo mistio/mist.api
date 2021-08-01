@@ -414,10 +414,10 @@ def associate_ip(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     try:
         machine = Machine.objects.get(cloud=cloud_id, external_id=machine_id)
-        machine_uuid = machine.id
+        machine_id = machine.id
     except me.DoesNotExist:
-        machine_uuid = ""
-    auth_context.check_perm("machine", "edit", machine_uuid)
+        machine_id = ""
+    auth_context.check_perm("machine", "edit", machine_id)
 
     ret = associate_ip_method(auth_context.owner, cloud_id, network_id,
                               ip, machine_id, assign)
