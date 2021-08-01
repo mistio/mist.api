@@ -471,7 +471,7 @@ def switch_org(request):
       type: string
       required: true
     """
-    org_id = request.matchdict.get('org_id')
+    org_id = request.matchdict.get('org')
     user = user_from_request(request)
     params = params_from_request(request)
     return_to = params.get('return_to', '')
@@ -1292,29 +1292,31 @@ def probe(request):
 
     if cloud_id:
         # this is depracated, keep it for backwards compatibility
-        machine_id = request.matchdict['machine']
+        external_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          external_id=machine_id,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_uuid'] = machine.id
+                                          external_id=external_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % external_id)
+    else:
+        machine_id = request.matchdict['machine_id']
+        try:
+            machine = Machine.objects.get(id=machine_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    else:
-        machine_uuid = request.matchdict['machine_uuid']
-        try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_id'] = machine.external_id
-            request.environ['cloud_id'] = machine.cloud.id
-        except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
         cloud_id = machine.cloud.id
         auth_context.check_perm("cloud", "read", cloud_id)
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
 
     auth_context.check_perm("machine", "read", machine.id)
 

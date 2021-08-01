@@ -241,7 +241,7 @@ def delete_script(request):
       required: true
       type: string
     """
-    script_id = request.matchdict['script_id']
+    script_id = request.matchdict['script']
     auth_context = auth_context_from_request(request)
 
     if not script_id:
@@ -346,7 +346,7 @@ def edit_script(request):
     new_description:
       type: string
     """
-    script_id = request.matchdict['script_id']
+    script_id = request.matchdict['script']
     params = params_from_request(request)
     new_name = params.get('new_name')
     new_description = params.get('new_description')
@@ -382,11 +382,11 @@ def run_script(request):
     RUN_SCRIPT permission required on machine.
     RUN permission required on script.
     ---
-    script_id:
+    script:
       in: path
       required: true
       type: string
-    machine_uuid:
+    machine:
       required: true
       type: string
     params:
@@ -395,15 +395,15 @@ def run_script(request):
       type: boolean
     env:
       type: string
-    job_id:
+    job:
       type: string
     """
-    script_id = request.matchdict['script_id']
+    script_id = request.matchdict['script']
     params = params_from_request(request)
     script_params = params.get('params', '')
     su = params.get('su', False)
     env = params.get('env')
-    job_id = params.get('job_id')
+    job_id = params.get('job', params.get('job_id', None))
     if not job_id:
         job = 'run_script'
         job_id = uuid.uuid4().hex
@@ -411,38 +411,37 @@ def run_script(request):
         job = None
     if isinstance(env, dict):
         env = json.dumps(env)
-
     auth_context = auth_context_from_request(request)
-    if 'machine_uuid' in params:
-        machine_uuid = params.get('machine_uuid')
-        if not machine_uuid:
-            raise RequiredParameterMissingError('machine_uuid')
-
+    cloud_id = params.get('cloud', params.get('cloud_id', None))
+    external_id = params.get('external_id', None)
+    machine_id = params.get('machine', params.get('machine_id', None))
+    if machine_id:
         try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_id'] = machine.id
-            request.environ['cloud_id'] = machine.cloud.id
-        except me.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
-        cloud_id = machine.cloud.id
-    else:
-        # this will be depracated, keep it for backwards compatibility
-        cloud_id = params.get('cloud_id')
-        machine_id = params.get('machine_id')
-
-        for key in ('cloud_id', 'machine_id'):
-            if key not in params:
-                raise RequiredParameterMissingError(key)
-        try:
-            machine = Machine.objects.get(cloud=cloud_id,
-                                          external_id=machine_id,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_uuid'] = machine.id
+            machine = Machine.objects.get(id=machine_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
         except me.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
+        cloud_id = machine.cloud.id
+    else:
+        cloud_id = params.get('cloud_id')
+        external_id = params.get('external_id')
+        if not cloud_id:
+            raise RequiredParameterMissingError('cloud')
+        if not external_id:
+            raise RequiredParameterMissingError('external_id')
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          external_id=external_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
+        except me.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = cloud_id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
 
     # SEC require permission READ on cloud
     auth_context.check_perm("cloud", "read", cloud_id)
