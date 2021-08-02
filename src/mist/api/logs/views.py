@@ -133,7 +133,7 @@ def close_story(request):
     # action with the given story_id. No additional method needs to be invoked.
     # The story's ID exists in path, but it is not used here. It is captured by
     # our decorator, when logging the API response.
-    # story_id = request.matchdict['story_id']
+    # story_id = request.matchdict['story']
     return Response('OK', 200)
 
 
@@ -146,13 +146,13 @@ def show_job(request):
     ---
     Fetches a story.
     ---
-    job_id:
+    job:
       in: path
       type: string
       required: true
     """
     auth_context = auth_context_from_request(request)
-    job_id = request.matchdict['job_id']
+    job_id = request.matchdict['job']
     if not job_id:
         raise RequiredParameterMissingError('job_id')
     return get_story(auth_context.owner.id, job_id)
@@ -183,7 +183,7 @@ def end_job(request):
     else:
         raise NotImplementedError()
 
-    job_id = request.matchdict['job_id']
+    job_id = request.matchdict['job']
     job = get_story(auth_context.owner.id, job_id)  # Raises NotFoundError.
 
     stack_id = job['logs'][0].get('stack_id')
