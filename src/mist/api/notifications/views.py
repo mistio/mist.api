@@ -52,7 +52,7 @@ def dismiss_notification(request):
       required: true
     """
     auth_context = auth_context_from_request(request)
-    ntf_id = request.matchdict.get("notification_id")
+    ntf_id = request.matchdict.get("notification")
     if not ntf_id:
         raise RequiredParameterMissingError("notification_id")
     try:
@@ -138,7 +138,7 @@ def delete_notification_override(request):
     ---
     """
     auth_context = auth_context_from_request(request)
-    override_id = request.matchdict.get("override_id")
+    override_id = request.matchdict.get("override")
     try:
         np = UserNotificationPolicy.objects.get(owner=auth_context.owner,
                                                 user_id=auth_context.user.id)

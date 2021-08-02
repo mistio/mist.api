@@ -171,7 +171,7 @@ def show_script(request):
       required: true
       in: path
     """
-    script_id = request.matchdict['script_id']
+    script_id = request.matchdict['script']
     auth_context = auth_context_from_request(request)
 
     if not script_id:
@@ -206,7 +206,7 @@ def download_script(request):
       required: true
       in: path
     """
-    script_id = request.matchdict['script_id']
+    script_id = request.matchdict['script']
     auth_context = auth_context_from_request(request)
 
     if not script_id:
@@ -485,7 +485,7 @@ def url_script(request):
       type: string
     """
     auth_context = auth_context_from_request(request)
-    script_id = request.matchdict['script_id']
+    script_id = request.matchdict['script']
 
     try:
         Script.objects.get(owner=auth_context.owner,

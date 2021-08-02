@@ -1302,7 +1302,7 @@ def probe(request):
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % external_id)
     else:
-        machine_id = request.matchdict['machine_id']
+        machine_id = request.matchdict['machine']
         try:
             machine = Machine.objects.get(id=machine_id,
                                           state__ne='terminated',
@@ -1579,7 +1579,7 @@ def show_organization(request):
     raise ForbiddenError("The proper request is /org")
     auth_context = auth_context_from_request(request)
 
-    org_id = request.matchdict['org_id']
+    org_id = request.matchdict['org']
 
     if not (auth_context.org and auth_context.is_owner() and
             auth_context.org.id == org_id):
@@ -1611,7 +1611,7 @@ def edit_organization(request):
     if not auth_context.is_owner():
         raise ForbiddenError('Only owners can edit org')
 
-    org_id = request.matchdict['org_id']
+    org_id = request.matchdict['org']
     params = params_from_request(request)
     name = html.escape(params.get('new_name'))
     alerts_email = params.get('alerts_email')
@@ -1680,7 +1680,7 @@ def add_team(request):
     log.info("Adding team")
 
     auth_context = auth_context_from_request(request)
-    org_id = request.matchdict['org_id']
+    org_id = request.matchdict['org']
 
     params = params_from_request(request)
     name = params.get('name')
@@ -1733,8 +1733,8 @@ def show_team(request):
     """
 
     auth_context = auth_context_from_request(request)
-    org_id = request.matchdict['org_id']
-    team_id = request.matchdict['team_id']
+    org_id = request.matchdict['org']
+    team_id = request.matchdict['team']
 
     # SEC check if owner
     if not (auth_context.org and auth_context.is_owner() and
@@ -1762,7 +1762,7 @@ def list_teams(request):
       required: true
     """
     auth_context = auth_context_from_request(request)
-    org_id = request.matchdict['org_id']
+    org_id = request.matchdict['org']
 
     # SEC check if owner
     if not (auth_context.org and auth_context.is_owner() and
@@ -1809,8 +1809,8 @@ def edit_team(request):
     """
 
     auth_context = auth_context_from_request(request)
-    org_id = request.matchdict['org_id']
-    team_id = request.matchdict['team_id']
+    org_id = request.matchdict['org']
+    team_id = request.matchdict['team']
 
     params = params_from_request(request)
     name = params.get('new_name')
@@ -1868,8 +1868,8 @@ def delete_team(request):
       required: true
     """
     auth_context = auth_context_from_request(request)
-    org_id = request.matchdict['org_id']
-    team_id = request.matchdict['team_id']
+    org_id = request.matchdict['org']
+    team_id = request.matchdict['team']
 
     # SEC check if owner
     if not (auth_context.org and auth_context.is_owner() and
@@ -1924,7 +1924,7 @@ def delete_teams(request):
         type: string
     """
     auth_context = auth_context_from_request(request)
-    org_id = request.matchdict['org_id']
+    org_id = request.matchdict['org']
     params = params_from_request(request)
     team_ids = params.get('team_ids', [])
 
@@ -2000,11 +2000,11 @@ def invite_member_to_team(request):
 
    Only available to organization owners.
     ---
-    org_id:
+    org:
       description: The team's org id
       type: string
       required: true
-    team_id:
+    team:
       description: The team's id
       type: string
       required: true
@@ -2016,8 +2016,8 @@ def invite_member_to_team(request):
     auth_context = auth_context_from_request(request)
 
     params = params_from_request(request)
-    org_id = request.matchdict['org_id']
-    team_id = request.matchdict['team_id']
+    org_id = request.matchdict['org']
+    team_id = request.matchdict['team']
 
     # SEC check if owner
     if not (auth_context.org and auth_context.is_owner() and
@@ -2169,24 +2169,24 @@ def delete_member_from_team(request):
     It means remove member from list and save org.
     Only available to organization owners.
     ---
-    org_id:
+    org:
       description: The team's org id
       type: string
       required: true
-    team_id:
+    team:
       description: The team's id
       type: string
       required: true
-    user_id:
+    user:
       description: The user's id
       type: string
       required: true
     """
     auth_context = auth_context_from_request(request)
 
-    user_id = request.matchdict['user_id']
-    org_id = request.matchdict['org_id']
-    team_id = request.matchdict['team_id']
+    user_id = request.matchdict['user']
+    org_id = request.matchdict['org']
+    team_id = request.matchdict['team']
 
     # SEC check if owner
     if not (auth_context.org and auth_context.is_owner() and
@@ -2310,7 +2310,7 @@ def add_dev_user_to_team(request):
     params = params_from_request(request)
     email = params.get('email', '').strip().lower()
 
-    team_id = request.matchdict['team_id']
+    team_id = request.matchdict['team']
 
     user = User.objects.get(email=email)
 
