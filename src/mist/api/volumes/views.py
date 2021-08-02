@@ -237,7 +237,7 @@ def delete_volume(request):
     if external_id:
         external_id = '/'.join(external_id)
 
-    volume_id = request.matchdict.get('volume_id')
+    volume_id = request.matchdict.get('volume')
 
     auth_context = auth_context_from_request(request)
 
