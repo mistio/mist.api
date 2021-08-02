@@ -111,7 +111,7 @@ def ssh_command(owner_id, cloud_id, machine_id, host, command,
 
 
 @dramatiq.actor(queue_name='provisioning', store_results=True)
-def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
+def post_deploy_steps(owner_id, cloud_id, external_id, monitoring,
                       key_id=None, username=None, password=None, port=22,
                       script_id='', script_params='', job_id=None, job=None,
                       hostname='', plugins=None, script='',
@@ -128,7 +128,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
     def tmp_log(msg, *args):
         log.error('Post deploy: %s' % msg, *args)
     tmp_log('Entering post deploy steps for %s %s %s',
-            owner.id, cloud_id, machine_id)
+            owner.id, cloud_id, external_id)
 
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
@@ -137,7 +137,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
         raise e
 
     try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
+        machine = Machine.objects.get(cloud=cloud, external_id=external_id,
                                       state__ne='terminated')
     except Machine.DoesNotExist:
         raise Retry(delay=10_000)
@@ -161,9 +161,9 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
     log_dict = {
         'owner_id': owner.id,
         'event_type': 'job',
-        'cloud_id': cloud_id,
-        'machine_id': machine.id,
-        'external_id': machine_id,
+        'cloud': cloud_id,
+        'machine': machine.id,
+        'external_id': external_id,
         'job_id': job_id,
         'job': job,
         'host': host,
@@ -173,7 +173,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
     if schedule and schedule.get('name'):  # ugly hack to prevent dupes
         try:
             name = (schedule.get('action') + '-' + schedule.pop('name') +
-                    '-' + machine_id[:4])
+                    '-' + external_id[:4])
 
             auth_context = AuthContext.deserialize(
                 schedule.pop('auth_context'))
@@ -190,7 +190,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             print(repr(e))
             error = repr(e)
             notify_user(owner, "add scheduler entry failed for "
-                               "machine %s" % machine_id, repr(e),
+                               "machine %s" % external_id, repr(e),
                         error=error)
             log_event(action='Add scheduler entry failed',
                       error=error, **log_dict)
@@ -262,13 +262,13 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             log_dict = {
                 'owner_id': owner.id,
                 'event_type': 'job',
-                'cloud_id': cloud_id,
-                'machine_id': machine.id,
-                'external_id': machine_id,
+                'cloud': cloud_id,
+                'machine': machine.id,
+                'external_id': external_id,
                 'job_id': job_id,
                 'job': job,
                 'host': host,
-                'key_id': key_id,
+                'key': key_id,
                 'ssh_user': ssh_user,
             }
             log_event(action='probe', result=result, **log_dict)
@@ -295,7 +295,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             error = retval > 0
             notify_user(owner, title,
                         cloud_id=cloud_id,
-                        machine_id=machine_id,
+                        external_id=external_id,
                         machine_name=machine.name,
                         command=script,
                         output=output,
@@ -323,12 +323,12 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
                 error = True
                 notify_user(
                     owner,
-                    "Enable monitoring failed for machine %s" % machine_id,
+                    "Enable monitoring failed for machine %s" % external_id,
                     repr(e)
                 )
                 notify_admin('Enable monitoring on creation failed for '
                              'user %s machine %s: %r' % (
-                                 str(owner), machine_id, e))
+                                 str(owner), external_id, e))
                 log_event(action='enable_monitoring_failed', error=repr(e),
                           **log_dict)
 
@@ -350,7 +350,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
     except Exception as exc:
         tmp_log(repr(exc))
         notify_admin("Deployment script failed for machine %s (%s) in cloud %s"
-                     " (%s) by user %s" % (machine.name, machine_id,
+                     " (%s) by user %s" % (machine.name, external_id,
                                            cloud.name, cloud_id, str(owner)),
                      repr(exc))
         log_event(
@@ -358,7 +358,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             event_type='job',
             action='post_deploy_finished',
             cloud_id=cloud_id,
-            machine_id=machine_id,
+            external_id=external_id,
             enable_monitoring=bool(monitoring),
             command=script,
             error="Couldn't connect to run post deploy steps.",
