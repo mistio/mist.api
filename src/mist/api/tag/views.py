@@ -84,10 +84,7 @@ def tag_resources(request):
         query = {}
         rtype = resource_data['type']
         rid = resource_data['item_id']
-        if rtype == 'machine':
-            query['machine_id'] = rid
-        else:
-            query['id'] = rid
+        query['id'] = rid
 
         if cloud_id:
             query['cloud'] = cloud_id
@@ -127,9 +124,9 @@ def tag_resources(request):
         if rtype in ['machine', 'network', 'volume', 'zone', 'record']:
             new_tags = get_tags_for_resource(auth_context.owner, resource_obj)
             try:
-                external_id = getattr(resource_obj, rtype + '_id')
-            except AttributeError:
                 external_id = getattr(resource_obj, 'external_id')
+            except AttributeError:
+                external_id = getattr(resource_obj, rtype + '_id')
             patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
             for item in patch:
                 item['path'] = '/%s-%s/tags%s' % (resource_obj.id,
@@ -151,13 +148,13 @@ def get_cloud_tags(request):
     Lists tags of a cloud.
     READ permission required on CLOUD
     ---
-    cloud_id:
+    cloud:
       in: path
       required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
-    cloud_id = request.matchdict["cloud_id"]
+    cloud_id = request.matchdict["cloud"]
 
     # SEC require READ permission on cloud
     auth_context.check_perm("cloud", "read", cloud_id)
@@ -211,7 +208,7 @@ def get_script_tags(request):
       type: string
     """
     auth_context = auth_context_from_request(request)
-    script_id = request.matchdict["script_id"]
+    script_id = request.matchdict["script"]
 
     # SEC require READ permission on script
     auth_context.check_perm("script", "read", script_id)
@@ -227,13 +224,13 @@ def get_schedule_tags(request):
     Lists tags of a schedule.
     READ permission required on SCHEDULE
     ---
-    schedule_id:
+    schedule:
       in: path
       required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
-    schedule_id = request.matchdict["schedule_id"]
+    schedule_id = request.matchdict["schedule"]
 
     # SEC require READ permission on script
     auth_context.check_perm("schedule", "read", schedule_id)
@@ -249,13 +246,13 @@ def get_key_tags(request):
     Lists tags of an ssh keypair.
     READ permission required on KEY
     ---
-    key_id:
+    key:
       in: path
       required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
-    key_id = request.matchdict["key_id"]
+    key_id = request.matchdict["key"]
 
     # SEC require READ permission on key
     auth_context.check_perm("key", "read", key_id)
@@ -272,18 +269,18 @@ def get_network_tags(request):
     READ permission required on CLOUD.
     READ permission required on NETWORK
     ---
-    cloud_id:
+    cloud:
       in: path
       required: true
       type: string
-    network_id:
+    network:
       in: path
       required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
-    network_id = request.matchdict["network_id"]
-    cloud_id = request.params.get("cloud_id")
+    network_id = request.matchdict["network"]
+    cloud_id = request.params.get("cloud")
 
     auth_context.check_perm('cloud', 'read', cloud_id)
     # SEC require READ permission on network
@@ -307,7 +304,7 @@ def set_cloud_tags(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    cloud_id = request.matchdict["cloud_id"]
+    cloud_id = request.matchdict["cloud"]
 
     # SEC require EDIT_TAGS permission on cloud
     auth_context.check_perm("cloud", "edit_tags", cloud_id)
@@ -352,11 +349,11 @@ def set_machine_tags(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    cloud_id = request.matchdict["cloud_id"]
-    machine_id = request.matchdict["machine_id"]
+    cloud_id = request.matchdict["cloud"]
+    machine_id = request.matchdict["machine"]
     auth_context.check_perm("cloud", "read", cloud_id)
     try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud_id, external_id=machine_id)
     except me.DoesNotExist:
         raise NotFoundError('Resource with that id does not exist')
 
@@ -383,7 +380,7 @@ def set_machine_tags(request):
 
         patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
         for item in patch:
-            item['path'] = '/%s-%s/tags%s' % (machine.id, machine.machine_id,
+            item['path'] = '/%s-%s/tags%s' % (machine.id, machine.external_id,
                                               item['path'])
         amqp_publish_user(auth_context.owner.id,
                           routing_key='patch_machines',
@@ -411,7 +408,7 @@ def set_schedule_tags(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    schedule_id = request.matchdict["schedule_id"]
+    schedule_id = request.matchdict["schedule"]
 
     # SEC require EDIT_TAGS permission on schedule
     auth_context.check_perm("schedule", "edit_tags", schedule_id)
@@ -448,7 +445,7 @@ def set_script_tags(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    script_id = request.matchdict["script_id"]
+    script_id = request.matchdict["script"]
 
     # SEC require EDIT_TAGS permission on script
     auth_context.check_perm("script", "edit_tags", script_id)
@@ -514,11 +511,11 @@ def set_network_tags(request):
     READ permission required on cloud.
     EDIT_TAGS permission required on network.
     ---
-    cloud_id:
+    cloud:
       in: path
       required: true
       type: string
-    network_id:
+    network:
       in: path
       required: true
       type: string
@@ -529,8 +526,8 @@ def set_network_tags(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    cloud_id = request.matchdict["cloud_id"]
-    network_id = request.matchdict["network_id"]
+    cloud_id = request.matchdict["cloud"]
+    network_id = request.matchdict["network"]
     auth_context.check_perm('cloud', 'read', cloud_id)
     try:
         network = Network.objects.get(cloud=cloud_id, id=network_id)
@@ -562,7 +559,7 @@ def delete_schedule_tag(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    schedule_id = request.matchdict["schedule_id"]
+    schedule_id = request.matchdict["schedule"]
     tag_key = params.get("tag_key")
 
     # SEC require EDIT_TAGS permission on schedule
@@ -585,14 +582,14 @@ def delete_cloud_tag(request):
     tag_key:
       required: true
       type: string
-    cloud_id:
+    cloud:
       in: path
       required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    cloud_id = request.matchdict["cloud_id"]
+    cloud_id = request.matchdict["cloud"]
     tag_key = params.get("tag_key")
 
     # SEC require EDIT_TAGS permission on cloud
@@ -617,19 +614,19 @@ def delete_machine_tag(request):
     tag_key:
       required: true
       type: string
-    cloud_id:
+    cloud:
       in: path
       required: true
       type: string
-    machine_id:
+    machine:
       in: path
       required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    cloud_id = request.matchdict["cloud_id"]
-    machine_id = request.matchdict["machine_id"]
+    cloud_id = request.matchdict["cloud"]
+    machine_id = request.matchdict["machine"]
     tag_key = params.get("tag_key")
 
     # SEC require READ permission on cloud
@@ -663,7 +660,7 @@ def delete_script_tag(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    script_id = request.matchdict["script_id"]
+    script_id = request.matchdict["script"]
     tag_key = params.get("tag_key")
 
     # SEC require EDIT_TAGS permission on script
@@ -686,14 +683,14 @@ def delete_key_tag(request):
     tag_key:
       required: true
       type: string
-    key_id:
+    key:
       in: path
       required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    key_id = request.matchdict["key_id"]
+    key_id = request.matchdict["key"]
     tag_key = params.get("tag_key")
 
     # SEC require EDIT_TAGS permission on key

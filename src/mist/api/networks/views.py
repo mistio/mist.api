@@ -408,16 +408,16 @@ def associate_ip(request):
     network_id = request.matchdict['network']
     params = params_from_request(request)
     ip = params.get('ip')
-    machine_id = params.get('machine')
+    external_id = params.get('machine')
     assign = params.get('assign', True)
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
     try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
+        machine = Machine.objects.get(cloud=cloud_id, external_id=external_id)
+        machine_id = machine.id
     except me.DoesNotExist:
-        machine_uuid = ""
-    auth_context.check_perm("machine", "edit", machine_uuid)
+        machine_id = ""
+    auth_context.check_perm("machine", "edit", machine_id)
 
     ret = associate_ip_method(auth_context.owner, cloud_id, network_id,
                               ip, machine_id, assign)

@@ -110,7 +110,7 @@ def ssh_command(owner_id, cloud_id, machine_id, host, command,
 
 
 @dramatiq.actor(queue_name='provisioning', store_results=True)
-def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
+def post_deploy_steps(owner_id, cloud_id, external_id, monitoring,
                       key_id=None, username=None, password=None, port=22,
                       script_id='', script_params='', job_id=None, job=None,
                       hostname='', plugins=None, script='',
@@ -127,7 +127,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
     def tmp_log(msg, *args):
         log.error('Post deploy: %s' % msg, *args)
     tmp_log('Entering post deploy steps for %s %s %s',
-            owner.id, cloud_id, machine_id)
+            owner.id, cloud_id, external_id)
 
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
@@ -136,7 +136,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
         raise e
 
     try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
+        machine = Machine.objects.get(cloud=cloud, external_id=external_id,
                                       state__ne='terminated')
     except Machine.DoesNotExist:
         raise Retry(delay=10_000)
@@ -160,9 +160,9 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
     log_dict = {
         'owner_id': owner.id,
         'event_type': 'job',
-        'cloud_id': cloud_id,
-        'machine_id': machine.id,
-        'external_id': machine_id,
+        'cloud': cloud_id,
+        'machine': machine.id,
+        'external_id': external_id,
         'job_id': job_id,
         'job': job,
         'host': host,
@@ -172,7 +172,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
     if schedule and schedule.get('name'):  # ugly hack to prevent dupes
         try:
             name = (schedule.get('action') + '-' + schedule.pop('name') +
-                    '-' + machine_id[:4])
+                    '-' + external_id[:4])
 
             auth_context = AuthContext.deserialize(
                 schedule.pop('auth_context'))
@@ -189,7 +189,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             print(repr(e))
             error = repr(e)
             notify_user(owner, "add scheduler entry failed for "
-                               "machine %s" % machine_id, repr(e),
+                               "machine %s" % external_id, repr(e),
                         error=error)
             log_event(action='Add scheduler entry failed',
                       error=error, **log_dict)
@@ -261,13 +261,13 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             log_dict = {
                 'owner_id': owner.id,
                 'event_type': 'job',
-                'cloud_id': cloud_id,
-                'machine_id': machine.id,
-                'external_id': machine_id,
+                'cloud': cloud_id,
+                'machine': machine.id,
+                'external_id': external_id,
                 'job_id': job_id,
                 'job': job,
                 'host': host,
-                'key_id': key_id,
+                'key': key_id,
                 'ssh_user': ssh_user,
             }
             log_event(action='probe', result=result, **log_dict)
@@ -294,7 +294,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             error = retval > 0
             notify_user(owner, title,
                         cloud_id=cloud_id,
-                        machine_id=machine_id,
+                        external_id=external_id,
                         machine_name=machine.name,
                         command=script,
                         output=output,
@@ -322,12 +322,12 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
                 error = True
                 notify_user(
                     owner,
-                    "Enable monitoring failed for machine %s" % machine_id,
+                    "Enable monitoring failed for machine %s" % external_id,
                     repr(e)
                 )
                 notify_admin('Enable monitoring on creation failed for '
                              'user %s machine %s: %r' % (
-                                 str(owner), machine_id, e))
+                                 str(owner), external_id, e))
                 log_event(action='enable_monitoring_failed', error=repr(e),
                           **log_dict)
 
@@ -349,7 +349,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
     except Exception as exc:
         tmp_log(repr(exc))
         notify_admin("Deployment script failed for machine %s (%s) in cloud %s"
-                     " (%s) by user %s" % (machine.name, machine_id,
+                     " (%s) by user %s" % (machine.name, external_id,
                                            cloud.name, cloud_id, str(owner)),
                      repr(exc))
         log_event(
@@ -357,7 +357,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
             event_type='job',
             action='post_deploy_finished',
             cloud_id=cloud_id,
-            machine_id=machine_id,
+            external_id=external_id,
             enable_monitoring=bool(monitoring),
             command=script,
             error="Couldn't connect to run post deploy steps.",
@@ -786,7 +786,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None,
 
 
 @dramatiq.actor(queue_name='schedules', store_results=True)
-def group_machines_actions(owner_id, action, name, machines_uuids):
+def group_machines_actions(owner_id, action, name, machine_ids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -794,7 +794,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     :param owner_id:
     :param action:
     :param name:
-    :param machines_uuids:
+    :param machine_ids:
     :return: log_dict
     """
 
@@ -817,15 +817,15 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
     tasks = []
-    for machine_uuid in machines_uuids:
+    for machine_id in machine_ids:
         found = False
         _action = action
         try:
-            machine = Machine.objects.get(id=machine_uuid)
+            machine = Machine.objects.get(id=machine_id)
             found = True
         except me.DoesNotExist:
             log_dict['error'] = "Machine with id %s does not \
-                exist." % machine_uuid
+                exist." % machine_id
 
         if found:
             if _action in ['destroy'] and config.SAFE_EXPIRATION and \
@@ -837,7 +837,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
 
             try:
                 task = run_machine_action.message(owner_id, _action, name,
-                                                  machine_uuid)
+                                                  machine_id)
                 tasks.append(task)
             except Exception as exc:
                 log_dict['error'] = '%s %r\n' % (log_dict.get('error', ''),
@@ -867,7 +867,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
 
 @dramatiq.actor(queue_name='schedules', store_results=True,
                 time_limit=3_600_000)
-def run_machine_action(owner_id, action, name, machine_uuid):
+def run_machine_action(owner_id, action, name, machine_id):
     """
     Calls specific action for a machine and log the info
     :param owner_id:
@@ -883,8 +883,8 @@ def run_machine_action(owner_id, action, name, machine_uuid):
     log_dict = {
         'owner_id': owner_id,
         'event_type': 'job',
-        'machine_uuid': machine_uuid,
-        'schedule_id': schedule.id,
+        'machine': machine_id,
+        'schedule': schedule.id,
     }
 
     external_id = ''
@@ -892,11 +892,11 @@ def run_machine_action(owner_id, action, name, machine_uuid):
     owner = Owner.objects.get(id=owner_id)
     started_at = time()
     try:
-        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        machine = Machine.objects.get(id=machine_id, state__ne='terminated')
         cloud_id = machine.cloud.id
-        external_id = machine.machine_id
-        log_dict.update({'cloud_id': cloud_id,
-                         'machine_id': machine_uuid,
+        external_id = machine.external_id
+        log_dict.update({'cloud': cloud_id,
+                         'machine': machine_id,
                          'external_id': external_id})
     except me.DoesNotExist:
         log_dict['error'] = "Resource with that id does not exist."
@@ -1010,7 +1010,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
 
 
 @dramatiq.actor(queue_name='schedules', store_results=True)
-def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
+def group_run_script(owner_id, script_id, name, machine_ids, params=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -1044,9 +1044,9 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule started: %s', log_dict)
     tasks = []
-    for machine_uuid in machines_uuids:
+    for machine_id in machine_ids:
         try:
-            task = run_script.message(owner_id, script_id, machine_uuid,
+            task = run_script.message(owner_id, script_id, machine_id,
                                       params=params, job_id=job_id,
                                       job='schedule')
             tasks.append(task)
@@ -1075,7 +1075,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
 
 
 @dramatiq.actor(time_limit=3_600_000, store_results=True)
-def run_script(owner, script_id, machine_uuid, params='', host='',
+def run_script(owner, script_id, machine_id, params='', host='',
                key_id='', username='', password='', port=22, job_id='', job='',
                action_prefix='', su=False, env=""):
     import mist.api.shell
@@ -1091,7 +1091,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         'job': job,
         'script_id': script_id,
         # 'cloud_id': cloud_id,
-        'machine_id': machine_uuid,
+        'machine_id': machine_id,
         'params': params,
         'env': env,
         'su': su,
@@ -1111,9 +1111,9 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     cloud_id = ''
 
     try:
-        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        machine = Machine.objects.get(id=machine_id, state__ne='terminated')
         cloud_id = machine.cloud.id
-        external_id = machine.machine_id
+        external_id = machine.external_id
         ret.update({'cloud_id': cloud_id, 'external_id': external_id})
         # cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         script = Script.objects.get(owner=owner, id=script_id, deleted=None)
@@ -1121,7 +1121,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         if not host:
             # FIXME machine.cloud.ctl.compute.list_machines()
             for machine in list_machines(owner, cloud_id):
-                if machine['machine_id'] == external_id:
+                if machine['external_id'] == external_id:
                     ips = [ip for ip in machine['public_ips'] if ip and
                            ':' not in ip]
                     # get private IPs if no public IP is available

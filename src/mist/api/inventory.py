@@ -23,12 +23,14 @@ class MistInventory(object):
         self.keys = {}
         if not machines:
             clouds = Cloud.objects(owner=self.owner, deleted=None)
-            machines = [(machine.cloud.id, machine.machine_id)
+            machines = [(machine.cloud.id, machine.external_id)
                         for machine in Machine.objects(cloud__in=clouds)]
-        for bid, mid in machines:
+        for cloud_id, external_id in machines:
             try:
-                name, ip_addr = self.find_machine_details(bid, mid)
-                key_id, ssh_user, port = self.find_ssh_settings(bid, mid)
+                name, ip_addr = self.find_machine_details(
+                    cloud_id, external_id)
+                key_id, ssh_user, port = self.find_ssh_settings(
+                    cloud_id, external_id)
             except Exception as exc:
                 print(exc)
                 continue
@@ -81,10 +83,10 @@ class MistInventory(object):
             self._cache[cloud_id] = machines
         return self._cache[cloud_id]
 
-    def find_machine_details(self, cloud_id, machine_id):
+    def find_machine_details(self, cloud_id, external_id):
         machines = self._list_machines(cloud_id)
         for machine in machines:
-            if machine['machine_id'] == machine_id:
+            if machine['external_id'] == external_id:
                 name = machine['name'].replace(' ', '_')
                 ips = [ip for ip in machine['public_ips'] if ':' not in ip]
                 # in case ips is empty search for private IPs
@@ -92,16 +94,16 @@ class MistInventory(object):
                     ips = [ip for ip in machine['private_ips']
                            if ':' not in ip]
                 if not name:
-                    name = machine_id
+                    name = external_id
                 if not ips:
                     raise Exception('Machine ip not found in list machines')
                 ip_addr = ips[0] if ips else ''  # can be either public or priv
                 return name, ip_addr
         raise Exception('Machine not found in list_machines')
 
-    def find_ssh_settings(self, cloud_id, machine_id):
+    def find_ssh_settings(self, cloud_id, external_id):
         cloud = Cloud.objects.get(owner=self.owner, id=cloud_id, deleted=None)
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, external_id=external_id)
         key_associations = KeyMachineAssociation.objects(machine=machine)
         if not key_associations:
             raise Exception("Machine doesn't have SSH association")
