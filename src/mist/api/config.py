@@ -9,6 +9,7 @@ import logging
 import datetime
 import urllib
 import urllib.parse
+
 import libcloud.security
 from libcloud.compute.types import NodeState
 from libcloud.container.types import Provider as Container_Provider
@@ -56,6 +57,7 @@ BACKUP_INTERVAL = 24
 LANDING_CDN_URI = ""
 BLOG_CDN_URI = ""
 
+METERING_PROMQL_LOOKBACK = "2h"
 METERING_METRICS = {
     "default": {
         'core_hours': {'type': 'counter', 'value': lambda machine, dt: dt * (
@@ -1400,6 +1402,19 @@ STATES = {
     NodeState.RECONFIGURING.value: 'reconfiguring',
     NodeState.MIGRATING.value: 'migrating',
     NodeState.NORMAL.value: 'normal',
+}
+
+CLUSTER_STATES = {
+    state: state.lower()
+    for state in [
+        'STATUS_UNSPECIFIED',
+        'PROVISIONING',
+        'RUNNING',
+        'RECONCILING',
+        'STOPPING',
+        'ERROR',
+        'DEGRADED',
+    ]
 }
 
 STAR_IMAGE_ON_MACHINE_CREATE = True

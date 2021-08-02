@@ -31,6 +31,7 @@ from mist.api.helpers import rename_kwargs
 from mist.api.clouds.controllers.network.base import BaseNetworkController
 
 from mist.api.clouds.controllers.compute.base import BaseComputeController
+from mist.api.clouds.controllers.container.base import BaseContainerController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.clouds.controllers.storage.base import BaseStorageController
 from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
@@ -85,6 +86,7 @@ class BaseMainController(object):
     """
 
     ComputeController = None
+    ContainerController = None
     NetworkController = None
     DnsController = None
     StorageController = None
@@ -112,6 +114,12 @@ class BaseMainController(object):
         # Initialize compute controller.
         assert issubclass(self.ComputeController, BaseComputeController)
         self.compute = self.ComputeController(self)
+
+        # Initialize container controller.
+        if self.ContainerController is not None:
+            assert issubclass(self.ContainerController,
+                              BaseContainerController)
+            self.container = self.ContainerController(self)
 
         # Initialize DNS controller.
         if self.DnsController is not None:

@@ -60,6 +60,20 @@ def list_machines(schedule_id):
         pass
 
 
+@dramatiq.actor(queue_name='polling', time_limit=280_000, max_age=30_000)
+def list_clusters(schedule_id):
+    """Perform list machines. Cloud controller stores results in mongodb."""
+
+    # Fetch schedule and cloud from database.
+    # FIXME: resolve circular deps error
+    from mist.api.poller.models import ListClustersPollingSchedule
+    sched = ListClustersPollingSchedule.objects.get(id=schedule_id)
+    try:
+        sched.cloud.ctl.container.list_clusters(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun):
+        pass
+
+
 @dramatiq.actor(queue_name='polling', time_limit=160_000, max_age=30_000)
 def list_locations(schedule_id):
     """Perform list locations. Cloud controller stores results in mongodb."""

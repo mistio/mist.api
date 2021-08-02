@@ -177,6 +177,7 @@ class Owner(me.Document):
     # this exists for preventing conflicting rule id's
     rule_counter = me.IntField(default=0)
     total_machine_count = me.IntField()
+    total_cluster_count = me.IntField()
 
     alerts_email = me.ListField(me.StringField(), default=[])
 
