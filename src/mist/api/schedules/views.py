@@ -36,10 +36,10 @@ def add_schedule_entry(request):
       type: string
     action:
       type: string
-    machines_uuids:
+    machine_ids:
       required: true
       type: array
-      description: list of machines_uuids
+      description: list of machine_id's
     machines_tags:
       required: true
       type: array
@@ -189,10 +189,10 @@ def edit_schedule_entry(request):
       type: string
     action:
       type: string
-    machines_uuids:
+    machine_ids:
       required: true
       type: array
-      description: list of machines_uuids
+      description: list of machine_id's
     machines_tags:
       required: true
       type: array
