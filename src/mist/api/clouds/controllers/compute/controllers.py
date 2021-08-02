@@ -4643,7 +4643,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
 
 
 class OpenShiftComputeController(KubernetesComputeController):
-    def _connect(self, provider, **kwargs):
+    def _connect(self, **kwargs):
         host, port = dnat(self.cloud.owner,
                           self.cloud.host, self.cloud.port)
         try:
@@ -4658,11 +4658,12 @@ class OpenShiftComputeController(KubernetesComputeController):
         if self.cloud.username and self.cloud.password:
             key = self.cloud.username
             secret = self.cloud.password
-            return get_container_driver(provider)(key=key,
-                                                  secret=secret,
-                                                  secure=True,
-                                                  host=host,
-                                                  port=port)
+            return get_container_driver(Container_Provider.OPENSHIFT)(
+                key=key,
+                secret=secret,
+                secure=True,
+                host=host,
+                port=port)
         else:
             msg = '''Necessary parameters for authentication are missing.
             Either a key_file/cert_file pair or a username/pass pair
