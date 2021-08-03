@@ -373,7 +373,8 @@ class BaseDNSController(BaseController):
         try:
             self.connection.get_zone(external_id).delete()
         except ZoneDoesNotExistError as exc:
-            log.warning("No zone found for %s in: %s ", external_id, self.cloud)
+            log.warning(
+                "No zone found for %s in: %s ", external_id, self.cloud)
             raise ZoneNotFoundError(exc=exc)
         except Exception as exc:
             log.exception("Error while running delete_zone on %s", self.cloud)
