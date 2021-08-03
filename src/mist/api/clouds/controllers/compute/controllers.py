@@ -171,7 +171,7 @@ class AmazonComputeController(BaseComputeController):
         from mist.api.networks.models import Network
         try:
             network = Network.objects.get(cloud=self.cloud,
-                                          network_id=network_id,
+                                          external_id=network_id,
                                           missing_since=None)
         except Network.DoesNotExist:
             network = None
@@ -188,7 +188,7 @@ class AmazonComputeController(BaseComputeController):
         # Discover subnet of machine.
         from mist.api.networks.models import Subnet
         try:
-            subnet = Subnet.objects.get(subnet_id=subnet_id,
+            subnet = Subnet.objects.get(external_id=subnet_id,
                                         network=machine.network,
                                         missing_since=None)
         except Subnet.DoesNotExist:
@@ -1576,7 +1576,7 @@ class AzureArmComputeController(BaseComputeController):
             from mist.api.networks.models import Network
             try:
                 network = Network.objects.get(cloud=self.cloud,
-                                              network_id=network_id,
+                                              external_id=network_id,
                                               missing_since=None)
                 if network != machine.network:
                     machine.network = network
@@ -1584,7 +1584,7 @@ class AzureArmComputeController(BaseComputeController):
             except me.DoesNotExist:
                 pass
 
-        network_id = machine.network.network_id if machine.network else ''
+        network_id = machine.network.external_id if machine.network else ''
         if machine.extra.get('network') != network_id:
             machine.extra['network'] = network_id
             updated = True

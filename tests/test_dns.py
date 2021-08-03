@@ -196,15 +196,5 @@ def test_delete_zone(cloud):
         zone.ctl.delete_zone()
         print("*** DNS Zone %s deleted successfully" % zone.domain)
     except Exception:
-        print("Failed, cannot delete Zone: %s/%s" % (zone.zone_id,
+        print("Failed, cannot delete Zone: %s/%s" % (zone.external_id,
                                                      zone.domain))
-
-    # zones = Zone.objects(owner=cloud.owner, domain='domain.com.')
-    # for zone in zones:
-    #     try:
-    #         zone.ctl.delete_zone()
-    #         print "DNS Zone %s deleted successfully" % \
-    #         (zone.domain)
-    #     except Exception as exc:
-    #         print "Failed, cannot delete Zone: %s/%s because %s" %
-    #             (zone.zone_id, zone.domain, exc)

@@ -776,7 +776,7 @@ def _create_machine_openstack(conn, public_key, key_name,
     if not isinstance(networks, list):
         networks = [networks]
     chosen_networks = []
-    cached_network_ids = [n.network_id for
+    cached_network_ids = [n.external_id for
                           n in Network.objects(id__in=networks)]
     try:
         for network in conn.ex_list_networks():
@@ -989,7 +989,7 @@ def _create_machine_ec2(conn, key_name, public_key,
             subnet_id = subnet.subnet_id
         except Subnet.DoesNotExist:
             try:
-                subnet = Subnet.objects.get(subnet_id=subnet_id)
+                subnet = Subnet.objects.get(external_id=subnet_id)
                 log.info('Got providers id instead of mist id, not \
                 doing nothing.')
             except Subnet.DoesNotExist:
@@ -1809,7 +1809,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
         libcloud_networks = conn.ex_list_networks()
         ex_network = None
         for libcloud_net in libcloud_networks:
-            if mist_net.network_id == libcloud_net.id:
+            if mist_net.external_id == libcloud_net.id:
                 ex_network = libcloud_net
                 break
     elif network.get('name'):   # create network
@@ -2058,7 +2058,7 @@ def _create_machine_vsphere(conn, machine_name, image,
         try:
             from mist.api.networks.models import VSphereNetwork
             network = VSphereNetwork.objects.get(id=networks[0])
-            network_id = network.network_id
+            network_id = network.external_id
         except me.DoesNotExist:
             network_id = networks[0]
     else:
