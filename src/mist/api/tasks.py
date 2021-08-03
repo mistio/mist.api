@@ -737,6 +737,7 @@ def create_machine_async(
              'machine_username': machine_username,
              'volumes': volumes,
              'ip_addresses': ip_addresses,
+             'subnet_id': subnet_id,
              'expiration': expiration,
              'ephemeral': ephemeral,
              'lxd_image_source': lxd_image_source,
