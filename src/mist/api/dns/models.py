@@ -128,8 +128,8 @@ class Zone(OwnershipMixin, me.Document):
 
         if 'external_id' in only or not only:
             ret['external_id'] = None
-            if self.zone_id:
-                ret['external_id'] = self.zone_id
+            if self.external_id:
+                ret['external_id'] = self.external_id
 
         if 'records' in only or not only:
             ret['records'] = {r.id: r.as_dict() for r

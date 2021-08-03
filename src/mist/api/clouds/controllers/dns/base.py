@@ -361,19 +361,19 @@ class BaseDNSController(BaseController):
         """
         Public method called to delete the specific zone for the provided id.
         """
-        self._delete_zone__for_cloud(zone.zone_id)
+        self._delete_zone__for_cloud(zone.external_id)
         self.list_zones()
         from mist.api.poller.models import ListZonesPollingSchedule
         ListZonesPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
-    def _delete_zone__for_cloud(self, zone_id):
+    def _delete_zone__for_cloud(self, external_id):
         """
         We use the zone id to retrieve and delete it for this cloud.
         """
         try:
-            self.connection.get_zone(zone_id).delete()
+            self.connection.get_zone(external_id).delete()
         except ZoneDoesNotExistError as exc:
-            log.warning("No zone found for %s in: %s ", zone_id, self.cloud)
+            log.warning("No zone found for %s in: %s ", external_id, self.cloud)
             raise ZoneNotFoundError(exc=exc)
         except Exception as exc:
             log.exception("Error while running delete_zone on %s", self.cloud)
