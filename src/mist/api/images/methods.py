@@ -43,7 +43,11 @@ def star_image(owner, cloud_id, image_id):
     try:
         image = CloudImage.objects.get(cloud=cloud_id, id=image_id)
     except CloudImage.DoesNotExist:
-        raise NotFoundError('CloudImage does not exist')
+        try:
+            image = CloudImage.objects.get(
+                cloud=cloud_id, external_id=image_id)
+        except CloudImage.DoesNotExist:
+            raise NotFoundError('CloudImage does not exist')
 
     image.starred = False if image.starred else True
     image.save()
