@@ -8,7 +8,6 @@ from mist.api.secrets.models import VaultSecret
 from mist.api.users.models import Owner
 
 from mist.api.clouds.models import *  # noqa
-from mist.api.clouds.models import PacketCloud # noqa
 
 
 def migrate_clouds():
@@ -20,7 +19,7 @@ def migrate_clouds():
     print('Will try to update %s clouds' % str(db_clouds.count()))
     for cloud in db_clouds.find():
         try:
-            print('Updating cloud %s (%s)' % (cloud['_id'], cloud['title']))
+            print('Updating cloud %s (%s)' % (cloud['_id'], cloud['name']))
             owner = Owner.objects.get(id=cloud['owner'])
 
             private_fields = getattr(eval(cloud['_cls'].split('.')[1]),
@@ -28,10 +27,10 @@ def migrate_clouds():
             for private_field in private_fields:
                 try:
                     secret = VaultSecret.objects.get(name="clouds/%s" %
-                                                     cloud['title'],
+                                                     cloud['name'],
                                                      owner=owner)
                 except me.DoesNotExist:
-                    secret = VaultSecret(name="clouds/%s" % cloud['title'],
+                    secret = VaultSecret(name="clouds/%s" % cloud['name'],
                                          owner=owner)
                     secret.save()
 

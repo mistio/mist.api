@@ -39,6 +39,7 @@ __all__ = [
     "VSphereCloud",
     "OpenStackCloud",
     "DockerCloud",
+    "LXDCloud",
     "LibvirtCloud",
     "OnAppCloud",
     "OtherCloud",
