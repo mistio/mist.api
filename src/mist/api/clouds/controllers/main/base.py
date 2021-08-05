@@ -313,14 +313,14 @@ class BaseMainController(object):
                         secret = VaultSecret.objects.get(name='%s%s' %
                                                          (config.
                                                           VAULT_CLOUDS_PATH,
-                                                          self.cloud.title),
+                                                          self.cloud.name),
                                                          owner=self.cloud.
                                                          owner)
                         secret.ctl.create_or_update_secret({key: value})
                     except me.DoesNotExist:
                         secret = VaultSecret(name='%s%s' %
                                              (config.VAULT_CLOUDS_PATH,
-                                              self.cloud.title),
+                                              self.cloud.name),
                                              owner=self.cloud.owner)
                         # first store key in Vault
                         secret.ctl.create_or_update_secret({key: value})
@@ -335,7 +335,7 @@ class BaseMainController(object):
                         # The path `%s%s` exists on Vault. \
                         #         Try changing the name of the cloud" %
                         #                           (config.VAULT_CLOUDS_PATH,
-                        #                            self.cloud.title))
+                        #                            self.cloud.name))
 
                     try:
                         secret.ctl.create_or_update_secret({key: value})
