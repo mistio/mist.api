@@ -336,18 +336,16 @@ class BaseMainController(object):
                                              owner=self.cloud.owner)
                         # first store key in Vault
                         secret.ctl.create_or_update_secret({key: value})
-                        # FIXME this fails because create_or_update_secret
-                        # saves the secret already.
-                        # try:
-                        #     secret.save()
-                        #     if user:
-                        #         secret.assign_to(user)
-                        # except me.NotUniqueError:
-                        #     raise BadRequestError("
-                        # The path `%s%s` exists on Vault. \
-                        #         Try changing the name of the cloud" %
-                        #                           (config.VAULT_CLOUDS_PATH,
-                        #                            self.cloud.name))
+                        try:
+                            secret.save()
+                            if user:
+                                secret.assign_to(user)
+                        except me.NotUniqueError:
+                            raise BadRequestError(
+                                "The path `%s%s` exists on Vault. \
+                                 Try changing the name of the cloud" % (
+                                    config.VAULT_CLOUDS_PATH, self.cloud.name)
+                            )
 
                     try:
                         secret.ctl.create_or_update_secret({key: value})
