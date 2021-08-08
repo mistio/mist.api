@@ -1,6 +1,8 @@
 import traceback
 
 from pymongo import MongoClient
+from pymongo.errors import OperationFailure
+
 from mist.api.config import MONGO_URI
 
 
@@ -10,11 +12,18 @@ def migrate_zone_id():
     db_zones = db['zones']
 
     # drop index containing zone_id
-    db_zones.drop_index('cloud_1_zone_id_1_deleted_1')
+    try:
+        db_zones.drop_index('cloud_1_zone_id_1_deleted_1')
+    except OperationFailure:
+        print("Index already dropped")
 
-    failed = migrated = 0
+    failed = migrated = skipped = 0
 
     for zone in db_zones.find():
+        if not zone.get('zone_id', None):
+            skipped += 1
+            continue
+
         print('Updating zone ' + zone['_id'])
         try:
             external_id = zone['zone_id']
@@ -34,6 +43,9 @@ def migrate_zone_id():
             migrated += 1
 
     print('Zones migrated: %d' % migrated)
+
+    if skipped:
+        print('Zones skipped: %d' % skipped)
 
     if failed:
         print('********* WARNING ************')

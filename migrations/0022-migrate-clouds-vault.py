@@ -15,7 +15,7 @@ def migrate_clouds():
     c = MongoClient(MONGO_URI)
     db = c.get_database('mist2')
     db_clouds = db['clouds']
-    failed = migrated = 0
+    failed = migrated = skipped = 0
     print('Will try to update %s clouds' % str(db_clouds.count()))
     for cloud in db_clouds.find():
         try:
@@ -46,12 +46,13 @@ def migrate_clouds():
                 )
 
                 # save to vault only if the private_field is set
-                if cloud[private_field]:
+                if cloud.get(private_field, None):
                     secret_dict = {
                         private_field: cloud[private_field]
                     }
-
                     secret.ctl.create_or_update_secret(secret_dict)
+                else:
+                    skipped += 1
         except Exception:
             print('*** WARNING ** Could not migrate cloud %s' % cloud['_id'])
             traceback.print_exc()
@@ -61,6 +62,7 @@ def migrate_clouds():
             migrated += 1
 
     print('Clouds migrated: ' + str(migrated))
+    print('Skipped fields: ' + str(skipped))
     print('Failed to migrate: ' + str(failed))
 
 
