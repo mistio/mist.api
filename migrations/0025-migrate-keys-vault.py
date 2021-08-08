@@ -12,10 +12,13 @@ def migrate_keys():
     c = MongoClient(MONGO_URI)
     db = c.get_database('mist2')
     db_keys = db['keys']
-    failed = migrated = 0
+    failed = migrated = skipped = 0
     print('Will try to update %s keys' % str(db_keys.count()))
 
     for key in db_keys.find():
+        if key.get('private', {}).get('secret'):
+            skipped += 1
+            continue
         try:
             print('Updating key ' + key['_id'])
             private = key['private']
@@ -50,6 +53,7 @@ def migrate_keys():
             migrated += 1
 
     print('Keys migrated: ' + str(migrated))
+    print('Keys skipped: ' + str(skipped))
     print('Failed to migrate: ' + str(failed))
 
 

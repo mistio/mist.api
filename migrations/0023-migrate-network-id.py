@@ -1,6 +1,7 @@
 import traceback
 
 from pymongo import MongoClient
+from pymongo.errors import OperationFailure
 from mist.api.config import MONGO_URI
 
 
@@ -10,11 +11,18 @@ def migrate_network_id():
     db_networks = db['networks']
 
     # drop index containing network_id
-    db_networks.drop_index('cloud_1_network_id_1')
+    try:
+        db_networks.drop_index('cloud_1_network_id_1')
+    except OperationFailure:
+        print("Index already dropped")
 
-    failed = migrated = 0
+    failed = migrated = skipped = 0
 
     for network in db_networks.find():
+        if not network.get('network_id', None):
+            skipped += 1
+            continue
+
         print('Updating network ' + network['_id'])
         try:
             external_id = network['network_id']
@@ -34,6 +42,9 @@ def migrate_network_id():
             migrated += 1
 
     print('Networks migrated: %d' % migrated)
+
+    if skipped:
+        print('Networks skipped: %d' % skipped)
 
     if failed:
         print('********* WARNING ************')
