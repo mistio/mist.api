@@ -50,6 +50,7 @@ class GoogleContainerController(BaseContainerController):
         cluster.total_nodes = cluster_dict['node_count']
         updated = True
         cluster.config = cluster_dict['config']
+        cluster.credentials = cluster_dict['credentials']
         return updated
 
 
@@ -64,4 +65,5 @@ class AmazonContainerController(BaseContainerController):
         updated = False
         cluster.config = cluster_dict['config']
         updated = True
+        cluster.credentials = cluster_dict['credentials']
         return updated
