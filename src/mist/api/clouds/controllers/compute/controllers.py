@@ -4725,9 +4725,10 @@ class KubeVirtComputeController(_KubernetesBaseComputeController):
 
 class CloudSigmaComputeController(BaseComputeController):
     def _connect(self, **kwargs):
-        return get_driver(Provider.CLOUDSIGMA)(key=self.cloud.username,
-                                               secret=self.cloud.password,
-                                               region=self.cloud.region)
+        return get_driver(Provider.CLOUDSIGMA)(
+            key=self.cloud.username,
+            secret=self.cloud.password.value,
+            region=self.cloud.region)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         if node_dict['extra'].get('runtime'):
