@@ -593,7 +593,20 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     for term in terms:
         if ':' in term:
             k, v = term.split(':')
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+            if startsandendswith(v, '"'):
+                mongo_operator = ''
+            elif v.startswith('^'):
+                mongo_operator = '__startswith'
+                v = v[1:]
+            elif v.endswith('$'):
+                mongo_operator = '__endswith'
+                v = v[:-1]
+            elif v.startswith('r') and (startsandendswith(v[1:], '"') \
+                                        or startsandendswith(v[1:], "'")):
+                v = re.compile(v[2:-1])
+                mongo_operator = ''
+            else:
+                mongo_operator = '__contains'
         elif '!=' in term:
             k, v = term.split('!=')
             mongo_operator = '__ne'
@@ -611,7 +624,20 @@ def list_resources(auth_context, resource_type, search='', cloud='',
             mongo_operator = '__lt'
         elif '=' in term:
             k, v = term.split('=')
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+            if startsandendswith(v, '"'):
+                mongo_operator = ''
+            elif v.startswith('^'):
+                mongo_operator = '__startswith'
+                v = v[1:]
+            elif v.endswith('$'):
+                mongo_operator = '__endswith'
+                v = v[:-1]
+            elif v.startswith('r') and (startsandendswith(v[1:], '"') \
+                                        or startsandendswith(v[1:], "'")):
+                v = re.compile(v[2:-1])
+                mongo_operator = ''
+            else:
+                mongo_operator = '__contains'
         # TODO: support OR keyword
         elif term.lower() in ['and', 'or'] or not term:
             continue
@@ -620,7 +646,9 @@ def list_resources(auth_context, resource_type, search='', cloud='',
             k, v = 'id', term
             mongo_operator = '' if startsandendswith(v, '"') else '__icontains'
 
-        v = v.strip('"')
+        if getattr(v, 'strip', None):
+            v = v.strip('"')
+
         attr = getattr(resource_model, k, None)
         if isinstance(attr, BooleanField):
             try:
@@ -634,7 +662,7 @@ def list_resources(auth_context, resource_type, search='', cloud='',
         # TODO: support additional operators: >, <, !=, ~
         elif k in ['cloud', 'location']:
             # exact match
-            if not mongo_operator:
+            if not mongo_operator and not isinstance(v, re.Pattern):
                 resources, _ = list_resources(auth_context, k,
                                               search=f'"{v}"',
                                               only='id')
