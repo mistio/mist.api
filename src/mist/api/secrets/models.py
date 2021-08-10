@@ -85,11 +85,6 @@ class Secret(OwnershipMixin, me.Document):
 class VaultSecret(Secret):
     """ A Vault Secret object """
     _controller_cls = controllers.VaultSecretController
-    is_dir = me.BooleanField(default=False)
-    # this is for easier querying.
-    #  for example to make possible the query:
-    #  get all secrets (or folders) in "clouds/"
-    depth = me.IntField(min_value=-1, default=-1)
 
     def __init__(self, *args, **kwargs):
         if config.VAULT_KV_VERSION == 1:
@@ -110,8 +105,6 @@ class VaultSecret(Secret):
             'tags': self.tags,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
-            'is_dir': self.is_dir,
-            'depth': self.depth
         }
         return s_dict
 
