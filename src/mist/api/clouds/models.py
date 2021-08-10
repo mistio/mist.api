@@ -618,7 +618,7 @@ class VSphereCloud(Cloud):
 
     max_properties_per_request = me.IntField(default=20)
 
-    _private_fields = ('password', )
+    _private_fields = ('password', 'ca_cert_file')
     _controller_cls = controllers.VSphereMainController
 
 
@@ -668,7 +668,7 @@ class DockerCloud(Cloud):
     # Show running and stopped containers
     show_all = me.BooleanField(default=False)
 
-    _private_fields = ('password', 'key_file')
+    _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
     _controller_cls = controllers.DockerMainController
 
 
@@ -727,7 +727,7 @@ class _KubernetesBaseCloud(Cloud):
     password = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # Bearer Token authentication optional
-    token = me.StringField(required=False)
+    token = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # TLS Authentication
     key_file = me.EmbeddedDocumentField(SecretValue, required=False)
@@ -766,9 +766,9 @@ class OpenShiftCloud(_KubernetesProxyCloud):
 
 class CloudSigmaCloud(Cloud):
 
-    username = me.EmbeddedDocumentField(SecretValue, required=True)
+    username = me.StringField(required=True)
     password = me.EmbeddedDocumentField(SecretValue, required=True)
-    region = me.EmbeddedDocumentField(SecretValue, required=True)
+    region = me.StringField(required=True)
 
     _private_fields = ('password', )
     _controller_cls = controllers.CloudSigmaMainController
