@@ -127,13 +127,9 @@ class KV1VaultSecretController(VaultSecretController):
                                      owner=org)
 
             if key.endswith('/'):
-                secret.is_dir = True
-                secret.depth = secret.name.count("/") - 1
                 if recursive:
                     secrets += self.list_secrets(current_path + key,
                                                  recursive=True)
-            else:
-                secret.depth = secret.name.count("/")
             secret.save()
             secrets.append(secret)
 
@@ -242,13 +238,9 @@ class KV2VaultSecretController(VaultSecretController):
                                      owner=org)
 
             if key.endswith('/'):
-                secret.is_dir = True
-                secret.depth = secret.name.count("/") - 1
                 if recursive:
                     secrets += self.list_secrets(current_path + key,
                                                  recursive=True)
-            else:
-                secret.depth = secret.name.count("/")
             secret.save()
             secrets.append(secret)
 
