@@ -44,6 +44,7 @@ from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
 from mist.api.poller.models import ListZonesPollingSchedule
 from mist.api.poller.models import ListVolumesPollingSchedule
+from mist.api.poller.models import ListClustersPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
@@ -1264,6 +1265,8 @@ def update_poller(org_id):
             ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        if hasattr(cloud.ctl, 'container') and cloud.container_enabled:
+            ListClustersPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'objectstorage') and \
                 cloud.object_storage_enabled:
             ListBucketsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
