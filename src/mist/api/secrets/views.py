@@ -77,6 +77,7 @@ def create_secret(request):
 
     try:
         _secret.ctl.create_or_update_secret(secret)
+        _secret.ctl.list_secrets(recursive=True)
     except Exception as exc:
         _secret.delete()
         raise exc
@@ -153,6 +154,7 @@ def update_secret(request):
 
     auth_context.check_perm("secret", "edit", secret_id)
     _secret.ctl.create_or_update_secret(secret)
+    _secret.ctl.list_secrets(recursive=True)
 
     return OK
 
@@ -178,4 +180,6 @@ def delete_secret(request):
     auth_context.check_perm('secret', 'delete', secret_id)
     secret.ctl.delete_secret()
     secret.delete()
+    secret.ctl.list_secrets(recursive=True)
+
     return OK
