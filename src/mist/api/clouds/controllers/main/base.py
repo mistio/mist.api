@@ -171,6 +171,8 @@ class BaseMainController(object):
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
         self.cloud.object_storage_enabled = \
             kwargs.pop('object_storage_enabled', False) is True
+        self.cloud.container_enabled = kwargs.pop(
+            'container_enabled', False) is True
         self.cloud.observation_logs_enabled = True
         self.cloud.polling_interval = kwargs.pop('polling_interval', 30 * 60)
 
@@ -376,6 +378,14 @@ class BaseMainController(object):
         self.cloud.dns_enabled = False
         self.cloud.save()
 
+    def container_enable(self):
+        self.cloud.container_enabled = True
+        self.cloud.save()
+
+    def container_disable(self):
+        self.cloud.container_enabled = False
+        self.cloud.save()
+
     def object_storage_enable(self):
         from mist.api.poller.models import ListBucketsPollingSchedule
         self.cloud.object_storage_enabled = True
@@ -426,6 +436,7 @@ class BaseMainController(object):
         from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
         from mist.api.poller.models import ListBucketsPollingSchedule
+        from mist.api.poller.models import ListClustersPollingSchedule
 
         # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(
@@ -444,6 +455,12 @@ class BaseMainController(object):
         # Add volumes' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
+
+        # Add containers' polling schedule, if applicable.
+        if hasattr(self.cloud.ctl, 'container') and \
+                self.cloud.container_enabled:
+            ListClustersPollingSchedule.add(
                 cloud=self.cloud, run_immediately=True)
 
         if hasattr(self.cloud.ctl, 'objectstorage') and \
