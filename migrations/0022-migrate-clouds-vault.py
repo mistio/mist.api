@@ -2,9 +2,11 @@ import traceback
 import mongoengine as me
 
 from pymongo import MongoClient
+from mongoengine.fields import EmbeddedDocumentField
+
 from mist.api.config import MONGO_URI
 
-from mist.api.secrets.models import VaultSecret
+from mist.api.secrets.models import VaultSecret, SecretValue
 from mist.api.users.models import Owner
 
 from mist.api.clouds.models import *  # noqa
@@ -18,13 +20,24 @@ def migrate_clouds():
     failed = migrated = skipped = 0
     print('Will try to update %s clouds' % str(db_clouds.count()))
     for cloud in db_clouds.find():
+        skipped_all = True
         try:
             print('Updating cloud %s (%s)' % (cloud['_id'], cloud['name']))
             owner = Owner.objects.get(id=cloud['owner'])
 
-            private_fields = getattr(eval(cloud['_cls'].split('.')[1]),
-                                     '_private_fields')
-            for private_field in private_fields:
+            fields = getattr(eval(cloud['_cls'].split('.')[1]),
+                                     '_fields')
+            for field in fields:
+                # Skip fields that are not references to secrets
+                if not (isinstance(fields[field], EmbeddedDocumentField) \
+                        and fields[field].document_type is SecretValue):
+                    continue
+
+                if cloud[field].get('secret', None):
+                    continue
+                else:
+                    skipped_all = False
+
                 try:
                     secret = VaultSecret.objects.get(name="clouds/%s" %
                                                      cloud['name'],
@@ -51,18 +64,20 @@ def migrate_clouds():
                         private_field: cloud[private_field]
                     }
                     secret.ctl.create_or_update_secret(secret_dict)
-                else:
-                    skipped += 1
+
         except Exception:
             print('*** WARNING ** Could not migrate cloud %s' % cloud['_id'])
             traceback.print_exc()
             failed += 1
             continue
         else:
-            migrated += 1
+            if skipped_all:
+                skipped += 1
+            else:
+                migrated += 1
 
     print('Clouds migrated: ' + str(migrated))
-    print('Skipped fields: ' + str(skipped))
+    print('Clouds skipped: ' + str(skipped))
     print('Failed to migrate: ' + str(failed))
 
 
