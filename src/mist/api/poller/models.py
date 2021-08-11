@@ -298,6 +298,12 @@ class ListClustersPollingSchedule(CloudPollingSchedule):
             log.error('Cannot get interval. Cloud is missing')
             return PollingInterval(every=0)
 
+    @property
+    def enabled(self):
+        return super(ListClustersPollingSchedule, self).enabled and \
+            hasattr(self.cloud.ctl, 'container') and \
+            self.cloud.container_enabled
+
 
 class ListLocationsPollingSchedule(CloudPollingSchedule):
 
