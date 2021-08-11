@@ -16,7 +16,8 @@ def migrate_keys():
     print('Will try to update %s keys' % str(db_keys.count()))
 
     for key in db_keys.find():
-        if key.get('private', {}).get('secret'):
+        if isinstance(key.get('private'), dict) and key['private'].get(
+                'secret'):
             skipped += 1
             continue
         try:

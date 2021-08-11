@@ -26,14 +26,15 @@ def migrate_clouds():
             owner = Owner.objects.get(id=cloud['owner'])
 
             fields = getattr(eval(cloud['_cls'].split('.')[1]),
-                                     '_fields')
+                             '_fields')
             for field in fields:
                 # Skip fields that are not references to secrets
-                if not (isinstance(fields[field], EmbeddedDocumentField) \
-                        and fields[field].document_type is SecretValue):
+                if not (isinstance(fields[field], EmbeddedDocumentField) and
+                        fields[field].document_type is SecretValue):
                     continue
 
-                if cloud[field].get('secret', None):
+                if isinstance(cloud[field], dict) and cloud[field].get(
+                        'secret'):
                     continue
                 else:
                     skipped_all = False
@@ -50,18 +51,18 @@ def migrate_clouds():
                 # update_one in clouds collection
                 secret_value = {
                     "secret": secret.id,
-                    "key": private_field
+                    "key": field
                 }
 
                 db_clouds.update_one(
                     {'_id': cloud['_id']},
-                    {'$set': {private_field: secret_value}}
+                    {'$set': {field: secret_value}}
                 )
 
-                # save to vault only if the private_field is set
-                if cloud.get(private_field, None):
+                # save to vault only if the field is set
+                if cloud.get(field, None):
                     secret_dict = {
-                        private_field: cloud[private_field]
+                        field: cloud[field]
                     }
                     secret.ctl.create_or_update_secret(secret_dict)
 
@@ -73,6 +74,7 @@ def migrate_clouds():
         else:
             if skipped_all:
                 skipped += 1
+                print('Skipped')
             else:
                 migrated += 1
 
