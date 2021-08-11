@@ -634,8 +634,8 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             elif v.endswith('$'):
                 mongo_operator = '__endswith'
                 v = v[:-1]
-            elif v.startswith('r') and (startsandendswith(v[1:], '"') \
-                                        or startsandendswith(v[1:], "'")):
+            elif v.startswith('r') and (startsandendswith(v[1:], '"') or
+                                        startsandendswith(v[1:], "'")):
                 v = re.compile(v[2:-1])
                 mongo_operator = ''
             else:
@@ -665,8 +665,8 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             elif v.endswith('$'):
                 mongo_operator = '__endswith'
                 v = v[:-1]
-            elif v.startswith('r') and (startsandendswith(v[1:], '"') \
-                                        or startsandendswith(v[1:], "'")):
+            elif v.startswith('r') and (startsandendswith(v[1:], '"') or
+                                        startsandendswith(v[1:], "'")):
                 v = re.compile(v[2:-1])
                 mongo_operator = ''
             else:
