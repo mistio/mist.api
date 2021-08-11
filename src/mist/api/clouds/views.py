@@ -405,11 +405,14 @@ def toggle_cloud(request):
         'observation_logs_enabled', None)
     object_storage_enabled = params_from_request(request).get(
         'object_storage_enabled', None)
+    container_enabled = params_from_request(request).get(
+        'container_enabled', None)
 
     if new_state is None and \
        dns_enabled is None and \
        observation_logs_enabled is None and \
-       object_storage_enabled is None:
+       object_storage_enabled is None and \
+       container_enabled is None:
         raise RequiredParameterMissingError('new_state or dns_enabled or \
           observation_logs_enabled or object_storage_enabled')
 
@@ -440,6 +443,13 @@ def toggle_cloud(request):
         cloud.ctl.observation_logs_disable()
     elif observation_logs_enabled:
         raise BadRequestError('Invalid observation_logs_enabled state')
+
+    if container_enabled == 1:
+        cloud.ctl.container_enable()
+    elif container_enabled == 0:
+        cloud.ctl.container_disable()
+    elif container_enabled:
+        raise BadRequestError('Invalid container_enabled state')
 
     trigger_session_update(auth_context.owner, ['clouds'])
     return OK
