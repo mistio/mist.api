@@ -380,7 +380,7 @@ class BaseContainerController(BaseController):
         except Exception as exc:
             log.exception("Error while running list_clusters on %s",
                           self.cloud)
-            raise CloudUnavailableError(exc=exc)
+            raise CloudUnavailableError(msg=str(exc))
         clusters = []
         now = datetime.datetime.utcnow()
         # This is a map of locations' external IDs and names to CloudLocation
