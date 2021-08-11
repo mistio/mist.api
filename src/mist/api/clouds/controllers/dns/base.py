@@ -359,8 +359,7 @@ class BaseDNSController(BaseController):
         """
         Public method called to delete the specific zone for the provided id.
         """
-        self._delete_zone__for_cloud(zone.zone_id)
-        self.list_zones()
+        self._delete_zone__for_cloud(zone.external_id)
         from mist.api.poller.models import ListZonesPollingSchedule
         ListZonesPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
