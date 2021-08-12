@@ -272,9 +272,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     """
     # script: a command that is given once
-    # script_id: id of a script that exists - for mist.core
+    # script_id: id of a script that exists
     # script_params: extra params, for script_id
-    # post_script_id: id of a script that exists - for mist.core. If script_id
+    # post_script_id: id of a script that exists. If script_id
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
