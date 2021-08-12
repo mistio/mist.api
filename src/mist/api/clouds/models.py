@@ -739,7 +739,8 @@ class _KubernetesBaseCloud(Cloud):
     verify = me.BooleanField(required=False)
 
     _private_fields = (
-        'username', 'password', 'key_file', 'cert_file', 'ca_cert_file')
+        'username', 'password', 'token',
+        'key_file', 'cert_file', 'ca_cert_file')
 
 
 class KubeVirtCloud(_KubernetesBaseCloud):
