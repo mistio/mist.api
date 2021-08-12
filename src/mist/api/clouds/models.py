@@ -131,6 +131,7 @@ class Cloud(OwnershipMixin, me.Document):
     dns_enabled = me.BooleanField(default=False)
     object_storage_enabled = me.BooleanField(default=False)
     observation_logs_enabled = me.BooleanField(default=False)
+    container_enabled = me.BooleanField(default=False)
 
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)
@@ -253,6 +254,7 @@ class Cloud(OwnershipMixin, me.Document):
             'dns_enabled': self.dns_enabled,
             'object_storage_enabled': self.object_storage_enabled,
             'observation_logs_enabled': self.observation_logs_enabled,
+            'container_enabled': self.container_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
             'tags': {
@@ -295,6 +297,7 @@ class Cloud(OwnershipMixin, me.Document):
                 'dns': self.dns_enabled,
                 'object_storage_enabled': self.object_storage_enabled,
                 'observations': self.observation_logs_enabled,
+                'container': self.container_enabled,
                 'polling': self.polling_interval
             }
 
