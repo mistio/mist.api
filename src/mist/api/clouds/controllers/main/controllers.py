@@ -819,6 +819,9 @@ class KubeVirtMainController(_KubernetesBaseMainController):
     provider = 'kubevirt'
     ComputeController = compute_ctls.KubeVirtComputeController
 
+    def _update__preparse_kwargs(self, kwargs):
+        kwargs.pop('authentication', None)
+
 
 class OpenShiftMainController(_KubernetesBaseMainController):
     provider = 'openshift'
