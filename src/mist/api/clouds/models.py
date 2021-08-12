@@ -561,7 +561,7 @@ class AzureCloud(Cloud):
     subscription_id = me.EmbeddedDocumentField(SecretValue, required=True)
     certificate = me.EmbeddedDocumentField(SecretValue, required=True)
 
-    _private_fields = ('certificate', )
+    _private_fields = ('subscription_id', 'certificate', )
     _controller_cls = controllers.AzureMainController
 
 
@@ -655,17 +655,18 @@ class DockerCloud(Cloud):
     port = me.IntField(required=True, default=4243)
 
     # User/Password Authentication (optional)
-    username = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=False)
     password = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # TLS Authentication (optional)
     key_file = me.EmbeddedDocumentField(SecretValue, required=False)
-    cert_file = me.StringField(required=False)
-    ca_cert_file = me.StringField(required=False)
+    cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
     # Show running and stopped containers
     show_all = me.BooleanField(default=False)
 
-    _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
+    _private_fields = (
+        'username', 'password', 'key_file', 'cert_file', 'ca_cert_file')
     _controller_cls = controllers.DockerMainController
 
 
@@ -678,18 +679,19 @@ class LXDCloud(Cloud):
     port = me.IntField(required=True, default=8443)
 
     # User/Password Authentication (optional)
-    username = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=False)
     password = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # TLS Authentication (optional)
     key_file = me.EmbeddedDocumentField(SecretValue, required=False)
-    cert_file = me.StringField(required=False)
-    ca_cert_file = me.StringField(required=False)
+    cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # Show running and stopped containers
     show_all = me.BooleanField(default=False)
 
-    _private_fields = ('password', 'key_file')
+    _private_fields = (
+        'username', 'password', 'key_file', 'cert_file', 'ca_cert_file')
     _controller_cls = controllers.LXDMainController
 
 
@@ -720,7 +722,7 @@ class _KubernetesBaseCloud(Cloud):
     port = me.IntField(required=True, default=6443)
 
     # USER / PASS authentication optional
-    username = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=False)
     password = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # Bearer Token authentication optional
@@ -736,7 +738,8 @@ class _KubernetesBaseCloud(Cloud):
     # certificate verification
     verify = me.BooleanField(required=False)
 
-    _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
+    _private_fields = (
+        'username', 'password', 'key_file', 'cert_file', 'ca_cert_file')
 
 
 class KubeVirtCloud(_KubernetesBaseCloud):
