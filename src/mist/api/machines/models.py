@@ -50,7 +50,6 @@ class InstallationStatus(me.EmbeddedDocument):
     #               returned command for manual install
     # - succeeded: Set when activated_at is set (see below)
     state = me.StringField()
-    # True only for mist.core automatic installations
     manual = me.BooleanField()
 
     activated_at = me.IntField()  # Data for period after started_at received
