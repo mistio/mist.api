@@ -2979,17 +2979,6 @@ UGLY_RBAC = ""
 
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
-# Get settings from mist.core.
-CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
-                                'src', 'mist', 'core', 'config.py')
-if os.path.exists(CORE_CONFIG_PATH):
-    log.warn("Will load core config from %s" % CORE_CONFIG_PATH)
-    exec(compile(open(CORE_CONFIG_PATH).read(), CORE_CONFIG_PATH, 'exec'))
-    HAS_CORE = True
-else:
-    log.error("Couldn't find core config in %s" % CORE_CONFIG_PATH)
-    HAS_CORE = False
-
 CONFIG_OVERRIDE_FILES = []
 
 # Load defaults file if defined
