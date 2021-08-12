@@ -1283,9 +1283,9 @@ class AzureComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
         tmp_cert_file = tempfile.NamedTemporaryFile(delete=False)
-        tmp_cert_file.write(self.cloud.certificate.encode())
+        tmp_cert_file.write(self.cloud.certificate.value.encode())
         tmp_cert_file.close()
-        return get_driver(Provider.AZURE)(self.cloud.subscription_id,
+        return get_driver(Provider.AZURE)(self.cloud.subscription_id.value,
                                           tmp_cert_file.name)
 
     def _list_machines__postparse_machine(self, machine, node_dict):
@@ -3066,12 +3066,12 @@ class DockerComputeController(BaseComputeController):
             key_temp_file.write(self.cloud.key_file.value.encode())
             key_temp_file.close()
             cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            cert_temp_file.write(self.cloud.cert_file.encode())
+            cert_temp_file.write(self.cloud.cert_file.value.encode())
             cert_temp_file.close()
             ca_cert = None
             if self.cloud.ca_cert_file:
                 ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+                ca_cert_temp_file.write(self.cloud.ca_cert_file.value.encode())
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
@@ -3086,7 +3086,7 @@ class DockerComputeController(BaseComputeController):
         if self.cloud.username and self.cloud.password:
 
             return get_container_driver(Container_Provider.DOCKER)(
-                key=self.cloud.username,
+                key=self.cloud.username.value,
                 secret=self.cloud.password.value,
                 host=host, port=port)
         # open authentication.
@@ -3483,7 +3483,7 @@ class LXDComputeController(BaseComputeController):
         if self.cloud.username and self.cloud.password:
 
             return get_container_driver(Container_Provider.LXD)(
-                key=self.cloud.username,
+                key=self.cloud.username.value,
                 secret=self.cloud.password.value,
                 host=host, port=port)
         # open authentication.
@@ -3500,13 +3500,13 @@ class LXDComputeController(BaseComputeController):
         key_temp_file.write(self.cloud.key_file.value.encode())
         key_temp_file.close()
         cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-        cert_temp_file.write(self.cloud.cert_file.encode())
+        cert_temp_file.write(self.cloud.cert_file.value.encode())
         cert_temp_file.close()
         ca_cert = None
 
         if self.cloud.ca_cert_file:
             ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.value.encode())
             ca_cert_temp_file.close()
             ca_cert = ca_cert_temp_file.name
 
@@ -4346,7 +4346,7 @@ class _KubernetesBaseComputeController(BaseComputeController):
                                                ex_token_bearer_auth=True)
         # username/password auth
         elif self.cloud.username and self.cloud.password:
-            key = self.cloud.username
+            key = self.cloud.username.value
             secret = self.cloud.password.value
 
             return get_driver_method(provider)(key=key,
