@@ -2353,7 +2353,7 @@ def register_dev_user(request):
     email = params.get('email', '').strip().lower()
     password = params.get('password')
     name = params.get('name', '').strip()
-    org_name = params.get('org_name')
+    org_name = params.get('org_name', email)
     if not org_name:
         org_name = email
     name_parts = name.split(' ', 1)
