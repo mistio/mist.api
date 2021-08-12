@@ -491,7 +491,7 @@ class SecretsPollingSchedule(PollingSchedule):
                 # Work around race condition where schedule was created since
                 # last time we checked.
                 schedule = cls.objects.get(owner=owner)
-        schedule.set_default_interval(60 * 60 * 2)
+        schedule.set_default_interval(60 * 10)
         if interval is not None:
             schedule.add_interval(interval, ttl)
         if run_immediately:
