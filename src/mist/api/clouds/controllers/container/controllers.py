@@ -50,6 +50,9 @@ class GoogleContainerController(BaseContainerController):
         cluster.total_nodes = cluster_dict['node_count']
         updated = True
         cluster.config = cluster_dict['config']
+        cluster.credentials = cluster_dict['credentials']
+        cluster.total_cpus = cluster_dict['total_cpus']
+        cluster.total_memory = cluster_dict['total_memory']
         return updated
 
 
@@ -64,4 +67,7 @@ class AmazonContainerController(BaseContainerController):
         updated = False
         cluster.config = cluster_dict['config']
         updated = True
+        cluster.credentials = cluster_dict['credentials']
+        cluster.total_cpus = cluster_dict['total_cpus']
+        cluster.total_memory = cluster_dict['total_memory']
         return updated

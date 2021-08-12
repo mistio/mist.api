@@ -34,9 +34,12 @@ import os
 import json
 import time
 import secrets
+import requests
 
 import mongoengine as me
 
+from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectTimeout
 from time import sleep
 from html import unescape
 
@@ -4293,14 +4296,11 @@ class _KubernetesBaseComputeController(BaseComputeController):
     def _connect(self, provider, use_container_driver=True, **kwargs):
         host, port = dnat(self.cloud.owner,
                           self.cloud.host, self.cloud.port)
+        url = f'https://{sanitize_host(host)}'
         try:
-            socket.setdefaulttimeout(15)
-            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            so.connect((sanitize_host(host), int(port)))
-            so.close()
-        except:
-            raise Exception("Make sure host is accessible "
-                            "and kubernetes port is specified")
+            requests.get(url, verify=False, timeout=15)
+        except (ConnectionError, ConnectTimeout):
+            raise Exception("Make sure host is accessible. ")
         if use_container_driver:
             get_driver_method = get_container_driver
         else:

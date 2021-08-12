@@ -82,6 +82,7 @@ class Cluster(OwnershipMixin, me.Document):
     total_nodes = me.IntField()
     total_cpus = me.IntField()
     total_memory = me.IntField()
+    credentials = MistDictField()
     config = MistDictField()
     extra = MistDictField()
     state = me.StringField(
@@ -158,6 +159,7 @@ class Cluster(OwnershipMixin, me.Document):
             'total_cpus': self.total_cpus,
             'total_memory': self.total_memory,
             'location': self.location.id if self.location else '',
+            'credentials': self.credentials,
             'config': self.config,
             'extra': self.extra,
             'state': self.state,
@@ -181,6 +183,7 @@ class Cluster(OwnershipMixin, me.Document):
             'total_cpus',
             'total_memory',
             'location',
+            'credentials',
             'config',
             'extra',
             'state',
