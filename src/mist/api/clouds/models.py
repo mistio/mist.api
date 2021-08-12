@@ -616,7 +616,7 @@ class VSphereCloud(Cloud):
     host = me.StringField(required=True)
     username = me.StringField(required=True)
     password = me.EmbeddedDocumentField(SecretValue, required=True)
-    ca_cert_file = me.StringField(required=False)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
     # Some vSphere clouds will timeout when calling list_nodes, unless we
     # perform the requests in batches, fetching a few properties each time.
     # The following property should be set to something like 4 when that
