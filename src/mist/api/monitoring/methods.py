@@ -817,7 +817,7 @@ def notify_machine_monitoring(machine):
     patches = []
     patches.append({
         "path": "/%s-%s/monitoring" % (
-            machine.id, machine.machine_id),
+            machine.id, machine.external_id),
         "value": machine.monitoring.as_dict(),
         "op": "replace"
     })
