@@ -3301,13 +3301,20 @@ class BaseComputeController(BaseController):
             dt, _ = key
             dt = int(datetime.datetime.timestamp(
                 datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
-            data = requests.get(
-                f"{read_uri}/api/v1/query"
-                f"?query={query}&time={dt}",
-                timeout=20)
-
-            if not data.ok:
-                log.warning(data.text)
+            error_msg = f"Could not fetch metering data with query: {query}"
+            try:
+                data = requests.get(
+                    f"{read_uri}/api/v1/query"
+                    f"?query={query}&time={dt}",
+                    timeout=20)
+            except requests.exceptions.RequestException as e:
+                error_details = str(e)
+                self._report_metering_error(error_msg, error_details)
+                continue
+            if data and not data.ok:
+                error_details = f"code: {data.status_code} response: {data.text}"
+                self._report_metering_error(error_msg, error_details)
+                continue
 
             data = data.json()
 
@@ -3330,13 +3337,20 @@ class BaseComputeController(BaseController):
             f",value_type=\"{properties['type']}\"}}"
             f"[{config.METERING_PROMQL_LOOKBACK}])"
         )
-        data = requests.get(
-            f"{read_uri}/api/v1/query"
-            f"?query={query}",
-            timeout=20)
-
-        if not data.ok:
-            log.warning(data.text)
+        error_msg = f"Could not fetch old counter value with query: {query}"
+        try:
+            data = requests.get(
+                f"{read_uri}/api/v1/query"
+                f"?query={query}",
+                timeout=20)
+        except requests.exceptions.RequestException as e:
+            error_details = str(e)
+            self._report_metering_error(error_msg, error_details)
+            return None
+        if data and not data.ok:
+            error_details = f"code: {data.status_code} response: {data.text}"
+            self._report_metering_error(error_msg, error_details)
+            return None
 
         data = data.json()
         results = data.get("data", {}).get("result", [])
@@ -3400,11 +3414,35 @@ class BaseComputeController(BaseController):
 
     def _send_metering_data(self, fresh_metering_data):
         tenant = str(int(self.cloud.owner.id[:8], 16))
-        result = requests.post(
-            config.VICTORIAMETRICS_WRITE_URI.replace(
-                "<org_id>", tenant),
-            data=fresh_metering_data, timeout=20)
-        if not result.ok:
-            log.warning(
-                f"Error when sending metering data,"
-                f" code: {result.status_code} response: {result.text}")
+        error_msg = "Could not send metering data"
+        result = None
+        try:
+            result = requests.post(
+                config.VICTORIAMETRICS_WRITE_URI.replace(
+                    "<org_id>", tenant),
+                data=fresh_metering_data, timeout=20)
+        except requests.exceptions.RequestException as e:
+            error_details = str(e)
+            self._report_metering_error(error_msg, error_details)
+        if result and not result.ok:
+            error_details = f"code: {result.status_code} response: {result.text}"
+            self._report_metering_error(error_msg, error_details)
+
+    def _report_metering_error(self, error_msg, error_details):
+        from mist.api.methods import notify_admin
+        log_entry = error_msg + ", " + error_details
+        log.warning(log_entry)
+        notify_admin(error_msg,
+                     message=error_details)
+        if not config.METERING_NOTIFICATIONS_WEBHOOK:
+            return
+        response = requests.post(
+            config.METERING_NOTIFICATIONS_WEBHOOK,
+            data=json.dumps({'text': config.CORE_URI + ': ' + log_entry}),
+            headers={'Content-Type': 'application/json'}
+        )
+        if response.status_code != 200:
+            log.error(
+                'Request to slack returned an error %s, the response is:'
+                '\n%s' % (response.status_code, response.text)
+            )

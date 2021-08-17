@@ -58,6 +58,7 @@ LANDING_CDN_URI = ""
 BLOG_CDN_URI = ""
 
 METERING_PROMQL_LOOKBACK = "2h"
+METERING_NOTIFICATIONS_WEBHOOK = ""
 METERING_METRICS = {
     "default": {
         'core_hours': {'type': 'counter', 'value': lambda machine, dt: dt * (
