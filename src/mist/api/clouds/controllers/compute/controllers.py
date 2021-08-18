@@ -3041,6 +3041,119 @@ class OpenStackComputeController(BaseComputeController):
     def _list_locations__fetch_locations(self):
         return self.connection.ex_list_availability_zones()
 
+    def _generate_plan__parse_location(self, auth_context, location_search):
+        # If a location string is not given, let openstack set
+        # the default location
+        if not location_search:
+            from mist.api.clouds.models import CloudLocation
+            return [CloudLocation()]
+
+        return super()._generate_plan__parse_location(
+            auth_context, location_search)
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        from mist.api.methods import list_resources
+        ret_dict = {}
+
+        ret_dict['associate_floating_ip'] = True if networks_dict.get(
+            'associate_floating_ip', True) is True else False
+
+        networks = networks_dict.get('networks', [])
+        ret_dict['networks'] = []
+        for net in networks:
+            try:
+                [network], _ = list_resources(auth_context, 'network',
+                                              search=net,
+                                              cloud=self.cloud.id,
+                                              limit=1)
+            except ValueError:
+                raise NotFoundError(f'Network {net} does not exist')
+
+            ret_dict['networks'].append({'id': network.network_id,
+                                         'name': network.name})
+
+        try:
+            security_groups = set(networks_dict.get('security_groups', []))
+        except TypeError:
+            raise BadRequestError('Invalid type for security groups')
+
+        ret_dict['security_groups'] = []
+        if security_groups:
+            try:
+                sec_groups = \
+                    self.cloud.ctl.compute.connection.ex_list_security_groups(
+                        tenant_id=self.cloud.tenant_id
+                    )
+            except Exception as exc:
+                log.exception('Could not list security groups for cloud %s',
+                              self.cloud)
+                raise CloudUnavailableError(exc=exc) from None
+
+            ret_dict['security_groups'] = list({
+                sec_group.name for sec_group in sec_groups
+                if sec_group.name in security_groups or
+                sec_group.id in security_groups})
+
+        return ret_dict
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        delete_on_termination = True if volume_dict.get(
+            'delete_on_termination', False) is True else False
+
+        boot = True if volume_dict.get(
+            'boot', False) is True else False
+
+        return {
+            'id': vol_obj.id,
+            'name': vol_obj.name,
+            'delete_on_termination': delete_on_termination,
+            'boot': boot,
+        }
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+
+        try:
+            type_ = str(volume_dict['type'])
+        except KeyError:
+            type_ = None
+        else:
+            volume_types = self.cloud.ctl.storage.list_storage_classes()
+            if type_ not in volume_types:
+                raise BadRequestError('Invalid volume size type')
+
+        delete_on_termination = True if volume_dict.get(
+            'delete_on_termination', False) is True else False
+
+        boot = True if volume_dict.get(
+            'boot', False) is True else False
+
+        return {
+            'size': size,
+            'type': type_,
+            'delete_on_termination': delete_on_termination,
+            'boot': boot,
+        }
+
+    def _generate_plan__post_parse_plan(self, plan):
+        volumes = plan.get('volumes', [])
+
+        # make sure boot drive is first if it exists
+        volumes.sort(key=lambda k: k.get('boot') or False,
+                     reverse=True)
+
+        if len(volumes) > 1:
+            # make sure only one boot volume is set
+            if volumes[1].get('boot') is True:
+                raise BadRequestError('Up to 1 volume must be set as boot')
+
+        plan['volumes'] = volumes
+
 
 class DockerComputeController(BaseComputeController):
 
