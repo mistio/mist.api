@@ -3144,7 +3144,7 @@ class OpenStackComputeController(BaseComputeController):
         volumes = plan.get('volumes', [])
 
         # make sure boot drive is first if it exists
-        volumes.sort(key=lambda k: k.get('boot') or False,
+        volumes.sort(key=lambda k: k['boot'],
                      reverse=True)
 
         if len(volumes) > 1:
@@ -3153,6 +3153,78 @@ class OpenStackComputeController(BaseComputeController):
                 raise BadRequestError('Up to 1 volume must be set as boot')
 
         plan['volumes'] = volumes
+
+    def _create_machine__compute_kwargs(self, plan):
+        from libcloud.compute.drivers.openstack import OpenStackSecurityGroup
+        kwargs = super()._create_machine__compute_kwargs(plan)
+
+        if plan.get('cloudinit'):
+            kwargs['ex_userdata'] = plan['cloudinit']
+
+        key = kwargs.pop('auth')
+        try:
+            openstack_keys = self.connection.ex_list_keypairs()
+        except Exception as exc:
+            log.exception('Failed to fetch keypairs')
+            raise
+
+        for openstack_key in openstack_keys:
+            if key.public == openstack_key.public_key:
+                server_key = openstack_key
+                break
+        else:
+            try:
+                server_key = self.connection.ex_import_keypair_from_string(
+                    name=f'mistio-{secrets.token_hex(3)}',
+                )
+            except Exception:
+                log.exception('Failed to create keypair')
+                raise
+        kwargs['ex_keyname'] = server_key.name
+
+        kwargs['networks'] = [network['id']
+                              for network in plan['networks']['networks']]
+
+        # use dummy objects with only the name attribute,
+        # as it's the only one that's needed.
+        kwargs['ex_security_groups'] = [
+            OpenStackSecurityGroup(id=None,
+                                   name=sec_group,
+                                   tenant_id=None,
+                                   description=None,
+                                   driver=self.connection)
+            for sec_group in plan['networks']['security_groups']
+        ]
+
+        blockdevicemappings = []
+        for volume in plan['volumes']:
+            mapping = {
+                'delete_on_termination': volume['delete_on_termination'],
+                'destination_type': 'volume',
+            }
+            if volume.get('id'):
+                from mist.api.volumes.models import Volume
+                vol = Volume.objects.get(id=volume['id'])
+                if volume['boot'] is True:
+                    mapping['boot_index'] = 0
+                else:
+                    mapping['boot_index'] = None
+                mapping['uuid'] = vol.external_id
+                mapping['source_type'] = 'volume'
+            else:
+                mapping['volume_size'] = volume['size']
+                if volume['boot'] is True:
+                    mapping['boot_index'] = 0
+                    mapping['source_type'] = 'image'
+                    mapping['uuid'] = kwargs.pop('image').id
+                else:
+                    mapping['boot_index'] = None
+                    mapping['source_type'] = 'blank'
+                if volume['type'] is not None:
+                    mapping['volume_type'] = volume['type']
+
+        kwargs['ex_blockdevicemappings'] = blockdevicemappings
+        return kwargs
 
 
 class DockerComputeController(BaseComputeController):
