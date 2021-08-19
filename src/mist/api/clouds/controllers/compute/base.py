@@ -3303,10 +3303,8 @@ class BaseComputeController(BaseController):
                 datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
             error_msg = f"Could not fetch metering data with query: {query}"
             try:
-                data = requests.get(
-                    f"{read_uri}/api/v1/query"
-                    f"?query={query}&time={dt}",
-                    timeout=20)
+                data = requests.post(f"{read_uri}/api/v1/query",
+                                     data={"query": query, "time": dt}, timeout=20)
             except requests.exceptions.RequestException as e:
                 error_details = str(e)
                 self._report_metering_error(error_msg, error_details)
@@ -3339,10 +3337,8 @@ class BaseComputeController(BaseController):
         )
         error_msg = f"Could not fetch old counter value with query: {query}"
         try:
-            data = requests.get(
-                f"{read_uri}/api/v1/query"
-                f"?query={query}",
-                timeout=20)
+            data = requests.post(
+                f"{read_uri}/api/v1/query", data={"query": query}, timeout=20)
         except requests.exceptions.RequestException as e:
             error_details = str(e)
             self._report_metering_error(error_msg, error_details)
