@@ -3304,13 +3304,15 @@ class BaseComputeController(BaseController):
             error_msg = f"Could not fetch metering data with query: {query}"
             try:
                 data = requests.post(f"{read_uri}/api/v1/query",
-                                     data={"query": query, "time": dt}, timeout=20)
+                                     data={"query": query, "time": dt},
+                                     timeout=20)
             except requests.exceptions.RequestException as e:
                 error_details = str(e)
                 self._report_metering_error(error_msg, error_details)
                 continue
             if data and not data.ok:
-                error_details = f"code: {data.status_code} response: {data.text}"
+                error_details = (f"code: {data.status_code}"
+                                 f" response: {data.text}")
                 self._report_metering_error(error_msg, error_details)
                 continue
 
@@ -3421,7 +3423,8 @@ class BaseComputeController(BaseController):
             error_details = str(e)
             self._report_metering_error(error_msg, error_details)
         if result and not result.ok:
-            error_details = f"code: {result.status_code} response: {result.text}"
+            error_details = (f"code: {result.status_code}"
+                             f" response: {result.text}")
             self._report_metering_error(error_msg, error_details)
 
     def _report_metering_error(self, error_msg, error_details):
