@@ -3222,8 +3222,19 @@ class OpenStackComputeController(BaseComputeController):
                     mapping['source_type'] = 'blank'
             blockdevicemappings.append(mapping)
 
+        # This is a workaround for an issue which occurs only
+        # when non-boot volumes are passed. Openstack expects a
+        # block device mapping with boot_index 0.
+        # http://lists.openstack.org/pipermail/openstack-dev/2015-March/059332.html  # noqa
+        if (blockdevicemappings and
+                blockdevicemappings[0]['boot_index'] is None):
+            blockdevicemappings.insert(0, {'uuid': kwargs.pop('image').id,
+                                           'source_type': 'image',
+                                           'destination_type': 'local',
+                                           'boot_index': 0,
+                                           'delete_on_termination': True})
+
         kwargs['ex_blockdevicemappings'] = blockdevicemappings
-        log.info("KWARGS ARE %s", kwargs)
         return kwargs
 
 
