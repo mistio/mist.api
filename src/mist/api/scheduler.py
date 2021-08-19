@@ -53,7 +53,7 @@ def add_job(scheduler, schedule, actor, first_run=False):
         elif schedule.schedule_type.type == 'crontab':
             job['trigger'] = CronTrigger.from_crontab(
                 schedule.schedule_type.as_cron())
-        elif schedule.schedule_type.type == 'one_off':
+        elif schedule.schedule_type.type in ('one_off', 'reminder'):
             job['run_date'] = schedule.schedule_type.entry
         else:
             log.error('Invalid schedule type: %s' % schedule.schedule_type)
@@ -110,7 +110,7 @@ def update_job(scheduler, schedule, actor, existing):
             # Update crontab
             if str(new_trigger) != str(existing.trigger):
                 changes['trigger'] = new_trigger
-        elif schedule.schedule_type.type == 'one_off':
+        elif schedule.schedule_type.type in ('one_off', 'reminder'):
             # Update run_date
             if existing.trigger.run_date != \
                     pytz.utc.localize(schedule.schedule_type.entry):
