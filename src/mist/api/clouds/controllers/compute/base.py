@@ -2800,7 +2800,8 @@ class BaseComputeController(BaseController):
                         cloud=self.cloud.id
                     )
                 except ValueError:
-                    raise NotFoundError('Volume does not exist')
+                    raise NotFoundError(
+                        f"Volume {volume['volume']} does not exist")
                 volume_dict = self._generate_plan__parse_volume_attrs(volume,
                                                                       vol)
                 ret_volumes.append(volume_dict)

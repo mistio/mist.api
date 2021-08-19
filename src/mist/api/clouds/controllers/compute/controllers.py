@@ -3053,6 +3053,8 @@ class OpenStackComputeController(BaseComputeController):
 
     def _generate_plan__parse_networks(self, auth_context, networks_dict):
         from mist.api.methods import list_resources
+        from mist.api.networks.models import Network
+
         ret_dict = {}
 
         ret_dict['associate_floating_ip'] = True if networks_dict.get(
@@ -3060,6 +3062,11 @@ class OpenStackComputeController(BaseComputeController):
 
         networks = networks_dict.get('networks', [])
         ret_dict['networks'] = []
+
+        # if multiple networks exist, network parameter must be defined
+        if (len(networks) == 0 and Network.objects(cloud=self.cloud, missing_since=None).count() > 1):  # noqa
+            raise BadRequestError('Multiple networks found, define a network to be more specific.')  # noqa
+
         for net in networks:
             try:
                 [network], _ = list_resources(auth_context, 'network',
@@ -3118,15 +3125,6 @@ class OpenStackComputeController(BaseComputeController):
         except (TypeError, ValueError):
             raise BadRequestError('Invalid volume size type')
 
-        try:
-            type_ = str(volume_dict['type'])
-        except KeyError:
-            type_ = None
-        else:
-            volume_types = self.cloud.ctl.storage.list_storage_classes()
-            if type_ not in volume_types:
-                raise BadRequestError('Invalid volume size type')
-
         delete_on_termination = True if volume_dict.get(
             'delete_on_termination', False) is True else False
 
@@ -3135,7 +3133,6 @@ class OpenStackComputeController(BaseComputeController):
 
         return {
             'size': size,
-            'type': type_,
             'delete_on_termination': delete_on_termination,
             'boot': boot,
         }
@@ -3156,6 +3153,7 @@ class OpenStackComputeController(BaseComputeController):
 
     def _create_machine__compute_kwargs(self, plan):
         from libcloud.compute.drivers.openstack import OpenStackSecurityGroup
+        from libcloud.compute.drivers.openstack import OpenStackNetwork
         kwargs = super()._create_machine__compute_kwargs(plan)
 
         if plan.get('cloudinit'):
@@ -3163,7 +3161,7 @@ class OpenStackComputeController(BaseComputeController):
 
         key = kwargs.pop('auth')
         try:
-            openstack_keys = self.connection.ex_list_keypairs()
+            openstack_keys = self.connection.list_key_pairs()
         except Exception as exc:
             log.exception('Failed to fetch keypairs')
             raise
@@ -3182,11 +3180,13 @@ class OpenStackComputeController(BaseComputeController):
                 raise
         kwargs['ex_keyname'] = server_key.name
 
-        kwargs['networks'] = [network['id']
+        # use dummy objects with only the attributes needed
+        kwargs['networks'] = [OpenStackNetwork(network['id'],
+                                               None,
+                                               None,
+                                               self.connection)
                               for network in plan['networks']['networks']]
 
-        # use dummy objects with only the name attribute,
-        # as it's the only one that's needed.
         kwargs['ex_security_groups'] = [
             OpenStackSecurityGroup(id=None,
                                    name=sec_group,
@@ -3220,10 +3220,10 @@ class OpenStackComputeController(BaseComputeController):
                 else:
                     mapping['boot_index'] = None
                     mapping['source_type'] = 'blank'
-                if volume['type'] is not None:
-                    mapping['volume_type'] = volume['type']
+            blockdevicemappings.append(mapping)
 
         kwargs['ex_blockdevicemappings'] = blockdevicemappings
+        log.info("KWARGS ARE %s", kwargs)
         return kwargs
 
 
