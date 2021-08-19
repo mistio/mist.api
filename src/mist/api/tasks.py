@@ -1779,8 +1779,8 @@ def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
         if script.get('id'):
             tmp_log('will run script_id %s', script['id'])
             params = script.get('params', '')
-            ret = run_script.run(
-                auth_context.owner, script['id'], machine_id,
+            ret = run_script.send(
+                auth_context.owner.id, script['id'], machine_id,
                 params=params, host=host, job_id=job_id
             )
             tmp_log('executed script_id %s', script['id'])
