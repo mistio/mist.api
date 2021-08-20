@@ -3243,6 +3243,60 @@ class OpenStackComputeController(BaseComputeController):
         kwargs['ex_blockdevicemappings'] = blockdevicemappings
         return kwargs
 
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        if plan['networks']['associate_floating_ip'] is False:
+            return
+
+        # From the already created floating ips try to find one
+        # that is not associated to a node
+        floating_ips = self.connection.ex_list_floating_ips()
+        unassociated_floating_ip = next((ip for ip in floating_ips
+                                         if ip.status == 'DOWN'), None)
+
+        # Find the ports which are associated to the machine
+        # (e.g. the ports of the private ips)
+        # and use one to associate a floating ip
+        for _ in range(5):
+            ports = self.connection.ex_list_ports()
+            machine_port_id = next((port.id for port in ports
+                                    if port.extra.get('device_id') == node.id),  # noqa
+                                   None)
+            if machine_port_id is None:
+                # sleep in case a port has not been yet associated
+                # with the machine
+                time.sleep(5)
+            else:
+                break
+        else:
+            log.error('Unable to find machine port.'
+                      'OpenstackCloud: %s, Machine external_id: %s',
+                      self.cloud.id, node.id)
+            return
+
+        if unassociated_floating_ip:
+            log.info('Associating floating ip with machine: %s', node.id)
+            try:
+                self.connection.ex_associate_floating_ip_to_node(
+                    unassociated_floating_ip.id, machine_port_id)
+            except BaseHTTPError:
+                log.exception('Failed to associate ip address to node')
+        else:
+            # Find the external network
+            networks = self.connection.ex_list_networks()
+            ext_net_id = next((network.id for network in networks
+                               if network.router_external is True),
+                              None)
+            if ext_net_id is None:
+                log.error('Failed to find external network')
+                return
+            log.info('Create and associating floating ip with machine: %s',
+                     node.id)
+            try:
+                self.connection.ex_create_floating_ip(ext_net_id,
+                                                      machine_port_id)
+            except BaseHTTPError:
+                log.exception('Failed to create floating ip address')
+
 
 class DockerComputeController(BaseComputeController):
 
