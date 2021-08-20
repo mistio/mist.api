@@ -3048,8 +3048,11 @@ class OpenStackComputeController(BaseComputeController):
             from mist.api.clouds.models import CloudLocation
             return [CloudLocation()]
 
-        return super()._generate_plan__parse_location(
+        locations = super()._generate_plan__parse_location(
             auth_context, location_search)
+        # filter out locations that do not supoort compute resources
+        return [location for location in locations
+                if location.extra.get('compute', False) is True]
 
     def _generate_plan__parse_networks(self, auth_context, networks_dict):
         from mist.api.methods import list_resources
@@ -3155,6 +3158,9 @@ class OpenStackComputeController(BaseComputeController):
         from libcloud.compute.drivers.openstack import OpenStackSecurityGroup
         from libcloud.compute.drivers.openstack import OpenStackNetwork
         kwargs = super()._create_machine__compute_kwargs(plan)
+
+        if kwargs.get('location'):
+            kwargs['ex_availability_zone'] = kwargs.pop('location').name
 
         if plan.get('cloudinit'):
             kwargs['ex_userdata'] = plan['cloudinit']
