@@ -3385,10 +3385,50 @@ class BaseComputeController(BaseController):
             return 0
         return results[0]["value"][1]
 
-    def _generate_fresh_metering_data(
-            self, cached_machines_map, machines_map,
-            last_metering_data, metering_metrics):
-        fresh_metering_data = ""
+    def _calculate_metering_data(self, machine_id, machine,
+                                 new_dt, old_dt, metric_name,
+                                  properties, last_metering_data):
+        current_value = None
+        if properties["type"] == "counter":
+            old_value = last_metering_data.get(
+                machine_id, {}).get(metric_name)
+            if old_value:
+                current_value = float(old_value)
+                # Take into account the time range only
+                # if the machine was not missing
+                if old_dt:
+                    delta_in_hours = (
+                        new_dt - old_dt).total_seconds() / (60 * 60)
+                    current_value += properties["value"](
+                        machine, delta_in_hours)
+            else:
+                current_value = self._find_old_counter_value(
+                    metric_name, machine_id, properties)
+        elif properties["type"] == "gauge":
+            current_value = properties["value"](machine)
+        else:
+            log.warning(
+                f"Unknown metric type: {properties['type']}"
+                f" on metric: {metric_name}"
+                f" with machine_id: {machine_id}")
+        if current_value is not None:
+            return (
+                f"{metric_name}{{org=\"{self.cloud.owner.id}\""
+                f",machine_id=\"{machine_id}\",metering=\"true\""
+                f",value_type=\"{properties['type']}\"}}"
+                f" {current_value} "
+                f"{int(datetime.datetime.timestamp(new_dt))}\n")
+        else:
+            log.warning(
+                f"None value on metric: "
+                f"{metric_name} with machine_id: {machine_id}")
+        return ""
+
+    async def _async_generate_fresh_metering_data(self, machines_map,
+                                                  cached_machines_map,
+                                                  metering_metrics,
+                                                  last_metering_data, loop):
+        metering_data_list = []
         for machine_id, machine in machines_map.items():
             if not machine.last_seen:
                 continue
@@ -3401,41 +3441,33 @@ class BaseComputeController(BaseController):
                     '%Y-%m-%d %H:%M:%S.%f')
             for metric_name, properties in self._get_machine_metering_metrics(
                     machine_id, machines_map, metering_metrics).items():
-                current_value = None
-                if properties["type"] == "counter":
-                    old_value = last_metering_data.get(
-                        machine_id, {}).get(metric_name)
-                    if old_value:
-                        current_value = float(old_value)
-                        # Take into account the time range only
-                        # if the machine was not missing
-                        if old_dt:
-                            delta_in_hours = (
-                                new_dt - old_dt).total_seconds() / (60 * 60)
-                            current_value += properties["value"](
-                                machine, delta_in_hours)
-                    else:
-                        current_value = self._find_old_counter_value(
-                            metric_name, machine_id, properties)
-                elif properties["type"] == "gauge":
-                    current_value = properties["value"](machine)
-                else:
-                    log.warning(
-                        f"Unknown metric type: {properties['type']}"
-                        f" on metric: {metric_name}"
-                        f" with machine_id: {machine_id}")
-                if current_value is not None:
-                    fresh_metering_data += (
-                        f"{metric_name}{{org=\"{self.cloud.owner.id}\""
-                        f",machine_id=\"{machine_id}\",metering=\"true\""
-                        f",value_type=\"{properties['type']}\"}}"
-                        f" {current_value} "
-                        f"{int(datetime.datetime.timestamp(new_dt))}\n")
-                else:
-                    log.warning(
-                        f"None value on metric: "
-                        f"{metric_name} with machine_id: {machine_id}")
-        return fresh_metering_data
+                metering_data_list.append(
+                    loop.run_in_executor(None,
+                                         self._calculate_metering_data,
+                                         machine_id, machine,
+                                         new_dt, old_dt, metric_name,
+                                         properties, last_metering_data))
+        return await asyncio.gather(*metering_data_list)
+
+    def _generate_fresh_metering_data(
+            self, cached_machines_map, machines_map,
+            last_metering_data, metering_metrics):
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        asyncio.set_event_loop(loop)
+        metering_data_list = loop.run_until_complete(
+            self._async_generate_fresh_metering_data(machines_map,
+                                                     cached_machines_map,
+                                                     metering_metrics,
+                                                     last_metering_data,
+                                                     loop))
+        loop.close()
+        return "".join(metering_data_list)
 
     def _send_metering_data(self, fresh_metering_data):
         tenant = str(int(self.cloud.owner.id[:8], 16))
