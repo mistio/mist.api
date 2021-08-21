@@ -16,6 +16,7 @@ import calendar
 from typing import Dict, List
 import requests
 import re
+import asyncio
 
 from bson import json_util
 
@@ -3177,7 +3178,8 @@ class BaseComputeController(BaseController):
         read_queries, metering_metrics = self._generate_metering_queries(
             cached_machines_map, machines_map)
 
-        last_metering_data = self._fetch_metering_data(read_queries)
+        last_metering_data = self._fetch_metering_data(
+            read_queries, machines_map)
 
         fresh_metering_data = self._generate_fresh_metering_data(
             cached_machines_map, machines_map, last_metering_data,
@@ -3292,39 +3294,64 @@ class BaseComputeController(BaseController):
                 f"machine_id=~\"{machines_ids_list}\",metering=\"true\"}}")
         return read_queries, metering_metrics
 
-    def _fetch_metering_data(self, read_queries):
+    def _fetch_query(self, dt, query):
         tenant = str(int(self.cloud.owner.id[:8], 16))
         read_uri = config.VICTORIAMETRICS_URI.replace("<org_id>", tenant)
+        dt = int(datetime.datetime.timestamp(
+            datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
+        error_msg = f"Could not fetch metering data with query: {query}"
+        try:
+            data = requests.post(f"{read_uri}/api/v1/query",
+                                 data={"query": query, "time": dt},
+                                 timeout=20)
+        except requests.exceptions.RequestException as e:
+            error_details = str(e)
+            self._report_metering_error(error_msg, error_details)
+            return {}
+        if data and not data.ok:
+            error_details = (f"code: {data.status_code}"
+                             f" response: {data.text}")
+            self._report_metering_error(error_msg, error_details)
+            return {}
+
+        data = data.json()
+
         last_metering_data = {}
 
-        for key, query in read_queries.items():
-            dt, _ = key
-            dt = int(datetime.datetime.timestamp(
-                datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
-            error_msg = f"Could not fetch metering data with query: {query}"
-            try:
-                data = requests.post(f"{read_uri}/api/v1/query",
-                                     data={"query": query, "time": dt},
-                                     timeout=20)
-            except requests.exceptions.RequestException as e:
-                error_details = str(e)
-                self._report_metering_error(error_msg, error_details)
-                continue
-            if data and not data.ok:
-                error_details = (f"code: {data.status_code}"
-                                 f" response: {data.text}")
-                self._report_metering_error(error_msg, error_details)
-                continue
+        for result in data.get("data", {}).get("result", []):
+            metric_name = result["metric"]["__name__"]
+            machine_id = result["metric"]["machine_id"]
+            value = result["value"][1]
+            if not last_metering_data.get(machine_id):
+                last_metering_data[machine_id] = {}
+            last_metering_data[machine_id].update({metric_name: value})
+        return last_metering_data
 
-            data = data.json()
+    async def _async_fetch_metering_data(self, read_queries, loop):
+        metering_data_list = [loop.run_in_executor(
+            None, self._fetch_query, key[0], query)
+            for key, query in read_queries.items()]
 
-            for result in data.get("data", {}).get("result", []):
-                metric_name = result["metric"]["__name__"]
-                machine_id = result["metric"]["machine_id"]
-                value = result["value"][1]
-                if not last_metering_data.get(machine_id):
-                    last_metering_data[machine_id] = {}
-                last_metering_data[machine_id].update({metric_name: value})
+        return await asyncio.gather(*metering_data_list)
+
+    def _fetch_metering_data(self, read_queries, machines_map):
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        asyncio.set_event_loop(loop)
+        metering_data_list = loop.run_until_complete(
+            self._async_fetch_metering_data(read_queries, loop))
+        loop.close()
+        last_metering_data = {}
+        for machine_id, _ in machines_map.items():
+            last_metering_data[machine_id] = {}
+            for metering_data in metering_data_list:
+                last_metering_data[machine_id].update(
+                    metering_data[machine_id])
         return last_metering_data
 
     def _find_old_counter_value(self, metric_name, machine_id, properties):
