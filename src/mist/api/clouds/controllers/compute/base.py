@@ -3387,7 +3387,7 @@ class BaseComputeController(BaseController):
 
     def _calculate_metering_data(self, machine_id, machine,
                                  new_dt, old_dt, metric_name,
-                                  properties, last_metering_data):
+                                 properties, last_metering_data):
         current_value = None
         if properties["type"] == "counter":
             old_value = last_metering_data.get(
