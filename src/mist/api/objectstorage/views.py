@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 OK = Response("OK", 200)
 
-supported = ['openstack', 'ec2']
+supported = ['openstack', 'ec2', 'vexxhost']
 
 
 @view_config(route_name='api_v1_buckets', request_method='GET',

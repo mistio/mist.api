@@ -225,6 +225,10 @@ class OpenStackNetworkController(BaseNetworkController):
         self.cloud.ctl.compute.connection.ex_delete_subnet(libcloud_subnet.id)
 
 
+class VexxhostNetworkController(OpenStackNetworkController):
+    pass
+
+
 class LibvirtNetworkController(BaseNetworkController):
 
     def list_networks_single_host(self, host):

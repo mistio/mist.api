@@ -3042,6 +3042,10 @@ class OpenStackComputeController(BaseComputeController):
         return self.connection.ex_list_availability_zones()
 
 
+class VexxhostComputeController(OpenStackComputeController):
+    pass
+
+
 class DockerComputeController(BaseComputeController):
 
     def __init__(self, *args, **kwargs):

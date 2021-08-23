@@ -1047,7 +1047,8 @@ def logging_view_decorator(func):
                       'linode': 'api_key',
                       'docker': 'auth_password',
                       'maxihost': 'token',
-                      'openstack': 'password'}.get(provider)
+                      'openstack': 'password',
+                      'vexxhost': 'password', }.get(provider)
             if censor and censor in params:
                 params[censor] = '***CENSORED***'
 

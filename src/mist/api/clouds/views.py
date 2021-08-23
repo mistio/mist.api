@@ -462,7 +462,7 @@ def list_security_groups(request):
     Tags: security-groups
     ---
     Lists security groups on cloud.
-    Currently only supported for AWS, Openstack.
+    Currently only supported for AWS, Openstack & Vexxhost.
     READ permission required on cloud.
     ---
     cloud:
