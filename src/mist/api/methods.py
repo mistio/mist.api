@@ -29,6 +29,8 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.users.models import User
 
+from mist.api.tag.methods import get_tags_for_resource
+
 from mist.api import config
 
 import mist.api.clouds.models as cloud_models
@@ -514,7 +516,18 @@ def create_dns_a_record(owner, domain_name, ip_addr):
     return record
 
 
-def list_resources(auth_context, resource_type, search='', cloud='',
+def filter_resources_by_tags(resources, tags):
+    if not tags:
+        return resources
+    filtered_ids = []
+    for resource in resources:
+        resource_tags = get_tags_for_resource(resource.owner, resource)
+        if tags.items() <= resource_tags.items():
+            filtered_ids.append(resource.id)
+    return resources.filter(id__in=filtered_ids)
+
+
+def list_resources(auth_context, resource_type, search='', cloud='', tags={},
                    only='', sort='', start=0, limit=100, deref=''):
     """
     List resources of any type.
@@ -696,6 +709,8 @@ def list_resources(auth_context, resource_type, search='', cloud='',
                            machine=machine).count()]
             query &= Q(id__in=ids)
             result = resource_model.objects(query)
+    if tags:
+        result = filter_resources_by_tags(result, tags)
 
     try:
         from mist.rbac.models import PERMISSIONS
