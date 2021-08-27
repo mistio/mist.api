@@ -679,6 +679,59 @@ class AlibabaComputeController(AmazonComputeController):
         else:
             return 'custom'
 
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        try:
+            security_group = networks_dict['security_group']
+        except KeyError:
+            security_group = config.EC2_SECURITYGROUP.get('name', 'mistio')
+
+        return {
+            'security_group': security_group
+        }
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        delete_on_termination = True if volume_dict.get(
+            'delete_on_termination', False) is True else False
+
+        return {
+            'id': vol_obj.id,
+            'name': vol_obj.name,
+            'delete_on_termination': delete_on_termination,
+        }
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            name = volume_dict['name']
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume name & size are required parameters')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid size type')
+
+        type_ = volume_dict.get('type', config.ALIBABA_DEFAULT_VOLUME_TYPE)
+        try:
+            min_valid, max_valid = config.ALIBABA_VOLUME_TYPES[type_]
+        except KeyError:
+            raise BadRequestError(
+                f'Permitted volume types are: '
+                f'{*config.ALIBABA_VOLUME_TYPES.keys(),}')
+
+        if size not in range(min_valid, max_valid + 1):
+            raise BadRequestError(
+                f"Valid size values for '{type_}' type are "
+                f"{min_valid} to {max_valid}"
+            )
+
+        delete_on_termination = True if volume_dict.get(
+            'delete_on_termination', False) is True else False
+
+        return {
+            'name': name,
+            'size': size,
+            'type': type_,
+            'delete_on_termination': delete_on_termination,
+        }
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
