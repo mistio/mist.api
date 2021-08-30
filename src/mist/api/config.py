@@ -1429,6 +1429,11 @@ ECS_VPC = {
     'description': 'Vpc created by {portal_name}'
 }
 
+ECS_SWITCH = {
+    'name': 'mistio',
+    'description': 'Switch created by {portal_name}'
+}
+
 # Linode datacenter ids/names mapping
 LINODE_DATACENTERS = {
     2: 'Dallas, TX, USA',

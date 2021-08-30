@@ -732,6 +732,140 @@ class AlibabaComputeController(AmazonComputeController):
             'delete_on_termination': delete_on_termination,
         }
 
+    def _create_machine__get_location_object(self, location):
+        # Redefine method to avoid calling Amazon's
+        # corresponding method
+        return BaseComputeController._create_machine__get_location_object(
+            self, location)
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = BaseComputeController._create_machine__compute_kwargs(
+            self, plan)
+        kwargs['ex_zone_id'] = kwargs.pop('location').id
+        kwargs['ex_keyname'] = kwargs['auth'].name
+        kwargs['auth'] = NodeAuthSSHKey(pubkey=kwargs['auth'].public)
+        if plan.get('cloudinit'):
+            kwargs['ex_userdata'] = plan['cloudinit']
+
+        libcloud_sec_groups = self.connection.ex_list_security_groups()
+        security_group = next((
+            sec_group for sec_group in libcloud_sec_groups
+            if (sec_group.name == plan['networks']['security_group'] and
+                sec_group.vpc_id)),
+            None)
+
+        if security_group:
+            vpc_id = security_group.vpc_id
+            sec_group_id = security_group.id
+        else:
+            group_name = plan['networks']['security_group']
+            group_description = config.EC2_SECURITYGROUP.get(
+                'description', '').format(
+                portal_name=config.PORTAL_NAME)
+            network_name = config.ECS_VPC.get('name', '')
+            network_description = config.ECS_VPC.get('description', '').format(
+                portal_name=config.PORTAL_NAME
+            )
+            networks = self.connection.ex_list_networks()
+            network = next((
+                net for net in networks
+                if (net.name == network_name and
+                    net.status == 'Available')),
+                None)
+            if network is None:
+                params = {
+                    'VpcName': network_name,
+                    'Description': network_description,
+                }
+                vpc_id = self.connection.ex_create_network(ex_filters=params)
+                # wait for vpc to be available
+                for _ in range(20):
+                    networks = self.connection.ex_list_networks(
+                        ex_filters={'VpcId': vpc_id})
+                    if networks and networks[0].status == 'Available':
+                        break
+                    time.sleep(3)
+                else:
+                    log.error('Aliyun VPC %s not available', vpc_id)
+            else:
+                vpc_id = network.id
+
+            sec_group_id = self.connection.ex_create_security_group(
+                name=group_name,
+                description=group_description,
+                vpc_id=vpc_id)
+            self.connection.ex_authorize_security_group(
+                group_id=sec_group_id,
+                description='Allow SSH',
+                ip_protocol='tcp',
+                port_range='22/22')
+
+        switches = self.connection.ex_list_switches(
+            ex_filters={'VpcId': vpc_id,
+                        'ZoneId': kwargs['ex_zone_id']}
+        )
+        if switches:
+            kwargs['ex_vswitch_id'] = switches[0].id
+        else:
+            kwargs['ex_vswitch_id'] = self.connection.ex_create_switch(
+                '172.16.0.0/27',
+                kwargs['ex_zone_id'],
+                vpc_id,
+                name=config.ECS_SWITCH.get('name'),
+                description=config.ECS_SWITCH.get('description').format(
+                    portal_name=config.PORTAL_NAME
+                ))
+        kwargs['ex_security_group_id'] = sec_group_id
+
+        # already existing volumes cannot be passed as parameters
+        # to the createInstance API  endpoint,
+        # so they will be attached after machine creation
+        new_volumes = []
+        for volume in plan.get('volumes', []):
+            if volume.get('id') is None:
+                # create_node expect category instead of type
+                volume['category'] = volume['type']
+                new_volumes.append(volume)
+        if new_volumes:
+            kwargs['ex_data_disks'] = new_volumes
+
+        kwargs['max_tries'] = 1
+        kwargs['ex_io_optimized'] = True
+        kwargs['ex_allocate_public_ip_address'] = True
+        kwargs['ex_internet_charge_type'] = 'PayByTraffic'
+        kwargs['ex_internet_max_bandwidth_out'] = 100
+
+        return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        from mist.api.volumes.models import Volume
+        from libcloud.compute.base import StorageVolume
+        existing_volumes = [
+            volume for volume in plan.get('volumes', [])
+            if volume.get('id')
+        ]
+        if len(existing_volumes) == 0:
+            return
+        # wait for node to be running
+        for _ in range(10):
+            nodes = self.connection.list_nodes(ex_node_ids=[node.id])
+            if nodes and nodes[0].state == 'running':
+                break
+            time.sleep(5)
+        for volume in existing_volumes:
+            vol = Volume.objects.get(id=volume['id'])
+            libcloud_vol = StorageVolume(id=vol.external_id,
+                                         name=vol.name,
+                                         size=vol.size,
+                                         driver=self.connection)
+            try:
+                self.connection.attach_volume(
+                    node,
+                    libcloud_vol,
+                    ex_delete_with_instance=volume['delete_on_termination'])
+            except Exception as exc:
+                log.exception('Failed to attach volume')
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
