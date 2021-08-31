@@ -262,6 +262,10 @@ class LXDNetwork(Network):
     pass
 
 
+class AlibabaNetwork(Network):
+    pass
+
+
 class Subnet(me.Document):
     """The basic Subnet model.
 
@@ -406,6 +410,10 @@ class OpenStackSubnet(Subnet):
 
 class VexxhostSubnet(OpenStackSubnet):
     pass
+
+
+class AlibabaSubnet(Subnet):
+    availability_zone = me.StringField(required=True)
 
 
 _populate_class_mapping(NETWORKS, 'Network', Network)
