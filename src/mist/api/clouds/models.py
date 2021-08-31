@@ -661,6 +661,10 @@ class OpenStackCloud(Cloud):
     _controller_cls = controllers.OpenStackMainController
 
 
+class VexxhostCloud(OpenStackCloud):
+    _controller_cls = controllers.VexxhostMainController
+
+
 class DockerCloud(Cloud):
 
     host = me.StringField(required=True)

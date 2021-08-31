@@ -36,6 +36,10 @@ class OpenstackObjectStorageController(BaseObjectStorageController):
         )
 
 
+class VexxhostObjectStorageController(OpenstackObjectStorageController):
+    pass
+
+
 class AmazonS3ObjectStorageController(BaseObjectStorageController):
     def _connect(self, **kwargs):
         return get_driver(Provider.S3)(

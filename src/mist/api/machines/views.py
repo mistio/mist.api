@@ -1080,9 +1080,13 @@ def machine_console(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    if machine.cloud.ctl.provider not in ['vsphere', 'openstack', 'libvirt']:
+    if machine.cloud.ctl.provider not in ['vsphere',
+                                          'openstack',
+                                          'libvirt',
+                                          'vexxhost']:
         raise MistNotImplementedError(
-            "VNC console only supported for vSphere, OpenStack or KVM")
+            "VNC console only supported for vSphere, "
+            "OpenStack, Vexxhost or KVM")
 
     if machine.cloud.ctl.provider == 'libvirt':
         import xml.etree.ElementTree as ET

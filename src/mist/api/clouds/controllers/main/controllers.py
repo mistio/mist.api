@@ -271,6 +271,14 @@ class OpenStackMainController(BaseMainController):
             check_host(sanitize_host(kwargs['url']))
 
 
+class VexxhostMainController(OpenStackMainController):
+    provider = 'vexxhost'
+    ComputeController = compute_ctls.VexxhostComputeController
+    NetworkController = network_ctls.VexxhostNetworkController
+    StorageController = storage_ctls.VexxhostStorageController
+    ObjectStorageController = objectstorage_ctls.VexxhostObjectStorageController   # noqa: E501
+
+
 class DockerMainController(BaseMainController):
 
     provider = 'docker'
