@@ -1674,7 +1674,8 @@ PROVIDERS = {
         'features': {
             'compute': True,
             'provision': {
-                'location': False,
+                'location': True,
+                'cloudinit': True,
                 'restrictions': {
                     'size-image-restriction': False,
                     'location-size-restriction': False,

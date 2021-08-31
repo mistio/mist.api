@@ -2391,8 +2391,10 @@ class BaseComputeController(BaseController):
             locations = self._generate_plan__parse_location(auth_context,
                                                             location)
         else:
-            # TODO this will not work in combinations
-            locations = None
+            # create a dummy location in case
+            # provider does not support locations
+            from mist.api.clouds.models import CloudLocation
+            locations = [CloudLocation()]
 
         sizes, size_extra_attrs = self._generate_plan__parse_size(
             auth_context, size)
@@ -2406,7 +2408,8 @@ class BaseComputeController(BaseController):
 
         image, size, location = self._compute_best_combination(comb_list)
 
-        if location:
+        # don't add dummy location to plan
+        if location and location.name is not None:
             plan['location'] = {'id': location.id, 'name': location.name}
         if size:
             # custom size
@@ -2797,7 +2800,8 @@ class BaseComputeController(BaseController):
                         cloud=self.cloud.id
                     )
                 except ValueError:
-                    raise NotFoundError('Volume does not exist')
+                    raise NotFoundError(
+                        f"Volume {volume['volume']} does not exist")
                 volume_dict = self._generate_plan__parse_volume_attrs(volume,
                                                                       vol)
                 ret_volumes.append(volume_dict)

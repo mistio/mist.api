@@ -3041,6 +3041,262 @@ class OpenStackComputeController(BaseComputeController):
     def _list_locations__fetch_locations(self):
         return self.connection.ex_list_availability_zones()
 
+    def _generate_plan__parse_location(self, auth_context, location_search):
+        # If a location string is not given, let openstack set
+        # the default location
+        if not location_search:
+            from mist.api.clouds.models import CloudLocation
+            return [CloudLocation()]
+
+        locations = super()._generate_plan__parse_location(
+            auth_context, location_search)
+        # filter out locations that do not supoort compute resources
+        return [location for location in locations
+                if location.extra.get('compute', False) is True]
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+        from mist.api.methods import list_resources
+        from mist.api.networks.models import Network
+
+        ret_dict = {}
+
+        ret_dict['associate_floating_ip'] = True if networks_dict.get(
+            'associate_floating_ip', True) is True else False
+
+        networks = networks_dict.get('networks', [])
+        ret_dict['networks'] = []
+
+        # if multiple networks exist, network parameter must be defined
+        if (len(networks) == 0 and Network.objects(cloud=self.cloud, missing_since=None).count() > 1):  # noqa
+            raise BadRequestError('Multiple networks found, define a network to be more specific.')  # noqa
+
+        for net in networks:
+            try:
+                [network], _ = list_resources(auth_context, 'network',
+                                              search=net,
+                                              cloud=self.cloud.id,
+                                              limit=1)
+            except ValueError:
+                raise NotFoundError(f'Network {net} does not exist')
+
+            ret_dict['networks'].append({'id': network.network_id,
+                                         'name': network.name})
+
+        try:
+            security_groups = set(networks_dict.get('security_groups', []))
+        except TypeError:
+            raise BadRequestError('Invalid type for security groups')
+
+        ret_dict['security_groups'] = []
+        if security_groups:
+            try:
+                sec_groups = \
+                    self.cloud.ctl.compute.connection.ex_list_security_groups(
+                        tenant_id=self.cloud.tenant_id
+                    )
+            except Exception as exc:
+                log.exception('Could not list security groups for cloud %s',
+                              self.cloud)
+                raise CloudUnavailableError(exc=exc) from None
+
+            ret_dict['security_groups'] = list({
+                sec_group.name for sec_group in sec_groups
+                if sec_group.name in security_groups or
+                sec_group.id in security_groups})
+
+        return ret_dict
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        delete_on_termination = True if volume_dict.get(
+            'delete_on_termination', False) is True else False
+
+        boot = True if volume_dict.get(
+            'boot', False) is True else False
+
+        return {
+            'id': vol_obj.id,
+            'name': vol_obj.name,
+            'delete_on_termination': delete_on_termination,
+            'boot': boot,
+        }
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+
+        delete_on_termination = True if volume_dict.get(
+            'delete_on_termination', False) is True else False
+
+        boot = True if volume_dict.get(
+            'boot', False) is True else False
+
+        return {
+            'size': size,
+            'delete_on_termination': delete_on_termination,
+            'boot': boot,
+        }
+
+    def _generate_plan__post_parse_plan(self, plan):
+        volumes = plan.get('volumes', [])
+
+        # make sure boot drive is first if it exists
+        volumes.sort(key=lambda k: k['boot'],
+                     reverse=True)
+
+        if len(volumes) > 1:
+            # make sure only one boot volume is set
+            if volumes[1].get('boot') is True:
+                raise BadRequestError('Up to 1 volume must be set as boot')
+
+        plan['volumes'] = volumes
+
+    def _create_machine__compute_kwargs(self, plan):
+        from libcloud.compute.drivers.openstack import OpenStackSecurityGroup
+        from libcloud.compute.drivers.openstack import OpenStackNetwork
+        kwargs = super()._create_machine__compute_kwargs(plan)
+
+        if kwargs.get('location'):
+            kwargs['ex_availability_zone'] = kwargs.pop('location').name
+
+        if plan.get('cloudinit'):
+            kwargs['ex_userdata'] = plan['cloudinit']
+
+        key = kwargs.pop('auth')
+        try:
+            openstack_keys = self.connection.list_key_pairs()
+        except Exception as exc:
+            log.exception('Failed to fetch keypairs')
+            raise
+
+        for openstack_key in openstack_keys:
+            if key.public == openstack_key.public_key:
+                server_key = openstack_key
+                break
+        else:
+            try:
+                server_key = self.connection.ex_import_keypair_from_string(
+                    name=f'mistio-{secrets.token_hex(3)}',
+                )
+            except Exception:
+                log.exception('Failed to create keypair')
+                raise
+        kwargs['ex_keyname'] = server_key.name
+
+        # use dummy objects with only the attributes needed
+        kwargs['networks'] = [OpenStackNetwork(network['id'],
+                                               None,
+                                               None,
+                                               self.connection)
+                              for network in plan['networks']['networks']]
+
+        kwargs['ex_security_groups'] = [
+            OpenStackSecurityGroup(id=None,
+                                   name=sec_group,
+                                   tenant_id=None,
+                                   description=None,
+                                   driver=self.connection)
+            for sec_group in plan['networks']['security_groups']
+        ]
+
+        blockdevicemappings = []
+        for volume in plan['volumes']:
+            mapping = {
+                'delete_on_termination': volume['delete_on_termination'],
+                'destination_type': 'volume',
+            }
+            if volume.get('id'):
+                from mist.api.volumes.models import Volume
+                vol = Volume.objects.get(id=volume['id'])
+                if volume['boot'] is True:
+                    mapping['boot_index'] = 0
+                else:
+                    mapping['boot_index'] = None
+                mapping['uuid'] = vol.external_id
+                mapping['source_type'] = 'volume'
+            else:
+                mapping['volume_size'] = volume['size']
+                if volume['boot'] is True:
+                    mapping['boot_index'] = 0
+                    mapping['source_type'] = 'image'
+                    mapping['uuid'] = kwargs.pop('image').id
+                else:
+                    mapping['boot_index'] = None
+                    mapping['source_type'] = 'blank'
+            blockdevicemappings.append(mapping)
+
+        # This is a workaround for an issue which occurs only
+        # when non-boot volumes are passed. Openstack expects a
+        # block device mapping with boot_index 0.
+        # http://lists.openstack.org/pipermail/openstack-dev/2015-March/059332.html  # noqa
+        if (blockdevicemappings and
+                blockdevicemappings[0]['boot_index'] is None):
+            blockdevicemappings.insert(0, {'uuid': kwargs.pop('image').id,
+                                           'source_type': 'image',
+                                           'destination_type': 'local',
+                                           'boot_index': 0,
+                                           'delete_on_termination': True})
+
+        kwargs['ex_blockdevicemappings'] = blockdevicemappings
+        return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        if plan['networks']['associate_floating_ip'] is False:
+            return
+
+        # From the already created floating ips try to find one
+        # that is not associated to a node
+        floating_ips = self.connection.ex_list_floating_ips()
+        unassociated_floating_ip = next((ip for ip in floating_ips
+                                         if ip.status == 'DOWN'), None)
+
+        # Find the ports which are associated to the machine
+        # (e.g. the ports of the private ips)
+        # and use one to associate a floating ip
+        for _ in range(5):
+            ports = self.connection.ex_list_ports()
+            machine_port_id = next((port.id for port in ports
+                                    if port.extra.get('device_id') == node.id),  # noqa
+                                   None)
+            if machine_port_id is None:
+                # sleep in case a port has not been yet associated
+                # with the machine
+                time.sleep(5)
+            else:
+                break
+        else:
+            log.error('Unable to find machine port.'
+                      'OpenstackCloud: %s, Machine external_id: %s',
+                      self.cloud.id, node.id)
+            return
+
+        if unassociated_floating_ip:
+            log.info('Associating floating ip with machine: %s', node.id)
+            try:
+                self.connection.ex_associate_floating_ip_to_node(
+                    unassociated_floating_ip.id, machine_port_id)
+            except BaseHTTPError:
+                log.exception('Failed to associate ip address to node')
+        else:
+            # Find the external network
+            networks = self.connection.ex_list_networks()
+            ext_net_id = next((network.id for network in networks
+                               if network.router_external is True),
+                              None)
+            if ext_net_id is None:
+                log.error('Failed to find external network')
+                return
+            log.info('Create and associating floating ip with machine: %s',
+                     node.id)
+            try:
+                self.connection.ex_create_floating_ip(ext_net_id,
+                                                      machine_port_id)
+            except BaseHTTPError:
+                log.exception('Failed to create floating ip address')
+
 
 class VexxhostComputeController(OpenStackComputeController):
     pass
