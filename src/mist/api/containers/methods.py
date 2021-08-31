@@ -5,10 +5,13 @@ from mist.api.exceptions import PolicyUnauthorizedError
 def list_clusters(owner, cloud_id, cached=False, as_dict=True):
     """List all clusters in this cloud via API call to the provider."""
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    if cached:
-        clusters = cloud.ctl.container.list_cached_clusters()
-    else:
-        clusters = cloud.ctl.container.list_clusters()
+    try:
+        if cached:
+            clusters = cloud.ctl.container.list_cached_clusters()
+        else:
+            clusters = cloud.ctl.container.list_clusters()
+    except AttributeError:
+        return []
     if not as_dict:
         return clusters
     return [cluster.as_dict() for cluster in clusters]
