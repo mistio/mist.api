@@ -359,3 +359,65 @@ class LXDNetworkController(BaseNetworkController):
 
     def _list_networks__cidr_range(self, network, net):
         return net.config.get("ipv4.address")
+
+
+class AlibabaNetworkController(BaseNetworkController):
+
+    def _create_network__prepare_args(self, kwargs):
+        rename_kwargs(kwargs, 'cidr', 'cidr_block')
+        # workaround to avoid create_network failure
+        kwargs['only_id'] = False
+
+    def _create_subnet__prepare_args(self, subnet, kwargs):
+        rename_kwargs(kwargs, 'availability_zone', 'zone')
+        kwargs['vpc'] = subnet.network.network_id
+        # workaround to avoid create_subnet failure
+        kwargs['only_id'] = False
+
+    def _create_subnet(self, kwargs):
+        return self.cloud.ctl.compute.connection.ex_create_switch(**kwargs)
+
+    def _list_networks__cidr_range(self, network, libcloud_network):
+        return libcloud_network.cidr_block
+
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
+        network.description = libcloud_network.extra.pop('description', None)
+
+    def _list_subnets__fetch_subnets(self, network):
+        params = {
+            'VpcId': network.network_id
+        }
+        return self.cloud.ctl.compute.connection.ex_list_switches(
+            ex_filters=params)
+
+    def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
+        return libcloud_subnet.cidr_block
+
+    def _list_subnets__postparse_subnet(self, subnet, libcloud_subnet):
+        subnet.availability_zone = libcloud_subnet.extra.pop('zone_id')
+
+    def _delete_network(self, network, libcloud_network):
+        # Network's security groups need to be deleted first
+        params = {
+            'VpcId': libcloud_network.id,
+        }
+        groups = self.cloud.ctl.compute.connection.ex_list_security_groups(
+            ex_filters=params
+        )
+        for group in groups:
+            self.cloud.ctl.compute.connection.ex_delete_security_group_by_id(
+                group_id=group.id
+            )
+        self.cloud.ctl.compute.connection.ex_destroy_network(libcloud_network)
+
+    def _delete_subnet(self, subnet, libcloud_subnet):
+        self.cloud.ctl.compute.connection.ex_destroy_switch(libcloud_subnet)
+
+    def _get_libcloud_subnet(self, subnet):
+        subnets = self.cloud.ctl.compute.connection.ex_list_switches()
+        for sub in subnets:
+            if sub.id == subnet.subnet_id:
+                return sub
+        raise SubnetNotFoundError(
+            f'Subnet {subnet.name} with subnet_id {subnet.subnet_id}')
