@@ -71,6 +71,7 @@ def _populate_clouds():
     CLOUDS['ibm'] = CLOUDS['softlayer']
     CLOUDS['equinix'] = CLOUDS['equinixmetal']
     CLOUDS['azure'] = CLOUDS['azure_arm']
+    CLOUDS['alibaba'] = CLOUDS['aliyun_ecs']
 
 
 class Cloud(OwnershipMixin, me.Document):

@@ -1429,6 +1429,11 @@ ECS_VPC = {
     'description': 'Vpc created by {portal_name}'
 }
 
+ECS_SWITCH = {
+    'name': 'mistio',
+    'description': 'Switch created by {portal_name}'
+}
+
 # Linode datacenter ids/names mapping
 LINODE_DATACENTERS = {
     2: 'Dallas, TX, USA',
@@ -1440,6 +1445,17 @@ LINODE_DATACENTERS = {
     9: 'Singapore, SG',
     10: 'Frankfurt, DE'
 }
+
+# Alibaba volume types and permitted size ranges per type
+# https://partners-intl.aliyun.com/help/doc-detail/25513.htm
+ALIBABA_VOLUME_TYPES = {
+    'cloud': (5, 2000),
+    'cloud_efficiency': (20, 32768),
+    'cloud_ssd': (20, 32768),
+    'cloud_essd': (20, 32768),
+}
+
+ALIBABA_DEFAULT_VOLUME_TYPE = 'cloud'
 
 PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd',
                                'kubevirt', 'cloudsigma']
