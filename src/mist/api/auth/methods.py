@@ -1,3 +1,4 @@
+import uuid
 import random
 import string
 import urllib.request
@@ -326,3 +327,19 @@ def get_csrf_token(request):
     """
     session = session_from_request(request)
     return session.csrf_token if isinstance(session, SessionToken) else ''
+
+
+def create_short_lived_token():
+    """Create a short-lived API token
+
+    At least one user and one organization must be available in the database.
+    """
+    user = User.objects[0]
+    org = Organization.objects(members=user)[0]
+    t = ApiToken()
+    t.name = f"apitoken_{str(uuid.uuid4()).split('-')[0]}"
+    t.org = org
+    t.ttl = 60
+    t.set_user(user)
+    t.save()
+    return t.token
