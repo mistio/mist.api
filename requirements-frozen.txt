@@ -26,8 +26,8 @@ elasticsearch-tornado==2.0.9
 flake8==3.7.9
 future==0.18.2
 funcsigs==1.0.2
-gevent==1.4.0
-greenlet==0.4.15
+gevent==21.8.0
+greenlet==1.1.1
 idna==2.9
 ipaddress==1.0.23
 ipdb==0.13.2
@@ -52,6 +52,7 @@ mongomock==3.19.0
 more-itertools==8.2.0
 msgfy==0.0.7
 names==0.3.0
+networkx==2.6.2
 netaddr==0.7.19
 parse==1.15.0
 passlib==1.7.2
