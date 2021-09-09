@@ -19,7 +19,6 @@ from mist.api.tag.methods import resolve_id_and_set_tags
 
 OK = Response("OK", 200)
 
-
 # SEC
 @view_config(route_name='api_v1_schedules', request_method='POST',
              renderer='json')
@@ -78,7 +77,6 @@ def add_schedule_entry(request):
     schedule_tags, _ = auth_context.check_perm("schedule", "add", None)
 
     name = params.pop('name')
-
     schedule = Schedule.add(auth_context, name, **params)
 
     if schedule_tags:
