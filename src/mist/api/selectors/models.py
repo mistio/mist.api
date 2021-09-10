@@ -165,8 +165,12 @@ class GenericResourceSelector(BaseSelector):
 
     @property
     def ctype(self):
-        return self._instance and \
-            self._instance.resource_model_name.rstrip('s') + 's'
+        if self._instance is not None:
+            return self._instance.resource_model_name.rstrip('s') + 's'
+        try:
+            return self.type.rstrip('s') + 's'
+        except AttributeError:
+            return None
 
     def as_dict(self):
         return {'type': self.ctype, 'ids': self.ids}
