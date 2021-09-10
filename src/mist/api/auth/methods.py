@@ -1,3 +1,4 @@
+import os
 import uuid
 import random
 import string
@@ -6,6 +7,8 @@ import urllib.parse
 import urllib.error
 
 from future.utils import string_types
+
+import hvac
 
 from mongoengine import DoesNotExist
 
@@ -37,6 +40,10 @@ else:
 if 'auth' in config.PLUGINS:
     # Required to initialize OAuth2SessionToken model, subclass of AuthToken.
     from mist.auth.social.models import OAuth2SessionToken  # noqa: F401
+
+PROVIDER_VAULT_MAP = {
+    'amazon': 'aws',
+}
 
 
 def migrate_old_api_token(request):
@@ -343,3 +350,25 @@ def create_short_lived_token():
     t.set_user(user)
     t.save()
     return t.token
+
+
+def get_vault_cloud_credentials(cloud_provider):
+    """Get vault credentials by cloud provider"""
+    cloud_provider = PROVIDER_VAULT_MAP[cloud_provider]
+    url = os.environ.get('VAULT_SERVER', 'https://vault.ops.mist.io:8200')
+    token = os.environ.get('VAULT_TOKEN')
+    client = hvac.Client(url=url, token=token)
+    path = f'clouds_new/{cloud_provider}'
+    credentials = client.secrets.kv.v1.read_secret(path=path)['data']
+    return credentials
+
+
+def inject_vault_credentials_into_request(request_dict):
+    if not isinstance(request_dict, dict):
+        return
+    if 'credentials' not in request_dict or 'provider' not in request_dict:
+        return
+    credentials = get_vault_cloud_credentials(
+        cloud_provider=request_dict['provider'])
+    for key in request_dict['credentials']:
+        request_dict['credentials'][key] = credentials[key]
