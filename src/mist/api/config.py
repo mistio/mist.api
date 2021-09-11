@@ -180,6 +180,8 @@ TRAEFIK_API = "http://traefik:8080"
 
 # Hashicorp Vault Default Vars
 VAULT_TOKEN = ''
+VAULT_ROLE_ID = ''
+VAULT_SECRET_ID = ''
 VAULT_ADDR = 'http://vault:8200'
 # Mappings between organization names and secret engine paths
 VAULT_SECRET_ENGINE_PATHS = {}
