@@ -1616,13 +1616,66 @@ def edit_organization(request):
     if not auth_context.is_owner():
         raise ForbiddenError('Only owners can edit org')
 
+    org = auth_context.org
     org_id = request.matchdict['org']
     params = params_from_request(request)
+
     name = html.escape(params.get('new_name'))
     alerts_email = params.get('alerts_email')
     avatar = params.get('avatar')
     enable_r12ns = params.get('enable_r12ns')
     enable_vault_polling = params.get('enable_vault_polling', True)
+
+    vault_address = params.get('vault_address')
+    vault_secret_engine_path = params.get('vault_secret_engine_path')
+    vault_token = params.get('vault_token')
+    vault_role_id = params.get('vault_role_id')
+    vault_secret_id = params.get('vault_secret_id')
+
+    if not vault_address and org.vault_address:  # Disable custom Vault
+        org.vault_address = ''
+        org.vault_secret_engine_path = ''
+        org.vault_token = ''
+        org.vault_role_id = ''
+        org.vault_secret_id = ''
+        org.save()
+    elif vault_address:  # Enable custom Vault
+        import hvac
+        if vault_role_id and vault_secret_id:  # AppRole Auth
+            client = hvac.Client(url=vault_address)
+            try:
+                result = client.auth.approle.login(
+                    role_id=vault_role_id,
+                    secret_id=vault_secret_id,
+                )
+            except hvac.exceptions.InvalidRequest:
+                raise BadRequestError("Vault approle authentication failed.")
+            except hvac.exceptions.VaultDown:
+                raise ServiceUnavailableError("Vault is sealed.")
+            except Exception as e:
+                raise BadRequestError(e)
+            org.vault_address = vault_address
+            org.vault_secret_engine_path = vault_secret_engine_path
+            org.vault_role_id = vault_role_id
+            org.vault_secret_id = vault_secret_id
+            org.vault_token = ''
+            org.save()
+        elif vault_token:  # Token Auth
+            client = hvac.Client(url=vault_address, token=vault_token)
+            try:
+                is_authenticated = client.is_authenticated()
+                if not is_authenticated:
+                    raise BadRequestError("Vault token authentication failed.")
+            except hvac.exceptions.VaultDown:
+                raise ServiceUnavailableError("Vault is sealed.")
+            except Exception as e:
+                raise BadRequestError(e)
+            org.vault_address = vault_address
+            org.vault_secret_engine_path = vault_secret_engine_path
+            org.vault_token = vault_token
+            org.vault_role_id = ''
+            org.vault_secret_id = ''
+            org.save()
 
     if avatar:
         try:
@@ -1646,11 +1699,13 @@ def edit_organization(request):
         ListVaultSecretsPollingSchedule.add(auth_context.org)
 
     # SEC check if owner
-    if not (auth_context.org and auth_context.is_owner() and
-            auth_context.org.id == org_id):
+    if not (org and auth_context.is_owner() and
+            org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
-    if Organization.objects(name=name) and auth_context.org.name != name:
+    if Organization.objects(
+            name=name, id__ne=org.id) or Organization.objects(
+                vault_secret_engine_path=name, id__ne=org.id):
         raise OrganizationNameExistsError()
 
     auth_context.org.name = name

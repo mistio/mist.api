@@ -462,7 +462,6 @@ class Organization(Owner):
     teams = me.EmbeddedDocumentListField(Team, default=_get_default_org_teams)
     teams_count = me.IntField(default=0)
     clouds_count = me.IntField(default=0)
-    vault_secret_engine_path = me.StringField(required=True)
     # These are assigned only to organization from now on
     promo_codes = me.ListField()
     selected_plan = me.StringField()
@@ -481,10 +480,15 @@ class Organization(Owner):
     super_org = me.BooleanField(default=False)
     parent = me.ReferenceField('Organization', required=False,
                                reverse_delete_rule=me.DENY)
+    vault_address = me.StringField()
+    vault_token = me.StringField()
+    vault_role_id = me.StringField()
+    vault_secret_id = me.StringField()
+    vault_secret_engine_path = me.StringField()
 
     poller_updated = me.DateTimeField()
 
-    meta = {'indexes': ['name']}
+    meta = {'indexes': ['name', 'vault_secret_engine_path']}
 
     @property
     def mapper(self):
@@ -559,6 +563,15 @@ class Organization(Owner):
         view_id = view["_id"]
         del view["_id"]
         del view["_cls"]
+        # Strip vault credentials
+        try:
+            del view["vault_token"]
+        except KeyError:
+            pass
+        try:
+            del view["vault_secret_id"]
+        except KeyError:
+            pass
         view["id"] = view_id
         view["members"] = []
         for member in self.members:
@@ -690,16 +703,19 @@ class Organization(Owner):
         # make sure org name is unique - we can't use the unique keyword on the
         # field definition because both User and Organization subclass Owner
         # but only Organization has a name
-        if self.name and Organization.objects(name=self.name, id__ne=self.id):
+        if self.name and Organization.objects(name=self.name, id__ne=self.id) \
+                or Organization.objects(vault_secret_engine_path=self.name,
+                                        id__ne=self.id):
             raise me.ValidationError("Organization with name '%s' "
                                      "already exists." % self.name)
 
         self.members_count = len(self.members)
         self.teams_count = len(self.teams)
 
-        secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
-            if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
-        self.vault_secret_engine_path = secret_engine_path
+        if not self.vault_secret_engine_path:
+            secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
+                if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
+            self.vault_secret_engine_path = secret_engine_path
 
         # Add schedule for metering.
         try:
@@ -707,6 +723,37 @@ class Organization(Owner):
             MeteringPollingSchedule.add(self, run_immediately=False)
         except Exception as exc:
             log.error('Error adding metering schedule for %s: %r', self, exc)
+
+        if not self.vault_address and not self.vault_role_id:
+            import hvac
+            client = hvac.Client(
+                url=config.VAULT_ADDR, token=config.VAULT_TOKEN)
+            policy = '''
+                path "sys" {
+                    capabilities = ["deny"]
+                }
+                path "%s" {
+                    capabilities = [
+                        "create", "read", "update", "delete", "list"]
+                }
+            ''' % self.vault_secret_engine_path
+            policy_name = '%s-policy' % self.vault_secret_engine_path
+            role_name = '%s-role' % self.vault_secret_engine_path
+            client.sys.create_or_update_policy(
+                name=policy_name,
+                policy=policy,
+            )
+            client.auth.approle.create_or_update_approle(
+                role_name=role_name,
+                token_policies=[policy_name],
+                token_type='service',
+            )
+            self.vault_role_id = client.auth.approle.read_role_id(
+                role_name=role_name
+            )["data"]["role_id"]
+            self.vault_secret_id = client.auth.approle.generate_secret_id(
+                role_name=role_name,
+            )["data"]["secret_id"]
 
         super(Organization, self).clean()
 

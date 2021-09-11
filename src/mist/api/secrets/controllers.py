@@ -6,6 +6,7 @@ import mongoengine as me
 from mist.api import config
 
 from mist.api.exceptions import BadRequestError, ForbiddenError
+from mist.api.exceptions import ServiceUnavailableError
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +39,38 @@ class VaultSecretController(BaseSecretController):
 
     def __init__(self, secret):
         super(VaultSecretController, self).__init__(secret)
+        org = self.secret.owner
+        url = org.vault_address or config.VAULT_ADDR
+        token = org.vault_token if org.vault_address else config.VAULT_TOKEN
+        is_authenticated = False
+        if token:
+            self.client = hvac.Client(url=url, token=token)
+            try:
+                is_authenticated = self.client.is_authenticated()
+            except hvac.exceptions.VaultDown:
+                raise ServiceUnavailableError("Vault is sealed.")
+
+        if not token or not is_authenticated:
+            role_id = org.vault_role_id if org.vault_address else \
+                config.VAULT_ROLE_ID
+            secret_id = org.vault_secret_id if org.vault_address else \
+                config.VAULT_SECRET_ID
+            if role_id and secret_id:
+                self.client = hvac.Client(url=url)
+                try:
+                    result = self.client.auth.approle.login(
+                        role_id=role_id,
+                        secret_id=secret_id,
+                    )
+                except hvac.exceptions.InvalidRequest:
+                    raise BadRequestError(
+                        "Vault approle authentication failed.")
+                client_token = result.get('auth', {}).get('client_token')
+                if client_token:
+                    org.vault_token = client_token
+                    org.save()
+                    return
+            raise BadRequestError("Vault authentication failed.")
 
     def check_if_secret_engine_exists(self):
         '''
@@ -81,16 +114,6 @@ class KV1VaultSecretController(VaultSecretController):
 
     def __init__(self, secret):
         super(KV1VaultSecretController, self).__init__(secret)
-
-        token = config.VAULT_TOKEN
-        url = config.VAULT_ADDR
-
-        self.client = hvac.Client(url=url, token=token)
-
-        try:
-            self.client.is_authenticated()
-        except hvac.exceptions.VaultDown:
-            raise BadRequestError("Vault is sealed.")
 
     def list_secrets(self, path='.', recursive=False):
         '''`recursive` param is meant to be True only
@@ -192,16 +215,6 @@ class KV2VaultSecretController(VaultSecretController):
 
     def __init__(self, secret):
         super(KV2VaultSecretController, self).__init__(secret)
-
-        token = config.VAULT_TOKEN
-        url = config.VAULT_ADDR
-
-        self.client = hvac.Client(url=url, token=token)
-
-        try:
-            self.client.is_authenticated()
-        except hvac.exceptions.VaultDown:
-            raise BadRequestError("Vault is sealed.")
 
     def list_secrets(self, path='.', recursive=False):
         '''`recursive` param is meant to be True only
