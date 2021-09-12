@@ -3363,10 +3363,12 @@ HOMEPAGE_INPUTS = {
 if HAS_BILLING and STRIPE_PUBLIC_APIKEY:
     HOMEPAGE_INPUTS['stripe_public_apikey'] = STRIPE_PUBLIC_APIKEY
 
-if not VAULT_TOKEN:
+if not VAULT_ROLE_ID:
     try:
-        with open('/approle/token', 'r') as file:
-            VAULT_TOKEN = file.read().replace('\n', '')
+        with open('/approle/role_id', 'r') as file:
+            VAULT_ROLE_ID = file.read().replace('\n', '')
+        with open('/approle/secret_id', 'r') as file:
+            VAULT_SECRET_ID = file.read().replace('\n', '')
     except FileNotFoundError:
         pass
 

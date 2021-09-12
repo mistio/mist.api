@@ -219,7 +219,7 @@ def add_cloud(request):
             params[key] = params[key].rstrip().lstrip()
 
     # api_version = request.headers.get('Api-Version', 1)
-    title = params.get('title', params.get('name', ''))
+    name = params.get('name', params.get('title', ''))
     provider = params.get('provider', '')
 
     if not provider:
