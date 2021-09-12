@@ -41,7 +41,8 @@ class VaultSecretController(BaseSecretController):
         super(VaultSecretController, self).__init__(secret)
         org = self.secret.owner
         url = org.vault_address or config.VAULT_ADDR
-        token = org.vault_token if org.vault_address else config.VAULT_TOKEN
+        token = org.vault_token or (
+            not org.vault_address and config.VAULT_TOKEN)
         is_authenticated = False
         if token:
             self.client = hvac.Client(url=url, token=token)
@@ -180,6 +181,7 @@ class KV1VaultSecretController(VaultSecretController):
         except hvac.exceptions.Forbidden:
             raise BadRequestError("Make sure your Vault token has the \
                 permissions to create secret")
+        self.list_secrets(recursive=True)
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
@@ -289,6 +291,7 @@ class KV2VaultSecretController(VaultSecretController):
                 path=self.secret.name,
                 secret=secret
             )
+        self.list_secrets(recursive=True)
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
