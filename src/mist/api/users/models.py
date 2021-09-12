@@ -13,7 +13,9 @@ from uuid import uuid4
 
 from passlib.context import CryptContext
 
-from mist.api.exceptions import TeamNotFound
+from mist.api.exceptions import TeamNotFound, BadRequestError
+from mist.api.exceptions import UnauthorizedError, ServiceUnavailableError
+
 
 from mist.api import config
 
@@ -717,11 +719,6 @@ class Organization(Owner):
         self.members_count = len(self.members)
         self.teams_count = len(self.teams)
 
-        if not self.vault_secret_engine_path:
-            secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
-                if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
-            self.vault_secret_engine_path = secret_engine_path
-
         # Add schedule for metering.
         try:
             from mist.api.poller.models import MeteringPollingSchedule
@@ -729,10 +726,32 @@ class Organization(Owner):
         except Exception as exc:
             log.error('Error adding metering schedule for %s: %r', self, exc)
 
-        if not self.vault_address and not self.vault_role_id:
+        if self.name and not self.vault_secret_engine_path:
+            secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
+                if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
+            self.vault_secret_engine_path = secret_engine_path
+
+        if self.name and not self.vault_address and not self.vault_role_id:
             import hvac
-            client = hvac.Client(
-                url=config.VAULT_ADDR, token=config.VAULT_TOKEN)
+            if config.VAULT_ROLE_ID:
+                client = hvac.Client(url=config.VAULT_ADDR)
+                try:
+                    result = client.auth.approle.login(
+                        role_id=config.VAULT_ROLE_ID,
+                        secret_id=config.VAULT_SECRET_ID,
+                    )
+                except hvac.exceptions.InvalidRequest:
+                    raise BadRequestError(
+                        "Vault approle authentication failed.")
+            elif config.VAULT_TOKEN:
+                client = hvac.Client(
+                    url=config.VAULT_ADDR, token=config.VAULT_TOKEN)
+            try:
+                is_authenticated = client.is_authenticated()
+            except hvac.exceptions.VaultDown:
+                raise ServiceUnavailableError("Vault is sealed.")
+            if not is_authenticated:
+                raise UnauthorizedError("Vault Authentication Failed")
             policy = '''
                 path "sys" {
                     capabilities = ["deny"]
