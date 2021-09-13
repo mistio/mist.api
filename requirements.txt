@@ -28,7 +28,6 @@ mongoengine
 mongomock
 names
 netaddr
-networkx
 parse
 passlib
 pastedeploy  # Required for uwsgi paste logging, can probably be removed.

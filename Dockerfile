@@ -1,4 +1,4 @@
-FROM python:3.9.7-slim-buster
+FROM python:3.7-slim-buster
 
 # Install libvirt which requires system dependencies.
 RUN apt update && apt install -y build-essential g++ gcc libvirt-dev \
