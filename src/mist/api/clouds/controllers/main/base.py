@@ -166,6 +166,8 @@ class BaseMainController(object):
         # Transform params with extra underscores for compatibility.
         rename_kwargs(kwargs, 'api_key', 'apikey')
         rename_kwargs(kwargs, 'api_secret', 'apisecret')
+        rename_kwargs(kwargs, 'privateKey', 'private_key')
+        rename_kwargs(kwargs, 'projectId', 'project_id')
 
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
