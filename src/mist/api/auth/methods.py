@@ -43,6 +43,7 @@ if 'auth' in config.PLUGINS:
 
 PROVIDER_VAULT_MAP = {
     'amazon': 'aws',
+    'google': 'gce',
 }
 
 
