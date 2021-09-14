@@ -366,7 +366,8 @@ class AmazonComputeController(BaseComputeController):
 
         return sec_groups
 
-    def _generate_plan__parse_networks(self, auth_context, network_dict):
+    def _generate_plan__parse_networks(self, auth_context, network_dict,
+                                       location):
         security_group = network_dict.get('security_group')
         subnet = network_dict.get('subnet')
 
@@ -679,7 +680,8 @@ class AlibabaComputeController(AmazonComputeController):
         else:
             return 'custom'
 
-    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
         try:
             security_group = networks_dict['security_group']
         except KeyError:
@@ -1230,7 +1232,8 @@ class LinodeComputeController(BaseComputeController):
 
         return {'name': name, 'size': size}
 
-    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
         private_ip = True if networks_dict.get(
             'private_ip', True) is True else False
         return {'private_ip': private_ip}
@@ -1656,7 +1659,8 @@ class AzureArmComputeController(BaseComputeController):
         return super()._list_machines__machine_creation_date(machine,
                                                              node_dict)
 
-    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
         return networks_dict.get('network')
 
     def _generate_plan__parse_custom_volume(self, volume_dict):
@@ -2294,7 +2298,8 @@ class GoogleComputeController(BaseComputeController):
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
-    def _generate_plan__parse_networks(self, auth_context, network_dict):
+    def _generate_plan__parse_networks(self, auth_context, network_dict,
+                                       location):
 
         subnetwork = network_dict.get('subnetwork')
         network = network_dict.get('network')
@@ -2696,7 +2701,8 @@ class EquinixMetalComputeController(BaseComputeController):
 
         return {'size': size, 'plan': plan}
 
-    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
         try:
             ip_addresses = networks_dict['ip_addresses']
         except KeyError:
@@ -3241,7 +3247,8 @@ class OpenStackComputeController(BaseComputeController):
         return [location for location in locations
                 if location.extra.get('compute', False) is True]
 
-    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
         from mist.api.methods import list_resources
         from mist.api.networks.models import Network
 
@@ -4366,7 +4373,8 @@ class LibvirtComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
 
-    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
         """
         Parse network interfaces.
         - If networks_dict is empty, no network interface will be configured.
