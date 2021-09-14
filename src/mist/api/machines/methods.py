@@ -7,6 +7,7 @@ import requests
 import json
 import hmac
 import hashlib
+import ipaddress
 
 from random import randrange
 from datetime import datetime
@@ -873,11 +874,54 @@ def _create_machine_aliyun(conn, key_name, public_key,
         security_group_id = mist_sg[0].id
 
     switches = conn.ex_list_switches(ex_filters={'VpcId': vpc_id})
-    if switches:
-        ex_vswitch_id = switches[0].id
+    switch = next((switch for switch in switches
+                   if switch.extra['zone_id'] == location.id), None)
+    if switch is None:
+        try:
+            vpc, *_ = conn.ex_list_networks(
+                ex_filters={'VpcId': vpc_id}
+            )
+        except ValueError:
+            # This shouldn't really happen as network was either created
+            # or already existed
+            raise MachineCreationError('Network does not exist') from None
+
+        network = ipaddress.IPv4Network(vpc.cidr_block)
+        # decide the subnet mask length
+        mask_length = config.ECS_SWITCH_CIDR_BLOCK_LENGTH
+        prefix = (mask_length
+                  if network.prefixlen < mask_length
+                  else network.prefixlen + 2)
+        if prefix > 32:
+            prefix = 32
+
+        switch_blocks = [ipaddress.IPv4Network(switch.cidr_block)
+                         for switch in switches]
+        # Find an available CIDR block for the new subnet
+        for subnet in network.subnets(new_prefix=prefix):
+            overlaps = any((
+                subnet.supernet_of(
+                    switch_block) or subnet.subnet_of(switch_block)
+                for switch_block in switch_blocks))
+            if not overlaps:
+                subnet_cidr_block = subnet.exploded
+                break
+        else:
+            raise MachineCreationError(
+                'Could not find available switch(subnet)')
+
+        ex_vswitch_id = conn.ex_create_switch(subnet_cidr_block,
+                                              location.id,
+                                              vpc_id)
+        # make sure switch is available to use
+        for _ in range(10):
+            switches = conn.ex_list_switches(
+                ex_filters={'VSwitchId': ex_vswitch_id})
+            if switches and switches[0].extra['status'] == 'Available':
+                break
+            time.sleep(5)
     else:
-        ex_vswitch_id = conn.ex_create_switch('172.16.0.0/24',
-                                              location.id, vpc_id)
+        ex_vswitch_id = switch.id
 
     ex_data_disks = []
     ex_volumes = []

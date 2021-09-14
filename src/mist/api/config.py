@@ -1434,6 +1434,8 @@ ECS_SWITCH = {
     'description': 'Switch created by {portal_name}'
 }
 
+ECS_SWITCH_CIDR_BLOCK_LENGTH = 27
+
 # Linode datacenter ids/names mapping
 LINODE_DATACENTERS = {
     2: 'Dallas, TX, USA',
