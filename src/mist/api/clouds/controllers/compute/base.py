@@ -2737,7 +2737,7 @@ class BaseComputeController(BaseController):
 
         from mist.api.methods import list_resources
         keys, count = list_resources(
-            auth_context, 'key', search=key_search, limit=1
+            auth_context, 'key', search=key_search
         )
         if not count:
             raise NotFoundError('Key not found')
