@@ -2303,9 +2303,9 @@ class GoogleComputeController(BaseComputeController):
         from mist.api.methods import list_resources
         if network:
             try:
-                [network] = list_resources(auth_context, 'network',
-                                           search=network,
-                                           limit=1)
+                [network], _ = list_resources(auth_context, 'network',
+                                              search=network,
+                                              limit=1)
             except ValueError:
                 raise NotFoundError('Network does not exist')
             else:
