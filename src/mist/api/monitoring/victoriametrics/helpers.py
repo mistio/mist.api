@@ -1,6 +1,7 @@
 import logging
 import re
 import ctypes
+import os.path
 
 from prometheus_client.parser import text_string_to_metric_families
 
@@ -84,8 +85,10 @@ def calculate_time_args(start, stop, step):
 
 
 def apply_rbac(query, machine_ids):
+    if not os.path.isfile('/promql_rbac.so'):
+        return query
     so = ctypes.cdll.LoadLibrary(
-        '/victoriametricsrbac/promql_rbac.so')
+        '/promql_rbac.so')
     apply_rbac_func = so.applyRBAC
     apply_rbac_func.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
     apply_rbac_func.restype = ctypes.c_void_p
