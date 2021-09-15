@@ -2493,8 +2493,11 @@ class BaseComputeController(BaseController):
         if not image_search:
             raise BadRequestError('Image is required')
         images, count = list_resources(
-            auth_context, 'image', search=image_search,
-            cloud=self.cloud.id
+            auth_context,
+            'image',
+            search=image_search,
+            cloud=self.cloud.id,
+            limit=1000
         )
         if not count:
             raise NotFoundError('Image not found')
@@ -2527,9 +2530,11 @@ class BaseComputeController(BaseController):
         """
         from mist.api.methods import list_resources
         locations, count = list_resources(
-            auth_context, 'location',
+            auth_context,
+            'location',
             search=location_search,
-            cloud=self.cloud.id)
+            cloud=self.cloud.id,
+            limit=1000)
         if not count:
             raise NotFoundError('Location not found')
 
@@ -2566,8 +2571,11 @@ class BaseComputeController(BaseController):
 
         if size_search:
             sizes, count = list_resources(
-                auth_context, 'size', search=size_search,
-                cloud=self.cloud.id
+                auth_context,
+                'size',
+                search=size_search,
+                cloud=self.cloud.id,
+                limit=1000
             )
             if not count:
                 raise NotFoundError('Size not found')
@@ -2601,8 +2609,11 @@ class BaseComputeController(BaseController):
         from mist.api.methods import list_resources
         size_search = f'cpus>={cpus} ram>={ram} cpus<={cpus*2} ram<={ram*2}'
         sizes, count = list_resources(
-            auth_context, 'size', search=size_search,
-            cloud=self.cloud.id
+            auth_context,
+            'size',
+            search=size_search,
+            cloud=self.cloud.id,
+            limit=1000
         )
         if not count:
             raise NotFoundError(
@@ -2737,7 +2748,7 @@ class BaseComputeController(BaseController):
 
         from mist.api.methods import list_resources
         keys, count = list_resources(
-            auth_context, 'key', search=key_search
+            auth_context, 'key', search=key_search, limit=1000
         )
         if not count:
             raise NotFoundError('Key not found')
