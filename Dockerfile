@@ -4,14 +4,8 @@ FROM python:3.7-slim-buster
 RUN apt update && apt install -y build-essential g++ gcc libvirt-dev \
     libxml2-dev libxslt-dev gnupg ca-certificates wget python3-pip \
     mongo-tools libmemcached-dev netcat build-essential libssl-dev libffi-dev \
-    python3-dev cargo zlib1g-dev git && \
+    python3-dev cargo zlib1g-dev git curl jq && \
     rm -rf /var/lib/apt/lists/*
-
-# Install golang
-RUN wget https://golang.org/dl/go1.17.linux-amd64.tar.gz && \
-    rm -rf /usr/local/go && tar -C /usr/local -xzf go1.17.linux-amd64.tar.gz && \
-    git clone https://gitlab.ops.mist.io/mistio/victoriametricsrbac.git && \
-    cd victoriametricsrbac && export PATH=$PATH:/usr/local/go/bin && go build -buildmode=c-shared -o promql_rbac.so
 
 RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.8.4-static_linux_amd64.tar.gz && \
     tar xvfz influxdb-1.8.4-static_linux_amd64.tar.gz && rm influxdb-1.8.4-static_linux_amd64.tar.gz
