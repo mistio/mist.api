@@ -35,6 +35,7 @@ import json
 import time
 import secrets
 import requests
+import ipaddress
 
 import mongoengine as me
 
@@ -682,14 +683,56 @@ class AlibabaComputeController(AmazonComputeController):
 
     def _generate_plan__parse_networks(self, auth_context, networks_dict,
                                        location):
-        try:
-            security_group = networks_dict['security_group']
-        except KeyError:
-            security_group = config.EC2_SECURITYGROUP.get('name', 'mistio')
+        from mist.api.methods import list_resources
+        ret_dict = {}
 
-        return {
-            'security_group': security_group
-        }
+        network_search = networks_dict.get('network', '')
+        networks, count = list_resources(auth_context,
+                                         'network',
+                                         search=network_search,
+                                         cloud=self.cloud.id,
+                                         )
+        if count == 0:
+            raise NotFoundError(f'Network "{network_search}" not found')
+
+        subnet_search = networks_dict.get('subnet',
+                                          config.ECS_SWITCH.get('name'))
+        subnets, _ = list_resources(auth_context,
+                                    'subnet',
+                                    search=subnet_search,
+                                    )
+        subnets = subnets.filter(network__in=networks)
+        subnets = [subnet for subnet in subnets
+                   if subnet.extra['zone_id'] == location.external_id]
+        if len(subnets) == 0:
+            # Subnet will be created later on the first network found
+            ret_dict['network'] = {
+                'id': networks[0].id,
+                'name': networks[0].name,
+                'external_id': networks[0].network_id,
+            }
+            ret_dict['subnet'] = {
+                'name': subnet_search,
+            }
+        else:
+            subnet = subnets[0]
+            ret_dict['network'] = {
+                'id': subnet.network.id,
+                'name': subnet.network.name,
+                'external_id': subnet.network.network_id,
+            }
+            ret_dict['subnet'] = {
+                'id': subnet.id,
+                'name': subnet.name,
+                'external_id': subnet.subnet_id,
+            }
+
+        try:
+            ret_dict['security_group'] = networks_dict['security_group']
+        except KeyError:
+            ret_dict['security_group'] = config.EC2_SECURITYGROUP.get('name')
+
+        return ret_dict
 
     def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
         delete_on_termination = True if volume_dict.get(
@@ -749,76 +792,81 @@ class AlibabaComputeController(AmazonComputeController):
         if plan.get('cloudinit'):
             kwargs['ex_userdata'] = plan['cloudinit']
 
-        libcloud_sec_groups = self.connection.ex_list_security_groups()
-        security_group = next((
-            sec_group for sec_group in libcloud_sec_groups
-            if (sec_group.name == plan['networks']['security_group'] and
-                sec_group.vpc_id)),
-            None)
-
-        if security_group:
-            vpc_id = security_group.vpc_id
-            sec_group_id = security_group.id
+        vpc_id = plan['networks']['network']['external_id']
+        sec_group_name = plan['networks']['security_group']
+        security_groups = self.connection.ex_list_security_groups(
+            ex_filters={
+                'VpcId': vpc_id,
+                'SecurityGroupName': sec_group_name
+            }
+        )
+        if security_groups:
+            sec_group_id = security_groups[0].id
         else:
-            group_name = plan['networks']['security_group']
-            group_description = config.EC2_SECURITYGROUP.get(
-                'description', '').format(
-                portal_name=config.PORTAL_NAME)
-            network_name = config.ECS_VPC.get('name', '')
-            network_description = config.ECS_VPC.get('description', '').format(
+            description = config.EC2_SECURITYGROUP['description'].format(
                 portal_name=config.PORTAL_NAME
             )
-            networks = self.connection.ex_list_networks()
-            network = next((
-                net for net in networks
-                if (net.name == network_name and
-                    net.status == 'Available')),
-                None)
-            if network is None:
-                params = {
-                    'VpcName': network_name,
-                    'Description': network_description,
-                }
-                vpc_id = self.connection.ex_create_network(ex_filters=params)
-                # wait for vpc to be available
-                for _ in range(20):
-                    networks = self.connection.ex_list_networks(
-                        ex_filters={'VpcId': vpc_id})
-                    if networks and networks[0].status == 'Available':
-                        break
-                    time.sleep(3)
-                else:
-                    log.error('Aliyun VPC %s not available', vpc_id)
-            else:
-                vpc_id = network.id
-
             sec_group_id = self.connection.ex_create_security_group(
-                name=group_name,
-                description=group_description,
+                name=sec_group_name,
+                description=description,
                 vpc_id=vpc_id)
             self.connection.ex_authorize_security_group(
                 group_id=sec_group_id,
                 description='Allow SSH',
                 ip_protocol='tcp',
                 port_range='22/22')
-
-        switches = self.connection.ex_list_switches(
-            ex_filters={'VpcId': vpc_id,
-                        'ZoneId': kwargs['ex_zone_id']}
-        )
-        if switches:
-            kwargs['ex_vswitch_id'] = switches[0].id
-        else:
-            kwargs['ex_vswitch_id'] = self.connection.ex_create_switch(
-                '172.16.0.0/27',
-                kwargs['ex_zone_id'],
-                vpc_id,
-                name=config.ECS_SWITCH.get('name'),
-                description=config.ECS_SWITCH.get('description').format(
-                    portal_name=config.PORTAL_NAME
-                ))
         kwargs['ex_security_group_id'] = sec_group_id
 
+        subnet_id = plan['networks']['subnet'].get('external_id')
+        if subnet_id:
+            kwargs['ex_vswitch_id'] = subnet_id
+        else:
+            from mist.api.networks.models import AlibabaNetwork, AlibabaSubnet
+            network = AlibabaNetwork.objects.get(
+                id=plan['networks']['network']['id'],
+                cloud=self.cloud)
+            cidr_network = ipaddress.IPv4Network(network.cidr)
+            # decide the subnet mask length
+            mask_length = config.ECS_SWITCH_CIDR_BLOCK_LENGTH
+            prefix = (mask_length
+                      if cidr_network.prefixlen < mask_length
+                      else cidr_network.prefixlen + 2)
+            if prefix > 32:
+                prefix = 32
+            subnets = AlibabaSubnet.objects(network=network,
+                                            missing_since=None)
+            subnet_cidrs = [ipaddress.IPv4Network(subnet.cidr)
+                            for subnet in subnets]
+            # Find an available CIDR block for the new subnet
+            for subnet in cidr_network.subnets(new_prefix=prefix):
+                overlaps = any((
+                    subnet.supernet_of(
+                        subnet_cidr) or subnet.subnet_of(subnet_cidr)
+                    for subnet_cidr in subnet_cidrs))
+                if not overlaps:
+                    subnet_cidr_block = subnet.exploded
+                    break
+            else:
+                raise MachineCreationError(
+                    'Could not find available switch(subnet)')
+
+            subnet_name = plan['networks']['subnet']['name']
+            description = config.ECS_SWITCH['description'].format(
+                portal_name=config.PORTAL_NAME
+            )
+            kwargs['ex_vswitch_id'] = self.connection.ex_create_switch(
+                subnet_cidr_block,
+                kwargs['ex_zone_id'],
+                vpc_id,
+                name=subnet_name,
+                description=description)
+            # make sure switch is available to use
+            for _ in range(10):
+                switches = self.cloud.ctl.compute.connection.ex_list_switches(
+                    ex_filters={'VSwitchId': kwargs['ex_vswitch_id']})
+                if switches and switches[0].extra['status'] == 'Available':
+                    break
+                time.sleep(5)
         # already existing volumes cannot be passed as parameters
         # to the createInstance API  endpoint,
         # so they will be attached after machine creation
