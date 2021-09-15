@@ -1,7 +1,5 @@
 import logging
 import re
-import ctypes
-import os.path
 
 from prometheus_client.parser import text_string_to_metric_families
 
@@ -82,21 +80,3 @@ def calculate_time_args(start, stop, step):
     else:
         time_args += f"&step={parse_relative_time(step)}"
     return time_args
-
-
-def apply_rbac(query, machine_ids):
-    if not os.path.isfile('/promql_rbac.so'):
-        return query
-    so = ctypes.cdll.LoadLibrary(
-        '/promql_rbac.so')
-    apply_rbac_func = so.applyRBAC
-    apply_rbac_func.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-    apply_rbac_func.restype = ctypes.c_void_p
-    free = so.free
-    free.argtypes = [ctypes.c_void_p]
-    ptr = apply_rbac_func(query.encode('utf-8'), machine_ids.encode('utf-8'))
-    filtered_query = ctypes.string_at(ptr)
-    free(ptr)
-    if not filtered_query:
-        raise RuntimeError("Could not parse promql query")
-    return filtered_query.decode('utf-8')
