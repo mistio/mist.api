@@ -2797,7 +2797,8 @@ class BaseComputeController(BaseController):
                 try:
                     [vol], _ = list_resources(
                         auth_context, 'volume', search=volume['volume'],
-                        cloud=self.cloud.id
+                        cloud=self.cloud.id,
+                        limit=1,
                     )
                 except ValueError:
                     raise NotFoundError(
