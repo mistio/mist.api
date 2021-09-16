@@ -1,12 +1,18 @@
-FROM mist/python3:latest
+FROM python:3.7-slim-buster
 
 # Install libvirt which requires system dependencies.
-RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget mongodb-tools libmemcached-dev
+RUN apt update && \
+    apt install -y git build-essential g++ gcc cargo gnupg ca-certificates \
+    libssl-dev libffi-dev libvirt-dev libxml2-dev libxslt-dev zlib1g-dev \
+    mongo-tools libmemcached-dev netcat wget curl jq && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.8.4-static_linux_amd64.tar.gz && \
     tar xvfz influxdb-1.8.4-static_linux_amd64.tar.gz && rm influxdb-1.8.4-static_linux_amd64.tar.gz
 
-RUN ln -s /influxdb-1.8.4-1/influxd /usr/local/bin/influxd
+RUN ln -s /influxdb-1.8.4-1/influxd /usr/local/bin/influxd && \
+    ln -s /usr/bin/pip3 /usr/bin/pip && \
+    ln -s /usr/bin/python3 /usr/bin/python
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --upgrade setuptools && \
