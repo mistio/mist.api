@@ -32,6 +32,10 @@ def compute(operator, aggregate, values, threshold):
         states = {value: value > float(threshold) for value in values}
     elif operator == 'lt':
         states = {value: value < float(threshold) for value in values}
+    elif operator == 'eq':
+        states = {value: value == float(threshold) for value in values}
+    elif operator == 'ne':
+        states = {value: value != float(threshold) for value in values}
 
     if aggregate == 'all':
         state = False not in list(states.values())
@@ -45,6 +49,10 @@ def compute(operator, aggregate, values, threshold):
         retval = max(values)
     elif operator == 'lt':
         retval = min(values)
+    elif operator == 'eq':
+        retval = threshold if state else values[0]
+    elif operator == 'ne':
+        retval = values[0] if state else threshold
 
     return state, retval
 
