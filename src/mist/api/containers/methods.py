@@ -5,6 +5,8 @@ from mist.api.exceptions import PolicyUnauthorizedError
 def list_clusters(owner, cloud_id, cached=False, as_dict=True):
     """List all clusters in this cloud via API call to the provider."""
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    if not hasattr(cloud.ctl, 'container') or not cloud.container_enabled:
+        return []
     try:
         if cached:
             clusters = cloud.ctl.container.list_cached_clusters()
