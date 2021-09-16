@@ -13,7 +13,7 @@ import socket
 import logging
 import datetime
 import calendar
-from typing import Dict, List
+from typing import Any, Dict, List, Tuple, Union
 import requests
 import re
 import asyncio
@@ -2431,13 +2431,15 @@ class BaseComputeController(BaseController):
             plan['key'].update(key_extra_attrs)
 
         networks = self._generate_plan__parse_networks(auth_context,
-                                                       networks)
+                                                       networks,
+                                                       location)
         if networks:
             plan['networks'] = networks
 
         if self.cloud.ctl.has_feature('storage'):
             volumes = self._generate_plan__parse_volumes(auth_context,
-                                                         volumes)
+                                                         volumes,
+                                                         location)
             if volumes:
                 plan['volumes'] = volumes
 
@@ -2470,15 +2472,22 @@ class BaseComputeController(BaseController):
         self._generate_plan__post_parse_plan(plan)
         return plan
 
-    def _generate_plan__parse_image(self, auth_context, image_obj):
+    def _generate_plan__parse_image(self, auth_context, image_obj) -> Tuple:
         """Parse the image parameter from request.
 
-        Returns a tuple of the following items:
-        - A list of CloudImage objects
-        - A dictionary of items to be added as is to plan's image dictionary
-          or by default None
-
         Subclasses MAY override or extend this method.
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            image_obj(str|dict): The image parameter from create machine
+                                 request.
+
+        Returns:
+            A tuple of the following items:
+                - A list of CloudImage objects
+                - A dictionary of items to be added as is to plan's image
+                  dictionary or by default None
         """
         if self.cloud.ctl.has_feature('custom_image'):
             image = self._generate_plan__parse_custom_image(image_obj)
@@ -2519,15 +2528,25 @@ class BaseComputeController(BaseController):
     def _generate_plan__parse_custom_image(self, image_dict):
         """Get an image that is not saved in mongo.
         This could be a docker image that needs to be pulled.
+
+        Currently unused.
         """
         pass
 
-    def _generate_plan__parse_location(self, auth_context, location_search):
-        """Parse the location string parameter from request
-
-        Returns a list of CloudLocation objects
+    def _generate_plan__parse_location(self, auth_context,
+                                       location_search) -> List:
+        """Parse the location string parameter from create machine request.
 
         Subclasses MAY override or extend this method.
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            location_search(str): The location string from create machine
+                                  request.
+
+        Returns:
+            A list of CloudLocation objects
         """
         from mist.api.methods import list_resources
         locations, count = list_resources(
@@ -2552,13 +2571,22 @@ class BaseComputeController(BaseController):
 
         return ret_locations
 
-    def _generate_plan__parse_size(self, auth_context, size_obj):
-        """Parse the size parameter from request.
+    def _generate_plan__parse_size(self, auth_context, size_obj) -> Tuple:
+        """Parse the size parameter from create machine request.
 
-        Returns a tuple of the following items:
-        - A list of CloudSize or dictionary objects in case of custom size
-        - A dictionary of items to be added as is to plan's size dictionary
-          or None
+        Subclasses MAY override or extend this method.
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            size_obj(str|dict): The size parameter from create machine request.
+
+        Returns:
+             A tuple of the following items:
+                - A list of CloudSize or dictionary objects in case of custom
+                  size
+                - A dictionary of items to be added as is to plan's size
+                  dictionary or None
 
         Subclasses MAY override or extend this method.
         """
@@ -2587,16 +2615,25 @@ class BaseComputeController(BaseController):
                 auth_context, size_obj)
             return sizes, None
 
-    def _generate_plan__parse_custom_size(self, auth_context, size_dict):
+    def _generate_plan__parse_custom_size(self, auth_context,
+                                          size_dict) -> List:
         """Parse custom size from request.
 
-        In case of providers with custom sizes a list of dictionaries
-        will be returned.
+        In case of providers with custom sizes a list containing a single
+        dictionary will be returned.
         For providers with standard sizes a list of CloudSize objects
         within the range: [(`cpus`, `ram`), [(2*`cpus`, 2*`ram`)]
         will be returned.
 
         Subclasses MAY override or extend this method.
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            size_dict(dict): A dictionary containing custom size attributes.
+
+        Returns:
+            A list of either custom sizes or CloudSize objects.
         """
         try:
             cpus = size_dict['cpus']
@@ -2622,13 +2659,43 @@ class BaseComputeController(BaseController):
 
         return sizes
 
-    def _get_allowed_image_size_location_combinations(self, images,
+    def _get_allowed_image_size_location_combinations(self,
+                                                      images,
                                                       locations,
                                                       sizes,
                                                       image_extra_attrs,
-                                                      size_extra_attrs):
-        """ Find all possible combinations of images, locations and sizes
+                                                      size_extra_attrs
+                                                      ) -> List[Tuple]:
+        """Find all possible combinations of images, sizes and locations
         based on provider restrictions.
+
+        `image_extra_attrs` and `size_extra_attrs` are useful when non-standard
+        requirements exist between images,sizes and locations.
+
+        For example GCE supports GPU attachment on certain sizes and locations.
+        In this case the `size_extra_attrs` will be useful in order to
+        pre-filter the locations that support the provided GPU model.
+
+
+        Subclasses MAY override or extend this method.
+
+        Parameters:
+            images(list): A list of CloudImage objects.
+
+            locations(list): A list of CloudLocation objects.
+
+            size(list): A list of CloudSize objects.
+
+            image_extra_attrs(dict): A dictionary containing provider specific
+                                     key/value pairs returned from
+                                     `_generate_plan__parse_image`.
+            size_extra_attrs(dict): A dictionary containing provider specific
+                                     key/value pairs returned from
+                                     `_generate_plan__parse_size`.
+
+        Returns:
+            A list of tuples containing permitted image,size, location
+            combinations.
         """
         try:
             custom_size = isinstance(sizes[0], dict)
@@ -2668,7 +2735,23 @@ class BaseComputeController(BaseController):
                     ret_list.append((image, size, location))
         return ret_list
 
-    def _generate_plan__parse_scripts(self, auth_context, scripts):
+    def _generate_plan__parse_scripts(self, auth_context,
+                                      scripts) -> List[Dict]:
+        """Parse the list of script dictionaries from the create machine
+        request.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            scripts(list): A list of script dictionaries that will be ran
+                           after the machine provisioning.
+
+        Returns:
+            A list of dictionaries containing either the script IDs  and params
+            or the script bodies.
+        """
         ret_scripts = []
         from mist.api.methods import list_resources
         for script in scripts:
@@ -2693,11 +2776,27 @@ class BaseComputeController(BaseController):
                     })
         return ret_scripts
 
-    def _compute_best_combination(self, combination_list):
-        """Find the best combination of image,size,location
+    def _compute_best_combination(self, combination_list) -> Tuple:
+        """Find the best combination of image, size, location.
 
-        Subclasses that require special handling should override these, by
-        default, dummy methods.
+        The current implementation selects the image, size, location
+        based on the following criteria:
+            a) The size pricing or in cases where pricing info do not
+               exist, the size based on CPU cores and RAM.
+            b) Whether the image is starred.
+            c) The length of the image's name. This is useful as multiple
+               providers have images like:
+              `Ubuntu 20.04`
+              `Wordpress on Ubuntu 20.04`
+
+        Subclasses MAY override or extend this method.
+
+        Parameters:
+            combination_list(list): List of tuples of CloudImage, CloudSize,
+                                    CloudLocation objects.
+
+        Returns:
+            A tuple of CloudImage, CloudSize, CloudLocation.
         """
         if not combination_list:
             raise NotFoundError('No available plan exists for given '
@@ -2721,13 +2820,23 @@ class BaseComputeController(BaseController):
             return sorted(combination_list, key=sort_by_price)[0]
         return sorted(combination_list, key=sort_by_size)[0]
 
-    def _generate_plan__parse_key(self, auth_context, key_obj):
-        """Parse the key parameter from request.
+    def _generate_plan__parse_key(self, auth_context, key_obj) -> Tuple:
+        """Parse the key dictionary from request.
 
-        Returns a tuple of the following items:
-        - A Key object or None
-        - A dictionary of items to be added as is to plan's key dictionary
-          or None
+        Subclasses MAY override or extend this method.
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            key_obj(dict): A dictionary containing key attributes.
+
+        Returns:
+            A tuple of the following items:
+            - A Key object or None
+            - A dictionary of key,value pairs to be added as is to
+              plan's key dictionary or None. This is useful in cases where
+              a cloud supports extra key related attributes,
+              e.g SSH port.
 
         Subclasses MAY override this method.
         """
@@ -2760,7 +2869,19 @@ class BaseComputeController(BaseController):
         return keys[0], None
 
     def _generate_plan__parse_expiration(self, auth_context,
-                                         expiration):
+                                         expiration) -> Dict:
+        """Parse & validate the machine expiration dictionary.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            expiration(dict): A dictionary containing expiration attributes.
+
+        Returns:
+            A dictionary with the validated expiration.
+        """
         if not expiration:
             return {}
 
@@ -2789,18 +2910,50 @@ class BaseComputeController(BaseController):
 
         return exp_dict
 
-    def _generate_plan__parse_networks(self, auth_context, networks_dict):
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location) -> Union[Dict, None]:
+        """Parse & validate the network dictionary from the create machine
+        request.
+
+        Subclasses that require special handling SHOULD override this
+        by default, dummy method
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            networks_dict(dict): A dictionary containing network related
+                                 attributes from the create machine request.
+            location(CloudLocation): The location object selected for the
+                                     machine creation.
+
+        Returns:
+            A dictionary with the validated network attributes.
+        """
         pass
 
-    def _generate_plan__parse_volumes(self, auth_context, volumes):
-        """Returns a list of dictionaries containing either volume IDs,
-        volume to be created attributes e.g size, name, filesystem or
-        something provider specific.
+    def _generate_plan__parse_volumes(self, auth_context,
+                                      volumes, location) -> List[Dict]:
+        """Parse the volumes list from the create machine request.
+
+        The contained volume dictionaries cam contain both existing and
+        to be created volumes that will eventually be attached to the machine.
 
         Subclasses MAY override this method, even though overriding
         `self._generate_plan__parse_custom_volume` or
         `self._generate_plan__parse_volume_attrs` should be enough for
         most cases
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            volumes(list): A list of volume dictionaries from the
+                           create machine request.
+            location(CloudLocation): The location object selected for the
+                                     machine creation.
+
+        Returns:
+            A list of dictionaries representing the new or existing volumes
+            that will be attached to the machine.
         """
         ret_volumes = []
         from mist.api.methods import list_resources
@@ -2815,6 +2968,13 @@ class BaseComputeController(BaseController):
                 except ValueError:
                     raise NotFoundError(
                         f"Volume {volume['volume']} does not exist")
+
+                if (self.cloud.ctl.has_feature('location') and
+                        vol.location != location):
+                    raise BadRequestError(
+                        f'Volume {volume["volume"]} is in a different'
+                        f' location than the one selected: {location.name}'
+                    )
                 volume_dict = self._generate_plan__parse_volume_attrs(volume,
                                                                       vol)
                 ret_volumes.append(volume_dict)
@@ -2823,39 +2983,77 @@ class BaseComputeController(BaseController):
                 ret_volumes.append(vol)
         return ret_volumes
 
-    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj) -> Dict:
         """Create and return a dictionary with all of the provider's
-        attributes necessary to attach the already existing volume to a
+        attributes necessary to attach the already existing volume to the
         machine.
 
         Subclasses that require special handling SHOULD override this
         by default, dummy method
+
+        Parameters:
+            volume_dict(dict): The volume dictionary from the user request.
+
+            vol_obj(Volume): The Volume object from the database.
+
+        Returns:
+            A dictionary of the attributes necessary to attach the existing
+            volume to the machine.
         """
         return {'id': vol_obj.id, 'name': vol_obj.name}
 
-    def _generate_plan__parse_custom_volume(self, volume_dict):
-        """
-        Parse non-mist volumes e.g volumes to be created.
+    def _generate_plan__parse_custom_volume(self, volume_dict) -> Dict:
+        """Parse & validate volume to be created attributes.
 
         Subclasses that require special handling should override this
         by default, dummy method
+
+        Parameters:
+            volume_dict(dict): The volume dictionary from the user request.
+
+        Returns:
+            The validated dictionary with volume attributes.
         """
         size = volume_dict.get('size')
         return {'size': size}
 
-    def _generate_plan__parse_disks(self, auth_context, disks_dict):
-        pass
+    def _generate_plan__parse_disks(self, auth_context,
+                                    disks_dict) -> Any:
+        """Parse & validate the disks dictionary from user request.
 
-    def _generate_plan__parse_extra(self, extra, plan):
-        """Extract provider specific parameters from extra dictionary
-        and add them in place to plan
+        Subclasses that require special handling should override this
+        by default, dummy method
 
-        Subclasses MAY override this method.
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+
+            disks_dict(dict): The disks dictionary from the user request.
+
+        Returns:
+            The validated disk attributes.
         """
         pass
 
-    def _generate_plan__parse_schedules(self, auth_context, schedules):
+    def _generate_plan__parse_extra(self, extra, plan) -> None:
+        """Extract parameters from extra dictionary and add them
+        IN PLACE to plan.
+
+        Subclasses that require special handling SHOULD override this
+        by default, dummy method
+
+        Parameters:
+            extra(dict): The extra dictionary from the user request.
+
+            plan(dict): The plan that will be returned as response.
         """
+        pass
+
+    def _generate_plan__parse_schedules(self, auth_context,
+                                        schedules) -> List[Dict]:
+        """Parse & validate machine's schedules list from the create machine
+        request.
+
         Schedule attributes:
             `schedule_type`: 'one_off', 'interval', 'crontab'
             `action`: 'start' 'stop', 'reboot', 'destroy'
@@ -2885,6 +3083,14 @@ class BaseComputeController(BaseController):
 
             `max_run_count`: max number of times to run
             description:
+
+        Parameters:
+            auth_context(AuthContext): The AuthContext object of the user
+                                       making the request.
+            schedules(list): The list of schedule dictionaries from the user
+                             request.
+        Returns:
+            List containing the machine's schedule dictionaries.
         """
         if not schedules:
             return None
@@ -2992,12 +3198,18 @@ class BaseComputeController(BaseController):
 
         return ret_schedules
 
-    def _generate_plan__post_parse_plan(self, plan):
-        """Used to parse whole plan in place, instead of specific parts of it.
-        For example a provider could have some parameters from extra and
-        networks that need to be processed together.
+    def _generate_plan__post_parse_plan(self, plan) -> None:
+        """Parse the whole plan IN PLACE. This is useful for cases where
+        a dependency between different plan attributes exist.
+
+        For example a provider might have a dependency between
+        the image that will be used to create the machine and the boot
+        volume.
 
         Subclasses that require special handling SHOULD override this method.
+
+        Parameters:
+            plan(dict): The generated plan.
         """
         pass
 
