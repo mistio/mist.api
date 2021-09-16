@@ -327,6 +327,8 @@ class BaseMainController(object):
         except ListImagesPollingSchedule.DoesNotExist:
             pass
 
+        self.add_polling_schedules()
+
     def _update__preparse_kwargs(self, kwargs):
         """Preparse keyword arguments to `self.update`
 

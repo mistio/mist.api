@@ -3574,6 +3574,8 @@ class BaseComputeController(BaseController):
         for machine_id, _ in machines_map.items():
             last_metering_data[machine_id] = {}
             for metering_data in metering_data_list:
+                if not metering_data.get(machine_id):
+                    continue
                 last_metering_data[machine_id].update(
                     metering_data[machine_id])
         return last_metering_data

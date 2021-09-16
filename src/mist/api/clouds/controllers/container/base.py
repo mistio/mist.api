@@ -25,6 +25,7 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
+from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
@@ -61,7 +62,18 @@ class BaseContainerController(BaseController):
         return self.connection.create_cluster(*args, **kwargs)
 
     def create_cluster(self, *args, **kwargs):
-        return self._create_cluster(*args, **kwargs)
+        if not hasattr(self.cloud.ctl, 'container') or \
+                not self.cloud.container_enabled:
+            raise ServiceUnavailableError(
+                f'Container feature is disabled on cloud: {self.cloud}')
+        success = self._create_cluster(*args, **kwargs)
+        if success:
+            from mist.api.poller.models import ListClustersPollingSchedule
+            schedule = ListClustersPollingSchedule.objects.get(
+                cloud=self.cloud)
+            schedule.add_interval(10, ttl=600)
+            schedule.save()
+        return success
 
     def _destroy_cluster(self, *args, **kwargs):
         return self.connection.destroy_cluster(*args, **kwargs)
