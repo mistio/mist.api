@@ -405,14 +405,15 @@ class AmazonComputeController(BaseComputeController):
         if subnet:
             # APIv1 also searches for amazon's id
             from mist.api.methods import list_resources
-            try:
-                [sub_net], _ = list_resources(auth_context, 'subnet',
-                                              search=subnet,
-                                              limit=1)
-            except ValueError:
+            subnets, _ = list_resources(auth_context, 'subnet',
+                                        search=subnet,
+                                        )
+            subnets = [subnet for subnet in subnets
+                       if subnet.network.cloud == self.cloud]
+            if len(subnets) == 0:
                 raise NotFoundError('Subnet not found %s' % subnet)
-            else:
-                networks['subnet'] = sub_net.id
+
+            networks['subnet'] = subnets[0].id
 
         return networks
 
@@ -2296,36 +2297,40 @@ class GoogleComputeController(BaseComputeController):
 
     def _generate_plan__parse_networks(self, auth_context, network_dict):
 
-        subnetwork = network_dict.get('subnetwork')
-        network = network_dict.get('network')
-        networks = {}
+        subnet_search = network_dict.get('subnetwork')
+        network_search = network_dict.get('network')
+        networks_dict = {}
 
         from mist.api.methods import list_resources
-        if network:
+        network = None
+        if network_search:
             try:
-                [network] = list_resources(auth_context, 'network',
-                                           search=network,
-                                           limit=1)
+                [network], _ = list_resources(auth_context, 'network',
+                                              search=network_search,
+                                              cloud=self.cloud.id,
+                                              limit=1)
             except ValueError:
                 raise NotFoundError('Network does not exist')
-            else:
-                network = network.name
+
+            networks_dict['network'] = network.name
         else:
-            network = 'default'
+            networks_dict['network'] = 'default'
 
-        networks['network'] = network
-
-        if subnetwork:
-            try:
-                [subnet], _ = list_resources(auth_context, 'subnet',
-                                             search=subnetwork,
-                                             limit=1)
-            except ValueError:
-                raise NotFoundError('Subnet not found %s' % subnet)
+        if subnet_search:
+            subnets, _ = list_resources(auth_context, 'subnet',
+                                        search=subnet_search,
+                                        limit=1)
+            if network:
+                subnets.filter(network=network)
             else:
-                networks['subnet'] = subnet.name
+                subnets = [subnet for subnet in subnets
+                           if subnet.network.cloud == self.cloud]
+            if len(subnets) == 0:
+                raise NotFoundError('Subnet not found %s' % subnet_search)
 
-        return networks
+            networks_dict['subnet'] = subnets[0].name
+
+        return networks_dict
 
     def _generate_plan__parse_key(self, auth_context, key_obj):
         key, _ = super()._generate_plan__parse_key(auth_context, key_obj)
