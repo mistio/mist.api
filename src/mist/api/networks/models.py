@@ -220,18 +220,19 @@ class GoogleNetwork(Network):
 
         GCE enforces:
 
-            - Regex constrains on network names.
-            - CIDR assignment only if `legacy` mode has been selected.
+            - Regex constrains on network names, names must be
+              lowercase letters, numbers, and hyphens.
+            - CIDR assignment are not supported for any of the available modes
+              'auto' and 'custom'.
 
         """
-        if self.mode == 'legacy':
-            super(GoogleNetwork, self).clean()
-        elif self.cidr is not None:
-            raise me.ValidationError('CIDR cannot be set for modes other than '
-                                     '"legacy" - Current mode: %s' % self.mode)
+        if self.cidr:
+            raise me.ValidationError('CIDR cannot be set on Google Networks')
 
         if not re.match('^(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)$', self.name):
             raise me.ValidationError('A **lowercase** name must be specified')
+
+        super(GoogleNetwork, self).clean()
 
 
 class OpenStackNetwork(Network):

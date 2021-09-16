@@ -155,7 +155,9 @@ def set_activated_at():
     from mist.api.monitoring.methods import get_stats, disable_monitoring
     machines = Machine.objects(
         monitoring__hasmonitoring=True,
-        monitoring__installation_status__activated_at=None)
+        monitoring__installation_status__activated_at=None,
+        missing_since=None
+    )
     log.warn("Found %d monitored machines that remain unactivated" %
              len(machines))
     for machine in machines:

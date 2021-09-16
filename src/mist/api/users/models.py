@@ -354,7 +354,8 @@ class User(Owner):
         # deref param is kept for compatibility
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = ['email', 'id', 'first_name', 'last_name',
-                           'last_login', 'username', 'registration_date']
+                           'last_login', 'username', 'role',
+                           'registration_date']
         ret = prepare_dereferenced_dict(standard_fields, {}, self,
                                         deref, only)
         if ret.get('last_login'):

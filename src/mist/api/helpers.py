@@ -1725,3 +1725,11 @@ def validate_password(password):
     digit = any(c.isdigit() for c in password)
 
     return length and lower_case and upper_case and digit
+
+
+def apply_promql_query_rbac(auth_context, search, query):
+    try:
+        from mist.rbac.methods import apply_promql_rbac
+        return apply_promql_rbac(auth_context, search, query)
+    except ImportError:
+        return query
