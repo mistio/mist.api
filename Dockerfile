@@ -1,10 +1,10 @@
 FROM python:3.7-slim-buster
 
 # Install libvirt which requires system dependencies.
-RUN apt update && apt install -y build-essential g++ gcc libvirt-dev \
-    libxml2-dev libxslt-dev gnupg ca-certificates wget python3-pip \
-    mongo-tools libmemcached-dev netcat build-essential libssl-dev libffi-dev \
-    python3-dev cargo zlib1g-dev git curl jq && \
+RUN apt update && \
+    apt install -y git build-essential g++ gcc cargo gnupg ca-certificates \
+    libssl-dev libffi-dev libvirt-dev libxml2-dev libxslt-dev zlib1g-dev \
+    mongo-tools libmemcached-dev netcat curl jq && \
     rm -rf /var/lib/apt/lists/*
 
 RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.8.4-static_linux_amd64.tar.gz && \
