@@ -19,6 +19,8 @@ import datetime
 
 import mongoengine as me
 
+from mist.api import config
+
 from mist.api.exceptions import MistError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudExistsError
@@ -176,7 +178,8 @@ class BaseMainController(object):
         self.cloud.container_enabled = kwargs.pop(
             'container_enabled', False) is True
         self.cloud.observation_logs_enabled = True
-        self.cloud.polling_interval = kwargs.pop('polling_interval', 30 * 60)
+        self.cloud.polling_interval = kwargs.pop(
+            'polling_interval', config.DEFAULT_CLOUD_POLLING_INTERVAL)
 
         # Cloud specific kwargs preparsing.
         try:
