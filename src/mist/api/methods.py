@@ -22,7 +22,6 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.helpers import amqp_publish_user, search_parser
-from mist.api.helpers import startsandendswith
 from mist.api.helpers import dirty_cow, parse_os_release
 
 from mist.api.clouds.models import Cloud
@@ -605,10 +604,7 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags={},
     # otherwise search for objects with id or name matching the term
     terms = search_parser(search)
     for term in terms:
-        if ':' in term:
-            k, v = term.split(':')
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
-        elif '!=' in term:
+        if '!=' in term:
             k, v = term.split('!=')
             mongo_operator = '__ne'
         elif '<=' in term:
@@ -623,16 +619,19 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags={},
         elif '<' in term:
             k, v = term.split('<')
             mongo_operator = '__lt'
-        elif '=' in term:
+        elif '=~' in term:
+            k, v = term.split('=~')
+            mongo_operator = '__contains'
+        elif '=' in term or ':' in term:
             k, v = term.split('=')
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+            mongo_operator = ''
         # TODO: support OR keyword
         elif term.lower() in ['and', 'or'] or not term:
             continue
         else:
             id_implicit = True
             k, v = 'id', term
-            mongo_operator = '' if startsandendswith(v, '"') else '__icontains'
+            mongo_operator = ''
 
         v = v.strip('"')
         attr = getattr(resource_model, k, None)
