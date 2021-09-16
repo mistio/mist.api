@@ -2307,11 +2307,12 @@ class GoogleComputeController(BaseComputeController):
             try:
                 [network], _ = list_resources(auth_context, 'network',
                                               search=network_search,
+                                              cloud=self.cloud.id,
                                               limit=1)
             except ValueError:
                 raise NotFoundError('Network does not exist')
-            else:
-                networks_dict['network'] = network.name
+
+            networks_dict['network'] = network.name
         else:
             networks_dict['network'] = 'default'
 
