@@ -367,9 +367,14 @@ def get_vault_cloud_credentials(cloud_provider):
 def inject_vault_credentials_into_request(request_dict):
     if not isinstance(request_dict, dict):
         return
-    if 'credentials' not in request_dict or 'provider' not in request_dict:
+    if 'provider' not in request_dict:
         return
     credentials = get_vault_cloud_credentials(
         cloud_provider=request_dict['provider'])
-    for key in request_dict['credentials']:
-        request_dict['credentials'][key] = credentials[key]
+    request_credentials = request_dict.get('credentials', {})
+    for key in request_credentials:
+        request_credentials[key] = credentials[key]
+    if not request_credentials:
+        for key in credentials:
+            if key in request_dict:
+                request_dict[key] = credentials[key]
