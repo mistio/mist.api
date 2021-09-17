@@ -79,7 +79,8 @@ class Network(OwnershipMixin, me.Document):
                                          if field not in Network._fields]
 
     @classmethod
-    def add(cls, cloud, cidr=None, name='', description='', id='', location='', **kwargs):
+    def add(cls, cloud, cidr=None, name='', description='', id='',
+            location='', **kwargs):
         """Add a Network.
 
         This is a class method, meaning that it is meant to be called on the

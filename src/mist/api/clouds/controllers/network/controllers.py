@@ -7,14 +7,11 @@ This file should only contain subclasses of `BaseNetworkController`.
 import logging
 import asyncio
 
-import mongoengine as me
-
 from mist.api.helpers import rename_kwargs
 
 from mist.api.exceptions import SubnetNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import MistNotImplementedError
-from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.clouds.controllers.network.base import BaseNetworkController
@@ -457,10 +454,9 @@ class VultrNetworkController(BaseNetworkController):
             libcloud_network)
 
     def _create_network__prepare_args(self, kwargs):
-        from mist.api.clouds.models import CloudLocation
         if 'location' not in kwargs:
             raise RequiredParameterMissingError('location')
         rename_kwargs(kwargs, 'cidr', 'cidr_block')
         rename_kwargs(kwargs, 'name', 'description')
 
-        kwargs['location'] =  kwargs['location'].external_id
+        kwargs['location'] = kwargs['location'].external_id
