@@ -2966,6 +2966,15 @@ class VultrComputeController(BaseComputeController):
     def _list_machines__get_location(self, node_dict):
         return node_dict['extra'].get('location')
 
+    def _list_machines__machine_actions(self, machine, node_dict):
+        super()._list_machines__machine_actions(machine, node_dict)
+        size = node_dict.get('size', '')
+        # Bare metal nodes don't support resize & snapshot
+        if size.startswith('vbm'):
+            machine.actions.resize = False
+        else:
+            machine.actions.resize = True
+
     def _list_sizes__get_name(self, size):
         # Vultr doesn't have names on sizes.
         # We name them after their 4 different size types & their specs.
@@ -2987,7 +2996,7 @@ class VultrComputeController(BaseComputeController):
         cpus = self._list_sizes__get_cpu(size)
 
         return (f'{type_}: {cpus} CPUs {size.ram} MBs RAM'
-                f' {size.disk} GB disk {size.price} $')
+                f' {size.disk} GBs disk {size.price}$')
 
     def _list_sizes__get_cpu(self, size):
         try:
