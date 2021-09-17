@@ -2909,29 +2909,112 @@ class VultrComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, node_dict):
         updated = False
-        if machine.extra.get('cpus') != machine.extra.get('vcpu_count', 0):
-            machine.extra['cpus'] = machine.extra.get('vcpu_count', 0)
+        # do not include ipv6 on public ips
+        public_ips = []
+        for ip in machine.public_ips:
+            if ip and ':' not in ip:
+                public_ips.append(ip)
+        if machine.public_ips != public_ips:
+            machine.public_ips = public_ips
             updated = True
         return updated
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
-        return node_dict['extra'].get('date_created')  # iso8601 string
+        try:
+            created_at = node_dict['created_at']
+        except KeyError:
+            return None
+
+        try:
+            created_at = iso8601.parse_date(created_at)
+        except iso8601.ParseError as exc:
+            log.error(repr(exc))
+            return None
+
+        created_at = pytz.UTC.normalize(created_at)
+        return created_at
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        return 0, node_dict['extra'].get('cost_per_month', 0)
+        from mist.api.clouds.models import CloudSize
+        external_id = node_dict.get('size')
+        try:
+            size_ = CloudSize.objects.get(external_id=external_id,
+                                          cloud=self.cloud)
+        except CloudSize.DoesNotExist:
+            log.error("Machine's size with external_id: %s not found",
+                      external_id)
+            return 0, 0
 
-    def _list_machines__get_size(self, node_dict):
-        return node_dict['extra'].get('VPSPLANID')
+        monthly_cost = size_.extra.get('price') or 0
+
+        features = node_dict['extra'].get('features', [])
+        if 'auto_backups' in features:
+            try:
+                monthly_cost += config.VULTR_BACKUP_PRICE_PER_SIZE[
+                    size_.external_id]
+            except KeyError:
+                pass
+
+        if 'ddos_protection' in features:
+            # DDOS protection is free on Dedicated Cloud sizes
+            # and not supported on Bare Metal sizes
+            if size_.extra.get('type') in ('vc2', 'vhf'):
+                monthly_cost += config.VULTR_DDOS_PROTECTION_PRICE
+
+        return 0, monthly_cost
 
     def _list_machines__get_location(self, node_dict):
-        return node_dict['extra'].get('DCID')
+        return node_dict['extra'].get('location')
+
+    def _list_sizes__get_name(self, size):
+        # Vultr doesn't have names on sizes.
+        # We name them after their 4 different size types & their specs.
+        # - High Frequency
+        # - Cloud Compute
+        # - Bare Metal
+        # - Dedicated Cloud
+        if size.name.startswith('vc2'):
+            type_ = 'Cloud Compute'
+        elif size.name.startswith('vdc'):
+            type_ = 'Dedicated Cloud'
+        elif size.name.startswith('vhf'):
+            type_ = 'High Frequency'
+        elif size.name.startswith('vbm'):
+            type_ = 'Bare Metal'
+        else:
+            log.warning('Unknown Vultr size id: %s', size.id)
+            type_ = 'Unknown'
+        cpus = self._list_sizes__get_cpu(size)
+
+        return (f'{type_}: {cpus} CPUs {size.ram} MBs RAM'
+                f' {size.disk} GB disk {size.price} $')
 
     def _list_sizes__get_cpu(self, size):
-        return size.extra.get('vcpu_count')
+        try:
+            return size.extra['vcpu_count']
+        except KeyError:
+            # bare metal size
+            return size.extra['cpu_count']
 
-    def _list_sizes__fetch_sizes(self):
-        sizes = self.connection.list_sizes()
-        return [size for size in sizes if not size.extra.get('deprecated')]
+    def _list_sizes__get_available_locations(self, mist_size):
+        avail_locations = [str(loc)
+                           for loc in mist_size.extra.get('locations', [])]
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(
+            cloud=self.cloud,
+            external_id__in=avail_locations
+        ).update(add_to_set__available_sizes=mist_size)
+
+    def _list_images__fetch_images(self, search=None):
+        # Vultr has some legacy "dummy" images that were provided when
+        # a node was booted from snapshot, iso, application or backup,
+        # that are no longer necessary on their API v2.
+        images = self.connection.list_images()
+        return [image for image in images
+                if image.name not in {'Custom',
+                                      'Snapshot',
+                                      'Backup',
+                                      'Application'}]
 
     def _list_images__get_os_distro(self, image):
         try:
@@ -2939,15 +3022,6 @@ class VultrComputeController(BaseComputeController):
         except AttributeError:
             return super()._list_images__get_os_distro(image)
         return os_distro
-
-    def _list_sizes__get_available_locations(self, mist_size):
-        avail_locations = [str(loc)
-                           for loc in mist_size.extra.get('available_locations', [])]  # noqa
-        from mist.api.clouds.models import CloudLocation
-        CloudLocation.objects(
-            cloud=self.cloud,
-            external_id__in=avail_locations
-        ).update(add_to_set__available_sizes=mist_size)
 
 
 class VSphereComputeController(BaseComputeController):

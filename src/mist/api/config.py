@@ -1458,6 +1458,29 @@ ALIBABA_VOLUME_TYPES = {
     'cloud_essd': (20, 32768),
 }
 
+VULTR_DDOS_PROTECTION_PRICE = 10
+# Vultr automated backup per size
+# Dedicated Cloud and Bare Metal sizes do not support backup
+VULTR_BACKUP_PRICE_PER_SIZE = {
+    'vc2-1c-1gb': 1,
+    'vc2-1c-2gb': 2,
+    'vc2-2c-4gb': 4,
+    'vc2-4c-8gb': 8,
+    'vc2-6c-16gb': 16,
+    'vc2-8c-32gb': 32,
+    'vc2-16c-64gb': 64,
+    'vc2-24c-96gb': 128,
+    'vhf-1c-1gb': 1.2,
+    'vhf-1c-2gb': 2.4,
+    'vhf-2c-2gb': 3.6,
+    'vhf-2c-4gb': 4.8,
+    'vhf-3c-8gb': 9.6,
+    'vhf-4c-16gb': 19.2,
+    'vhf-6c-24gb': 28.8,
+    'vhf-8c-32gb': 38.4,
+    'vhf-12c-48gb': 51.2,
+}
+
 ALIBABA_DEFAULT_VOLUME_TYPE = 'cloud'
 
 PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd',
