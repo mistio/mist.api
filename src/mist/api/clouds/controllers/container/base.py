@@ -58,28 +58,37 @@ def _update_cluster_from_dict_in_process_pool(params):
 class BaseContainerController(BaseController):
     """Abstract base class for clouds that provide container features."""
 
-    def _create_cluster(self, *args, **kwargs):
-        return self.connection.create_cluster(*args, **kwargs)
-
-    def create_cluster(self, *args, **kwargs):
+    def _assert_container_feature_enabled(self):
         if not hasattr(self.cloud.ctl, 'container') or \
                 not self.cloud.container_enabled:
             raise ServiceUnavailableError(
                 f'Container feature is disabled on cloud: {self.cloud}')
-        success = self._create_cluster(*args, **kwargs)
-        if success:
-            from mist.api.poller.models import ListClustersPollingSchedule
-            schedule = ListClustersPollingSchedule.objects.get(
-                cloud=self.cloud)
-            schedule.add_interval(10, ttl=600)
-            schedule.save()
-        return success
+
+    def _add_schedule_interval(self):
+        from mist.api.poller.models import ListClustersPollingSchedule
+        schedule = ListClustersPollingSchedule.objects.get(
+            cloud=self.cloud)
+        schedule.add_interval(10, ttl=600)
+        schedule.save()
+
+    def _manipulate_cluster(self, method, *args, **kwargs):
+        self._assert_container_feature_enabled()
+        result = method(*args, **kwargs)
+        if result:
+            self._add_schedule_interval()
+        return result
+
+    def _create_cluster(self, *args, **kwargs):
+        return self.connection.create_cluster(*args, **kwargs)
+
+    def create_cluster(self, *args, **kwargs):
+        return self._manipulate_cluster(self._create_cluster, *args, **kwargs)
 
     def _destroy_cluster(self, *args, **kwargs):
         return self.connection.destroy_cluster(*args, **kwargs)
 
     def destroy_cluster(self, *args, **kwargs):
-        return self._destroy_cluster(*args, **kwargs)
+        return self._manipulate_cluster(self._destroy_cluster, *args, **kwargs)
 
     def list_cached_clusters(self, timedelta=datetime.timedelta(days=1)):
         """Return list of clusters from database
