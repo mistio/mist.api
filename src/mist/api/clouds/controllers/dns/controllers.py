@@ -249,7 +249,7 @@ class SoftLayerDNSController(BaseDNSController):
         kwargs.pop('type')
 
 
-class VultrDNSController(RackSpaceDNSController):
+class VultrDNSController(BaseDNSController):
     """
     Vultr specific overrides.
     """
@@ -260,4 +260,11 @@ class VultrDNSController(RackSpaceDNSController):
     def _create_zone__prepare_args(self, kwargs):
         if not kwargs.get('ip'):
             raise RequiredParameterMissingError('ip')
-        kwargs['extra'] = {'serverip': kwargs.pop('ip')}
+        kwargs['extra'] = {'ip': kwargs.pop('ip')}
+
+    def _create_record__prepare_args(self, zone, kwargs):
+        super()._create_record__prepare_args(zone, kwargs)
+        if kwargs['type'] == 'MX':
+            parts = kwargs['data'].split(' ')
+            kwargs['extra'] = {'priority': parts[0]}
+            kwargs['data'] = parts[1]

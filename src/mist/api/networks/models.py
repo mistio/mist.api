@@ -79,7 +79,8 @@ class Network(OwnershipMixin, me.Document):
                                          if field not in Network._fields]
 
     @classmethod
-    def add(cls, cloud, cidr=None, name='', description='', id='', **kwargs):
+    def add(cls, cloud, cidr=None, name='', description='', id='',
+            location='', **kwargs):
         """Add a Network.
 
         This is a class method, meaning that it is meant to be called on the
@@ -103,6 +104,17 @@ class Network(OwnershipMixin, me.Document):
                       description=description)
         if id:
             network.id = id
+        if location:
+            from mist.api.models import CloudLocation
+            try:
+                location = CloudLocation.objects.get(id=location)
+            except me.DoesNotExist:
+                try:
+                    location = CloudLocation.objects.get(
+                        external_id=location)
+                except me.DoesNotExist:
+                    location = None
+            network.location = location
         return network.ctl.create(**kwargs)
 
     @property
@@ -264,6 +276,10 @@ class LXDNetwork(Network):
 
 
 class AlibabaNetwork(Network):
+    pass
+
+
+class VultrNetwork(Network):
     pass
 
 

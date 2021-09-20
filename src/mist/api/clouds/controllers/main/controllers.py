@@ -214,6 +214,8 @@ class VultrMainController(BaseMainController):
     provider = 'vultr'
     ComputeController = compute_ctls.VultrComputeController
     DnsController = dns_ctls.VultrDNSController
+    StorageController = storage_ctls.VultStorageController
+    NetworkController = network_ctls.VultrNetworkController
 
 
 class VSphereMainController(BaseMainController):
