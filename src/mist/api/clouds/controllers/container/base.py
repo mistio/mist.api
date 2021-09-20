@@ -71,24 +71,25 @@ class BaseContainerController(BaseController):
         schedule.add_interval(10, ttl=600)
         schedule.save()
 
-    def _manipulate_cluster(self, method, *args, **kwargs):
-        self._assert_container_feature_enabled()
-        result = method(*args, **kwargs)
-        if result:
-            self._add_schedule_interval()
-        return result
-
     def _create_cluster(self, *args, **kwargs):
         return self.connection.create_cluster(*args, **kwargs)
 
     def create_cluster(self, *args, **kwargs):
-        return self._manipulate_cluster(self._create_cluster, *args, **kwargs)
+        self._assert_container_feature_enabled()
+        result = self._create_cluster(*args, **kwargs)
+        if result:
+            self._add_schedule_interval()
+        return result
 
     def _destroy_cluster(self, *args, **kwargs):
         return self.connection.destroy_cluster(*args, **kwargs)
 
     def destroy_cluster(self, *args, **kwargs):
-        return self._manipulate_cluster(self._destroy_cluster, *args, **kwargs)
+        self._assert_container_feature_enabled()
+        result = self._destroy_cluster(*args, **kwargs)
+        if result:
+            self._add_schedule_interval()
+        return result
 
     def list_cached_clusters(self, timedelta=datetime.timedelta(days=1)):
         """Return list of clusters from database
