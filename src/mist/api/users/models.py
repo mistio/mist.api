@@ -355,12 +355,14 @@ class User(Owner):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = ['email', 'id', 'first_name', 'last_name',
                            'last_login', 'username', 'role',
-                           'registration_date']
+                           'registration_date', 'last_active']
         ret = prepare_dereferenced_dict(standard_fields, {}, self,
                                         deref, only)
         if ret.get('last_login'):
             ret['last_login'] = datetime.datetime.fromtimestamp(
                 ret['last_login']).isoformat()
+        if ret.get('last_active'):
+            ret['last_active'] = ret['last_active'].isoformat()
         if ret.get('registration_date'):
             ret['registration_date'] = datetime.datetime.fromtimestamp(
                 ret['registration_date']).isoformat()
@@ -626,10 +628,12 @@ class Organization(Owner):
                            'teams_count', 'created', 'total_machine_count',
                            'enterprise_plan', 'selected_plan', 'enable_r12ns',
                            'default_monitoring_method', 'insights_enabled',
-                           'ownership_enabled']
+                           'ownership_enabled', 'last_active']
         ret = prepare_dereferenced_dict(standard_fields, {}, self, deref, only)
         if ret.get('created'):
             ret['created'] = ret['created'].isoformat()
+        if ret.get('last_active'):
+            ret['last_active'] = ret['last_active'].isoformat()
         org_teams = [team.as_dict_v2() for team in self.teams]
         org_members = [member.as_dict_v2() for member in self.members]
         for invitation in MemberInvitation.objects(org=self):
