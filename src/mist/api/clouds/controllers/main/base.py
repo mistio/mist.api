@@ -172,11 +172,13 @@ class BaseMainController(object):
         rename_kwargs(kwargs, 'projectId', 'project_id')
 
         # Cloud specific argument preparsing cloud-wide argument
-        self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
-        self.cloud.object_storage_enabled = \
-            kwargs.pop('object_storage_enabled', False) is True
-        self.cloud.container_enabled = kwargs.pop(
-            'container_enabled', False) is True
+        self.cloud.dns_enabled = kwargs.pop('dns', False) or \
+            kwargs.pop('dns_enabled', False) is True
+        self.cloud.object_storage_enabled = kwargs.pop(
+            'objects_storage', False) or kwargs.pop(
+            'object_storage_enabled', False) is True
+        self.cloud.container_enabled = kwargs.pop('container', False) or \
+            kwargs.pop('container_enabled', False) is True
         self.cloud.observation_logs_enabled = True
         self.cloud.polling_interval = kwargs.pop(
             'polling_interval', config.DEFAULT_CLOUD_POLLING_INTERVAL)
@@ -326,6 +328,8 @@ class BaseMainController(object):
             list_images.send(schedule_id,)
         except ListImagesPollingSchedule.DoesNotExist:
             pass
+
+        self.add_polling_schedules()
 
     def _update__preparse_kwargs(self, kwargs):
         """Preparse keyword arguments to `self.update`
