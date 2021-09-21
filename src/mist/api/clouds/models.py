@@ -100,14 +100,14 @@ class Cloud(OwnershipMixin, me.Document):
     This will return an iterable of AmazonCloud instances.
 
     To create a new cloud, one should initialize a Cloud subclass like
-    AmazonCloud. Intializing directly a Cloud instance won't have any
+    AmazonCloud. Initializing directly a Cloud instance won't have any
     credential fields or associated handler to work with.
 
     Each Cloud subclass should define a `_controller_cls` class attribute. Its
     value should be a subclass of
     `mist.api.clouds.controllers.main.base.BaseMainController`. These
     subclasses are stored in `mist.api.clouds.controllers`. When a cloud is
-    instanciated, it is given a `ctl` attribute which gives access to the
+    instantiated, it is given a `ctl` attribute which gives access to the
     clouds controller. This way it is possible to do things like:
 
         cloud = Cloud.objects.get(id=cloud_id)

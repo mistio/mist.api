@@ -139,7 +139,7 @@ class AmqpGeventBase(object):
         """Properly clean up when garbage collected by calling stop()"""
         if not self.stopped:
             log.debug("%s: Cleaning up during garbage collection, stop() not "
-                      "explicitely called.", self.lbl)
+                      "explicitly called.", self.lbl)
             self.stop()
 
 

@@ -246,7 +246,7 @@ def get_key_tags(request):
     """
     Tags: tags
     ---
-    Lists tags of an ssh keypair.
+    Lists tags of an ssh key pair.
     READ permission required on KEY
     ---
     key_id:

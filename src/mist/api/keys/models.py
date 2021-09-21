@@ -49,7 +49,7 @@ class Key(OwnershipMixin, me.Document):
     value should be a subclass of
     `mist.api.keys.controllers.BaseKeyController'. These
     subclasses are stored in `mist.api.keys.BaseKeyController`. When a key is
-    instanciated, it is given a `ctl` attribute which gives access to the
+    instantiated, it is given a `ctl` attribute which gives access to the
     keys controller. This way it is possible to do things like:
 
         key = SSKey.objects.get(id=key_id)
@@ -190,7 +190,7 @@ class SSHKey(Key):
     _private_fields = ('private',)
 
     def clean(self):
-        """Ensures that self is a valid RSA keypair."""
+        """Ensures that self is a valid RSA key pair."""
 
         from Crypto import Random
         Random.atfork()
@@ -214,7 +214,7 @@ class SignedSSHKey(SSHKey):
     def clean(self):
         """
         # Checks if certificate is specific ssh-rsa-cert
-           and ensures that self is a valid RSA keypair."""
+           and ensures that self is a valid RSA key pair."""
         super(SignedSSHKey, self).clean()
         if not self.certificate.startswith('ssh-rsa-cert-v01@openssh.com'):
             raise BadRequestError("Certificate is not a valid signed RSA key.")

@@ -449,7 +449,7 @@ class KubernetesStorageController(BaseStorageController):
         if not kwargs['dynamic']:
             if not kwargs.get('volume_params'):
                 msg = """Parameter volume_params must be a populated
-                dictionary/object with the coresponding
+                dictionary/object with the corresponding
                 parameter/value pairs depending on volume type.
                 If you are not sure please enable dynamic creation."""
                 raise RequiredParameterMissingError(msg)

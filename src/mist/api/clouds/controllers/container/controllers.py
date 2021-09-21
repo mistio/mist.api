@@ -8,7 +8,7 @@ database with that returned from API calls to provider services.
 
 For each different cloud type, there is a corresponding cloud container
 controller defined here. All the different classes inherit
-BaseContainerController and share a commmon interface, with the exception that
+BaseContainerController and share a common interface, with the exception that
 some controllers may not have all methods implemented.
 
 A cloud container controller is initialized given a cloud. Most of the time,

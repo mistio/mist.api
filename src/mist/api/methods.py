@@ -542,7 +542,7 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags={},
             schedule, network, subnet, volume, location, image,
             rule, size, team, template, stack, tunnel.
         search(str): The pattern to search for, can contain one or both of:
-            a) key(field)-value pairs seperated by one of the operators:
+            a) key(field)-value pairs separated by one of the operators:
                 :, =, >, <, <=, >=, !=
             b) a single value that will be set to resource_type's ID or name.
             Example:

@@ -164,7 +164,7 @@ def validate_portforwards(port_forwards):
                 raise BadRequestError("Port should be an integer")
             except AssertionError:
                 raise BadRequestError("Ports should be an "
-                                      "interger between 1 and 65535")
+                                      "integer between 1 and 65535")
     for pf in port_forwards['ports']:
         if len(pf['port'].split(":")) == 2:
             host = pf['port'].split(":")[0]

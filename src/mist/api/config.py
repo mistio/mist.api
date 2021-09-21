@@ -3072,7 +3072,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
     else:
         log.error("Couldn't find settings file in %s" % override_file)
 
-# Load all plugin config files. Plugins may define vars that can be overriden
+# Load all plugin config files. Plugins may define vars that can be overridden
 # by environmental variables
 PLUGIN_ENV_STRINGS = []
 PLUGIN_ENV_INTS = []
@@ -3084,7 +3084,7 @@ for plugin in PLUGINS:
         plugin_env = {}
         exec('from mist.%s.config import *' % plugin, plugin_env)
         for key in plugin_env:
-            # Allow plugins to define vars that can be overriden by env
+            # Allow plugins to define vars that can be overridden by env
             if key in ['PLUGIN_ENV_STRINGS', 'PLUGIN_ENV_INTS',
                        'PLUGIN_ENV_BOOLS', 'PLUGIN_ENV_ARRAYS']:
                 locals()[key] += plugin_env[key]

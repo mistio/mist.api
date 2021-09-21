@@ -209,7 +209,7 @@ def _log_alert(resource, rule, value, triggered, timestamp, incident_id,
     rename_kwargs(info, 'curr_value', 'value')
     rename_kwargs(info, 'action', 'rule_action')
 
-    # FIXME For backwards compability.
+    # FIXME For backwards compatibility.
     if isinstance(resource, Machine):
         info['cloud_id'] = resource.cloud.id
         info['machine_id'] = resource.id

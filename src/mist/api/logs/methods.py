@@ -593,7 +593,7 @@ def process_stories(buckets, type=None, callback=None):
                 except Exception as exc:
                     log.error('Error parsing log %s: %s', body['log_id'], exc)
 
-            # Provide the error message at the top level, if one occured.
+            # Provide the error message at the top level, if one occurred.
             error = body.get('error')
             if error and not story.get('error'):
                 story['error'] = error

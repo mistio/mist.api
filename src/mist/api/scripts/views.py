@@ -428,7 +428,7 @@ def run_script(request):
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
         cloud_id = machine.cloud.id
     else:
-        # this will be depracated, keep it for backwards compatibility
+        # this will be deprecated, keep it for backwards compatibility
         cloud_id = params.get('cloud_id')
         machine_id = params.get('machine_id')
 

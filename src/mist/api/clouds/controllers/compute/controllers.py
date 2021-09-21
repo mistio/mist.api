@@ -8,7 +8,7 @@ database with that returned from API calls to providers.
 
 For each different cloud type, there is a corresponding cloud controller
 defined here. All the different classes inherit BaseComputeController and share
-a commmon interface, with the exception that some controllers may not have
+a common interface, with the exception that some controllers may not have
 implemented all methods.
 
 A cloud controller is initialized given a cloud. Most of the time it will be
@@ -2430,7 +2430,7 @@ class GoogleComputeController(BaseComputeController):
             if accelerator_count <= 0:
                 raise BadRequestError('Invalid value for accelerator_type')
 
-            # accelerators are currrently supported only on N1 sizes
+            # accelerators are currently supported only on N1 sizes
             # https://cloud.google.com/compute/docs/gpus#introduction
             sizes = [size for size in sizes
                      if size.name.startswith('n1') and
@@ -3989,7 +3989,7 @@ class LXDComputeController(BaseComputeController):
         return self.connection.start_container(container=machine)
 
     def _destroy_machine(self, machine, node):
-        """Delet the given container"""
+        """Delete the given container"""
 
         from libcloud.container.drivers.lxd import LXDAPIException
         from libcloud.container.types import ContainerState
@@ -4303,7 +4303,7 @@ class LibvirtComputeController(BaseComputeController):
 
     def _list_machines__get_machine_extra(self, machine, node_dict):
         extra = copy.copy(node_dict['extra'])
-        # make sure images_location is not overriden
+        # make sure images_location is not overridden
         extra.update({'images_location': machine.extra.get('images_location')})
         return extra
 
@@ -4736,7 +4736,7 @@ class OnAppComputeController(BaseComputeController):
         """Get locations
 
         We will perform a few calls to get hypervisor_group_id
-        paramater sent for create machine, and the max sizes to
+        parameter sent for create machine, and the max sizes to
         populate the create machine wizard for cpu/disk/memory,
         since this info can be retrieved per location.
         We will also get network information and match it per
@@ -4859,7 +4859,7 @@ class OtherComputeController(BaseComputeController):
               machine.ping_probe and machine.ping_probe.unreachable_since):
             machine.unreachable_since = machine.ping_probe.unreachable_since
             machine.state = config.STATES[NodeState.UNKNOWN.value]
-        else:  # Asume running if no indication otherwise
+        else:  # Assume running if no indication otherwise
             machine.state = config.STATES[NodeState.RUNNING.value]
 
     def _list_machines__generic_machine_actions(self, machine):

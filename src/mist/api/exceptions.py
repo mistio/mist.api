@@ -17,7 +17,7 @@ errors. Feel free to create a new exception when an existing one doesn't quite
 fit the purpose.
 
 Exceptions raised like that can easily and selectively be caught in try except
-statements and handled with appropriately. If they are not caught explicitely,
+statements and handled with appropriately. If they are not caught explicitly,
 they will be caught in the exception_handler special view in views.py and
 transformed to appropriate http responses.
 

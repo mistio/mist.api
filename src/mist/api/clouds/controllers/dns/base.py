@@ -186,7 +186,7 @@ class BaseDNSController(BaseController):
     def _list_zones__fetch_zones(self):
         """
         Returns a list of available DNS zones for the cloud.
-        This should not be overriden as the implementation is the same across
+        This should not be overridden as the implementation is the same across
         all implemented DNS providers.
 
         """

@@ -64,7 +64,7 @@
             require(["app"]);
         }else{
             require.config({
-                // not optimized js, usefull for debugging
+                // not optimized js, useful for debugging
                 baseUrl: 'resources/js/'
             });
             require(["dev"]);

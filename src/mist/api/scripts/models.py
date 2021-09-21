@@ -125,7 +125,7 @@ class Script(OwnershipMixin, me.Document):
         Its value should be a subclass of
         `mist.api.scripts.controllers.BaseScriptController'. These
         subclasses are stored in `mist.api.scripts.BaseScriptController`.
-        When a script is instanciated, it is given a `ctl` attribute which
+        When a script is instantiated, it is given a `ctl` attribute which
         gives access to the scripts controller.
         This way it is possible to do things like:
 
