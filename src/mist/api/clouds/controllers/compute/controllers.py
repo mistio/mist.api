@@ -3032,6 +3032,104 @@ class VultrComputeController(BaseComputeController):
             return super()._list_images__get_os_distro(image)
         return os_distro
 
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
+        from mist.api.methods import list_resources
+        ret_dict = {
+            'ipv6': networks_dict.get('ipv6') is True,
+            'hostname': networks_dict.get('hostname')
+        }
+
+        networks = networks_dict.get('networks', [])
+        if not isinstance(networks, list):
+            raise BadRequestError('Invalid "networks" type, expected an array')
+
+        ret_networks = []
+        for net in networks:
+            networks, _ = list_resources(auth_context,
+                                         'network',
+                                         search=net,
+                                         cloud=self.cloud.id,
+                                         )
+            networks = networks.filter(location=location)
+            try:
+                network = networks[0]
+            except IndexError:
+                raise NotFoundError(f'Network {net} does not exist in'
+                                    f' location: {location.name}')
+            ret_networks.append({
+                'id': network.id,
+                'name': network.name,
+                'external_id': network.network_id,
+            })
+        if ret_networks:
+            ret_dict['networks'] = ret_networks
+
+        return ret_dict
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        return {
+            'id': vol_obj.id,
+            'name': vol_obj.name,
+            'external_id': vol_obj.external_id
+        }
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+            name = volume_dict['name']
+        except KeyError:
+            raise BadRequestError('name and size are required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid size type')
+        if size < 10:
+            raise BadRequestError('Size should be at least 10 GBs')
+
+        return {
+            'name': name,
+            'size': size,
+        }
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        plan['backups'] = extra.get('backups') is True
+        plan['ddos_protection'] = extra.get('ddos_protection') is True
+
+    def _generate_plan__post_parse_plan(self, plan):
+        from mist.api.clouds.models import CloudSize, CloudLocation
+
+        size = CloudSize.objects.get(id=plan['size']['id'])
+        bare_metal = size.extra['is_bare_metal']
+        location = CloudLocation.objects.get(id=plan['location']['id'])
+
+        if plan.get('volumes'):
+            if 'block_storage' not in location.extra.get('option', []):
+                raise BadRequestError(
+                    f'Volumes are not supported in "{location.name}"')
+            if bare_metal:
+                raise BadRequestError(
+                    'Bare Metal metal sizes do not support volume attachment')
+
+        if plan['networks'].get('networks') and bare_metal:
+            raise BadRequestError(
+                'Bare Metal sizes do not support network attachment')
+
+        if plan['ddos_protection']:
+            if 'ddos_protection' not in location.extra.get('option'):
+                raise BadRequestError(
+                    f'DDoS protection is not supported in "{location.name}"')
+            if bare_metal:
+                raise BadRequestError(
+                    'Bare Metal sizes do not support DDoS protection')
+
+        if plan['backups'] and (bare_metal or
+                                size.name.startswith('Dedicated Cloud')):
+            raise BadRequestError(
+                'Backups are not supported on the given size type')
+
+        hostname = plan['networks']['hostname']
+        if hostname is None:
+            plan['networks']['hostname'] = plan['machine_name']
+
 
 class VSphereComputeController(BaseComputeController):
 
