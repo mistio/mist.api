@@ -3130,6 +3130,85 @@ class VultrComputeController(BaseComputeController):
         if hostname is None:
             plan['networks']['hostname'] = plan['machine_name']
 
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        mist_key = kwargs.pop('auth', None)
+        if mist_key:
+            vultr_keys = self.connection.list_key_pairs()
+            key = next((vultr_key for vultr_key in vultr_keys
+                        if vultr_key.public_key.replace('\n', '') == mist_key.public),  # noqa
+                       None)
+            if key is None:
+                try:
+                    key = self.connection.import_key_pair_from_string(
+                        mist_key.name,
+                        mist_key.public)
+                except Exception as exc:
+                    raise MachineCreationError(
+                        f'Failed to import key: {repr(exc)}') from None
+
+            kwargs['ex_ssh_key_ids'] = [key.extra['id']]
+
+        if plan.get('cloudinit'):
+            kwargs['ex_userdata'] = plan['cloudinit']
+
+        kwargs['ex_hostname'] = plan['networks']['hostname']
+        kwargs['ex_enable_ipv6'] = plan['networks']['ipv6']
+        if plan['networks'].get('networks'):
+            kwargs['ex_private_network_ids'] = [network['external_id']
+                                                for network in plan['networks']['networks']]  # noqa
+
+        kwargs['ex_ddos_protection'] = plan['ddos_protection']
+        kwargs['ex_backups'] = plan['backups']
+
+        return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        from mist.api.clouds.models import CloudLocation
+        from mist.api.volumes.models import Volume
+        from libcloud.compute.base import StorageVolume
+
+        volumes = plan.get('volumes', [])
+        location = CloudLocation.objects.get(id=plan['location']['id'])
+
+        # wait till machine is in active state to attach volumes
+        if volumes:
+            for _ in range(10):
+                time.sleep(5)
+                try:
+                    node = self.connection.ex_get_node(node.id)
+                except Exception:
+                    continue
+                if node.state == 'running':
+                    break
+
+        for volume in volumes:
+            if volume.get('id'):
+                vol = Volume.objects.get(id=volume['id'])
+                libcloud_vol = StorageVolume(id=vol.external_id,
+                                             name=vol.name,
+                                             size=vol.size,
+                                             driver=self.connection,
+                                             extra=vol.extra)
+                try:
+                    self.connection.attach_volume(node, libcloud_vol)
+                except Exception:
+                    log.exception('Failed to attach volume')
+            else:
+                try:
+                    libcloud_vol = self.connection.create_volume(
+                        size=volume['size'],
+                        name=volume['name'],
+                        location=location.external_id
+                    )
+                except Exception:
+                    log.exception('Failed to create volume')
+                    continue
+                try:
+                    self.connection.attach_volume(node, libcloud_vol)
+                except Exception:
+                    log.exception('Failed to attach volume')
+
 
 class VSphereComputeController(BaseComputeController):
 
