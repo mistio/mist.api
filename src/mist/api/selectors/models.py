@@ -7,6 +7,7 @@ from mist.api.helpers import get_resource_model
 from mist.api.helpers import rtype_to_classpath
 
 from mist.api.tag.models import Tag
+from mist.api.clouds.models import Cloud
 
 
 class BaseSelector(me.EmbeddedDocument):
@@ -63,6 +64,8 @@ class SelectorClassMixin(object):
             query &= me.Q(deleted=None)
         if 'missing_since' in self.selector_resource_cls._fields:
             query &= me.Q(missing_since=None)
+        if 'cloud' in self.selector_resource_cls._fields:
+            query &= me.Q(cloud__in=Cloud.objects(enabled=True))
         return self.selector_resource_cls.objects(query)
 
     def get_ids(self):

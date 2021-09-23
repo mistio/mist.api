@@ -7,6 +7,7 @@ from mist.api.dramatiq_app import dramatiq
 from mist.api import config
 from mist.api.rules.models import Rule
 from mist.api.machines.models import Machine
+from mist.api.clouds.models import Cloud
 from mist.api.monitoring.methods import get_stats
 from mist.api.monitoring.methods import get_cores
 
@@ -94,7 +95,8 @@ def push_metering_info(owner_id):
         raise Exception(db.content)
 
     # CPUs
-    for machine in Machine.objects(owner=owner_id, last_seen__gte=now.date()):
+    for machine in Machine.objects(owner=owner_id, last_seen__gte=now.date(),
+                                   cloud__in=Cloud.objects(enabled=True)):
         metering.setdefault(
             owner_id,
             dict.fromkeys(('cores', 'checks', 'datapoints'), 0)
