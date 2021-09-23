@@ -1706,6 +1706,9 @@ PROVIDERS = {
                     'location-image-restriction': False,
                 },
             },
+            'storage': True,
+            'networks': True,
+            'metal': True,
         }
     },
     'openstack': {
