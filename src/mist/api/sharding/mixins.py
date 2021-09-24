@@ -97,7 +97,7 @@ class ShardManagerMixin(object):
         Each running thread attempts to claim as many documents as possible,
         until all documents have been assigned to a specific shard.
 
-        Everytime a new sharding thread starts, all shard identifiers reset
+        Every time a new sharding thread starts, all shard identifiers reset
         and re-sharding occurs.
 
         """

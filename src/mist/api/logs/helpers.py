@@ -23,7 +23,7 @@ def _filtered_query(owner_id, close=None, error=None, range=None, type=None,
     filter by documents indicating a closed story and/or a story that ended
     with an error.
 
-    The aggregation result constists of two buckets:
+    The aggregation result consists of two buckets:
         - one for closed stories
         - one for stories that contain an error
 

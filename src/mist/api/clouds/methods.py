@@ -56,7 +56,7 @@ def add_cloud_v_2(owner, title, provider, params):
                           'errors', []),  # just an attribute, not a field
     }
 
-    log.info("Cloud with id '%s' added succesfully.", cloud.id)
+    log.info("Cloud with id '%s' added successfully.", cloud.id)
 
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     if owner.clouds_count != c_count:
@@ -72,7 +72,7 @@ def rename_cloud(owner, cloud_id, new_name):
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     new_name = validate_cloud_title(new_name)
     cloud.ctl.rename(new_name)
-    log.info("Succesfully renamed cloud '%s'", cloud_id)
+    log.info("Successfully renamed cloud '%s'", cloud_id)
     trigger_session_update(owner, ['clouds'])
 
 

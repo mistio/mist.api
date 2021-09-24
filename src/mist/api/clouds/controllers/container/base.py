@@ -25,6 +25,7 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
+from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
@@ -57,17 +58,38 @@ def _update_cluster_from_dict_in_process_pool(params):
 class BaseContainerController(BaseController):
     """Abstract base class for clouds that provide container features."""
 
+    def _assert_container_feature_enabled(self):
+        if not hasattr(self.cloud.ctl, 'container') or \
+                not self.cloud.container_enabled:
+            raise ServiceUnavailableError(
+                f'Container feature is disabled on cloud: {self.cloud}')
+
+    def _add_schedule_interval(self):
+        from mist.api.poller.models import ListClustersPollingSchedule
+        schedule = ListClustersPollingSchedule.objects.get(
+            cloud=self.cloud)
+        schedule.add_interval(10, ttl=600)
+        schedule.save()
+
     def _create_cluster(self, *args, **kwargs):
         return self.connection.create_cluster(*args, **kwargs)
 
     def create_cluster(self, *args, **kwargs):
-        return self._create_cluster(*args, **kwargs)
+        self._assert_container_feature_enabled()
+        result = self._create_cluster(*args, **kwargs)
+        if result:
+            self._add_schedule_interval()
+        return result
 
     def _destroy_cluster(self, *args, **kwargs):
         return self.connection.destroy_cluster(*args, **kwargs)
 
     def destroy_cluster(self, *args, **kwargs):
-        return self._destroy_cluster(*args, **kwargs)
+        self._assert_container_feature_enabled()
+        result = self._destroy_cluster(*args, **kwargs)
+        if result:
+            self._add_schedule_interval()
+        return result
 
     def list_cached_clusters(self, timedelta=datetime.timedelta(days=1)):
         """Return list of clusters from database

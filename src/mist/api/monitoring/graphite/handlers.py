@@ -130,7 +130,7 @@ class GenericHandler(object):
                 # tested our targets and know they don't have any typos, the
                 # only other explanation is that the machine uuid (which is
                 # the top level identifier for a graphite series) is wrong.
-                # Practically, this happens if graphite has never recieved
+                # Practically, this happens if graphite has never received
                 # any data for this machine so it doesn't have any subseries
                 # registered. It happens when a machine has never sent data
                 # to graphite (perhaps collecd deployment went wrong) and

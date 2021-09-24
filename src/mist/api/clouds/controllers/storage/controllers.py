@@ -449,7 +449,7 @@ class KubernetesStorageController(BaseStorageController):
         if not kwargs['dynamic']:
             if not kwargs.get('volume_params'):
                 msg = """Parameter volume_params must be a populated
-                dictionary/object with the coresponding
+                dictionary/object with the corresponding
                 parameter/value pairs depending on volume type.
                 If you are not sure please enable dynamic creation."""
                 raise RequiredParameterMissingError(msg)
@@ -690,3 +690,45 @@ class CloudSigmaStorageController(BaseStorageController):
     def _detach_volume(self, libcloud_volume, libcloud_node):
         self.cloud.ctl.compute.connection.detach_volume(libcloud_node,
                                                         libcloud_volume)
+
+
+class VultStorageController(BaseStorageController):
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+
+        # Find the volume's location.
+        try:
+            volume.location = CloudLocation.objects.get(
+                external_id=libcloud_volume.extra.get('location'),
+                cloud=self.cloud,
+                missing_since=None,
+            )
+        except CloudLocation.DoesNotExist:
+            volume.location = None
+
+        # Find the machines to which the volume is attached.
+        volume.attached_to = Machine.objects(
+            cloud=self.cloud,
+            missing_since=None,
+            machine_id=libcloud_volume.extra.get('attached_to_instance'))
+
+    def _create_volume__prepare_args(self, kwargs):
+        """Parses keyword arguments on behalf of `self.create_volume`.
+
+        Creates the parameter structure required by the libcloud method
+        that handles volume creation.
+
+        Subclasses MAY override this method.
+        """
+        from mist.api.clouds.models import CloudLocation
+        for param in ('name', 'size', 'location'):
+            if kwargs.get(param) is None:
+                raise RequiredParameterMissingError(param)
+
+        try:
+            location = CloudLocation.objects.get(id=kwargs['location'])
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError('Location with id "%s".' %
+                                kwargs['location']) from None
+        kwargs['location'] = location.external_id

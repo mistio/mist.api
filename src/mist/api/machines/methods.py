@@ -164,7 +164,7 @@ def validate_portforwards(port_forwards):
                 raise BadRequestError("Port should be an integer")
             except AssertionError:
                 raise BadRequestError("Ports should be an "
-                                      "interger between 1 and 65535")
+                                      "integer between 1 and 65535")
     for pf in port_forwards['ports']:
         if len(pf['port'].split(":")) == 2:
             host = pf['port'].split(":")[0]
@@ -1748,19 +1748,10 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
                 server_key = k
                 break
         if not server_key:
-            server_key = conn.create_key_pair(machine_name, key)
+            server_key = conn.import_key_pair_from_string(machine_name, key)
     except:
-        server_key = conn.create_key_pair('mistio' + str(
+        server_key = conn.import_key_pair_from_string('mistio' + str(
             random.randint(1, 100000)), key)
-
-    try:
-        server_key = server_key.id
-    except:
-        pass
-
-    ex_create_attr = {}
-    if cloud_init:
-        ex_create_attr['userdata'] = cloud_init
 
     try:
         node = conn.create_node(
@@ -1768,13 +1759,11 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
             size=size,
             image=image,
             location=location,
-            ex_ssh_key_ids=[server_key],
-            ex_create_attr=ex_create_attr
+            ex_ssh_key_ids=[server_key.extra['id']],
+            ex_userdata=cloud_init,
         )
     except Exception as e:
         raise MachineCreationError("Vultr, got exception %s" % e, e)
-
-    conn.start_node(node)
     return node
 
 

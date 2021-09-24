@@ -5,7 +5,7 @@ subclassing and extending the `BaseDNSController`.
 
 Most often for each different cloud type, there is a corresponding DNS
 controller defined here. All the different classes inherit `BaseDBSController`
-and share a commmon interface, with the exception that some controllers may
+and share a common interface, with the exception that some controllers may
 not have implemented all methods. It is also possible that certain cloud types
 do not possess their own DNS controller, but rather utilize the base
 `BaseDNSController`.
@@ -147,7 +147,7 @@ class LinodeDNSController(BaseDNSController):
 
     def _list_zones__fetch_zones(self):
         """
-        Overriden to convert datetime objects to isoformat in order to
+        Overridden to convert datetime objects to isoformat in order to
         be json serializable
         """
         zones = super(LinodeDNSController, self)._list_zones__fetch_zones()
@@ -163,7 +163,7 @@ class LinodeDNSController(BaseDNSController):
 
     def _list_records__fetch_records(self, zone_id):
         """
-        Overriden to convert datetime objects to isoformat in order to
+        Overridden to convert datetime objects to isoformat in order to
         be json serializable
         """
         records = super(
@@ -249,7 +249,7 @@ class SoftLayerDNSController(BaseDNSController):
         kwargs.pop('type')
 
 
-class VultrDNSController(RackSpaceDNSController):
+class VultrDNSController(BaseDNSController):
     """
     Vultr specific overrides.
     """
@@ -260,4 +260,11 @@ class VultrDNSController(RackSpaceDNSController):
     def _create_zone__prepare_args(self, kwargs):
         if not kwargs.get('ip'):
             raise RequiredParameterMissingError('ip')
-        kwargs['extra'] = {'serverip': kwargs.pop('ip')}
+        kwargs['extra'] = {'ip': kwargs.pop('ip')}
+
+    def _create_record__prepare_args(self, zone, kwargs):
+        super()._create_record__prepare_args(zone, kwargs)
+        if kwargs['type'] == 'MX':
+            parts = kwargs['data'].split(' ')
+            kwargs['extra'] = {'priority': parts[0]}
+            kwargs['data'] = parts[1]

@@ -187,7 +187,7 @@ class ParamikoShell(object):
         If pty is True, then it returns a string object that contains the
         combined streams of stdout and stderr, like they would appear in a pty.
 
-        If pty is False, then it returns a two string tupple, consisting of
+        If pty is False, then it returns a two string tuple, consisting of
         stdout and stderr.
 
         """
@@ -777,7 +777,7 @@ class KubernetesShell(KubernetesWebSocket):
     def build_uri(self, machine, cloud=None):
         """
         SSL is always enabled in K8s. Because it uses its own CA
-        it migth be required to skip the CA validation.
+        it might be required to skip the CA validation.
         """
         self.host = cloud.host
         if "https://" in self.host or "http://" in self.host:

@@ -128,7 +128,7 @@ class BaseController(object):
                                        'errors': err.to_dict()})
             self.rule.actions.append(action_cls)
 
-        # Push the NotificationAction, if specified, at the beggining of the
+        # Push the NotificationAction, if specified, at the beginning of the
         # actions list. This way we make sure that users are always notified
         # even if subsequent actions fail. We also enforce a single instance
         # of the NotificationAction.

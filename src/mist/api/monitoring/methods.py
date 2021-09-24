@@ -777,7 +777,7 @@ def list_resources(resource_type, owner, as_dict=True):
     except getattr(
             mist.api.models, resource_type.capitalize()).DoesNotExist:
         raise NotFoundError(
-            "Resouce with type %s not found" % resource_type)
+            "Resource with type %s not found" % resource_type)
     if as_dict:
         return [resource.as_dict() for resource in resource_objs]
     return resource_objs
@@ -791,7 +791,7 @@ def list_resources_by_id(resource_type, resource_id, as_dict=True):
     except getattr(
             mist.api.models, resource_type.capitalize()).DoesNotExist:
         raise NotFoundError(
-            "Resouce with type %s not found" % resource_type)
+            "Resource with type %s not found" % resource_type)
     if as_dict:
         return [resource.as_dict() for resource in resource_objs]
     return resource_objs

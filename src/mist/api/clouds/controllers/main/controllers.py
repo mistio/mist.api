@@ -214,6 +214,8 @@ class VultrMainController(BaseMainController):
     provider = 'vultr'
     ComputeController = compute_ctls.VultrComputeController
     DnsController = dns_ctls.VultrDNSController
+    StorageController = storage_ctls.VultStorageController
+    NetworkController = network_ctls.VultrNetworkController
 
 
 class VSphereMainController(BaseMainController):
@@ -662,7 +664,7 @@ class OtherMainController(BaseMainController):
     def add_machine_wrapper(self, name, fail_on_error=True,
                             fail_on_invalid_params=True, monitoring=False,
                             **kwargs):
-        """Wrapper around add_machine for kwargs backwards compatibity
+        """Wrapper around add_machine for kwargs backwards compatibility
 
         FIXME: This wrapper should be deprecated
 

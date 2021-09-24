@@ -127,7 +127,7 @@ class BaseController(object):
         `CloudUnauthorizedError` should be raised.
 
         For most cloud providers, who use an HTTP API, calling `connect`
-        doesn't really establish a connection, so subclasses shoult attempt to
+        doesn't really establish a connection, so subclasses should attempt to
         make an actual call such as `list_machines` to verify that the
         connection actually works.
 

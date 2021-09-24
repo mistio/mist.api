@@ -12,6 +12,7 @@ from mist.api.helpers import rename_kwargs
 from mist.api.exceptions import SubnetNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import MistNotImplementedError
+from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.clouds.controllers.network.base import BaseNetworkController
 
@@ -421,3 +422,41 @@ class AlibabaNetworkController(BaseNetworkController):
                 return sub
         raise SubnetNotFoundError(
             f'Subnet {subnet.name} with subnet_id {subnet.subnet_id}')
+
+
+class VultrNetworkController(BaseNetworkController):
+    def _list_networks__fetch_networks(self):
+        networks = self.cloud.ctl.compute.connection.ex_list_networks()
+        for network in networks:
+            network.name = network.extra.get('description', '')
+        return networks
+
+    def _list_networks__cidr_range(self, network, libcloud_network):
+        return libcloud_network.cidr_block
+
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
+        from mist.api.clouds.models import CloudLocation
+        try:
+            location = CloudLocation.objects.get(
+                external_id=libcloud_network.location,
+                cloud=self.cloud)
+        except CloudLocation.DoesNotExist:
+            location = None
+
+        network.location = location
+
+    def _list_subnets__fetch_subnets(self, network):
+        return []
+
+    def _delete_network(self, network, libcloud_network):
+        return self.cloud.ctl.compute.connection.ex_destroy_network(
+            libcloud_network)
+
+    def _create_network__prepare_args(self, kwargs):
+        if 'location' not in kwargs:
+            raise RequiredParameterMissingError('location')
+        rename_kwargs(kwargs, 'cidr', 'cidr_block')
+        rename_kwargs(kwargs, 'name', 'description')
+
+        kwargs['location'] = kwargs['location'].external_id

@@ -211,7 +211,7 @@ def add_cloud(request):
     owner = auth_context.owner
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
-    # when pasting keys, preventing thus succesfull connection with the
+    # when pasting keys, preventing thus successful connection with the
     # cloud
     for key in list(params.keys()):
         if type(params[key]) in [str, str]:

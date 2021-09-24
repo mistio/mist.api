@@ -185,7 +185,7 @@ class BaseBackendPlugin(object):
         Subclasses must also comply to additional conventions:
 
         If the query returns an unexpected result, no datapoints, or even a
-        completely empty reponse, then the `triggered` flag should be set equal
+        completely empty response, then the `triggered` flag should be set
         to `None` in order to indicate uncertainty as to whether the rule has
         to be (un)triggered. The `retval` should also be set to `None` in order
         to indicate the absence of datapoints.

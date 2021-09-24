@@ -666,7 +666,7 @@ class BaseComputeController(BaseController):
     def _list_machines__update_generic_machine_state(self, machine):
         """Helper method to update the machine state
 
-        This is only overriden by the OtherServer Controller.
+        This is only overridden by the OtherServer Controller.
         It applies only to generic machines.
         """
         machine.state = config.STATES[NodeState.UNKNOWN.value]
@@ -674,7 +674,7 @@ class BaseComputeController(BaseController):
     def _list_machines__generic_machine_actions(self, machine):
         """Helper method to update available generic machine's actions
 
-        This is currently only overriden by the OtherServer Controller
+        This is currently only overridden by the OtherServer Controller
         """
         for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
                        'resume', 'suspend', 'undefine', 'remove'):
@@ -1405,7 +1405,7 @@ class BaseComputeController(BaseController):
         Locations mean different things in each cloud. e.g. EC2 uses it as a
         datacenter in a given availability zone, whereas Linode lists
         availability zones. However all responses share id, name and country
-        eventhough in some cases might be empty, e.g. Openstack.
+        even though in some cases might be empty, e.g. Openstack.
 
         This returns the results obtained from libcloud, after some processing,
         formatting and injection of extra information in a sane format.
@@ -1595,7 +1595,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             node: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `start_machine`.
         """
         return self.connection.start_node(node)
@@ -1614,7 +1614,7 @@ class BaseComputeController(BaseController):
         it as needed.
 
         If a subclass of this controller wishes to override the way machines
-        are stoped, it should override `_stop_machine` method instead.
+        are stopped, it should override `_stop_machine` method instead.
 
         """
         # assert isinstance(machine.cloud, Machine)
@@ -1640,7 +1640,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             node: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `stop_machine`.
         """
         return self.connection.stop_node(node)
@@ -1685,7 +1685,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             node: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `reboot_machine`.
         """
         return node.reboot()
@@ -1758,7 +1758,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             node: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `destroy_machine`.
         """
         try:
@@ -1824,7 +1824,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             node: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `resize_machine`.
         """
         self.connection.ex_resize_node(node, node_size)
@@ -1872,7 +1872,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             node: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `rename_machine`.
         """
         self.connection.ex_rename_node(node, name)
@@ -1919,7 +1919,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             node: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `resume_machine`.
         """
         raise MistNotImplementedError()
@@ -1966,7 +1966,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             node: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `suspend_machine`.
         """
         raise MistNotImplementedError()

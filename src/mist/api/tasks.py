@@ -1508,7 +1508,7 @@ def create_machine_async_v2(
 
     machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
 
-    # first_run is set to True becase poller has already
+    # first_run is set to True because poller has already
     # logged an observation event for this machine
     # and we don't want to send it again.
     cloud.ctl.compute.produce_and_publish_patch({},
@@ -1680,7 +1680,7 @@ def add_schedules(auth_context, machine, log_dict, schedules):
                 **log_dict
             )
         except Exception as e:
-            tmp_log_error("Exception occured %s", repr(e))
+            tmp_log_error("Exception occurred %s", repr(e))
             error = repr(e)
             notify_user(
                 auth_context.owner,

@@ -115,6 +115,8 @@ class BaseNetworkController(BaseController):
 
         if network.cidr:
             kwargs['cidr'] = network.cidr
+        if network.location:
+            kwargs['location'] = network.location
         kwargs['name'] = network.name or ''
 
         # Cloud-specific kwargs pre-processing.

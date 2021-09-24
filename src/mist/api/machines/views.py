@@ -335,7 +335,7 @@ def create_machine(request):
     # bare_metal True creates a hardware server in SoftLayer,
     # whule bare_metal False creates a virtual cloud server
     # hourly True is the default setting for SoftLayer hardware
-    # servers, while False means the server has montly pricing
+    # servers, while False means the server has monthly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')

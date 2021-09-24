@@ -113,10 +113,10 @@
         <select id="unsubscribe-option"><option tal:repeat="option options" value="${option.id}">Unsubscribe from ${option.title}?</option></select>
     </div>
     <h5 id="complete" class="hidden">
-    You have successfuly unsubscribed.
+    You have successfully unsubscribed.
     </h5>
     <h5 id="error" class="hidden">
-    An error occured.
+    An error occurred.
     </h5>
 
     <div class="button-container">

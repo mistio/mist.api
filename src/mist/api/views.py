@@ -1291,7 +1291,7 @@ def probe(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-        # this is depracated, keep it for backwards compatibility
+        # this is deprecated, keep it for backwards compatibility
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:

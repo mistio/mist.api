@@ -63,7 +63,7 @@ class Cluster(OwnershipMixin, me.Document):
     This will return an iterable of GKECluster instances.
 
     To create a new cluster, one should initialize a Cluster subclass like
-    GKECluster. Intializing directly a Cluster instance won't have any
+    GKECluster. Initializing directly a Cluster instance won't have any
     credential fields or associated handler to work with.
     """
 

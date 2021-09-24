@@ -735,7 +735,7 @@ class LogsConnection(MistConnection):
     def parse_log(self, event):
         """Parse a single log.
 
-        This method may be used to perform custom parsing/editting of logs.
+        This method may be used to perform custom parsing/editing of logs.
 
         Override this method in order to add/remove fields to/from a log entry.
 

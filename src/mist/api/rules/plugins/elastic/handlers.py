@@ -22,7 +22,7 @@ class ElasticQueryHandler(object):
     to a single resource provided its resource type (ex. machine, script, key,
     etc.) and UUID.
 
-    The base query is returned by the `_get_query` method. It may be overriden
+    The base query is returned by the `_get_query` method. It may be overridden
     by subclasses in order to extend the query with extra clauses, like `sort`
     or `size`, as well as aggregations. It is recommended that a new subclass
     of the `ElasticQueryHandler` is implemented for a new aggregation query so

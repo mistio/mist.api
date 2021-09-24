@@ -812,7 +812,7 @@ def get_object_with_id(owner, rid, rtype, *args, **kwargs):
 
 
 def ts_to_str(timestamp):
-    """Return a timestamp as a nicely formated datetime string."""
+    """Return a timestamp as a nicely formatted datetime string."""
     try:
         date = datetime.datetime.fromtimestamp(timestamp)
         date_string = date.strftime("%d/%m/%Y %H:%M %Z")
@@ -916,7 +916,7 @@ def logging_view_decorator(func):
                 log.info("There was a bad error during SSO connection: %s, "
                          "and request was %s" % (repr(e), request.__dict__))
             raise
-        # check if exception occured
+        # check if exception occurred
         exc_flag = (config.LOG_EXCEPTIONS and
                     isinstance(context, Exception) and
                     not isinstance(context, MistError))
@@ -1127,7 +1127,7 @@ def logging_view_decorator(func):
 
         # Publish traceback in rabbitmq, for heka to parse and forward to
         # elastic
-        log.info("Bad exception occured, logging to rabbitmq")
+        log.info("Bad exception occurred, logging to rabbitmq")
         es_dict = log_dict.copy()
         es_dict.pop('_exc_type')
         es_dict['time'] = time()
@@ -1141,7 +1141,7 @@ def logging_view_decorator(func):
                      auto_delete=False)
 
         # log bad exception to file
-        log.info("Bad exception occured, logging to file")
+        log.info("Bad exception occurred, logging to file")
         lines = []
         lines.append("Exception: %s" % log_dict.pop('_exc'))
         lines.append("Exception type: %s" % log_dict.pop('_exc_type'))
@@ -1511,7 +1511,7 @@ def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
             ret[field] = getattr(obj, field)
 
     for k, v in deref_map.items():
-        # If we have a list, derefence its contents
+        # If we have a list, dereference its contents
         if isinstance(getattr(obj, k), list):
             ret[k] = [getattr(item, v, '') for item in getattr(obj, k)]
         else:
