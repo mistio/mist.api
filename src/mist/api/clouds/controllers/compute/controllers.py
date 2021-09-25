@@ -3417,6 +3417,105 @@ class VSphereComputeController(BaseComputeController):
         vm = self.connection.find_by_uuid(machine.machine_id)
         return self.connection._to_node_recursive(vm)
 
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
+
+        try:
+            network_search = networks_dict['network']
+        except KeyError:
+            return None
+
+        from mist.api.methods import list_resources
+
+        try:
+            [network], _ = list_resources(auth_context,
+                                          'network',
+                                          search=network_search,
+                                          cloud=self.cloud.id,
+                                          limit=1)
+        except ValueError:
+            raise BadRequestError(f'Network: {network_search} not found')
+
+        return {
+            'id': network.id,
+            'name': network.name,
+            'external_id': network.network_id,
+        }
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        folder = extra.get('folder')
+        if folder:
+            folders = self.connection.ex_list_folders()
+            folder_dict = next((item for item in folders
+                                if (item.get('id') == folder or
+                                    item.get('name') == folder)),
+                               None)
+            if folder_dict is None:
+                raise NotFoundError(
+                    f'Folder: {folder} not found')
+
+            folder_features = folder_dict.get('type') or []
+            if 'VirtualMachine' not in folder_features:
+                raise BadRequestError(
+                    f'Folder: {folder} does not support machine provisioning'
+                )
+            plan['folder'] = {
+                'id': folder_dict['id'],
+                'name': folder_dict['name'],
+            }
+
+        datastore = extra.get('datastore')
+        if datastore:
+            datastores = self.connection.ex_list_datastores()
+            datastore_dict = next((item for item in datastores
+                                   if (item.get('id') == datastore or
+                                       item.get('name') == datastore)),
+                                  None)
+
+            if datastore_dict is None:
+                raise NotFoundError(
+                    f'Datastore: {datastore} not found'
+                )
+            plan['datastore'] = {
+                'id': datastore_dict['id'],
+                'name': datastore_dict['name'],
+            }
+
+    def _create_machine__get_size_object(self, size):
+        # even though vsphere has custom sizes `create_node`
+        # expects a libcloud NodeSize object. Create a dummy
+        # one with only the attributes necessary
+        from libcloud.compute.base import NodeSize
+        nodesize = NodeSize(id=None,
+                            name=None,
+                            ram=size['ram'],
+                            disk=None,
+                            bandwidth=None,
+                            price=None,
+                            driver=self.connection,
+                            extra={
+                                'cpus': size['cpus']
+                            })
+        return nodesize
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+
+        try:
+            kwargs['ex_network'] = plan['networks']['external_id']
+        except KeyError:
+            kwargs['ex_network'] = None
+
+        try:
+            kwargs['ex_folder'] = plan['folder']['id']
+        except KeyError:
+            kwargs['ex_folder'] = None
+        try:
+            kwargs['ex_datastore'] = plan['datastore']['id']
+        except KeyError:
+            kwargs['ex_datastore'] = None
+        return kwargs
+
 
 class VCloudComputeController(BaseComputeController):
 
