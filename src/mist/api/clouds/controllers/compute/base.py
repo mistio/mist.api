@@ -2489,10 +2489,6 @@ class BaseComputeController(BaseController):
                 - A dictionary of items to be added as is to plan's image
                   dictionary or by default None
         """
-        if self.cloud.ctl.has_feature('custom_image'):
-            image = self._generate_plan__parse_custom_image(image_obj)
-            return [image], None
-
         from mist.api.methods import list_resources
         if isinstance(image_obj, str):
             image_search = image_obj
@@ -2510,6 +2506,12 @@ class BaseComputeController(BaseController):
             limit=1000
         )
         if not count:
+            if self.cloud.ctl.has_feature('custom_image'):
+                image = self._generate_plan__parse_custom_image(image_obj)
+                if image is None:
+                    raise NotFoundError('Image not found')
+                else:
+                    return [image], None
             raise NotFoundError('Image not found')
 
         ret_images = []
@@ -2792,18 +2794,21 @@ class BaseComputeController(BaseController):
         Subclasses MAY override or extend this method.
 
         Parameters:
-            combination_list(list): List of tuples of CloudImage, CloudSize,
-                                    CloudLocation objects.
+            combination_list(list): List of tuples of CloudImage,
+                                    CloudSize|dict, CloudLocation objects.
 
         Returns:
-            A tuple of CloudImage, CloudSize, CloudLocation.
+            A tuple of CloudImage, CloudSize|dict, CloudLocation.
         """
         if not combination_list:
             raise NotFoundError('No available plan exists for given '
                                 'images, sizes, locations')
 
-        has_price_info = any(size.extra.get('price')
-                             for _, size, _ in combination_list)
+        try:
+            has_price_info = any(size.extra.get('price')
+                                 for _, size, _ in combination_list)
+        except AttributeError:
+            has_price_info = False
 
         def sort_by_price(value):
             image, size, location = value
@@ -2812,8 +2817,14 @@ class BaseComputeController(BaseController):
 
         def sort_by_size(value):
             image, size, location = value
-            cpus = size.cpus or float('inf')
-            ram = size.ram or float('inf')
+            try:
+                cpus = size.cpus or float('inf')
+            except AttributeError:
+                cpus = size['cpus']
+            try:
+                ram = size.ram or float('inf')
+            except AttributeError:
+                ram = size['ram']
             return cpus, ram, -image.starred, len(image.name)
 
         if has_price_info:
