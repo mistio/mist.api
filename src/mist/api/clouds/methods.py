@@ -76,7 +76,7 @@ def rename_cloud(owner, cloud_id, new_name):
     trigger_session_update(owner, ['clouds'])
 
 
-def delete_cloud(owner, cloud_id):
+def remove_cloud(owner, cloud_id):
     """Deletes cloud with given cloud_id."""
 
     log.info("Deleting cloud: %s", cloud_id)

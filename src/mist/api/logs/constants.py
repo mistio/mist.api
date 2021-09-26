@@ -73,7 +73,7 @@ CLOSES_STORY = (
 CLOSES_INCIDENT = (
     'update_rule',
     'delete_rule',
-    'delete_cloud',
+    'remove_cloud',
     'delete_script',
     'delete_volume',
     'delete_subnet',

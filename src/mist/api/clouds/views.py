@@ -16,7 +16,7 @@ from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 
 from mist.api.clouds.methods import filter_list_clouds, add_cloud_v_2
 from mist.api.clouds.methods import rename_cloud as m_rename_cloud
-from mist.api.clouds.methods import delete_cloud as m_delete_cloud
+from mist.api.clouds.methods import remove_cloud as m_remove_cloud
 
 from mist.api.tag.methods import add_tags_to_resource
 
@@ -262,11 +262,11 @@ def add_cloud(request):
 
 
 @view_config(route_name='api_v1_cloud_action', request_method='DELETE')
-def delete_cloud(request):
+def remove_cloud(request):
     """
     Tags: clouds
     ---
-    Deletes a cloud with given cloud_id.
+    Removes a cloud with given cloud_id.
     REMOVE permission required on cloud.
     ---
     cloud:
@@ -281,7 +281,7 @@ def delete_cloud(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
     auth_context.check_perm('cloud', 'remove', cloud_id)
-    m_delete_cloud(auth_context.owner, cloud_id)
+    m_remove_cloud(auth_context.owner, cloud_id)
     return OK
 
 
