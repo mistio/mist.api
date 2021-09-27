@@ -3,8 +3,6 @@ import re
 import ctypes
 import os.path
 
-from prometheus_client.parser import text_string_to_metric_families
-
 
 log = logging.getLogger(__name__)
 
@@ -63,12 +61,6 @@ def parse_relative_time(dt):
     dt = re.sub(r'w.*', 'w', dt)
     dt = re.sub(r'y.*', 'y', dt)
     return dt
-
-
-def parse_metric(metric):
-    family = text_string_to_metric_families(metric + " 0")
-    parsed_metric = next(family).samples[0]
-    return parsed_metric.name, parsed_metric.labels
 
 
 def calculate_time_args(start, stop, step):
