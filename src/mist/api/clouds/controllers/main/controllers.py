@@ -231,28 +231,6 @@ class VSphereMainController(BaseMainController):
             check_host(kwargs['host'])
 
 
-class VCloudMainController(BaseMainController):
-
-    provider = 'vcloud'
-    ComputeController = compute_ctls.VCloudComputeController
-
-    def _update__preparse_kwargs(self, kwargs):
-        username = kwargs.get('username', self.cloud.username) or ''
-        organization = kwargs.pop('organization')
-
-        if not organization:
-            if '@' not in username:
-                raise RequiredParameterMissingError('organization')
-        else:
-            if '@' in username:
-                username = username.split('@')[0]
-            kwargs['username'] = '%s@%s' % (username, organization)
-        host = kwargs.get('host', self.cloud.host)
-        if host:
-            kwargs['host'] = sanitize_host(host)
-            check_host(kwargs['host'])
-
-
 class OpenStackMainController(BaseMainController):
 
     provider = 'openstack'

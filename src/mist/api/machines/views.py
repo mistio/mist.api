@@ -265,10 +265,6 @@ def create_machine(request):
       description:
         description: Description of machine. Only for KVM machines
         type: string
-    port_forwards:
-      description: Applies only in GigG8 clouds
-      type: object
-      example: {"2200:22": ["tcp"]}
     """
 
     params = params_from_request(request)
