@@ -4,7 +4,7 @@ FROM python:3.7-slim-buster
 RUN apt update && \
     apt install -y git build-essential g++ gcc cargo gnupg ca-certificates \
     libssl-dev libffi-dev libvirt-dev libxml2-dev libxslt-dev zlib1g-dev \
-    mongo-tools libmemcached-dev netcat wget curl jq && \
+    mongo-tools libmemcached-dev procps netcat wget curl jq && \
     rm -rf /var/lib/apt/lists/*
 
 RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.8.4-static_linux_amd64.tar.gz && \

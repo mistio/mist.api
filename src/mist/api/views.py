@@ -491,10 +491,8 @@ def switch_org(request):
     raise RedirectError(urllib.parse.unquote(return_to) or '/')
 
 
-@view_config(route_name='login', request_method='GET',
-             renderer='templates/home.pt')
-@view_config(route_name='login_service', request_method='GET',
-             renderer='templates/home.pt')
+@view_config(route_name='login', request_method='GET')
+@view_config(route_name='login_service', request_method='GET')
 def login_get(request):
     """
     User visits login form.
