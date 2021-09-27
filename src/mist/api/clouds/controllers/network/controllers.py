@@ -15,7 +15,8 @@ from mist.api.exceptions import MistNotImplementedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.clouds.controllers.network.base import BaseNetworkController
-
+from mist.api.concurrency.models import PeriodicTaskLockTakenError
+from mist.api.concurrency.models import PeriodicTaskTooRecentLastRun
 from libcloud.compute.drivers.azure_arm import AzureNetwork
 
 
@@ -179,6 +180,30 @@ class GoogleNetworkController(BaseNetworkController):
         kwargs = {'name': subnet.name,
                   'region': subnet.region}
         return self.cloud.ctl.compute.connection.ex_get_subnetwork(**kwargs)
+
+    def delete_network(self, network):
+        # Subnets of Google automatic networks cannot be deleted directly
+        if network.mode == 'custom':
+            return super().delete_network(network)
+
+        assert network.cloud == self.cloud
+
+        libcloud_network = self._get_libcloud_network(network)
+        try:
+            self._delete_network(network, libcloud_network)
+        except Exception:
+            log.error('Could not delete network %s', network)
+            raise
+
+        try:
+            self.list_networks()
+        except (PeriodicTaskLockTakenError,
+                PeriodicTaskTooRecentLastRun):
+            log.error('Failed to list networks after network deletion '
+                      'for Google cloud: %s', self.cloud.id)
+
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
 
 class OpenStackNetworkController(BaseNetworkController):
