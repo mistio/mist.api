@@ -66,10 +66,14 @@ class BaseContainerController(BaseController):
 
     def _add_schedule_interval(self):
         from mist.api.poller.models import ListClustersPollingSchedule
-        schedule = ListClustersPollingSchedule.objects.get(
-            cloud=self.cloud)
-        schedule.add_interval(10, ttl=600)
-        schedule.save()
+        try:
+            schedule = ListClustersPollingSchedule.objects.get(
+                cloud=self.cloud)
+        except ListClustersPollingSchedule.DoesNotExist:
+            log.warning(f'Schedule does not exist for cloud: {self.cloud}')
+        else:
+            schedule.add_interval(10, ttl=600)
+            schedule.save()
 
     def _create_cluster(self, *args, **kwargs):
         return self.connection.create_cluster(*args, **kwargs)
