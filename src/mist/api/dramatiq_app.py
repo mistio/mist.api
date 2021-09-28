@@ -11,9 +11,6 @@ from dramatiq.results.backends import MemcachedBackend
 from dramatiq.results import Results
 
 from mist.api import config
-# from mist.api.poller.models import PollingSchedule
-# from mist.api.rules.models import Rule
-# from mist.api.schedules.models import Schedule
 
 log = logging.getLogger(__name__)
 
@@ -23,10 +20,50 @@ class LoggingMiddleware(Middleware):
 
     state = local()
 
+    @property
+    def actor_options(self):
+        """Denotes the type of the task.
+
+        Valid values are:
+        - Rule
+        - Schedule
+        - CloudPollingSchedule:
+            The first argument is expected to be the schedule ID
+        - OwnerPollingSchedule
+        - MachinePollingSchedule
+
+        NOTE: These values are strings not the actual class type
+        """
+        return {'task_type'}
+
     def before_process_message(self, broker, message):
+        from mist.api.poller.models import CloudPollingSchedule
+        from mist.api.poller.models import OwnerPollingSchedule
+        from mist.api.poller.models import MachinePollingSchedule
+        from mist.api.rules.models import Rule
+        from mist.api.schedules.models import Schedule
+
         msg_id = '{}: {}{}'.format(
             message.message_id, message.actor_name, str(message.args))
         msg = 'Starting task %s' % msg_id
+
+        actor = broker.get_actor(message.actor_name)
+        task_type = (message.options.get('task_type') or
+                     actor.options.get('task_type'))
+
+        if task_type == 'CloudPollingSchedule':
+            try:
+                schedule = CloudPollingSchedule.objects.get(
+                    id=message.args[0])
+            except IndexError:
+                log.error('Expected schedule_id as first argument')
+            except CloudPollingSchedule.DoesNotExist:
+                log.error('%s with id: %s not found',
+                          task_type, message.args[0])
+            else:
+                msg += (f' Type: {task_type}'
+                        f' Cloud: {schedule.cloud.name}'
+                        f' Org: {schedule.cloud.owner.name}')
 
         # try:
         #     sched = None
