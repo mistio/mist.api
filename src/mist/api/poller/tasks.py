@@ -56,13 +56,15 @@ def list_machines(schedule_id):
     sched = ListMachinesPollingSchedule.objects.get(id=schedule_id)
     try:
         sched.cloud.ctl.compute.list_machines(persist=False)
-    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun):
-        pass
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
+        list_machines.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='polling', time_limit=280_000, max_age=30_000)
 def list_clusters(schedule_id):
-    """Perform list machines. Cloud controller stores results in mongodb."""
+    """Perform list clusters. Cloud controller stores results in mongodb."""
 
     # Fetch schedule and cloud from database.
     # FIXME: resolve circular deps error
@@ -70,8 +72,10 @@ def list_clusters(schedule_id):
     sched = ListClustersPollingSchedule.objects.get(id=schedule_id)
     try:
         sched.cloud.ctl.container.list_clusters(persist=False)
-    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun):
-        pass
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
+        list_clusters.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='polling', time_limit=160_000, max_age=30_000)
@@ -80,7 +84,12 @@ def list_locations(schedule_id):
 
     from mist.api.poller.models import ListLocationsPollingSchedule
     sched = ListLocationsPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.compute.list_locations(persist=False)
+    try:
+        sched.cloud.ctl.compute.list_locations(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
+        list_locations.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
@@ -89,7 +98,12 @@ def list_sizes(schedule_id):
 
     from mist.api.poller.models import ListSizesPollingSchedule
     sched = ListSizesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.compute.list_sizes(persist=False)
+    try:
+        sched.cloud.ctl.compute.list_sizes(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
+        list_sizes.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
@@ -98,7 +112,12 @@ def list_images(schedule_id):
 
     from mist.api.poller.models import ListImagesPollingSchedule
     sched = ListImagesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.compute.list_images(persist=False)
+    try:
+        sched.cloud.ctl.compute.list_images(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
+        list_images.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
@@ -108,7 +127,12 @@ def list_networks(schedule_id):
 
     from mist.api.poller.models import ListNetworksPollingSchedule
     sched = ListNetworksPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.network.list_networks(persist=False)
+    try:
+        sched.cloud.ctl.network.list_networks(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
+        list_networks.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
@@ -119,7 +143,12 @@ def list_zones(schedule_id):
 
     from mist.api.poller.models import ListZonesPollingSchedule
     sched = ListZonesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.dns.list_zones(persist=False)
+    try:
+        sched.cloud.ctl.dns.list_zones(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
+        list_zones.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
@@ -128,7 +157,12 @@ def list_volumes(schedule_id):
 
     from mist.api.poller.models import ListVolumesPollingSchedule
     sched = ListVolumesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.storage.list_volumes(persist=False)
+    try:
+        sched.cloud.ctl.storage.list_volumes(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
+        list_volumes.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=300_000)
@@ -140,7 +174,12 @@ def list_buckets(schedule_id):
 
     from mist.api.poller.models import ListBucketsPollingSchedule
     sched = ListBucketsPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.objectstorage.list_buckets(persist=False)
+    try:
+        sched.cloud.ctl.objectstorage.list_buckets(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
+        list_buckets.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='ping_probe', time_limit=45_000, max_age=30_000)
@@ -156,7 +195,9 @@ def ping_probe(schedule_id):
                 and sched.machine.machine_type != 'container':
             sched.machine.ctl.ping_probe(persist=False)
     except Exception as exc:
-        log.error("Error while ping-probing %s: %r", sched.machine, exc)
+        ping_probe.logger.warning(
+            "Error while ping-probing %s: %r",
+            sched.machine, exc)
 
 
 @dramatiq.actor(queue_name='ssh_probe', time_limit=45_000, max_age=30_000)
@@ -172,4 +213,6 @@ def ssh_probe(schedule_id):
                 and sched.machine.machine_type != 'container':
             sched.machine.ctl.ssh_probe(persist=False)
     except Exception as exc:
-        log.error("Error while ssh-probing %s: %r", sched.machine, exc)
+        ssh_probe.logger.warning(
+            "Error while ssh-probing %s: %r",
+            sched.machine, exc)
