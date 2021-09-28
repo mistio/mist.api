@@ -1,9 +1,12 @@
 #!/usr/bin/env python
-from mist.api.clouds.models import GigG8Cloud
 from mist.api.models import Machine, Network, Volume
 
 
 def remove_g8_clouds():
+    try:
+        from mist.api.clouds.models import GigG8Cloud
+    except ImportError:
+        return
 
     failed = updated = 0
     clouds = GigG8Cloud.objects()

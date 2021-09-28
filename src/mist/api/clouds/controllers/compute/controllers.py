@@ -3517,31 +3517,6 @@ class VSphereComputeController(BaseComputeController):
         return kwargs
 
 
-class VCloudComputeController(BaseComputeController):
-
-    def _connect(self, **kwargs):
-        host = dnat(self.cloud.owner, self.cloud.host)
-        return get_driver(self.provider)(self.cloud.username,
-                                         self.cloud.password, host=host,
-                                         port=int(self.cloud.port)
-                                         )
-
-    def _list_machines__machine_actions(self, machine, node_dict):
-        super(VCloudComputeController, self)._list_machines__machine_actions(
-            machine, node_dict)
-        if node_dict['state'] is NodeState.PENDING.value:
-            machine.actions.start = True
-            machine.actions.stop = True
-
-    def _list_machines__postparse_machine(self, machine, node_dict):
-        updated = False
-        if machine.extra.get('os_type', '') and \
-           machine.os_type != machine.extra.get('os_type'):
-            machine.os_type = machine.extra.get('os_type')
-            updated = True
-        return updated
-
-
 class OpenStackComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):

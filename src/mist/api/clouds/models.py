@@ -36,7 +36,6 @@ __all__ = [
     "EquinixMetalCloud",
     "VultrCloud",
     "VSphereCloud",
-    "VCloud",
     "OpenStackCloud",
     "DockerCloud",
     "LibvirtCloud",
@@ -509,18 +508,6 @@ class MaxihostCloud(Cloud):
     _controller_cls = controllers.MaxihostMainController
 
 
-class GigG8Cloud(Cloud):
-    """
-    DEPRECATED
-    """
-
-    apikey = me.StringField(required=True)
-    user_id = me.IntField(required=True)
-    url = me.StringField(required=True)
-
-    _private_fields = ('apikey', )
-
-
 class LinodeCloud(Cloud):
 
     apikey = me.StringField(required=True)
@@ -632,17 +619,6 @@ class VSphereCloud(Cloud):
 
     _private_fields = ('password', )
     _controller_cls = controllers.VSphereMainController
-
-
-class VCloud(Cloud):
-
-    host = me.StringField(required=True)
-    username = me.StringField(required=True)
-    password = me.StringField(required=True)
-    port = me.IntField(required=True, default=443)
-
-    _private_fields = ('password', )
-    _controller_cls = controllers.VCloudMainController
 
 
 class OpenStackCloud(Cloud):

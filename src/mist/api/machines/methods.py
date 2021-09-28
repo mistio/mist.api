@@ -25,8 +25,6 @@ from libcloud.container.base import ContainerImage
 from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.base import NodeAuthPassword
 
-from tempfile import NamedTemporaryFile
-
 import mist.api.tasks
 
 from mist.api.clouds.models import Cloud
@@ -125,8 +123,6 @@ def machine_name_validator(provider, name):
             raise MachineNameValidationError(
                 "machine name may only contain ASCII letters "
                 "or numbers and dashes")
-    elif provider in [Provider.VCLOUD.value]:
-        pass
     elif provider is Provider.LINODE.value:
         if len(name) < 3:
             raise MachineNameValidationError(
@@ -537,9 +533,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             machine_username, volumes, storage_account_type,
             cloud_init
         )
-    elif cloud.ctl.provider in [Provider.VCLOUD.value]:
-        node = _create_machine_vcloud(conn, machine_name, image,
-                                      size, public_key, networks)
     elif cloud.ctl.provider is Provider.VSPHERE.value:
         size.ram = size_ram
         size.extra['cpus'] = size_cpu
@@ -2029,53 +2022,6 @@ def _create_machine_azure(conn, key_name, public_key,
         except:
             msg = e
         raise MachineCreationError('Azure, got exception %s' % msg)
-
-    return node
-
-
-def _create_machine_vcloud(conn, machine_name, image,
-                           size, public_key, networks):
-    """Create a machine vCloud.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
-    """
-    key = public_key.replace('\n', '')
-    # we have the option to pass a guest customisation
-    # script as ex_vm_script. We'll pass
-    # the ssh key there
-
-    deploy_script = NamedTemporaryFile(delete=False)
-    deploy_script.write(
-        'mkdir -p ~/.ssh && echo "%s" >> ~/.ssh/authorized_keys '
-        '&& chmod -R 700 ~/.ssh/' % key)
-    deploy_script.close()
-
-    # select the right network object
-    ex_network = None
-    try:
-        if networks:
-            network = networks[0]
-            available_networks = conn.ex_list_networks()
-            available_networks_ids = [net.id for net in available_networks]
-            if network in available_networks_ids:
-                ex_network = network
-    except:
-        pass
-
-    try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            size=size,
-            ex_vm_script=deploy_script.name,
-            ex_vm_network=ex_network,
-            ex_vm_fence='bridged',
-            ex_vm_ipmode='DHCP'
-        )
-    except Exception as e:
-        raise MachineCreationError("vCloud, got exception %s" % e, e)
 
     return node
 

@@ -47,7 +47,7 @@ from email.mime.text import MIMEText
 
 from contextlib import contextmanager
 from email.utils import formatdate, make_msgid
-from mongoengine import DoesNotExist
+from mongoengine import DoesNotExist, NotRegistered
 
 from pyramid.view import view_config as pyramid_view_config
 from pyramid.httpexceptions import HTTPError
@@ -582,7 +582,7 @@ def transform_key_machine_associations(associations):
             }
             for association in associations
         ]
-    except DoesNotExist:
+    except (DoesNotExist, NotRegistered):
         # If there are broken references get rid of them
         transformed = []
         for association in associations:
@@ -596,7 +596,7 @@ def transform_key_machine_associations(associations):
                     'port': association.port,
                     'association_id': association.id
                 })
-            except DoesNotExist:
+            except (DoesNotExist, NotRegistered):
                 association.delete()
     return transformed
 
@@ -1036,8 +1036,7 @@ def logging_view_decorator(func):
         # Hide sensitive cloud credentials.
         if log_dict['action'] == 'add_cloud':
             provider = params.get('provider')
-            censor = {'vcloud': 'password',
-                      'ec2': 'api_secret',
+            censor = {'ec2': 'api_secret',
                       'rackspace': 'api_key',
                       'softlayer': 'api_key',
                       'onapp': 'api_key',
