@@ -6,9 +6,8 @@ from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api import config
 from mist.api.monitoring.victoriametrics.helpers import (
-    generate_metric_mist, generate_metric_promql,
-    calculate_time_args, parse_value, round_base,
-    inject_promql_machine_id)
+    generate_metric_mist, calculate_time_args,
+    parse_value, round_base, inject_promql_machine_id)
 
 
 log = logging.getLogger(__name__)
