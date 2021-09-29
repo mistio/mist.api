@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import argparse
 
 from mist.api.scheduler import start
@@ -13,7 +14,12 @@ if __name__ == "__main__":
     parser.add_argument('--rules', default=False, action='store_true')
     args = parser.parse_args()
     if not (args.builtin or args.user or args.polling or args.rules):
-        kwargs = {}
+        schedules = os.getenv('SCHEDULES', '').split(',')
+        kwargs = {schedule: True for schedule in schedules
+                  if schedule in ('builtin',
+                                  'user',
+                                  'polling',
+                                  'rules')}
     else:
         kwargs = {
             'builtin': args.builtin,
