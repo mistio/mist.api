@@ -24,7 +24,6 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     for metric in metrics:
         try:
             query = inject_promql_machine_id(metric, machine.id)
-            print(query)
             # Need to trim org due to 32 bit limitation of
             # the accountID on victoria metrics tenants
             uri = config.VICTORIAMETRICS_URI.replace(
