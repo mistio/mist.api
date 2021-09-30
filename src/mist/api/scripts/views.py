@@ -25,7 +25,7 @@ from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
 
 from mist.api.helpers import view_config, params_from_request
-from mist.api.helpers import mac_sign
+from mist.api.helpers import mac_sign, trigger_session_update
 
 from mist.api.scripts.methods import filter_list_scripts
 from mist.api.machines.methods import find_best_ssh_params
@@ -138,6 +138,7 @@ def add_script(request):
 
     if 'job_id' in params:
         script['job_id'] = params['job_id']
+    async_session_update.send(auth_context.owner.id, ['scripts'])
 
     return script
 
@@ -188,7 +189,7 @@ def show_script(request):
 
     ret_dict = script.as_dict()
     jobs = get_stories('job', auth_context.owner.id, script_id=script_id)
-    ret_dict['jobs'] = [job['job_id'] for job in jobs]
+    ret_dict['jobs'] = [job['job_id'] for job in jobs if job.get('job_id')]
     return ret_dict
 
 
@@ -461,12 +462,11 @@ def run_script(request):
         auth_context, machine
     )
     key_id = KeyMachineAssociation.objects(id=key_association_id)[0].key.id
-
-    tasks.run_script.send(auth_context.owner.id, script.id,
-                          machine.id, params=script_params,
-                          env=env, su=su, job_id=job_id, job=job,
-                          key_id=key_id, host=host,
-                          username=username, port=port)
+    tasks.run_script.send(
+        auth_context.owner.id, script.id, machine.id, params=script_params,
+        env=env, su=su, job_id=job_id, job=job, key_id=key_id, host=host,
+        username=username, port=port
+    )
     return {'job_id': job_id, 'job': job}
 
 

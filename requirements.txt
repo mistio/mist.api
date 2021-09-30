@@ -46,6 +46,7 @@ python3-openid
 pyvmomi
 requests
 s3cmd
+scp
 sendgrid-python
 sockjs-tornado
 tornado

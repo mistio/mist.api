@@ -1,3 +1,4 @@
+import os
 import logging
 import requests
 import datetime
@@ -127,29 +128,44 @@ class BaseScriptController(object):
         trigger_session_update(self.script.owner, ['scripts'])
 
     def _url(self):
-        url = ''
+        redirect_url = ''
         if self.script.location.type == 'github':
-            clean_url = self.script.location.repo.replace(
-                'https://github.com/', '')
-            path = 'https://api.github.com/repos/%s/tarball' % clean_url
-
             token = config.GITHUB_BOT_TOKEN
             if token:
                 headers = {'Authorization': 'token %s' % token}
             else:
                 headers = {}
-            resp = requests.get(path, headers=headers,
+
+            path = self.script.location.repo.replace(
+                'https://github.com/', '')
+
+            if '/tree/' in path:
+                [path, branch] = path.split('/tree/')
+            else:
+                api_url = 'https://api.github.com/repos/%s' % path
+                resp = requests.get(api_url, headers=headers,
+                                    allow_redirects=False)
+                if resp.ok:
+                    branch = resp.json().get('default_branch')
+                else:
+                    log.error('Failed to fetch default branch %r', resp)
+                    branch = 'master'
+
+            api_url = 'https://api.github.com/repos/%s/tarball/%s' % (
+                path, branch)
+
+            resp = requests.get(api_url, headers=headers,
                                 allow_redirects=False)
             if resp.ok and resp.is_redirect and 'location' in resp.headers:
-                url = resp.headers['location']
+                redirect_url = resp.headers['location']
             else:
                 log.error('%d: Could not retrieve your file: %s',
                           resp.status_code, resp.content)
                 raise BadRequestError('%d: Could not retrieve your file: %s'
                                       % (resp.status_code, resp.content))
         else:
-            url = self.script.location.url
-        return url
+            redirect_url = self.script.location.url
+        return redirect_url
 
     def get_file(self):
         """Returns a file or archive."""
@@ -190,22 +206,33 @@ class BaseScriptController(object):
                                 body=r.content)
 
     def run_script(self, shell, params=None, job_id=None):
+        path = "/tmp/mist_script_%s" % job_id
         if self.script.location.type == 'inline':
-            path = "/tmp/mist_script_%s" % job_id
             source = self.script.location.source_code
             sftp = shell.ssh.open_sftp()
             sftp.putfo(io.StringIO(source), path)
         else:
-            path = self._url()
+            r = requests.get(self._url(), allow_redirects=True)
+            with open(path, 'wb') as f:
+                f.write(r.content)
+            try:
+                import tarfile
+                with tarfile.open(path, mode="r|gz") as tf:
+                    path += '.dir'
+                    os.mkdir(path)
+                    tf.extractall(path=path)
+            except ReadError:
+                import zipfile
+                with zipfile.ZipFile(path, 'r') as zf:
+                    path += '.dir'
+                    os.mkdir(path)
+                    zf.extractall(path)
+            from scp import SCPClient
+            scp = SCPClient(shell.ssh.get_transport())
+            scp.put(path, path, recursive=True)
+            path = path + '/*/' + (self.script.location.entrypoint or '*')
 
-        wparams = "-v"
-        if params:
-            wparams += " -p '%s'" % params
-        if not self.script.location.type == 'inline':
-            if self.script.location.entrypoint:
-                wparams += " -f %s" % self.script.location.entrypoint
-        wparams += " %s" % path
-        return path, params, wparams
+        return path, params
 
     def _preparse_file(self):
         return

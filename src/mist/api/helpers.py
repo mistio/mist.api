@@ -1293,7 +1293,7 @@ def mac_verify(kwargs=None, key='', mac_len=0, mac_format='hex'):
     fresh_mac = kwargs.get('_mac', '')
     if not fresh_mac or fresh_mac != mac:
         raise Exception('Bad HMAC')
-    if expiration and expiration < time():
+    if expiration and int(expiration) < time():
         raise Exception('HMAC expired')
     for kw in ('_expires', '_mac'):
         if kw in kwargs:

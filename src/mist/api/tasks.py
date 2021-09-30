@@ -1170,7 +1170,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
                 key_id, username, password, port
             )
             # FIXME wrap here script.run_script
-            path, params, wparams = script.ctl.run_script(
+            path, params = script.ctl.run_script(
                 shell, params=params, job_id=ret.get('job_id')
             )
 
