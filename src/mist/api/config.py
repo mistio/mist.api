@@ -618,7 +618,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "G",
-                    "target": "net_bytes_recv"
+                    "target": "rate(net_bytes_recv)"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -632,7 +632,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "H",
-                    "target": "net_bytes_sent"
+                    "target": "rate(net_bytes_sent)"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -646,7 +646,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "I",
-                    "target": "diskio_read_bytes"
+                    "target": "rate(diskio_read_bytes)"
                 }],
                 "x-axis": True,
                 "y-axis": True,
@@ -662,7 +662,7 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "J",
-                    "target": "diskio_write_bytes"
+                    "target": "rate(diskio_write_bytes)"
                 }],
                 "yaxes": [{
                     "label": "B/s"

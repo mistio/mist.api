@@ -6,8 +6,8 @@ from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api import config
 from mist.api.monitoring.victoriametrics.helpers import (
-    generate_metric_mist, generate_metric_promql, parse_metric,
-    calculate_time_args, parse_value, round_base)
+    generate_metric_mist, calculate_time_args,
+    parse_value, round_base, inject_promql_machine_id)
 
 
 log = logging.getLogger(__name__)
@@ -21,19 +21,9 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     if not isinstance(metrics, list):
         metrics = [metrics]
     raw_machine_data_list = []
-    use_deriv = False
     for metric in metrics:
-        metric_name, labels = parse_metric(metric)
-        labels["machine_id"] = machine.id
-        metric_promql = generate_metric_promql(metric_name, labels)
-        use_deriv = metric_name.startswith(
-            ("diskio", "net")) and not metric_name.startswith(
-                "diskio_iops_in_progress")
-        if use_deriv:
-            query = f"rate({metric_promql})"
-        else:
-            query = metric_promql
         try:
+            query = inject_promql_machine_id(metric, machine.id)
             # Need to trim org due to 32 bit limitation of
             # the accountID on victoria metrics tenants
             uri = config.VICTORIAMETRICS_URI.replace(
@@ -51,18 +41,11 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             log.error('Got %d on get_stats: %s',
                       raw_machine_data.status_code, raw_machine_data.content)
             raise ServiceUnavailableError()
-        raw_machine_data = raw_machine_data.json()
-        for result in raw_machine_data.get("data", {}).get("result", []):
-            if result.get("metric"):
-                if not result["metric"].get("__name__"):
-                    result["metric"]["__name__"] = metric_name
-        raw_machine_data_list.append(raw_machine_data)
-
+        raw_machine_data_list.append(raw_machine_data.json())
     for raw_machine_data in raw_machine_data_list:
         for result in raw_machine_data.get('data', {}).get('result', {}):
-            metric = generate_metric_mist(result.get("metric", {}))
-            data[metric] = {
-                "name": metric,
+            data[str(result["metric"])] = {
+                "name": str(result["metric"]),
                 "datapoints": [[parse_value(val),
                                 str(dt)]
                                for dt, val in result.get("values")]

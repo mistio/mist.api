@@ -130,15 +130,23 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
             try:
                 metric = Metric.objects.get(owner=owner, metric_id=rule.metric)
             except Metric.DoesNotExist:
-                raise BadRequestError(
-                    "Metric '%s' is not a builtin rule metric, "
-                    "nor defined in .metrics." % rule.metric
-                )
+                if machine.monitoring and machine.monitoring.method.endswith(
+                        "-victoriametrics"):
+                    metric = Metric(metric_id=rule.metric, name=rule.metric)
+                else:
+                    raise BadRequestError(
+                        "Metric '%s' is not a builtin rule metric, "
+                        "nor defined in .metrics." % rule.metric
+                    )
         label = metric.name or rule.metric.replace(".", " ")
         if rule.operator == 'lt':
             operator = '<'
         elif rule.operator == 'gt':
             operator = '>'
+        elif rule.operator == 'eq':
+            operator = '='
+        elif rule.operator == 'ne':
+            operator = '!='
         else:
             operator = rule.operator
         fthresh = metric.format_value(rule.value)

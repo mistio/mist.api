@@ -35,7 +35,6 @@ pastescript  # Required for uwsgi paste logging, can probably be removed.
 pika
 pingparsing
 pretty
-prometheus-client
 pycryptodome
 pylibmc
 pymongo

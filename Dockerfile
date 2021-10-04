@@ -14,6 +14,10 @@ RUN ln -s /influxdb-1.8.4-1/influxd /usr/local/bin/influxd && \
     ln -s /usr/bin/pip3 /usr/bin/pip && \
     ln -s /usr/bin/python3 /usr/bin/python
 
+# Download VictoriaMetrics promql middleware .so file
+ARG CI_API_V4_URL
+RUN wget -O promql_middleware.so  `curl "${CI_API_V4_URL}/projects/126/releases" | jq -r .[0].assets.links[0].url`
+
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --upgrade setuptools && \
     pip install libvirt-python==7.2.0 uwsgi==2.0.19.1 && \
