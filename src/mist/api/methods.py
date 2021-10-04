@@ -712,12 +712,13 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             query &= Q(id__in=ids)
             result = resource_model.objects(query)
     if tags:
-        try:
-            tags = json.loads(tags)
-        except json.JSONDecodeError:
-            tags = dict((key, value[0] if value else '')
-                        for key, *value in (pair.split('=')
-                                            for pair in tags.split(',')))
+        if not isinstance(tags, dict):
+            try:
+                tags = json.loads(tags)
+            except json.JSONDecodeError:
+                tags = dict((key, value[0] if value else '')
+                            for key, *value in (pair.split('=')
+                                                for pair in tags.split(',')))
         result = filter_resources_by_tags(result, tags)
 
     try:
