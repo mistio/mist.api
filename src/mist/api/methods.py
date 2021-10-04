@@ -1,6 +1,7 @@
 import re
 import subprocess
 import distutils.util
+import json
 
 import pingparsing
 
@@ -527,7 +528,7 @@ def filter_resources_by_tags(resources, tags):
     return resources.filter(id__in=filtered_ids)
 
 
-def list_resources(auth_context, resource_type, search='', cloud='', tags={},
+def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                    only='', sort='', start=0, limit=100, deref=''):
     """
     List resources of any type.
@@ -711,6 +712,13 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags={},
             query &= Q(id__in=ids)
             result = resource_model.objects(query)
     if tags:
+        if not isinstance(tags, dict):
+            try:
+                tags = json.loads(tags)
+            except json.JSONDecodeError:
+                tags = dict((key, value[0] if value else '')
+                            for key, *value in (pair.split('=')
+                                                for pair in tags.split(',')))
         result = filter_resources_by_tags(result, tags)
 
     try:
