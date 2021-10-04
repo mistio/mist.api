@@ -253,7 +253,7 @@ class BaseComputeController(BaseController):
                     'machine_id': machine.id,
                     'cost_per_month': machine.cost.monthly}
             amqp_publish(exchange='machines_inventory', routing_key='',
-                         auto_delete=False, data=data)
+                         auto_delete=False, data=data, ex_declare=True)
 
         if config.ENABLE_METERING:
             self._update_metering_data(cached_machines, machines)
