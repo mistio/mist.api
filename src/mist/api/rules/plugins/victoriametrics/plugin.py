@@ -24,20 +24,10 @@ class VictoriaMetricsBackendPlugin(base.BaseBackendPlugin):
             log.warning('No datapoints for %s.%s', rid, query.target)
             return None, None
 
-        # Check whether the query to Victoria Metrics returned multiple series.
-        if len(data) > 1:
-            log.warning('Got multiple series for %s.%s', rid, query.target)
-            raise methods.MultipleSeriesReturnedError()
-
-        # Ensure requested and returned targets match.
-        target = list(data.keys())[0]
-        data = list(data.values())[0]
-        if target != query.target:
-            log.warning('Got %s while expecting %s', target, query.target)
-            raise methods.RequestedTargetMismatchError()
-
-        # Clean datapoints of None values.
-        datapoints = [val for val, _ in data['datapoints'] if val is not None]
+        # Flatten vector datapoints and clean them of None values.
+        datapoints = [result["datapoints"] for result in data.values()]
+        datapoints = [val for t in datapoints for val,
+                      dt in t if val is not None]
         if not datapoints:
             log.warning('No datapoints for %s.%s', rid, query.target)
             return None, None

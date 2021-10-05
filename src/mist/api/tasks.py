@@ -1076,7 +1076,9 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     return log_dict
 
 
-@dramatiq.actor(time_limit=3_600_000, store_results=True)
+@dramatiq.actor(queue_name='schedules',
+                time_limit=3_600_000,
+                store_results=True)
 def run_script(owner, script_id, machine_uuid, params='', host='',
                key_id='', username='', password='', port=22, job_id='', job='',
                action_prefix='', su=False, env=""):
