@@ -1,14 +1,23 @@
 import os
+import re
 import yaml
 import random
 import logging
-import mist.api.shell
+
+from time import sleep
 from io import StringIO
+
+from yaml.parser import ParserError as YamlParserError
+from yaml.scanner import ScannerError as YamlScannerError
+
+import mist.api.shell
+
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import ScriptFormatError
 from mist.api.scripts.base import BaseScriptController
-from yaml.parser import ParserError as YamlParserError
-from yaml.scanner import ScannerError as YamlScannerError
+from mist.api.helpers import docker_connect, docker_run
+from mist.api.keys.models import SSHKey
+
 
 from mist.api.monitoring.methods import associate_metric
 
@@ -25,11 +34,40 @@ class AnsibleScriptController(BaseScriptController):
             except (YamlParserError, YamlScannerError):
                 raise ScriptFormatError()
 
-    def run_script(self, shell, params=None, job_id=None):
-        path, params = super(
-            AnsibleScriptController, self).run_script(shell, params=params,
-                                                      job_id=job_id)
-        return path, params
+    def run(self, auth_context, machine, host, port, username,
+            key_id=None, params=None, job_id=None, **kwargs):
+        url = self.generate_signed_url()
+
+        private_key = SSHKey.objects(id=key_id)[0].private
+        private_key = f'\'{private_key}\''
+
+        params = ['-s', url]
+        params += ['-i', host]
+        params += ['-p', str(port)]
+        params += ['-u', username]
+        params += ['-k', private_key]
+        if hasattr(self.script.location, 'entrypoint'):
+            params += ['-e', self.script.location.entrypoint]
+
+        container = docker_run(name=f'ansible_runner-{job_id}',
+                               image_id='mist/ansible-runner:latest',
+                               command=' '.join(params))
+        conn = docker_connect()
+        while conn.get_container(container.id).state != 'stopped':
+            sleep(3)
+
+        wstdout = conn.ex_get_logs(container)
+        exit_code = 0
+
+        # parse stdout for errors
+        if re.search('ERROR!', wstdout) or re.search(
+            'failed=[1-9]+[0-9]{0,}', wstdout
+        ):
+            exit_code = 1
+
+        conn.destroy_container(container)
+
+        return {"exit_code": exit_code, "stdout": wstdout}
 
 
 class ExecutableScriptController(BaseScriptController):

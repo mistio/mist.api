@@ -1,34 +1,26 @@
 import uuid
 import json
 
-# Python 2 and 3 support
-from future.utils import string_types
-from future.standard_library import install_aliases
-install_aliases()
-import urllib.request
-import urllib.parse
-import urllib.error
-
 import mongoengine as me
 from pyramid.response import Response
 
 from mist.api import tasks
 
-from mist.api.machines.models import KeyMachineAssociation, Machine
+from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script, ExecutableScript
 from mist.api.scripts.models import AnsibleScript
 
 from mist.api.auth.methods import auth_context_from_request
 
-from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import RequiredParameterMissingError, ForbiddenError
 from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
 
 from mist.api.helpers import view_config, params_from_request
-from mist.api.helpers import mac_sign, trigger_session_update
+from mist.api.tasks import async_session_update
+from mist.api.helpers import mac_verify
 
 from mist.api.scripts.methods import filter_list_scripts
-from mist.api.machines.methods import find_best_ssh_params
 
 from mist.api.logs.methods import get_stories
 
@@ -366,7 +358,7 @@ def edit_script(request):
 
     script.ctl.edit(new_name, new_description)
     ret = {'new_name': new_name}
-    if isinstance(new_description, string_types):
+    if isinstance(new_description, str):
         ret['new_description'] = new_description
     return ret
 
@@ -457,15 +449,16 @@ def run_script(request):
     except me.DoesNotExist:
         raise NotFoundError('Script id not found')
     job_id = job_id or uuid.uuid4().hex
-
-    key_association_id, host, username, port = find_best_ssh_params(
-        auth_context, machine
-    )
-    key_id = KeyMachineAssociation.objects(id=key_association_id)[0].key.id
-    tasks.run_script.send(
-        auth_context.owner.id, script.id, machine.id, params=script_params,
-        env=env, su=su, job_id=job_id, job=job, key_id=key_id, host=host,
-        username=username, port=port
+    tasks.run_script.send_with_options(
+        args=(auth_context.serialize(), script.id, machine.id),
+        kwargs={
+            "params": script_params,
+            "env": env,
+            "su": su,
+            "job_id": job_id,
+            "job": job
+        },
+        delay=1_000
     )
     return {'job_id': job_id, 'job': job}
 
@@ -489,30 +482,56 @@ def url_script(request):
     script_id = request.matchdict['script_id']
 
     try:
-        Script.objects.get(owner=auth_context.owner,
-                           id=script_id, deleted=None)
+        script = Script.objects.get(owner=auth_context.owner,
+                                    id=script_id, deleted=None)
     except Script.DoesNotExist:
         raise NotFoundError('Script does not exist.')
 
     # SEC require READ permission on script
     auth_context.check_perm('script', 'read', script_id)
-
-    # build HMAC and inject into the `curl` command
-    hmac_params = {'action': 'fetch_script', 'object_id': script_id}
-    expires_in = 60 * 15
-    mac_sign(hmac_params, expires_in)
-
-    url = "%s/api/v1/fetch" % config.CORE_URI
-    encode_params = urllib.parse.urlencode(hmac_params)
-    r_url = url + '?' + encode_params
+    r_url = script.ctl.generate_signed_url()
 
     return r_url
 
 
-def fetch_script(script_id):
-    """Used by mist.api.views.fetch"""
+@view_config(route_name='api_v1_fetch', request_method='GET', renderer='json')
+def fetch(request):
+    """
+    A generic API endpoint to perform actions in the absence of AuthContext.
+    The request's params are HMAC-verified and the action performed is based
+    on the context of the params provided
+    ---
+    action:
+      in: path
+      required: true
+      type: string
+    """
+    params = params_from_request(request)
+
+    if not isinstance(params, dict):
+        params = dict(params)
+
     try:
-        script = Script.objects.get(id=script_id, deleted=None)
-    except Script.DoesNotExist:
-        raise NotFoundError('Script does not exist')
-    return script.ctl.get_file()
+        mac_verify(params)
+    except Exception as exc:
+        raise ForbiddenError(exc.args)
+
+    action = params.get('action', '')
+    if not action:
+        raise RequiredParameterMissingError('No action specified')
+
+    if action == 'vpn_script':
+        if config.HAS_VPN:
+            from mist.vpn.views import fetch_vpn_script
+        else:
+            raise NotImplementedError()
+        return fetch_vpn_script(params.get('object_id'))
+    elif action == 'fetch_script':
+        try:
+            script = Script.objects.get(
+                id=params.get('object_id'), deleted=None)
+        except Script.DoesNotExist:
+            raise NotFoundError('Script does not exist')
+        return script.ctl.get_file()
+    else:
+        raise NotImplementedError()

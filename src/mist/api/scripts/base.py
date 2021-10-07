@@ -1,12 +1,15 @@
-import os
 import logging
 import requests
 import datetime
-import io
+
+import urllib.request
+import urllib.parse
+import urllib.error
+
 import mongoengine as me
 from pyramid.response import Response
 from mist.api.exceptions import BadRequestError
-from mist.api.helpers import trigger_session_update
+from mist.api.helpers import trigger_session_update, mac_sign
 from mist.api.exceptions import ScriptNameExistsError
 
 from mist.api import config
@@ -205,34 +208,51 @@ class BaseScriptController(object):
                                 pragma='no-cache',
                                 body=r.content)
 
-    def run_script(self, shell, params=None, job_id=None):
-        path = "/tmp/mist_script_%s" % job_id
-        if self.script.location.type == 'inline':
-            source = self.script.location.source_code
-            sftp = shell.ssh.open_sftp()
-            sftp.putfo(io.StringIO(source), path)
-        else:
-            r = requests.get(self._url(), allow_redirects=True)
-            with open(path, 'wb') as f:
-                f.write(r.content)
-            try:
-                import tarfile
-                with tarfile.open(path, mode="r|gz") as tf:
-                    path += '.dir'
-                    os.mkdir(path)
-                    tf.extractall(path=path)
-            except ReadError:
-                import zipfile
-                with zipfile.ZipFile(path, 'r') as zf:
-                    path += '.dir'
-                    os.mkdir(path)
-                    zf.extractall(path)
-            from scp import SCPClient
-            scp = SCPClient(shell.ssh.get_transport())
-            scp.put(path, path, recursive=True)
-            path = path + '/*/' + (self.script.location.entrypoint or '*')
+    def generate_signed_url(self):
+        # build HMAC and inject into the `curl` command
+        hmac_params = {'action': 'fetch_script', 'object_id': self.script.id}
+        expires_in = 60 * 15
+        mac_sign(hmac_params, expires_in)
+        url = "%s/api/v1/fetch" % config.CORE_URI
+        encode_params = urllib.parse.urlencode(hmac_params)
+        return url + '?' + encode_params
 
-        return path, params
+    def run(self, auth_context, machine, host=None, port=None, username=None,
+            password=None, su=False, key_id=None, params=None, job_id=None):
+        from mist.api.shell import Shell
+
+        url = self.generate_signed_url()
+        tmp_dir = '/tmp/script-%s-%s-XXXX' % (self.script.id, job_id)
+        sudo = 'sudo ' if su else ''
+        command = (
+            "TMP_DIR=$(mktemp -d {tmp_dir}) && cd $TMP_DIR &&"
+            " command -v curl > /dev/null 2>&1 && CMD=\"curl -o \""
+            "  || CMD=\"wget -O \" &&"
+            " $CMD ./script \"{url}\" > /dev/null 2>&1 && (("
+            "  (unzip ./script > /dev/null 2>&1 || "
+            "   tar xvzf ./script > /dev/null 2>&1) && "
+            "  chmod +x ./*/{entrypoint} &&"
+            "  {sudo} ./*/{entrypoint} {params}) ||"
+            "  (chmod +x ./script && {sudo} ./script {params}) &&"
+            "   rm -rf $TMP_DIR); cd - > /dev/null 2>&1").format(
+            tmp_dir=tmp_dir, url=url, sudo=sudo,
+            entrypoint=self.script.location.entrypoint, params=params
+        )
+
+        shell = Shell(host)
+        key_name, ssh_user = shell.autoconfigure(
+            auth_context.owner, machine.cloud.id, machine.id, key_id,
+            username, password, port)
+        exit_code, wstdout = shell.command(command)
+        shell.disconnect()
+        result = {
+            'command': command,
+            'exit_code': exit_code,
+            'stdout': wstdout.replace('\r\n', '\n').replace('\r', '\n'),
+            'key_name': key_name,
+            'ssh_user': ssh_user
+        }
+        return result
 
     def _preparse_file(self):
         return
