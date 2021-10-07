@@ -367,7 +367,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
 
 
 @dramatiq.actor(queue_name='provisioning', store_results=True)
-def openstack_post_create_steps(owner_id, cloud_id, machine_id,
+def openstack_post_create_steps(auth_context_serialized, cloud_id, machine_id,
                                 monitoring, key_id, username, password,
                                 public_key, script='',
                                 script_id='', script_params='', job_id=None,
@@ -375,10 +375,11 @@ def openstack_post_create_steps(owner_id, cloud_id, machine_id,
                                 post_script_id='', post_script_params='',
                                 networks=[], schedule={}):
     from mist.api.methods import connect_provider
-    owner = Owner.objects.get(id=owner_id)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
 
     try:
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(
+            owner=auth_context.owner, id=cloud_id, deleted=None)
         conn = connect_provider(cloud)
         nodes = conn.list_nodes()
         node = None
@@ -390,8 +391,8 @@ def openstack_post_create_steps(owner_id, cloud_id, machine_id,
 
         if node and node.state == 0 and len(node.public_ips):
             post_deploy_steps.send(
-                owner.id, cloud_id, machine_id, monitoring, key_id,
-                script=script, script_id=script_id,
+                auth_context_serialized, cloud_id, machine_id, monitoring,
+                key_id, script=script, script_id=script_id,
                 script_params=script_params, job_id=job_id, job=job,
                 hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
@@ -433,8 +434,8 @@ def openstack_post_create_steps(owner_id, cloud_id, machine_id,
                     conn.ex_create_floating_ip(ext_net_id, machine_port_id)
 
                 post_deploy_steps.send(
-                    owner.id, cloud_id, machine_id, monitoring, key_id,
-                    script=script,
+                    auth_context_serialized, cloud_id, machine_id, monitoring,
+                    key_id, script=script,
                     script_id=script_id, script_params=script_params,
                     job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                     post_script_id=post_script_id,
@@ -449,18 +450,19 @@ def openstack_post_create_steps(owner_id, cloud_id, machine_id,
 
 
 @dramatiq.actor(queue_name='provisioning', store_results=True)
-def azure_post_create_steps(owner_id, cloud_id, machine_id, monitoring,
-                            key_id, username, password, public_key, script='',
+def azure_post_create_steps(auth_context_serialized, cloud_id, machine_id,
+                            monitoring, key_id, username, password,
+                            public_key, script='',
                             script_id='', script_params='', job_id=None,
                             job=None, hostname='', plugins=None,
                             post_script_id='', post_script_params='',
                             schedule={}):
     from mist.api.methods import connect_provider
-
-    owner = Owner.objects.get(id=owner_id)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
     try:
         # find the node we're looking for and get its hostname
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(
+            owner=auth_context.owner, id=cloud_id, deleted=None)
         conn = connect_provider(cloud)
         nodes = conn.list_nodes()
         node = None
@@ -513,8 +515,8 @@ def azure_post_create_steps(owner_id, cloud_id, machine_id, monitoring,
             ssh.close()
 
             post_deploy_steps.send(
-                owner.id, cloud_id, machine_id, monitoring, key_id,
-                script=script,
+                auth_context_serialized, cloud_id, machine_id, monitoring,
+                key_id, script=script,
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
@@ -530,16 +532,16 @@ def azure_post_create_steps(owner_id, cloud_id, machine_id, monitoring,
 
 @dramatiq.actor(queue_name='provisioning', store_results=True)
 def rackspace_first_gen_post_create_steps(
-        owner_id, cloud_id, machine_id, monitoring, key_id, password,
-        public_key, username='root', script='', script_id='', script_params='',
-        job_id=None, job=None, hostname='', plugins=None, post_script_id='',
-        post_script_params='', schedule={}):
+        auth_context_serialized, cloud_id, machine_id, monitoring, key_id,
+        password, public_key, username='root', script='', script_id='',
+        script_params='', job_id=None, job=None, hostname='', plugins=None,
+        post_script_id='', post_script_params='', schedule={}):
     from mist.api.methods import connect_provider
-
-    owner = Owner.objects.get(id=owner_id)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
     try:
         # find the node we're looking for and get its hostname
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(
+            owner=auth_context.owner, id=cloud_id, deleted=None)
         conn = connect_provider(cloud)
         nodes = conn.list_nodes()
         node = None
@@ -577,8 +579,8 @@ def rackspace_first_gen_post_create_steps(
             ssh.close()
 
             post_deploy_steps.send(
-                owner.id, cloud_id, machine_id, monitoring, key_id,
-                script=script,
+                auth_context_serialized, cloud_id, machine_id, monitoring,
+                key_id, script=script,
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
