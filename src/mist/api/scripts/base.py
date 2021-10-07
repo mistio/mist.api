@@ -236,7 +236,8 @@ class BaseScriptController(object):
             "  (chmod +x ./script && {sudo} ./script {params}) &&"
             "   rm -rf $TMP_DIR); cd - > /dev/null 2>&1").format(
             tmp_dir=tmp_dir, url=url, sudo=sudo,
-            entrypoint=self.script.location.entrypoint, params=params
+            entrypoint=getattr(self.script.location, 'entrypoint', 'main'),
+            params=params
         )
 
         shell = Shell(host)
