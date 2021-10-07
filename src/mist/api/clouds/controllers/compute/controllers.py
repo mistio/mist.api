@@ -5692,3 +5692,50 @@ class CloudSigmaComputeController(BaseComputeController):
         if cpus == 0:
             cpus = 1
         return cpus
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        try:
+            size = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size parameter is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+        if size < 1:
+            raise BadRequestError('Volume size should be at least 1 GBs')
+
+        try:
+            name = volume_dict['name']
+        except KeyError:
+            raise BadRequestError('Volume name parameter is required')
+
+        return {
+            'name': name,
+            'size': size,
+        }
+
+    def _generate_plan__parse_disks(self,
+                                    auth_context,
+                                    disks_dict):
+        disk_size = disks_dict.get('disk_size')
+        if disk_size:
+            try:
+                disk_size = int(disk_size)
+            except (TypeError, ValueError):
+                raise BadRequestError('Invalid disk size type')
+
+            return {
+                'size': disk_size
+            }
+
+    def _generate_plan__post_parse_plan(self, plan) -> None:
+        # In CloudSigma we have both custom sizes and "standard" sizes
+        # from their "Simple Server Creation" wizard.
+        # If a custom size is provided then it's necessary to provide
+        # the disk size.
+
+        if plan['size'].get('cpus'):
+            try:
+                plan['size']['disk'] = plan['disks']['size']
+            except KeyError:
+                raise BadRequestError(
+                    'Disk size is required when providing a custom size')
