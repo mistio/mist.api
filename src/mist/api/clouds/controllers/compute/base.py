@@ -2641,7 +2641,7 @@ class BaseComputeController(BaseController):
             cpus = size_dict['cpus']
             ram = size_dict['ram']
         except (KeyError, TypeError):
-            raise BadRequestError('Required parameter missing')
+            raise BadRequestError('Required size parameter missing')
 
         if self.cloud.ctl.has_feature('custom_size'):
             return [{'cpus': cpus, 'ram': ram}]
