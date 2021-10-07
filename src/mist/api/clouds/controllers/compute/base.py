@@ -3394,7 +3394,7 @@ class BaseComputeController(BaseController):
             try:
                 cloud_size = CloudSize.objects.get(id=size)
             except me.DoesNotExist:
-                raise NotFoundError('Location does not exist')
+                raise NotFoundError('Size does not exist')
             size_obj = NodeSize(cloud_size.external_id,
                                 name=cloud_size.name,
                                 ram=cloud_size.ram,

@@ -36,6 +36,7 @@ import time
 import secrets
 import requests
 import ipaddress
+import base64
 
 import mongoengine as me
 
@@ -4852,7 +4853,7 @@ class LibvirtComputeController(BaseComputeController):
         try:
             cloud_size = CloudSize.objects.get(id=size)
         except me.DoesNotExist:
-            raise NotFoundError('Location does not exist')
+            raise NotFoundError('Size does not exist')
         return {'cpus': cloud_size.cpus, 'ram': cloud_size.ram}
 
     def _create_machine__get_location_object(self, location):
@@ -5738,4 +5739,96 @@ class CloudSigmaComputeController(BaseComputeController):
                 plan['size']['disk'] = plan['disks']['size']
             except KeyError:
                 raise BadRequestError(
-                    'Disk size is required when providing a custom size')
+                    'Disk size is required when providing a custom size'
+                )
+
+    def _create_machine__get_size_object(self, size):
+        from libcloud.compute.drivers.cloudsigma import CloudSigmaNodeSize
+        if isinstance(size, str):
+            from mist.api.clouds.models import CloudSize
+            size = CloudSize.objects.get(id=size)
+            cpus = size.cpus
+            ram = size.ram
+            disk = size.disk
+        else:
+            cpus = size['cpus']
+            ram = size['ram']
+            disk = size['disk']
+
+        return CloudSigmaNodeSize(
+            id=None,
+            name=None,
+            cpu=cpus,
+            ram=ram,
+            disk=disk,
+            bandwidth=None,
+            price=None,
+            driver=self.connection
+        )
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+
+        mist_key = kwargs.pop('auth')
+        key_pairs = self.connection.list_key_pairs()
+        key = next((key_pair for key_pair in key_pairs
+                    if key_pair.public_key == mist_key.public),
+                   None)
+        if key is None:
+            key = self.connection.import_key_pair_from_string(
+                mist_key.name,
+                mist_key.public)
+        kwargs['public_keys'] = [key.extra['uuid']]
+
+        if plan.get('cloudinit'):
+            kwargs['ex_metadata'] = {
+                'base64_fields': 'cloudinit-user-data',
+                'cloudinit-user-data': base64.b64encode(
+                    plan['cloudinit'].encode('utf-8')).decode('utf-8')
+            }
+
+        # Volumes can be attached only when the machine is stopped
+        if plan.get('volumes'):
+            kwargs['ex_boot'] = False
+
+        return kwargs
+
+    def _create_machine__create_node(self, kwargs):
+        node = super()._create_machine__create_node(kwargs)
+        node.extra['username'] = 'cloudsigma'
+        return node
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        from mist.api.volumes.models import Volume
+        from libcloud.compute.base import StorageVolume
+
+        volumes = plan.get('volumes', [])
+        for volume in volumes:
+            if volume.get('id'):
+                vol = Volume.objects.get(id=volume['id'])
+                libcloud_vol = StorageVolume(id=vol.external_id,
+                                             name=vol.name,
+                                             size=vol.size,
+                                             driver=self.connection,
+                                             extra=vol.extra)
+                try:
+                    self.connection.attach_volume(node, libcloud_vol)
+                except Exception:
+                    log.exception(
+                        'Failed to attach existing volume to machine')
+            else:
+                name = volume['name']
+                size = volume['size']
+                try:
+                    libcloud_vol = self.connection.create_volume(name=name,
+                                                                 size=size)
+                except Exception:
+                    log.exception('Failed to create volume')
+                else:
+                    try:
+                        self.connection.attach_volume(node, libcloud_vol)
+                    except Exception:
+                        log.exception('Failed to attach volume to machine')
+
+        if kwargs.get('ex_boot') is False:
+            self.connection.start_node(node)
