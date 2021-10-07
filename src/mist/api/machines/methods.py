@@ -2535,7 +2535,15 @@ def find_best_ssh_params(auth_context, machine):
                     # store the original ssh port in case of NAT
                     # by the OpenVPN server
                     ssh_port = port
-                    host, port = dnat(machine.owner, machine.hostname, port)
+                    if machine.hostname:
+                        host = machine.hostname
+                    else:
+                        ips = [ip for ip in machine.public_ips
+                               if ip and ':' not in ip]
+                        ips += [ip for ip in machine.private_ips
+                                if ip and ':' not in ip]
+                        host = ips[0]
+                    host, port = dnat(machine.owner, host, port)
                     log.info("ssh -i %s %s@%s:%s",
                              key.name, ssh_user, host, port)
                     cert_file = ''
