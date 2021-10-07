@@ -690,7 +690,7 @@ class LogsConnection(MistConnection):
         self.patch_stories(event)
 
     def send_stories(self, stype):
-        """Send open stories of the specified type."""
+        """Send stories of the specified type."""
 
         def callback(stories):
             email = self.auth_context.user.email
@@ -702,7 +702,7 @@ class LogsConnection(MistConnection):
         if not self.auth_context.is_owner() and stype != 'incident':
             return callback([])
 
-        # Fetch the latest open stories.
+        # Fetch the latest stories.
         kwargs = {
             'story_type': stype,
             'range': {
@@ -713,7 +713,10 @@ class LogsConnection(MistConnection):
         }
         if self.enforce_logs_for is not None:
             kwargs['owner_id'] = self.enforce_logs_for
-        get_stories(tornado_async=True, tornado_callback=callback, **kwargs)
+        get_stories(tornado_async=True,
+                    tornado_callback=callback,
+                    limit=100,
+                    **kwargs)
 
     def patch_stories(self, event):
         """Send a stories patch.
