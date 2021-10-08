@@ -1,5 +1,4 @@
 import os
-import re
 import uuid
 import logging
 import datetime
@@ -17,10 +16,10 @@ from libcloud.compute.types import NodeState
 
 from paramiko.ssh_exception import SSHException
 
-from mist.api.exceptions import MistError, PolicyUnauthorizedError
+from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api.exceptions import MachineNotFoundError
-from mist.api.exceptions import MachineUnavailableError
+from mist.api.exceptions import MachineUnavailableError, MistError
 
 from mist.api.shell import Shell
 
@@ -34,7 +33,7 @@ from mist.api.objectstorage.models import Bucket
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import RECORDS
-from mist.api.keys.models import SSHKey, Key
+from mist.api.keys.models import Key
 from mist.api.tag.methods import add_tags_to_resource
 
 from mist.api.rules.models import NoDataRule
@@ -53,7 +52,6 @@ from mist.api.poller.models import ListSizesPollingSchedule
 from mist.api.poller.models import ListImagesPollingSchedule
 from mist.api.poller.models import ListBucketsPollingSchedule
 
-from mist.api.helpers import docker_connect, docker_run
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import trigger_session_update
 
@@ -111,17 +109,18 @@ def ssh_command(owner_id, cloud_id, machine_id, host, command,
 
 
 @dramatiq.actor(queue_name='provisioning', store_results=True)
-def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
-                      key_id=None, username=None, password=None, port=22,
-                      script_id='', script_params='', job_id=None, job=None,
-                      hostname='', plugins=None, script='',
+def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
+                      monitoring, key_id=None, username=None, password=None,
+                      port=22, script_id='', script_params='', job_id=None,
+                      job=None, hostname='', plugins=None, script='',
                       post_script_id='', post_script_params='', schedule={},
                       location_id=None):
     # TODO: break into subtasks
     from mist.api.methods import probe_ssh_only
     from mist.api.methods import notify_user, notify_admin
     from mist.api.monitoring.methods import enable_monitoring
-
+    auth_context = AuthContext.deserialize(auth_context_serialized)
+    owner_id = auth_context.owner.id
     job_id = job_id or uuid.uuid4().hex
     owner = Owner.objects.get(id=owner_id)
 
@@ -277,7 +276,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
         if script_id:
             tmp_log('will run script_id %s', script_id)
             ret = run_script.run(
-                owner, script_id, machine.id,
+                auth_context.serialize(), script_id, machine.id,
                 params=script_params, host=host, job_id=job_id
             )
             error = ret['error']
@@ -335,7 +334,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
         if post_script_id:
             tmp_log('will run post_script_id %s', post_script_id)
             ret = run_script.run(
-                owner, post_script_id, machine.id,
+                auth_context.serialize(), post_script_id, machine.id,
                 params=post_script_params, host=host, job_id=job_id,
                 action_prefix='post_',
             )
@@ -368,7 +367,7 @@ def post_deploy_steps(owner_id, cloud_id, machine_id, monitoring,
 
 
 @dramatiq.actor(queue_name='provisioning', store_results=True)
-def openstack_post_create_steps(owner_id, cloud_id, machine_id,
+def openstack_post_create_steps(auth_context_serialized, cloud_id, machine_id,
                                 monitoring, key_id, username, password,
                                 public_key, script='',
                                 script_id='', script_params='', job_id=None,
@@ -376,10 +375,11 @@ def openstack_post_create_steps(owner_id, cloud_id, machine_id,
                                 post_script_id='', post_script_params='',
                                 networks=[], schedule={}):
     from mist.api.methods import connect_provider
-    owner = Owner.objects.get(id=owner_id)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
 
     try:
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(
+            owner=auth_context.owner, id=cloud_id, deleted=None)
         conn = connect_provider(cloud)
         nodes = conn.list_nodes()
         node = None
@@ -391,8 +391,8 @@ def openstack_post_create_steps(owner_id, cloud_id, machine_id,
 
         if node and node.state == 0 and len(node.public_ips):
             post_deploy_steps.send(
-                owner.id, cloud_id, machine_id, monitoring, key_id,
-                script=script, script_id=script_id,
+                auth_context_serialized, cloud_id, machine_id, monitoring,
+                key_id, script=script, script_id=script_id,
                 script_params=script_params, job_id=job_id, job=job,
                 hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
@@ -434,8 +434,8 @@ def openstack_post_create_steps(owner_id, cloud_id, machine_id,
                     conn.ex_create_floating_ip(ext_net_id, machine_port_id)
 
                 post_deploy_steps.send(
-                    owner.id, cloud_id, machine_id, monitoring, key_id,
-                    script=script,
+                    auth_context_serialized, cloud_id, machine_id, monitoring,
+                    key_id, script=script,
                     script_id=script_id, script_params=script_params,
                     job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                     post_script_id=post_script_id,
@@ -450,18 +450,19 @@ def openstack_post_create_steps(owner_id, cloud_id, machine_id,
 
 
 @dramatiq.actor(queue_name='provisioning', store_results=True)
-def azure_post_create_steps(owner_id, cloud_id, machine_id, monitoring,
-                            key_id, username, password, public_key, script='',
+def azure_post_create_steps(auth_context_serialized, cloud_id, machine_id,
+                            monitoring, key_id, username, password,
+                            public_key, script='',
                             script_id='', script_params='', job_id=None,
                             job=None, hostname='', plugins=None,
                             post_script_id='', post_script_params='',
                             schedule={}):
     from mist.api.methods import connect_provider
-
-    owner = Owner.objects.get(id=owner_id)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
     try:
         # find the node we're looking for and get its hostname
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(
+            owner=auth_context.owner, id=cloud_id, deleted=None)
         conn = connect_provider(cloud)
         nodes = conn.list_nodes()
         node = None
@@ -514,8 +515,8 @@ def azure_post_create_steps(owner_id, cloud_id, machine_id, monitoring,
             ssh.close()
 
             post_deploy_steps.send(
-                owner.id, cloud_id, machine_id, monitoring, key_id,
-                script=script,
+                auth_context_serialized, cloud_id, machine_id, monitoring,
+                key_id, script=script,
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
@@ -531,16 +532,16 @@ def azure_post_create_steps(owner_id, cloud_id, machine_id, monitoring,
 
 @dramatiq.actor(queue_name='provisioning', store_results=True)
 def rackspace_first_gen_post_create_steps(
-        owner_id, cloud_id, machine_id, monitoring, key_id, password,
-        public_key, username='root', script='', script_id='', script_params='',
-        job_id=None, job=None, hostname='', plugins=None, post_script_id='',
-        post_script_params='', schedule={}):
+        auth_context_serialized, cloud_id, machine_id, monitoring, key_id,
+        password, public_key, username='root', script='', script_id='',
+        script_params='', job_id=None, job=None, hostname='', plugins=None,
+        post_script_id='', post_script_params='', schedule={}):
     from mist.api.methods import connect_provider
-
-    owner = Owner.objects.get(id=owner_id)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
     try:
         # find the node we're looking for and get its hostname
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(
+            owner=auth_context.owner, id=cloud_id, deleted=None)
         conn = connect_provider(cloud)
         nodes = conn.list_nodes()
         node = None
@@ -578,8 +579,8 @@ def rackspace_first_gen_post_create_steps(
             ssh.close()
 
             post_deploy_steps.send(
-                owner.id, cloud_id, machine_id, monitoring, key_id,
-                script=script,
+                auth_context_serialized, cloud_id, machine_id, monitoring,
+                key_id, script=script,
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
@@ -1012,7 +1013,8 @@ def run_machine_action(owner_id, action, name, machine_uuid):
 
 
 @dramatiq.actor(queue_name='schedules', store_results=True)
-def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
+def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
+                     params=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -1023,7 +1025,9 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     :param cloud_machines_pairs:
     :return:
     """
+    auth_context = AuthContext.deserialize(auth_context_serialized)
     job_id = uuid.uuid4().hex
+    owner_id = auth_context.owner.id
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
     log_dict = {
@@ -1048,9 +1052,9 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     tasks = []
     for machine_uuid in machines_uuids:
         try:
-            task = run_script.message(owner_id, script_id, machine_uuid,
-                                      params=params, job_id=job_id,
-                                      job='schedule')
+            task = run_script.message(auth_context_serialized, script_id,
+                                      machine_uuid, params=params,
+                                      job_id=job_id, job='schedule')
             tasks.append(task)
         except Exception as exc:
             log_dict['error'] = "%s %r\n" % (log_dict.get('error', ''), exc)
@@ -1071,30 +1075,26 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     schedule.total_run_count += 1
     schedule.save()
 
-    owner = Owner.objects.get(id=owner_id)
-    trigger_session_update(owner, ['schedules'])
+    # This seems wasteful and may contribute to UI performance issues
+    trigger_session_update(auth_context.owner, ['schedules'])
     return log_dict
 
 
 @dramatiq.actor(queue_name='schedules',
                 time_limit=3_600_000,
                 store_results=True)
-def run_script(owner, script_id, machine_uuid, params='', host='',
-               key_id='', username='', password='', port=22, job_id='', job='',
-               action_prefix='', su=False, env=""):
-    import mist.api.shell
+def run_script(auth_context_serialized, script_id, machine_uuid, params='',
+               host='', key_id='', username='', password='', port=22,
+               job_id='', job='', action_prefix='', su=False, env=""):
     from mist.api.methods import notify_admin, notify_user
-    from mist.api.machines.methods import list_machines
 
-    if not isinstance(owner, Owner):
-        owner = Owner.objects.get(id=owner)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
 
     ret = {
-        'owner_id': owner.id,
+        'owner_id': auth_context.owner.id,
         'job_id': job_id or uuid.uuid4().hex,
         'job': job,
         'script_id': script_id,
-        # 'cloud_id': cloud_id,
         'machine_id': machine_uuid,
         'params': params,
         'env': env,
@@ -1119,102 +1119,34 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         cloud_id = machine.cloud.id
         external_id = machine.machine_id
         ret.update({'cloud_id': cloud_id, 'external_id': external_id})
-        # cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-        script = Script.objects.get(owner=owner, id=script_id, deleted=None)
+        script = Script.objects.get(
+            owner=auth_context.owner, id=script_id, deleted=None)
+        from mist.api.machines.methods import find_best_ssh_params
+        from mist.api.machines.models import KeyMachineAssociation
 
-        if not host:
-            # FIXME machine.cloud.ctl.compute.list_machines()
-            for machine in list_machines(owner, cloud_id):
-                if machine['machine_id'] == external_id:
-                    ips = [ip for ip in machine['public_ips'] if ip and
-                           ':' not in ip]
-                    # get private IPs if no public IP is available
-                    if not ips:
-                        ips = [ip for ip in machine['private_ips']
-                               if ':' not in ip]
-                    if ips:
-                        host = ips[0]
-                        ret['host'] = host
-                    machine_name = machine['name']
-                    break
+        if not key_id:
+            key_association_id, host, username, port = find_best_ssh_params(
+                auth_context, machine
+            )
+            key_id = KeyMachineAssociation.objects(
+                id=key_association_id)[0].key.id
+
         if not host:
             raise MistError("No host provided and none could be discovered.")
 
-        if script.exec_type == 'ansible':
-            playbook = script.script
-            # common playbook backward compatibility fixes
-            playbook = re.sub(r'sudo:\strue', 'become: true', playbook)
-            playbook = re.sub(r'hosts:\s.+', 'hosts: all', playbook)
-
-            # playbooks contain ' or " which look like multiple arguments.
-            playbook = playbook.replace('\'', '"')
-            playbook = f'\'{playbook}\''
-            ret['command'] = playbook
-
-            private_key = SSHKey.objects(id=key_id)[0].private
-            private_key = f'\'{private_key}\''
-
-            params = ['-s', playbook]
-            params += ['-i', host]
-            params += ['-p', str(port)]
-            params += ['-u', username]
-            params += ['-k', private_key]
-
-            container = docker_run(name=f'ansible_runner-{ret["job_id"]}',
-                                   image_id='mist/ansible-runner:latest',
-                                   command=' '.join(params))
-        else:
-            shell = mist.api.shell.Shell(host)
-            ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
-                owner, cloud_id, machine['id'],
-                key_id, username, password, port
-            )
-            # FIXME wrap here script.run_script
-            path, params, wparams = script.ctl.run_script(
-                shell, params=params, job_id=ret.get('job_id')
-            )
-
-            command = "chmod +x %s && %s %s" % (path, path, params)
-
-            if su:
-                command = "sudo sh -c '%s'" % command
-            ret['command'] = command
+        result = script.ctl.run(
+            auth_context, machine, host=host, port=port, username=username,
+            password=password, su=su, key_id=key_id, params=params,
+            job_id=job_id
+        )
+        ret.update(result)
     except Exception as exc:
         ret['error'] = str(exc)
     log_event(event_type='job', action=action_prefix + 'script_started', **ret)
-    ret.pop('command')
     log.info('Script started: %s', ret)
     if not ret['error']:
-        try:
-            if script.exec_type == 'ansible':
-                conn = docker_connect()
-                while conn.get_container(container.id).state != 'stopped':
-                    sleep(3)
-
-                wstdout = conn.ex_get_logs(container)
-                exit_code = 0
-
-                # parse stdout for errors
-                if re.search('ERROR!', wstdout) or re.search(
-                    'failed=[1-9]+[0-9]{0,}', wstdout
-                ):
-                    exit_code = 1
-
-                conn.destroy_container(container)
-
-            else:
-                exit_code, wstdout = shell.command(command)
-                shell.disconnect()
-            wstdout = wstdout.replace('\r\n', '\n').replace('\r', '\n')
-            ret['exit_code'] = exit_code
-            ret['stdout'] = wstdout
-            if exit_code > 0:
-                ret['error'] = 'Script exited with return code %s' % exit_code
-        # TODO: Fix for dramatiq
-        # except SoftTimeLimitExceeded:
-        #     ret['error'] = 'Script execution time limit exceeded'
-        except Exception as exc:
-            ret['error'] = str(exc)
+        if ret['exit_code'] > 0:
+            ret['error'] = 'Script exited with code %s' % ret['exit_code']
     log_event(event_type='job', action=action_prefix + 'script_finished',
               **ret)
     if ret['error']:
@@ -1227,7 +1159,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     title += "failed" if ret['error'] else "succeeded"
     if ret['error']:
         notify_user(
-            owner, title,
+            auth_context.owner, title,
             cloud_id=cloud_id,
             machine_id=external_id,
             machine_name=machine_name,
@@ -1237,7 +1169,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             error=ret['error'],
         )
     if ret['error']:
-        title += " for user %s" % str(owner)
+        title += " for user %s" % str(auth_context.owner)
         notify_admin(
             title, "%s\n\n%s" % (ret['stdout'], ret['error']), team='dev'
         )
@@ -1782,7 +1714,7 @@ def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
             tmp_log('will run script_id %s', script['id'])
             params = script.get('params', '')
             ret = run_script.send(
-                auth_context.owner.id, script['id'], machine_id,
+                auth_context.serialize(), script['id'], machine_id,
                 params=params, host=host, job_id=job_id
             )
             tmp_log('executed script_id %s', script['id'])
