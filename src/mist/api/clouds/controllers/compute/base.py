@@ -2641,7 +2641,7 @@ class BaseComputeController(BaseController):
             cpus = size_dict['cpus']
             ram = size_dict['ram']
         except (KeyError, TypeError):
-            raise BadRequestError('Required parameter missing')
+            raise BadRequestError('Required size parameter missing')
 
         if self.cloud.ctl.has_feature('custom_size'):
             return [{'cpus': cpus, 'ram': ram}]
@@ -3394,7 +3394,7 @@ class BaseComputeController(BaseController):
             try:
                 cloud_size = CloudSize.objects.get(id=size)
             except me.DoesNotExist:
-                raise NotFoundError('Location does not exist')
+                raise NotFoundError('Size does not exist')
             size_obj = NodeSize(cloud_size.external_id,
                                 name=cloud_size.name,
                                 ram=cloud_size.ram,

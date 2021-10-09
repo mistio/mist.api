@@ -505,7 +505,6 @@ class DockerShell(WebSocketWrapper):
                 docker_port, container_id, allow_logs, allow_stdin
             )
         else:
-
             uri = '%s://%s:%s/containers/%s/attach/ws?logs=%s&stream=1&stdin=%s&stdout=1&stderr=1' % (  # noqa
                 self.protocol, self.host, docker_port, container_id,
                 allow_logs, allow_stdin
