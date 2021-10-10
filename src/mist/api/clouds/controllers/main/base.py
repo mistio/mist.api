@@ -170,6 +170,9 @@ class BaseMainController(object):
         rename_kwargs(kwargs, 'api_secret', 'apisecret')
         rename_kwargs(kwargs, 'privateKey', 'private_key')
         rename_kwargs(kwargs, 'projectId', 'project_id')
+        rename_kwargs(kwargs, 'tlsKey', 'key_file')
+        rename_kwargs(kwargs, 'tlsCert', 'cert_file')
+        rename_kwargs(kwargs, 'tlsCaCert', 'ca_cert_file')
 
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns', False) or \
