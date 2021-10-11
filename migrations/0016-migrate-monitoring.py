@@ -96,13 +96,11 @@ def migrate_rules():
         return
 
     for rule in rules:
-        migrated_queries = []
         for query in rule.queries:
             for migration in possible_timeseries_migrations:
                 if metrics_map[migration].get(query.target):
                     query.target = metrics_map[migration][query.target]
                     break
-            migrated_queries.append(query)
         try:
             rule.save()
             updated += 1
