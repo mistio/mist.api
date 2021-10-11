@@ -65,8 +65,9 @@ def migrate_machines():
             updated += 1
         except Exception as e:
             failed += 1
-            print('Failed to change monitoring method for %s (%s) failed: %r' % (
-                machine.id, machine.name, e))
+            print(
+                f"Failed to change monitoring method for"
+                f" {machine.id} ({machine.name}) failed: {repr(e)}")
 
     print(f'{updated} machines updated succesfully')
     print(f'{failed} machines failed')
@@ -78,8 +79,10 @@ def migrate_rules():
         'influxdb-victoriametrics': influxdb_to_victoriametrics_map,
         'graphite-influxdb': invert_map(influxdb_to_graphite_map),
         'graphite-victoriametrics': graphite_to_victoriametrics_map,
-        'victoriametrics-graphite': invert_map(graphite_to_victoriametrics_map),
-        'victoriametrics-influxdb': invert_map(influxdb_to_victoriametrics_map)
+        'victoriametrics-graphite': invert_map(
+            graphite_to_victoriametrics_map),
+        'victoriametrics-influxdb': invert_map(
+            influxdb_to_victoriametrics_map)
     }
 
     _, default_timeseries_db = (config.DEFAULT_MONITORING_METHOD).split("-")
