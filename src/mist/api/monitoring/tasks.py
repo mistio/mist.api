@@ -26,7 +26,9 @@ __all__ = [
 ]
 
 
-@dramatiq.actor(time_limit=600_000, max_retries=1, queue_name='scripts')
+@dramatiq.actor(queue_name='dramatiq_scripts',
+                time_limit=600_000,
+                max_retries=1)
 def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     """Deploy Telegraf over SSH."""
     machine = Machine.objects.get(id=machine_id)
@@ -99,7 +101,9 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     trigger_session_update(machine.owner, ['monitoring'])
 
 
-@dramatiq.actor(time_limit=600_000, max_retries=1, queue_name='scripts')
+@dramatiq.actor(queue_name='dramatiq_scripts',
+                time_limit=600_000,
+                max_retries=1)
 def uninstall_telegraf(machine_id, job=None, job_id=None):
     """Undeploy Telegraf."""
     machine = Machine.objects.get(id=machine_id)

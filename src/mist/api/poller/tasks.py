@@ -46,7 +46,9 @@ def debug(schedule_id):
         fobj.write(msg)
 
 
-@dramatiq.actor(queue_name='machines', time_limit=280_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_machines',
+                time_limit=280_000,
+                max_age=30_000)
 def list_machines(schedule_id):
     """Perform list machines. Cloud controller stores results in mongodb."""
 
@@ -62,7 +64,9 @@ def list_machines(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='clusters', time_limit=280_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_clusters',
+                time_limit=280_000,
+                max_age=30_000)
 def list_clusters(schedule_id):
     """Perform list clusters. Cloud controller stores results in mongodb."""
 
@@ -78,7 +82,9 @@ def list_clusters(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='polling', time_limit=160_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_polling',
+                time_limit=160_000,
+                max_age=30_000)
 def list_locations(schedule_id):
     """Perform list locations. Cloud controller stores results in mongodb."""
 
@@ -92,7 +98,9 @@ def list_locations(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_polling',
+                time_limit=60_000,
+                max_age=30_000)
 def list_sizes(schedule_id):
     """Perform list sizes. Cloud controller stores results in mongodb."""
 
@@ -106,7 +114,9 @@ def list_sizes(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='polling', time_limit=60_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_polling',
+                time_limit=60_000,
+                max_age=30_000)
 def list_images(schedule_id):
     """Perform list images. Cloud controller stores results in mongodb."""
 
@@ -120,7 +130,9 @@ def list_images(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='networks', time_limit=60_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_networks',
+                time_limit=60_000,
+                max_age=30_000)
 def list_networks(schedule_id):
     """Perform list networks and subnets (inside list_networks).
     Cloud controller stores results in mongodb."""
@@ -135,7 +147,9 @@ def list_networks(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='zones', time_limit=60_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_zones',
+                time_limit=60_000,
+                max_age=30_000)
 def list_zones(schedule_id):
     """Perform list zones and records.
        Cloud controller stores results in mongodb.
@@ -151,7 +165,9 @@ def list_zones(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='volumes', time_limit=60_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_volumes',
+                time_limit=60_000,
+                max_age=30_000)
 def list_volumes(schedule_id):
     """Perform list volumes. Cloud controller stores results in mongodb."""
 
@@ -165,7 +181,9 @@ def list_volumes(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='buckets', time_limit=60_000, max_age=300_000)
+@dramatiq.actor(queue_name='dramatiq_buckets',
+                time_limit=60_000,
+                max_age=300_000)
 def list_buckets(schedule_id):
     """
     Perform list buckets.
@@ -182,7 +200,9 @@ def list_buckets(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='ping_probe', time_limit=45_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_ping_probe',
+                time_limit=45_000,
+                max_age=30_000)
 def ping_probe(schedule_id):
     """Perform ping probe"""
 
@@ -200,7 +220,9 @@ def ping_probe(schedule_id):
             sched.machine, exc)
 
 
-@dramatiq.actor(queue_name='ssh_probe', time_limit=45_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_ssh_probe',
+                time_limit=45_000,
+                max_age=30_000)
 def ssh_probe(schedule_id):
     """Perform ssh probe"""
 

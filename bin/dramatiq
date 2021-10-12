@@ -7,21 +7,21 @@ from mist.api import config
 BROKER = 'mist.api.dramatiq_app'
 QUEUES = os.getenv('QUEUES', '').split(',') or [
     'default',
-    'provisioning',
-    'scripts',
-    'schedules',
-    'rules',
-    'sessions',
-    'polling',
-    'mappings',
-    'ping_probe',
-    'ssh_probe',
-    'machines',
-    'clusters',
-    'networks',
-    'zones',
-    'volumes',
-    'buckets']
+    'dramatiq_provisioning',
+    'dramatiq_scripts',
+    'dramatiq_schedules',
+    'dramatiq_rules',
+    'dramatiq_sessions',
+    'dramatiq_polling',
+    'dramatiq_mappings',
+    'dramatiq_ping_probe',
+    'dramatiq_ssh_probe',
+    'dramatiq_machines',
+    'dramatiq_clusters',
+    'dramatiq_networks',
+    'dramatiq_zones',
+    'dramatiq_volumes',
+    'dramatiq_buckets']
 
 POSSIBLE_MODULES = []  # 'mist.api.dramatiq_tasks', 'mist.rbac.dramatiq_tasks']
 
