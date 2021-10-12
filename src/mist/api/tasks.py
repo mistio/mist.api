@@ -92,7 +92,7 @@ __all__ = [
 ]
 
 
-@dramatiq.actor(queue_name='scripts', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_scripts', store_results=True)
 def ssh_command(owner_id, cloud_id, machine_id, host, command,
                 key_id=None, username=None, password=None, port=22):
 
@@ -108,7 +108,7 @@ def ssh_command(owner_id, cloud_id, machine_id, host, command,
                     (machine_id, host), output)
 
 
-@dramatiq.actor(queue_name='provisioning', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
 def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
                       monitoring, key_id=None, username=None, password=None,
                       port=22, script_id='', script_params='', job_id=None,
@@ -366,7 +366,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
         )
 
 
-@dramatiq.actor(queue_name='provisioning', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
 def openstack_post_create_steps(auth_context_serialized, cloud_id, machine_id,
                                 monitoring, key_id, username, password,
                                 public_key, script='',
@@ -449,7 +449,7 @@ def openstack_post_create_steps(auth_context_serialized, cloud_id, machine_id,
             raise
 
 
-@dramatiq.actor(queue_name='provisioning', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
 def azure_post_create_steps(auth_context_serialized, cloud_id, machine_id,
                             monitoring, key_id, username, password,
                             public_key, script='',
@@ -530,7 +530,7 @@ def azure_post_create_steps(auth_context_serialized, cloud_id, machine_id,
             raise
 
 
-@dramatiq.actor(queue_name='provisioning', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
 def rackspace_first_gen_post_create_steps(
         auth_context_serialized, cloud_id, machine_id, monitoring, key_id,
         password, public_key, username='root', script='', script_id='',
@@ -593,7 +593,7 @@ def rackspace_first_gen_post_create_steps(
         raise
 
 
-@dramatiq.actor(queue_name='provisioning', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
 def clone_machine_async(auth_context_serialized, machine_id, name,
                         job=None, job_id=None):
     from mist.api.exceptions import MachineCreationError
@@ -666,7 +666,7 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
     print('clone_machine_async: results: {}'.format(node))
 
 
-@dramatiq.actor(queue_name='provisioning', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
 def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
@@ -788,7 +788,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None,
     return True
 
 
-@dramatiq.actor(queue_name='schedules', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_schedules', store_results=True)
 def group_machines_actions(owner_id, action, name, machines_uuids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
@@ -868,7 +868,8 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     return log_dict
 
 
-@dramatiq.actor(queue_name='schedules', store_results=True,
+@dramatiq.actor(queue_name='dramatiq_schedules',
+                store_results=True,
                 time_limit=3_600_000)
 def run_machine_action(owner_id, action, name, machine_uuid):
     """
@@ -1012,7 +1013,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         )
 
 
-@dramatiq.actor(queue_name='schedules', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_schedules', store_results=True)
 def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
                      params=''):
     """
@@ -1080,7 +1081,7 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
     return log_dict
 
 
-@dramatiq.actor(queue_name='schedules',
+@dramatiq.actor(queue_name='dramatiq_schedules',
                 time_limit=3_600_000,
                 store_results=True)
 def run_script(auth_context_serialized, script_id, machine_uuid, params='',
@@ -1176,7 +1177,7 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
     return ret
 
 
-@dramatiq.actor(queue_name='polling', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_polling', store_results=True)
 def update_poller(org_id):
     org = Organization.objects.get(id=org_id)
     update_threshold = datetime.datetime.now() - datetime.timedelta(
@@ -1318,7 +1319,7 @@ def create_backup():
                 config.BACKUP['bucket'], portal_host, dt))
 
 
-@dramatiq.actor(queue_name='sessions', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_sessions', store_results=True)
 def async_session_update(owner, sections=None):
     if sections is None:
         sections = [
@@ -1336,7 +1337,9 @@ def tmp_log(msg, *args):
     log.info("Post deploy: %s" % msg, *args)
 
 
-@dramatiq.actor(queue_name="provisioning", store_results=True, max_retries=0)
+@dramatiq.actor(queue_name="dramatiq_provisioning",
+                store_results=True,
+                max_retries=0)
 def multicreate_async_v2(
     auth_context_serialized, plan, job_id=None, job=None
 ):
@@ -1363,7 +1366,9 @@ def multicreate_async_v2(
     dramatiq.group(messages).run()
 
 
-@dramatiq.actor(queue_name="provisioning", store_results=True, max_retries=0)
+@dramatiq.actor(queue_name="dramatiq_provisioning",
+                store_results=True,
+                max_retries=0)
 def create_machine_async_v2(
     auth_context_serialized, plan, job_id=None, job=None
 ):
@@ -1461,7 +1466,8 @@ def create_machine_async_v2(
                         node.id, plan, job_id=job_id, job=job)
 
 
-@dramatiq.actor(queue_name="provisioning", store_results=True,
+@dramatiq.actor(queue_name="dramatiq_provisioning",
+                store_results=True,
                 throws=(me.DoesNotExist, MachineUnavailableError))
 def post_deploy_v2(auth_context_serialized, cloud_id, machine_id, external_id,
                    plan, job_id=None, job=None):
@@ -1528,7 +1534,7 @@ def post_deploy_v2(auth_context_serialized, cloud_id, machine_id, external_id,
                    job_id=job_id, username=None, password=None, port=22)
 
 
-@dramatiq.actor(queue_name="provisioning", store_results=True)
+@dramatiq.actor(queue_name="dramatiq_provisioning", store_results=True)
 def ssh_tasks(auth_context_serialized, cloud_id, key_id, host, external_id,
               machine_name, machine_id, scripts, log_dict, monitoring=False,
               plugins=None, job_id=None, username=None, password=None,
