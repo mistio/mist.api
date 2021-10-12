@@ -100,7 +100,7 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-DATABASE_VERSION = 15
+DATABASE_VERSION = 16
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -502,15 +502,18 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [
                     {
                         "refId": "A1",
-                        "target": "system_load1"
+                        "target": "system_load1",
+                        "legendFormat": "system_load1"
                     },
                     {
                         "refId": "A2",
-                        "target": "system_load5"
+                        "target": "system_load5",
+                        "legendFormat": "system_load5"
                     },
                     {
                         "refId": "A3",
-                        "target": "system_load15"
+                        "target": "system_load15",
+                        "legendFormat": "system_load15"
                     }
                 ],
                 "x-axis": True,
@@ -525,19 +528,23 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [
                     {
                         "refId": "B1",
-                        "target": "mem_free"
+                        "target": "mem_free",
+                        "legendFormat": "mem_free"
                     },
                     {
                         "refId": "B2",
-                        "target": "mem_used"
+                        "target": "mem_used",
+                        "legendFormat": "mem_used"
                     },
                     {
                         "refId": "B3",
-                        "target": "mem_cached"
+                        "target": "mem_cached",
+                        "legendFormat": "mem_cached"
                     },
                     {
                         "refId": "B4",
-                        "target": "mem_buffered"
+                        "target": "mem_buffered",
+                        "legendFormat": "mem_buffered"
                     }
                 ],
                 "yaxes": [{
@@ -553,43 +560,53 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [
                     {
                         "refId": "C1",
-                        "target": 'cpu_usage_guest{cpu="cpu-total"}'
+                        "target": 'cpu_usage_guest{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_guest-{{cpu}}"
                     },
                     {
                         "refId": "C2",
-                        "target": 'cpu_usage_iowait{cpu="cpu-total"}'
+                        "target": 'cpu_usage_iowait{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_iowait-{{cpu}}"
                     },
                     {
                         "refId": "C3",
-                        "target": 'cpu_usage_user{cpu="cpu-total"}'
+                        "target": 'cpu_usage_user{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_user-{{cpu}}"
                     },
                     {
                         "refId": "C4",
-                        "target": 'cpu_usage_nice{cpu="cpu-total"}'
+                        "target": 'cpu_usage_nice{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_nice-{{cpu}}"
                     },
                     {
                         "refId": "C5",
-                        "target": 'cpu_usage_softirq{cpu="cpu-total"}'
+                        "target": 'cpu_usage_softirq{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_softirq-{{cpu}}"
                     },
                     {
                         "refId": "C6",
-                        "target": 'cpu_usage_idle{cpu="cpu-total"}'
+                        "target": 'cpu_usage_idle{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_idle-{{cpu}}"
                     },
                     {
                         "refId": "C7",
-                        "target": 'cpu_usage_irq{cpu="cpu-total"}'
+                        "target": 'cpu_usage_irq{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_irq-{{cpu}}"
                     },
                     {
                         "refId": "C8",
-                        "target": 'cpu_usage_system{cpu="cpu-total"}'
+                        "target": 'cpu_usage_system{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_system-{{cpu}}"
                     },
                     {
                         "refId": "C9",
-                        "target": 'cpu_usage_steal{cpu="cpu-total"}'
+                        "target": 'cpu_usage_steal{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_steal-{{cpu}}"
                     },
                     {
                         "refId": "C10",
-                        "target": 'cpu_usage_guest_nice{cpu="cpu-total"}'
+                        "target": 'cpu_usage_guest_nice{cpu="cpu-total"}',
+                        "legendFormat": "cpu_usage_guest_nice-{{cpu}}"
                     }
                 ],
                 "yaxes": [{
@@ -604,7 +621,8 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "Z",
-                    "target": "cpu_usage_idle"
+                    "target": "cpu_usage_idle",
+                    "legendFormat": "cpu_usage_idle-{{cpu}}"
                 }],
                 "yaxes": [{
                     "label": "%"
@@ -618,7 +636,8 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "G",
-                    "target": "rate(net_bytes_recv)"
+                    "target": "rate(net_bytes_recv)",
+                    "legendFormat": "rate(net_bytes_recv)-{{interface}}"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -632,7 +651,8 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "H",
-                    "target": "rate(net_bytes_sent)"
+                    "target": "rate(net_bytes_sent)",
+                    "legendFormat": "rate(net_bytes_sent)-{{interface}}"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -646,7 +666,8 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "I",
-                    "target": "rate(diskio_read_bytes)"
+                    "target": "rate(diskio_read_bytes)",
+                    "legendFormat": "rate(diskio_read_bytes)-{{name}}"
                 }],
                 "x-axis": True,
                 "y-axis": True,
@@ -662,7 +683,8 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "J",
-                    "target": "rate(diskio_write_bytes)"
+                    "target": "rate(diskio_write_bytes)",
+                    "legendFormat": "rate(diskio_write_bytes)-{{name}}"
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -677,7 +699,8 @@ VICTORIAMETRICS_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "D",
-                    "target": "disk_free"
+                    "target": "disk_free",
+                    "legendFormat": "disk_free-{{device}}-{{path}}"
                 }],
                 "yaxes": [{
                     "label": "B"
@@ -2712,10 +2735,7 @@ EC2_IMAGES = {
 }
 
 DOCKER_IMAGES = {
-    'mist/ubuntu-14.04': 'Ubuntu 14.04 - mist.io image',
-    'mist/debian-wheezy': 'Debian Wheezy - mist.io image',
-    'mist/opensuse-13.1': 'OpenSUSE 13.1 - mist.io image',
-    'mist/fedora-20': 'Fedora 20 - mist.io image',
+    'mist/debian-ssh': 'Debian Bullseye with SSH server',
 }
 
 AZURE_ARM_IMAGES = {
