@@ -2735,10 +2735,7 @@ EC2_IMAGES = {
 }
 
 DOCKER_IMAGES = {
-    'mist/ubuntu-14.04': 'Ubuntu 14.04 - mist.io image',
-    'mist/debian-wheezy': 'Debian Wheezy - mist.io image',
-    'mist/opensuse-13.1': 'OpenSUSE 13.1 - mist.io image',
-    'mist/fedora-20': 'Fedora 20 - mist.io image',
+    'mist/debian-ssh': 'Debian Bullseye with SSH server',
 }
 
 AZURE_ARM_IMAGES = {
