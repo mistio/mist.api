@@ -217,6 +217,16 @@ class BaseScriptController(object):
         encode_params = urllib.parse.urlencode(hmac_params)
         return url + '?' + encode_params
 
+    def generate_signed_url_v2(self):
+        # build HMAC and inject into the `curl` command
+        script_id = self.script.id
+        hmac_params = {'object_id': script_id}
+        expires_in = 60 * 15
+        mac_sign(hmac_params, expires_in)
+        url = f'{config.CORE_URI}/api/v2/scripts/{script_id}/file'
+        encode_params = urllib.parse.urlencode(hmac_params)
+        return url + '?' + encode_params
+
     def run(self, auth_context, machine, host=None, port=None, username=None,
             password=None, su=False, key_id=None, params=None, job_id=None):
         from mist.api.shell import Shell
