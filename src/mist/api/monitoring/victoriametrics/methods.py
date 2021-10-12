@@ -41,14 +41,16 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             log.error('Got %d on get_stats: %s',
                       raw_machine_data.status_code, raw_machine_data.content)
             raise ServiceUnavailableError()
-        raw_machine_data_list.append(raw_machine_data.json())
-    for raw_machine_data in raw_machine_data_list:
+        raw_machine_data_list.append((raw_machine_data.json(), metric))
+    for raw_machine_data, target in raw_machine_data_list:
         for result in raw_machine_data.get('data', {}).get('result', {}):
-            data[str(result["metric"])] = {
-                "name": str(result["metric"]),
+            data[generate_metric_mist(result["metric"], target)] = {
+                "name": generate_metric_mist(result["metric"], target),
                 "datapoints": [[parse_value(val),
                                 str(dt)]
-                               for dt, val in result.get("values")]
+                               for dt, val in result.get("values")],
+                "metric": result["metric"],
+                "target": target
             }
 
     if not isinstance(machine, str):
