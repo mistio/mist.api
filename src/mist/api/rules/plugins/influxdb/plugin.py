@@ -19,7 +19,7 @@ class InfluxDBBackendPlugin(base.BaseBackendPlugin):
         # If response is empty, then data is absent for the given interval.
         if not len(data):
             log.warning('No datapoints for %s.%s', rid, query.target)
-            return None, None
+            raise methods.EmptyResponseReturnedError()
 
         # Check whether the query to InfluxDB returned multiple series.
         if len(data) > 1:

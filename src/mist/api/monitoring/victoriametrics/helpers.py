@@ -11,9 +11,9 @@ def round_base(x, precision, base):
     return round(base * round(float(x) / base), precision)
 
 
-def generate_metric_mist(metric_dict):
+def generate_metric_mist(metric_dict, target=""):
     keys_ignore = set(['db', 'host', 'machine_id', '__name__'])
-    metric = metric_dict.get('__name__', "")
+    metric = metric_dict.get('__name__', target)
     labels = {key: value for key, value in metric_dict.items()
               if key not in keys_ignore}
     return generate_metric_promql(metric, labels)
