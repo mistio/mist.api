@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 from mist.api.rules.plugins import base
 from mist.api.rules.plugins import methods
@@ -61,6 +62,26 @@ class VictoriaMetricsBackendPlugin(base.BaseBackendPlugin):
         # assert len(rule.queries) is 1
         assert not rule.queries[0].filters
 
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        results = loop.run_until_complete(
+            rule._backend_plugin(rule)._async_execute_queries(rule, loop))
+        loop.close()
+
+        exceptions = 0
+        for result in results:
+            if isinstance(result, Exception):
+                exceptions += 1
+                log.warning(
+                    f"Got {result} on rule: {rule.title} - {rule.name}")
+        if exceptions >= len(results):
+            raise results[0]
+
     @property
     def start(self):
         return '%d%s' % (self.rule.window.start, self.rule.window.period_short)
@@ -70,6 +91,15 @@ class VictoriaMetricsBackendPlugin(base.BaseBackendPlugin):
         if not self.rule.window.stop:
             return ''
         return '%d%s' % (self.rule.window.stop, self.rule.window.period_short)
+
+    async def _async_execute_queries(self, rule, loop):
+        queries_list = []
+        for query in rule.queries:
+            print(rule._backend_plugin(rule).rids)
+            for rid in rule._backend_plugin(rule).rids:
+                queries_list.append(loop.run_in_executor(
+                    None, rule._backend_plugin(rule).execute, query, rid))
+        return await asyncio.gather(*queries_list, return_exceptions=True)
 
 
 class VictoriaMetricsNoDataPlugin(base.NoDataMixin,
