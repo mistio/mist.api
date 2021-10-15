@@ -4375,6 +4375,84 @@ class LXDComputeController(BaseComputeController):
                                                          cert_file=cert_file,
                                                          ca_cert=ca_cert)
 
+    def _generate_plan__parse_networks(self,
+                                       auth_context,
+                                       networks_dict,
+                                       location):
+        from mist.api.methods import list_resources
+        networks = networks_dict.get('networks') or []
+        ret_networks = []
+        for net in networks:
+            try:
+                [network], _ = list_resources(auth_context,
+                                              'network',
+                                              search=net,
+                                              cloud=self.cloud.id,
+                                              limit=1)
+            except ValueError:
+                raise NotFoundError(f'Network: {net} not found')
+
+            ret_networks.append({
+                'id': network.id,
+                'name': network.name,
+            })
+
+        return ret_networks
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        try:
+            path = volume_dict['path']
+        except KeyError:
+            raise BadRequestError('Volume path parameter is required')
+
+        return {
+            'id': vol_obj.id,
+            'name': vol_obj.name,
+            'path': path,
+        }
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        ret_volume = {}
+        try:
+            ret_volume['name'] = volume_dict['name']
+        except KeyError:
+            raise BadRequestError('Volume name parameter is required')
+
+        try:
+            ret_volume['size'] = int(volume_dict['size'])
+        except KeyError:
+            raise BadRequestError('Volume size parameter is required')
+        except (TypeError, ValueError):
+            raise BadRequestError('Invalid volume size type')
+
+        ret_volume['filesystem'] = volume_dict.get('filesystem') or 'ext4'
+        ret_volume['mount_options'] = (volume_dict.get('mount_options') or
+                                       'discard')
+
+        security_shifted = volume_dict.get('security_shifted') is True
+        if security_shifted:
+            ret_volume['security_shifted'] = security_shifted
+
+        return ret_volume
+
+    def _generate_plan__parse_extra(self, extra, plan):
+        plan['ephemeral'] = extra.get('ephemeral') is True
+
+        if extra.get('limits'):
+            plan['limits'] = {}
+            try:
+                plan['limits']['cpu'] = extra['limits']['cpu']
+            except KeyError:
+                pass
+            except TypeError:
+                raise BadRequestError(
+                    'Invalid type for limits parameter'
+                )
+            try:
+                plan['limits']['memory'] = extra['limits']['memory']
+            except KeyError:
+                pass
+
 
 class LibvirtComputeController(BaseComputeController):
 
