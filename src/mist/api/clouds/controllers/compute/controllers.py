@@ -4425,9 +4425,15 @@ class LXDComputeController(BaseComputeController):
         except (TypeError, ValueError):
             raise BadRequestError('Invalid volume size type')
 
+        try:
+            ret_volume['path'] = volume_dict['path']
+        except KeyError:
+            raise BadRequestError('Volume path parameter is required')
+
         ret_volume['filesystem'] = volume_dict.get('filesystem') or 'ext4'
         ret_volume['mount_options'] = (volume_dict.get('mount_options') or
                                        'discard')
+        ret_volume['pool'] = volume_dict.get('pool') or 'default'
 
         security_shifted = volume_dict.get('security_shifted') is True
         if security_shifted:
@@ -4441,7 +4447,7 @@ class LXDComputeController(BaseComputeController):
         if extra.get('limits'):
             plan['limits'] = {}
             try:
-                plan['limits']['cpu'] = extra['limits']['cpu']
+                plan['limits']['cpu'] = str(extra['limits']['cpu'])
             except KeyError:
                 pass
             except TypeError:
@@ -4449,9 +4455,80 @@ class LXDComputeController(BaseComputeController):
                     'Invalid type for limits parameter'
                 )
             try:
-                plan['limits']['memory'] = extra['limits']['memory']
+                plan['limits']['memory'] = f"{extra['limits']['memory']}MB"
             except KeyError:
                 pass
+
+    def _create_machine__compute_kwargs(self, plan):
+        from mist.api.volumes.models import Volume
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        image = kwargs.pop('image')
+        kwargs['image'] = None
+        parameters = {
+            'source': {
+                'type': 'image',
+                'fingerprint': image.id
+            }
+        }
+        kwargs['parameters'] = json.dumps(parameters)
+        devices = {}
+        volumes = plan.get('volumes', [])
+        for volume in volumes:
+            if volume.get('id'):
+                mist_volume = Volume.objects.get(id=volume['id'])
+                devices[mist_volume.name] = {
+                    'type': 'disk',
+                    'path': volume['path'],
+                    'source': mist_volume.name,
+                    'pool': mist_volume.extra['pool_id']
+                }
+            else:
+                definition = {
+                    'name': volume['name'],
+                    'type': 'custom',
+                    'size_type': 'GB',
+                    'config': {
+                        'size': volume['size'],
+                        'block.filesystem': volume['filesystem'],
+                        'block.mount_options': volume['mount_options'],
+                    }
+                }
+                try:
+                    libcloud_volume = self.connection.create_volume(
+                        pool_id=volume['pool'],
+                        definition=definition)
+                except Exception:
+                    log.error('Failed to create volume for LXD cloud: %s',
+                              self.cloud.id)
+                else:
+                    devices[libcloud_volume.name] = {
+                        'type': 'disk',
+                        'path': volume['path'],
+                        'source': libcloud_volume.name,
+                        'pool': libcloud_volume.extra['pool_id']
+                    }
+
+        networks = plan.get('networks', [])
+        for network in networks:
+            devices[network['name']] = {
+                'name': network['name'],
+                'type': 'nic',
+                'nictype': 'bridged',
+                'parent': 'lxdbr0',
+            }
+        if devices:
+            kwargs['ex_devices'] = devices
+
+        kwargs['ex_ephemeral'] = plan['ephemeral']
+
+        if plan.get('limits'):
+            kwargs['ex_config'] = {}
+            if plan['limits'].get('cpu'):
+                kwargs['ex_config']['limits.cpu'] = plan['limits']['cpu']
+            if plan['limits'].get('memory'):
+                kwargs['ex_config']['limits.memory'] = plan['limits']['memory']
+
+        return kwargs
 
 
 class LibvirtComputeController(BaseComputeController):
