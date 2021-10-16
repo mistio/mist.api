@@ -6,6 +6,13 @@ to db etc. Cloud specific controllers are in `mist.api.clouds.controllers`.
 
 """
 
+from mist.api.tag.models import Tag
+from mist.api.clouds.controllers.base import BaseController
+from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
+from mist.api.concurrency.models import PeriodicTaskInfo
+from mist.api.helpers import requests_retry_session
+from mist.api.helpers import get_victoriametrics_write_uri
+from mist.api.helpers import get_victoriametrics_uri
 import ssl
 import json
 import copy
@@ -51,14 +58,10 @@ from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
-from mist.api.helpers import get_victoriametrics_uri
-from mist.api.helpers import get_victoriametrics_write_uri
+<< << << < HEAD
+== == == =
+>>>>>> > Retry on requests to VictoriaMetrics
 
-from mist.api.concurrency.models import PeriodicTaskInfo
-from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
-
-from mist.api.clouds.controllers.base import BaseController
-from mist.api.tag.models import Tag
 
 if config.HAS_VPN:
     from mist.vpn.methods import destination_nat as dnat
@@ -3575,9 +3578,11 @@ class BaseComputeController(BaseController):
             datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
         error_msg = f"Could not fetch metering data with query: {query}"
         try:
-            data = requests.post(f"{read_uri}/api/v1/query",
-                                 data={"query": query, "time": dt},
-                                 timeout=20)
+            data = requests_retry_session(retries=1).post(
+                f"{read_uri}/api/v1/query",
+                data={"query": query, "time": dt},
+                timeout=10
+            )
         except requests.exceptions.RequestException as e:
             error_details = str(e)
             self._report_metering_error(error_msg, error_details)
@@ -3643,8 +3648,8 @@ class BaseComputeController(BaseController):
         )
         error_msg = f"Could not fetch old counter value with query: {query}"
         try:
-            data = requests.post(
-                f"{read_uri}/api/v1/query", data={"query": query}, timeout=20)
+            data = requests_retry_session(retries=1).post(
+                f"{read_uri}/api/v1/query", data={"query": query}, timeout=10)
         except requests.exceptions.RequestException as e:
             error_details = str(e)
             self._report_metering_error(error_msg, error_details)
@@ -3758,9 +3763,9 @@ class BaseComputeController(BaseController):
         result = None
         uri = get_victoriametrics_write_uri(self.cloud.owner)
         try:
-            result = requests.post(
+            result = requests_retry_session(retries=1).post(
                 f"{uri}/api/v1/import/prometheus",
-                data=fresh_metering_data, timeout=20)
+                data=fresh_metering_data, timeout=10)
         except requests.exceptions.RequestException as e:
             error_details = str(e)
             self._report_metering_error(error_msg, error_details)
