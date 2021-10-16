@@ -90,6 +90,12 @@ class BaseStorageController(BaseController):
             # Publish patches to rabbitmq.
             new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
                            for v in volumes_dict}
+
+            # Exclude last seen from patch.
+            for vd in cached_volumes, new_volumes:
+                for v in list(vd.values()):
+                    v.pop('last_seen')
+
             patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
                                                   new_volumes).patch
             if patch:
@@ -103,6 +109,7 @@ class BaseStorageController(BaseController):
                                       routing_key='patch_volumes',
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
+
         return volumes
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeListingError)
@@ -138,6 +145,8 @@ class BaseStorageController(BaseController):
             raise mist.api.exceptions.CloudUnavailableError(exc)
 
         volumes, new_volumes = [], []
+        now = datetime.datetime.utcnow()
+
         for libcloud_volume in libcloud_volumes:
             try:
                 volume = Volume.objects.get(cloud=self.cloud,
@@ -151,6 +160,7 @@ class BaseStorageController(BaseController):
             volume.size = libcloud_volume.size
             volume.extra = copy.copy(libcloud_volume.extra)
             volume.missing_since = None
+            volume.last_seen = now
 
             # Apply cloud-specific processing.
             try:
@@ -190,22 +200,27 @@ class BaseStorageController(BaseController):
         Volume.objects(
             cloud=self.cloud, id__nin=[v.id for v in volumes],
             missing_since=None
-        ).update(missing_since=datetime.datetime.utcnow())
+        ).update(missing_since=now)
+        # Set last_seen, unset missing_since on machine models we just saw
         Volume.objects(
             cloud=self.cloud, id__in=[v.id for v in volumes]
-        ).update(missing_since=None)
+        ).update(last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of new volumes.
         self.cloud.owner.mapper.update(new_volumes, asynchronous=False)
 
         return volumes
 
-    def list_cached_volumes(self):
+    def list_cached_volumes(self, timedelta=datetime.timedelta(days=1)):
         """Returns volumes stored in database for a specific cloud"""
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
         from mist.api.volumes.models import Volume
-        return Volume.objects(cloud=self.cloud, missing_since=None)
+        return Volume.objects(
+            cloud=self.cloud,
+            missing_since=None,
+            last_seen__gt=datetime.datetime.utcnow() - timedelta,
+        )
 
     def _list_volumes__fetch_volumes(self):
         """Return the original list of libcloud Volume objects"""
