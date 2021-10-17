@@ -183,6 +183,19 @@ def params_from_request(request):
     return params or {}
 
 
+def delete_none(dikt):
+    for k, v in list(dikt.items()):
+        if v is None:
+            del dikt[k]
+        elif isinstance(v, dict):
+            delete_none(v)
+        elif isinstance(v, list):
+            for el in v:
+                if isinstance(el, dict):
+                    delete_none(el)
+    return dikt
+
+
 def get_auth_header(user):
     """The value created here is added as an "Authorization" header in HTTP
     requests towards the hosted mist core service.
