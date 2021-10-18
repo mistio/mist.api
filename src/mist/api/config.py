@@ -1224,7 +1224,7 @@ GRAPHITE_URI = "http://graphite"
 
 VICTORIAMETRICS_URI = "http://vmselect:8481/select/<org_id>/prometheus"
 VICTORIAMETRICS_WRITE_URI = (f"http://vminsert:8480/insert/<org_id>/"
-                             f"prometheus/api/v1/import/prometheus")
+                             f"prometheus")
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
@@ -3229,7 +3229,7 @@ if ENABLE_MONITORING:
 
 if ENABLE_BACKUPS:
     _schedule['backups'] = {
-        'task': 'mist.api.tasks.create_backup',
+        'task': 'mist.api.portal.tasks.create_backup',
         'schedule': datetime.timedelta(hours=BACKUP_INTERVAL),
     }
 
