@@ -418,8 +418,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if port_forwards:
         validate_portforwards(port_forwards)
 
-    cached_machines = [m.as_dict()
-                       for m in cloud.ctl.compute.list_cached_machines()]
+    # cached_machines = [m.as_dict()
+    #                    for m in cloud.ctl.compute.list_cached_machines()]
 
     if cloud.ctl.provider is Container_Provider.DOCKER:
         if public_key:
@@ -605,6 +605,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 else:
                     continue
 
+    cached_machine = machine.as_dict()
+
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
 
@@ -632,10 +634,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
-    # Emit jsonpatch with new key association
-    fresh_machines = cloud.ctl.compute.list_cached_machines()
-    cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines)
+    # Emit jsonpatch
+    cloud.ctl.compute.produce_and_publish_patch([cached_machine],
+                                                [machine.reload()])
+    cloud.ctl.compute.produce_and_publish_patch([], [machine.reload()])
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if cloud.ctl.provider == Provider.AZURE.value:
