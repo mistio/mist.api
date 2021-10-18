@@ -79,6 +79,16 @@ METERING_METRICS = {
                 machine.size.ram / 1000 if machine.state == 'running' and
                 machine.size and machine.size.ram else 0)}
         }
+    },
+    "volume": {
+        "default": {
+            'disk_gb_hours': {'type': 'counter', 'value': lambda volume, dt: dt * (
+                volume.size)},
+            # 'total_cost': {'type': 'counter', 'value': lambda volume, dt: dt * (
+            #    machine.cost.hourly if machine.state == 'running' and
+            #    machine.cost.hourly else 0)},
+            'disk_gb': {'type': 'gauge', 'value': lambda volume: volume.size}
+        }
     }
 }
 
