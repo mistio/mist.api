@@ -6,8 +6,11 @@ import datetime
 from typing import List
 import jsonpatch
 import mongoengine.errors
+import asyncio
 
 from requests import ConnectionError
+
+from mist.api import config
 
 import mist.api.exceptions
 
@@ -18,6 +21,7 @@ from mist.api.concurrency.models import PeriodicTaskInfo
 
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
+from mist.api.helpers import requests_retry_session
 
 
 log = logging.getLogger(__name__)
@@ -109,6 +113,8 @@ class BaseStorageController(BaseController):
                                       routing_key='patch_volumes',
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
+        if config.ENABLE_METERING:
+            self._update_metering_data(cached_volumes, volumes)
 
         return volumes
 
@@ -201,7 +207,7 @@ class BaseStorageController(BaseController):
             cloud=self.cloud, id__nin=[v.id for v in volumes],
             missing_since=None
         ).update(missing_since=now)
-        # Set last_seen, unset missing_since on machine models we just saw
+        # Set last_seen, unset missing_since on volume models we just saw
         Volume.objects(
             cloud=self.cloud, id__in=[v.id for v in volumes]
         ).update(last_seen=now, missing_since=None)
@@ -402,3 +408,363 @@ class BaseStorageController(BaseController):
 
     def list_storage_classes(self) -> List[str]:
         raise NotImplementedError()
+
+    def _update_metering_data(self, cached_volumes, volumes):
+        volumes_map = {volume.id: volume for volume in volumes}
+        cached_volumes_map = {
+            volume["id"]: volume for _, volume in cached_volumes.items()}
+        read_queries, metering_metrics = self._generate_metering_queries(
+            cached_volumes_map, volumes_map)
+        last_metering_data = self._fetch_metering_data(
+            read_queries, volumes_map)
+        fresh_metering_data = self._generate_fresh_metering_data(
+            cached_volumes_map, volumes_map, last_metering_data,
+            metering_metrics)
+
+        self._send_metering_data(fresh_metering_data)
+
+    def _get_volume_metering_metrics(
+            self, volume_id, volumes_map, metering_metrics):
+        if metering_metrics.get(volumes_map[volume_id].owner.id):
+            return metering_metrics[volumes_map[volume_id].owner.id]
+        if metering_metrics.get(volumes_map[volume_id].cloud.provider):
+            return metering_metrics[volumes_map[volume_id].cloud.provider]
+        if metering_metrics.get("default"):
+            return metering_metrics["default"]
+        return {}
+
+    def _update_metering_metrics_map(self, volumes_map):
+        """
+        Populates a dict where it maps owner.id, cloud.provider
+        or default to the appropriate metering metrics
+        """
+        if not config.METERING_METRICS.get("volume"):
+            return {}
+        metering_metrics = {}
+        for volume_id, _ in volumes_map.items():
+            if config.METERING_METRICS["volume"].get(
+                    volumes_map[volume_id].owner.id) and \
+                    not metering_metrics.get(
+                        volumes_map[volume_id].owner.id):
+                metering_metrics[volumes_map[volume_id].owner.id] = \
+                    config.METERING_METRICS["volume"].get("default", {})
+                metering_metrics[volumes_map[
+                    volume_id].owner.id].update(
+                        config.METERING_METRICS["volume"].get(
+                            volumes_map[volume_id].cloud.provider, {}))
+                metering_metrics[volumes_map[volume_id].owner.id].update(
+                    config.METERING_METRICS["volume"].get(volumes_map[
+                        volume_id].owner.id, {}))
+            if config.METERING_METRICS["volume"].get(
+                volumes_map[volume_id].cloud.provider) and \
+                    not metering_metrics.get(
+                        volumes_map[volume_id].cloud.provider):
+                metering_metrics[volumes_map[
+                    volume_id].cloud.provider] = config.METERING_METRICS["volume"].get(
+                    "default", {})
+                metering_metrics[volumes_map[
+                    volume_id].cloud.provider].update(
+                        config.METERING_METRICS["volume"].get(
+                            volumes_map[volume_id].cloud.provider, {}))
+            if config.METERING_METRICS["volume"].get("default") and \
+                    not metering_metrics.get("default"):
+                metering_metrics["default"] = config.METERING_METRICS["volume"][
+                    "default"]
+        return metering_metrics
+
+    def _generate_metering_queries(self, cached_volumes_map, volumes_map):
+        """
+        Generate metering promql queries while grouping volumes together to limit
+        the number of requests to the DB
+        """
+        # Group the volumes per timestamp
+        last_metering_dt_volumes_map = {}
+        for volume_id, _ in volumes_map.items():
+            if not cached_volumes_map.get(volume_id):
+                continue
+            dt = None
+            if cached_volumes_map[volume_id].get("last_seen"):
+                dt = cached_volumes_map[volume_id]["last_seen"]
+            elif cached_volumes_map[volume_id]["missing_since"]:
+                dt = cached_volumes_map[volume_id]["missing_since"]
+            if not dt:
+                continue
+            if not last_metering_dt_volumes_map.get(dt):
+                last_metering_dt_volumes_map[dt] = []
+            last_metering_dt_volumes_map[dt].append(volume_id)
+
+        metering_metrics = self._update_metering_metrics_map(volumes_map)
+
+        if not metering_metrics or not volumes_map:
+            return {}, {}
+
+        # Further group down the volumes into metric categories
+        # (owner.id, cloud.provider or default)
+        read_queries = {}
+        volume_metrics_category_map = {}
+
+        for dt, volume_ids in last_metering_dt_volumes_map.items():
+            for volume_id in volume_ids:
+                if config.METERING_METRICS["volume"].get(volumes_map[
+                        volume_id].owner.id):
+                    if not volume_metrics_category_map.get(
+                            (dt, volumes_map[volume_id].owner.id)):
+                        volume_metrics_category_map[(
+                            dt, volumes_map[volume_id].owner.id)] = []
+                    volume_metrics_category_map[(dt, volumes_map[
+                        volume_id].owner.id)].append(
+                        volume_id)
+                elif config.METERING_METRICS["volume"].get(volumes_map[
+                        volume_id].cloud.provider):
+                    if not volume_metrics_category_map.get(
+                            (dt, volumes_map[volume_id].cloud.provider)):
+                        volume_metrics_category_map[(
+                            dt, volumes_map[volume_id].cloud.provider)] = []
+                    volume_metrics_category_map[(dt, volumes_map[
+                        volume_id].cloud.provider)].append(
+                        volume_id)
+                elif config.METERING_METRICS["volume"].get("default"):
+                    if not volume_metrics_category_map.get((dt, "default")):
+                        volume_metrics_category_map[(dt, "default")] = []
+                    volume_metrics_category_map[(dt, "default")].append(
+                        volume_id)
+
+        # Generate queries which fetch metering data for multiple volumes
+        # at once when they share the same timestamp and metrics
+        for key, volume_ids in volume_metrics_category_map.items():
+            dt, metrics_category = key
+            metering_metrics_list = "|".join(
+                metric_name
+                for metric_name, properties in metering_metrics[
+                    metrics_category].items()
+                if properties['type'] == "counter")
+            volumes_ids_list = "|".join(volume_ids)
+            read_queries[(dt, metrics_category)] = (
+                f"{{__name__=~\"{metering_metrics_list}\""
+                f",org=\"{self.cloud.owner.id}\","
+                f"volume_id=~\"{volumes_ids_list}\",metering=\"true\"}}")
+        return read_queries, metering_metrics
+
+    def _fetch_query(self, dt, query):
+        tenant = str(int(self.cloud.owner.id[:8], 16))
+        read_uri = config.VICTORIAMETRICS_URI.replace("<org_id>", tenant)
+        dt = int(datetime.datetime.timestamp(
+            datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
+        error_msg = f"Could not fetch metering data with query: {query}"
+        try:
+            data = requests_retry_session(retries=1).post(
+                f"{read_uri}/api/v1/query",
+                data={"query": query, "time": dt},
+                timeout=10
+            )
+        except requests.exceptions.RequestException as e:
+            error_details = str(e)
+            self._report_metering_error(error_msg, error_details)
+            return {}
+        if data and not data.ok:
+            error_details = (f"code: {data.status_code}"
+                             f" response: {data.text}")
+            self._report_metering_error(error_msg, error_details)
+            return {}
+
+        data = data.json()
+
+        last_metering_data = {}
+
+        for result in data.get("data", {}).get("result", []):
+            metric_name = result["metric"]["__name__"]
+            volume_id = result["metric"]["volume_id"]
+            value = result["value"][1]
+            if not last_metering_data.get(volume_id):
+                last_metering_data[volume_id] = {}
+            last_metering_data[volume_id].update({metric_name: value})
+        return last_metering_data
+
+    async def _async_fetch_metering_data(self, read_queries, loop):
+        metering_data_list = [loop.run_in_executor(
+            None, self._fetch_query, key[0], query)
+            for key, query in read_queries.items()]
+
+        return await asyncio.gather(*metering_data_list)
+
+    def _fetch_metering_data(self, read_queries, volumes_map):
+        if not read_queries or not volumes_map:
+            return {}
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        asyncio.set_event_loop(loop)
+        metering_data_list = loop.run_until_complete(
+            self._async_fetch_metering_data(read_queries, loop))
+        loop.close()
+        last_metering_data = {}
+        for volume_id, _ in volumes_map.items():
+            last_metering_data[volume_id] = {}
+            for metering_data in metering_data_list:
+                if not metering_data.get(volume_id):
+                    continue
+                last_metering_data[volume_id].update(
+                    metering_data[volume_id])
+        return last_metering_data
+
+    def _find_old_counter_value(self, metric_name, volume_id, properties):
+        tenant = str(int(self.cloud.owner.id[:8], 16))
+        read_uri = config.VICTORIAMETRICS_URI.replace("<org_id>", tenant)
+        query = (
+            f"last_over_time("
+            f"{metric_name}{{org=\"{self.cloud.owner.id}\""
+            f",volume_id=\"{volume_id}\",metering=\"true\""
+            f",value_type=\"{properties['type']}\"}}"
+            f"[{config.METERING_PROMQL_LOOKBACK}])"
+        )
+        error_msg = f"Could not fetch old counter value with query: {query}"
+        try:
+            data = requests_retry_session(retries=1).post(
+                f"{read_uri}/api/v1/query", data={"query": query}, timeout=10)
+        except requests.exceptions.RequestException as e:
+            error_details = str(e)
+            self._report_metering_error(error_msg, error_details)
+            return None
+        if data and not data.ok:
+            error_details = f"code: {data.status_code} response: {data.text}"
+            self._report_metering_error(error_msg, error_details)
+            return None
+
+        data = data.json()
+        results = data.get("data", {}).get("result", [])
+        if len(results) > 1:
+            log.warning("Returned more series than expected")
+        if len(results) == 0:
+            return 0
+        return results[0]["value"][1]
+
+    def _calculate_metering_data(self, volume_id, volume,
+                                 new_dt, old_dt, metric_name,
+                                 properties, last_metering_data):
+        current_value = None
+        if properties["type"] == "counter":
+            old_value = last_metering_data.get(
+                volume_id, {}).get(metric_name)
+            if old_value:
+                current_value = float(old_value)
+                # Take into account the time range only
+                # if the volume was not missing
+                if old_dt:
+                    delta_in_hours = (
+                        new_dt - old_dt).total_seconds() / (60 * 60)
+                    current_value += properties["value"](
+                        volume, delta_in_hours)
+            else:
+                # In order to avoid counter resets, we check
+                # for the last counter up to
+                # METERING_PROMQL_LOOKBACK time in the past
+                current_value = self._find_old_counter_value(
+                    metric_name, volume_id, properties)
+        elif properties["type"] == "gauge":
+            current_value = properties["value"](volume)
+        else:
+            log.warning(
+                f"Unknown metric type: {properties['type']}"
+                f" on metric: {metric_name}"
+                f" with volume_id: {volume_id}")
+        if current_value is not None:
+            return (
+                f"{metric_name}{{org=\"{self.cloud.owner.id}\""
+                f",volume_id=\"{volume_id}\",metering=\"true\""
+                f",value_type=\"{properties['type']}\"}}"
+                f" {current_value} "
+                f"{int(datetime.datetime.timestamp(new_dt))}\n")
+        else:
+            log.warning(
+                f"None value on metric: "
+                f"{metric_name} with volume_id: {volume_id}")
+        return ""
+
+    async def _async_generate_fresh_metering_data(self, volumes_map,
+                                                  cached_volumes_map,
+                                                  metering_metrics,
+                                                  last_metering_data, loop):
+        metering_data_list = []
+        for volume_id, volume in volumes_map.items():
+            if not volume.last_seen:
+                continue
+            new_dt = volume.last_seen
+            old_dt = None
+            if cached_volumes_map.get(volume_id) and \
+                    cached_volumes_map[volume_id].get("last_seen"):
+                old_dt = datetime.datetime.strptime(
+                    cached_volumes_map[volume_id]["last_seen"],
+                    '%Y-%m-%d %H:%M:%S.%f')
+            for metric_name, properties in self._get_volume_metering_metrics(
+                    volume_id, volumes_map, metering_metrics).items():
+                metering_data_list.append(
+                    loop.run_in_executor(None,
+                                         self._calculate_metering_data,
+                                         volume_id, volume,
+                                         new_dt, old_dt, metric_name,
+                                         properties, last_metering_data))
+        return await asyncio.gather(*metering_data_list)
+
+    def _generate_fresh_metering_data(
+            self, cached_volumes_map, volumes_map,
+            last_metering_data, metering_metrics):
+        if not volumes_map or not metering_metrics:
+            return ""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        asyncio.set_event_loop(loop)
+        metering_data_list = loop.run_until_complete(
+            self._async_generate_fresh_metering_data(volumes_map,
+                                                     cached_volumes_map,
+                                                     metering_metrics,
+                                                     last_metering_data,
+                                                     loop))
+        loop.close()
+        return "".join(metering_data_list)
+
+    def _send_metering_data(self, fresh_metering_data):
+        if not fresh_metering_data:
+            return
+        tenant = str(int(self.cloud.owner.id[:8], 16))
+        error_msg = "Could not send metering data"
+        result = None
+        try:
+            result = requests_retry_session(retries=1).post(
+                config.VICTORIAMETRICS_WRITE_URI.replace(
+                    "<org_id>", tenant),
+                data=fresh_metering_data, timeout=10)
+        except requests.exceptions.RequestException as e:
+            error_details = str(e)
+            self._report_metering_error(error_msg, error_details)
+        if result and not result.ok:
+            error_details = (f"code: {result.status_code}"
+                             f" response: {result.text}")
+            self._report_metering_error(error_msg, error_details)
+
+    def _report_metering_error(self, error_msg, error_details):
+        from mist.api.methods import notify_admin
+        log_entry = error_msg + ", " + error_details
+        log.warning(log_entry)
+        notify_admin(error_msg,
+                     message=error_details)
+        if not config.METERING_NOTIFICATIONS_WEBHOOK:
+            return
+        response = requests.post(
+            config.METERING_NOTIFICATIONS_WEBHOOK,
+            data=json.dumps({'text': config.CORE_URI + ': ' + log_entry}),
+            headers={'Content-Type': 'application/json'}
+        )
+        if response.status_code != 200:
+            log.error(
+                'Request to slack returned an error %s, the response is:'
+                '\n%s' % (response.status_code, response.text)
+            )
