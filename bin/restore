@@ -4,52 +4,44 @@ import argparse
 import requests
 
 from mist.api import config
+from mist.api.portal.tasks import restore_backup
+
 
 def main():
+    portal_host = config.CORE_URI.split('//')[1]
     argparser = argparse.ArgumentParser(
-        description="Restore a mist backup"
+        description="Restore a Mist backup"
     )
-    argparser.add_argument('backup', help="Backup to restore.")
-    args = argparser.parse_args()
-    s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
-    cmd = 's3cmd --host=%s --access_key=%s --secret_key=%s get %s' % (
-        s3_host, config.BACKUP['key'], config.BACKUP['secret'],
-        args.backup)
-    os.system(cmd)
-    dump_path = args.backup.split('/')[-1]
-    if dump_path.endswith('.gpg'):
-        new_path = dump_path.replace('.gpg', '')
-        cmd = 'gpg --pinentry-mode loopback -o %s -d %s' % (new_path, dump_path)
-        os.system(cmd)
-        dump_path = new_path
 
-    if 'mongo' in args.backup:
-        cmd = 'mongorestore -h %s --gzip --archive=%s' % (config.MONGO_URI,
-                                                          dump_path)
-        os.system(cmd)
-    elif 'influx' in args.backup:
-        # Strip protocol prefix from influx backup uri
-        influx_backup_host = config.INFLUX.get('backup', '').replace(
-            'http://', '').replace('https://', '')
-        # Prepare base URL.
-        url = '%s/query' % config.INFLUX['host']
-        for db in ['telegraf', 'metering']:
-            cmd = 'rm -rf influx-snapshot && tar xvf %s && \
-            influxd restore -host %s -portable -db %s -newdb %s_bak \
-            influx-snapshot && echo "Restored database as %s_bak"' % (
-                dump_path, influx_backup_host, db,
-                db, db)
-            os.system(cmd)
-            resp = input("Move data from %s_bak to %s? [y/n] " % (db, db))
-            if resp.lower() == 'y':
-                requests.post('%s?q=CREATE database %s' % (url, db))
-                query = "SELECT * INTO %s..:MEASUREMENT FROM /.*/ GROUP BY *;"
-                query += "DROP DATABASE %s_bak"
-                query = query % (db, db)
-                requests.post('%s?db=%s_bak&q=%s' % (url, db, query))
-                requests.post('%s?q=DROP database %s_bak' % (url, db))
+    argparser.add_argument('backup', help="Backup to restore.")
+    argparser.add_argument('--db', help="Database backups to restore.")
+    argparser.add_argument('--until',
+                           help="Keep restoring previous backups until",
+                           default=False)
+    argparser.add_argument('--portal', help="Portal nane.",
+                           default=portal_host)
+    args = argparser.parse_args()
+
+    if args.backup.startswith('s3://'):
+        # TODO
+        return
+
+    if not args.db:
+        dbs = ['mongo', 'influx', 'victoria', 'vault']
     else:
-        print('Unknown backup type')
+        dbs = []
+        if 'mongo' in args.db:
+            dbs.append('mongo')
+        if 'influx' in args.db:
+            dbs.append('influx')
+        if 'victoria' in args.db:
+            dbs.append('victoria')
+        if 'vault' in args.db:
+            dbs.append('vault')
+
+    return restore_backup(
+        args.backup, portal=args.portal, until=args.until, databases=dbs)
+
 
 if __name__ == '__main__':
     main()

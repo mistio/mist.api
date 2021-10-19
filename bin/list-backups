@@ -1,12 +1,36 @@
 #!/usr/bin/env python
 import os
+import argparse
+
 from mist.api import config
 
+
 if __name__ == '__main__':
+    portal_host = config.CORE_URI.split('//')[1]
+    argparser = argparse.ArgumentParser(
+        description="List available backups"
+    )
+    argparser.add_argument('--db', help="Database backups to list.")
+    argparser.add_argument('--portal', help="Portal nane.", default=portal_host)
+    args = argparser.parse_args()
+    portal_path = f"{args.portal}/" if args.portal else ""
     s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
-    for db in ['mongo', 'influx']:
-        os.system(
-            's3cmd --host=%s --access_key=%s --secret_key=%s ls s3://%s/%s/' %
-            (s3_host, config.BACKUP['key'], config.BACKUP['secret'],
-             config.BACKUP['bucket'], db)
+    if not args.db:
+        dbs = ['mongo', 'influx', 'victoria', 'vault']
+    else:
+        dbs = []
+        if 'mongo' in args.db:
+            dbs.append('mongo')
+        if 'influx' in args.db:
+            dbs.append('influx')
+        if 'victoria' in args.db:
+            dbs.append('victoria')
+        if 'vault' in args.db:
+            dbs.append('vault')
+    for db in dbs:
+        cmd = (
+            f"s3cmd --host={s3_host} --access_key={config.BACKUP['key']}"
+            f" --secret_key={config.BACKUP['secret']} ls -r "
+            f"s3://{config.BACKUP['bucket']}/{portal_path}{db}/"
         )
+        os.system(cmd)

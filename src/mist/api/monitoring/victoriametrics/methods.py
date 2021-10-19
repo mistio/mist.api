@@ -4,7 +4,7 @@ import time
 
 from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import ServiceUnavailableError
-from mist.api import config
+from mist.api.helpers import get_victoriametrics_uri
 from mist.api.monitoring.victoriametrics.helpers import (
     generate_metric_mist, calculate_time_args,
     parse_value, round_base, inject_promql_machine_id)
@@ -26,8 +26,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             query = inject_promql_machine_id(metric, machine.id)
             # Need to trim org due to 32 bit limitation of
             # the accountID on victoria metrics tenants
-            uri = config.VICTORIAMETRICS_URI.replace(
-                "<org_id>", str(int(machine.owner.id[:8], 16)))
+            uri = get_victoriametrics_uri(machine.owner)
             raw_machine_data = requests.get(
                 f"{uri}/api/v1/query_range"
                 f"?query={query}{time_args}", timeout=20)
@@ -81,8 +80,7 @@ def find_metrics(machine):
     if not machine.monitoring.hasmonitoring:
         raise ForbiddenError("Machine doesn't have monitoring enabled.")
     try:
-        uri = config.VICTORIAMETRICS_URI.replace(
-            "<org_id>", str(int(machine.owner.id[:8], 16)))
+        uri = get_victoriametrics_uri(machine.owner)
         data = requests.get(
             f"{uri}/api/v1/series",
             params={"match[]": f"{{machine_id=\"{machine.id}\"}}"})
@@ -113,8 +111,7 @@ def get_load(org, machines, start, stop, step):
     data = {}
     time_args = calculate_time_args(start, stop, step)
     try:
-        uri = config.VICTORIAMETRICS_URI.replace(
-            "<org_id>", str(int(org.id[:8], 16)))
+        uri = get_victoriametrics_uri(org)
         raw_load_data = requests.get(
             f"{uri}/api/v1/query_range?query="
             f"{{__name__=\"system_load1\"}}{time_args}", timeout=20)
@@ -153,8 +150,7 @@ def get_cores(org, machines, start, stop, step):
         promql_machine_ids += machine + "|"
     promql_machine_ids = promql_machine_ids[:-1]
     try:
-        uri = config.VICTORIAMETRICS_URI.replace(
-            "<org_id>", str(int(org.id[:8], 16)))
+        uri = get_victoriametrics_uri(org)
         raw_machine_data = requests.get(
             f"{uri}/api/v1/query_range?query="
             f"count({{__name__=\"cpu_usage_idle\", cpu=~\"cpu[0-9]*\","
