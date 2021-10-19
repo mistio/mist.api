@@ -550,22 +550,25 @@ class LXDStorageController(BaseStorageController):
 
         """
 
-        filesystem = kwargs.get("block_filesystem", '')
-        block_mount_options = kwargs.get('block_mount_options', '')
-        security_shifted = kwargs.get('security_shifted', '')
+        filesystem = kwargs.get('block_filesystem')
+        block_mount_options = kwargs.get('block_mount_options')
+        security_shifted = kwargs.get('security_shifted')
 
         # TODO: Need more work on that as not all
         # volumes seem to accept this
         config = {"size": kwargs["size"]}
 
-        if filesystem != '':
+        if filesystem:
             config['block.filesystem'] = filesystem
 
-        if block_mount_options != '':
+        if block_mount_options:
             config['block.mount_options'] = block_mount_options
 
-        if security_shifted != '':
-            config['security.shifted'] = str(security_shifted)
+        # Only pass security_shifted parameter when it is True
+        # This option is only supported on LXD version >=3.16
+        # https://discuss.linuxcontainers.org/t/lxd-3-16-has-been-released/5445
+        if security_shifted is True:
+            config['security.shifted'] = "true"
 
         kwargs["definition"] = {"name": kwargs.pop("name"),
                                 "type": "custom",

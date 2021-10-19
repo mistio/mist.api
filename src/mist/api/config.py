@@ -1889,9 +1889,7 @@ PROVIDERS = {
             'provision': {
                 'custom_size': True,
                 'location': False,
-                'key': {
-                    'required': False,
-                },
+                'key': False,
                 'restrictions': {
                     'size-image-restriction': False,
                     'location-size-restriction': False,

@@ -2397,12 +2397,21 @@ class BaseComputeController(BaseController):
             from mist.api.clouds.models import CloudLocation
             locations = [CloudLocation()]
 
-        sizes, size_extra_attrs = self._generate_plan__parse_size(
-            auth_context, size)
-        size_extra_attrs = size_extra_attrs or {}
+        # Container based providers do not support sizes
+        if self.cloud.ctl.has_feature('container') is True:
+            # Create a dummy CloudSize object for container based providers
+            from mist.api.clouds.models import CloudSize
+            sizes = [CloudSize()]
+            size_extra_attrs = {}
+        else:
+            sizes, size_extra_attrs = self._generate_plan__parse_size(
+                auth_context, size)
+            size_extra_attrs = size_extra_attrs or {}
 
-        size_constraint = constraints.get('size', {})
-        sizes = check_size_constraint(self.cloud.id, size_constraint, sizes)
+            size_constraint = constraints.get('size', {})
+            sizes = check_size_constraint(self.cloud.id,
+                                          size_constraint,
+                                          sizes)
 
         comb_list = self._get_allowed_image_size_location_combinations(
             images, locations, sizes, image_extra_attrs, size_extra_attrs)
@@ -2412,13 +2421,15 @@ class BaseComputeController(BaseController):
         # don't add dummy location to plan
         if location and location.name is not None:
             plan['location'] = {'id': location.id, 'name': location.name}
-        if size:
+
+        if size and self.cloud.ctl.has_feature('container') is False:
             # custom size
             if isinstance(size, dict):
                 plan['size'] = size
             else:
                 plan['size'] = {'id': size.id, 'name': size.name}
             plan['size'].update(size_extra_attrs)
+
         if image:
             plan['image'] = {'id': image.id, 'name': image.name}
             plan['image'].update(image_extra_attrs)
@@ -2576,6 +2587,8 @@ class BaseComputeController(BaseController):
     def _generate_plan__parse_size(self, auth_context, size_obj) -> Tuple:
         """Parse the size parameter from create machine request.
 
+        This method is not called for providers with containers.
+
         Subclasses MAY override or extend this method.
 
         Parameters:
@@ -2626,6 +2639,8 @@ class BaseComputeController(BaseController):
         For providers with standard sizes a list of CloudSize objects
         within the range: [(`cpus`, `ram`), [(2*`cpus`, 2*`ram`)]
         will be returned.
+
+        This method is not called for providers with containers.
 
         Subclasses MAY override or extend this method.
 
@@ -3265,25 +3280,28 @@ class BaseComputeController(BaseController):
             'name': plan['machine_name']
         }
 
-        if plan['size'].get('id'):
-            size = plan['size']['id']
-        else:
-            # custom size
-            size = plan['size']
+        if self.cloud.ctl.has_feature('container') is False:
+            if plan['size'].get('id'):
+                size = plan['size']['id']
+            else:
+                # custom size
+                size = plan['size']
+
+            size = self._create_machine__get_size_object(size)
+            if size:
+                kwargs['size'] = size
 
         image = self._create_machine__get_image_object(
             plan['image'].get('id'))
+
         location = self._create_machine__get_location_object(
             plan.get('location', {}).get('id'))
-        size = self._create_machine__get_size_object(size)
+
         key = self._create_machine__get_key_object(
             plan.get('key', {}).get('id'))
 
         if image:
             kwargs['image'] = image
-
-        if size:
-            kwargs['size'] = size
 
         if location:
             kwargs['location'] = location
