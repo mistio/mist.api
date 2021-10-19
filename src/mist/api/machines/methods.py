@@ -418,9 +418,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if port_forwards:
         validate_portforwards(port_forwards)
 
-    cached_machines = [m.as_dict()
-                       for m in cloud.ctl.compute.list_cached_machines()]
-
     if cloud.ctl.provider is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
@@ -605,6 +602,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 else:
                     continue
 
+    cached_machine = machine.as_dict()
+
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
 
@@ -632,10 +631,22 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
-    # Emit jsonpatch with new key association
-    fresh_machines = cloud.ctl.compute.list_cached_machines()
-    cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines)
+    machine.reload()
+    # The poller has already sent an add jsonpatch when the machine was
+    # first found, without the fields (tags,key association,expiration etc.)
+    # that we assigned later. If the machine was created by a user that can
+    # only read resources tagged "dev", the user will not receive the poller
+    # patch because it was not tagged at that time.In this case the first
+    # patch below will try to update the machine and fail. The second patch
+    # that sends an add operation for this machine will solve the issue.
+    # If the machine was created by an owner the first patch below will succeed
+    # as the poller patch was applied correctly, the second patch will fail
+    # because it will be an add patch for a machine already loaded.
+    cloud.ctl.compute.produce_and_publish_patch([cached_machine], [machine])
+
+    # first_run is set to True because the poller has already logged an
+    # observation event for this machine and we don't want to double log it
+    cloud.ctl.compute.produce_and_publish_patch([], [machine], first_run=True)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if cloud.ctl.provider == Provider.AZURE.value:
