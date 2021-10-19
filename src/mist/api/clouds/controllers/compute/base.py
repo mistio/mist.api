@@ -51,6 +51,8 @@ from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
+from mist.api.helpers import get_victoriametrics_uri
+from mist.api.helpers import get_victoriametrics_write_uri
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
@@ -3548,8 +3550,7 @@ class BaseComputeController(BaseController):
         return read_queries, metering_metrics
 
     def _fetch_query(self, dt, query):
-        tenant = str(int(self.cloud.owner.id[:8], 16))
-        read_uri = config.VICTORIAMETRICS_URI.replace("<org_id>", tenant)
+        read_uri = get_victoriametrics_uri(self.cloud.owner)
         dt = int(datetime.datetime.timestamp(
             datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
         error_msg = f"Could not fetch metering data with query: {query}"
@@ -3610,8 +3611,7 @@ class BaseComputeController(BaseController):
         return last_metering_data
 
     def _find_old_counter_value(self, metric_name, machine_id, properties):
-        tenant = str(int(self.cloud.owner.id[:8], 16))
-        read_uri = config.VICTORIAMETRICS_URI.replace("<org_id>", tenant)
+        read_uri = get_victoriametrics_uri(self.cloud.owner)
         query = (
             f"last_over_time("
             f"{metric_name}{{org=\"{self.cloud.owner.id}\""
@@ -3725,13 +3725,12 @@ class BaseComputeController(BaseController):
         return "".join(metering_data_list)
 
     def _send_metering_data(self, fresh_metering_data):
-        tenant = str(int(self.cloud.owner.id[:8], 16))
         error_msg = "Could not send metering data"
         result = None
+        uri = get_victoriametrics_write_uri(self.cloud.owner)
         try:
             result = requests.post(
-                config.VICTORIAMETRICS_WRITE_URI.replace(
-                    "<org_id>", tenant),
+                f"{uri}/api/v1/import/prometheus",
                 data=fresh_metering_data, timeout=20)
         except requests.exceptions.RequestException as e:
             error_details = str(e)
