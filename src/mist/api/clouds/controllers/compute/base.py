@@ -51,6 +51,8 @@ from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
+from mist.api.helpers import get_victoriametrics_uri
+from mist.api.helpers import get_victoriametrics_write_uri
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
@@ -2397,12 +2399,21 @@ class BaseComputeController(BaseController):
             from mist.api.clouds.models import CloudLocation
             locations = [CloudLocation()]
 
-        sizes, size_extra_attrs = self._generate_plan__parse_size(
-            auth_context, size)
-        size_extra_attrs = size_extra_attrs or {}
+        # Container based providers do not support sizes
+        if self.cloud.ctl.has_feature('container') is True:
+            # Create a dummy CloudSize object for container based providers
+            from mist.api.clouds.models import CloudSize
+            sizes = [CloudSize()]
+            size_extra_attrs = {}
+        else:
+            sizes, size_extra_attrs = self._generate_plan__parse_size(
+                auth_context, size)
+            size_extra_attrs = size_extra_attrs or {}
 
-        size_constraint = constraints.get('size', {})
-        sizes = check_size_constraint(self.cloud.id, size_constraint, sizes)
+            size_constraint = constraints.get('size', {})
+            sizes = check_size_constraint(self.cloud.id,
+                                          size_constraint,
+                                          sizes)
 
         comb_list = self._get_allowed_image_size_location_combinations(
             images, locations, sizes, image_extra_attrs, size_extra_attrs)
@@ -2412,13 +2423,15 @@ class BaseComputeController(BaseController):
         # don't add dummy location to plan
         if location and location.name is not None:
             plan['location'] = {'id': location.id, 'name': location.name}
-        if size:
+
+        if size and self.cloud.ctl.has_feature('container') is False:
             # custom size
             if isinstance(size, dict):
                 plan['size'] = size
             else:
                 plan['size'] = {'id': size.id, 'name': size.name}
             plan['size'].update(size_extra_attrs)
+
         if image:
             plan['image'] = {'id': image.id, 'name': image.name}
             plan['image'].update(image_extra_attrs)
@@ -2576,6 +2589,8 @@ class BaseComputeController(BaseController):
     def _generate_plan__parse_size(self, auth_context, size_obj) -> Tuple:
         """Parse the size parameter from create machine request.
 
+        This method is not called for providers with containers.
+
         Subclasses MAY override or extend this method.
 
         Parameters:
@@ -2626,6 +2641,8 @@ class BaseComputeController(BaseController):
         For providers with standard sizes a list of CloudSize objects
         within the range: [(`cpus`, `ram`), [(2*`cpus`, 2*`ram`)]
         will be returned.
+
+        This method is not called for providers with containers.
 
         Subclasses MAY override or extend this method.
 
@@ -3265,25 +3282,28 @@ class BaseComputeController(BaseController):
             'name': plan['machine_name']
         }
 
-        if plan['size'].get('id'):
-            size = plan['size']['id']
-        else:
-            # custom size
-            size = plan['size']
+        if self.cloud.ctl.has_feature('container') is False:
+            if plan['size'].get('id'):
+                size = plan['size']['id']
+            else:
+                # custom size
+                size = plan['size']
+
+            size = self._create_machine__get_size_object(size)
+            if size:
+                kwargs['size'] = size
 
         image = self._create_machine__get_image_object(
             plan['image'].get('id'))
+
         location = self._create_machine__get_location_object(
             plan.get('location', {}).get('id'))
-        size = self._create_machine__get_size_object(size)
+
         key = self._create_machine__get_key_object(
             plan.get('key', {}).get('id'))
 
         if image:
             kwargs['image'] = image
-
-        if size:
-            kwargs['size'] = size
 
         if location:
             kwargs['location'] = location
@@ -3530,8 +3550,7 @@ class BaseComputeController(BaseController):
         return read_queries, metering_metrics
 
     def _fetch_query(self, dt, query):
-        tenant = str(int(self.cloud.owner.id[:8], 16))
-        read_uri = config.VICTORIAMETRICS_URI.replace("<org_id>", tenant)
+        read_uri = get_victoriametrics_uri(self.cloud.owner)
         dt = int(datetime.datetime.timestamp(
             datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
         error_msg = f"Could not fetch metering data with query: {query}"
@@ -3592,8 +3611,7 @@ class BaseComputeController(BaseController):
         return last_metering_data
 
     def _find_old_counter_value(self, metric_name, machine_id, properties):
-        tenant = str(int(self.cloud.owner.id[:8], 16))
-        read_uri = config.VICTORIAMETRICS_URI.replace("<org_id>", tenant)
+        read_uri = get_victoriametrics_uri(self.cloud.owner)
         query = (
             f"last_over_time("
             f"{metric_name}{{org=\"{self.cloud.owner.id}\""
@@ -3707,13 +3725,12 @@ class BaseComputeController(BaseController):
         return "".join(metering_data_list)
 
     def _send_metering_data(self, fresh_metering_data):
-        tenant = str(int(self.cloud.owner.id[:8], 16))
         error_msg = "Could not send metering data"
         result = None
+        uri = get_victoriametrics_write_uri(self.cloud.owner)
         try:
             result = requests.post(
-                config.VICTORIAMETRICS_WRITE_URI.replace(
-                    "<org_id>", tenant),
+                f"{uri}/api/v1/import/prometheus",
                 data=fresh_metering_data, timeout=20)
         except requests.exceptions.RequestException as e:
             error_details = str(e)

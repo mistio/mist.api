@@ -1,8 +1,37 @@
 #!/usr/bin/env python
 import os
-from mist.api.tasks import create_backup
+import argparse
+import logging
+from mist.api.portal.tasks import create_backup
+from mist.api import config
+
+log = logging.getLogger()
+
 
 if __name__ == '__main__':
+    if not config.BACKUP['key']:
+        log.error("No S3 key configured")
+        exit(-1)
+    if not config.BACKUP['secret']:
+        log.error("No S3 secret configured")
+        exit(-1)
     if not os.getenv('LANG'):
         os.environ['LANG'] = 'en_US.UTF-8'
-    create_backup()
+    argparser = argparse.ArgumentParser(
+        description="Create a mist backup"
+    )
+    argparser.add_argument('--db', help="Database to backup.")
+    args = argparser.parse_args()
+    if not args.db:
+        databases = ['mongo', 'influx', 'victoria', 'vault']
+    else:
+        databases = []
+        if 'mongo' in args.db:
+            databases.append('mongo')
+        if 'influx' in args.db:
+            databases.append('influx')
+        if 'victoria' in args.db:
+            databases.append('victoria')
+        if 'vault' in args.db:
+            databases.append('vault')
+    create_backup(databases)

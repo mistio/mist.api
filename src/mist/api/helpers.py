@@ -1732,3 +1732,13 @@ def apply_promql_query_rbac(auth_context, tags, search, query):
         return apply_promql_rbac(auth_context, tags, search, query)
     except ImportError:
         return query
+
+
+def get_victoriametrics_uri(org):
+    return config.VICTORIAMETRICS_URI.replace(
+        "<org_id>", str(int(org.id[:8], 16)))
+
+
+def get_victoriametrics_write_uri(org):
+    return config.VICTORIAMETRICS_WRITE_URI.replace(
+        "<org_id>", str(int(org.id[:8], 16)))

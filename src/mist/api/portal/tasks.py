@@ -1,10 +1,15 @@
+import os
 import logging
+import datetime
+import subprocess
 
 import requests
 
 from mist.api.dramatiq_app import dramatiq
 
 from mist.api import config
+from mist.api.helpers import get_victoriametrics_uri
+from mist.api.helpers import get_victoriametrics_write_uri
 from mist.api.portal.models import Portal, AvailableUpgrade
 from mist.api.metering.methods import get_current_portal_usage
 
@@ -12,6 +17,7 @@ from mist.api.metering.methods import get_current_portal_usage
 log = logging.getLogger(__name__)
 
 __all__ = [
+    'create_backup',
     'check_new_versions',
     'usage_survey'
 ]
@@ -75,3 +81,235 @@ def usage_survey(url="https://mist.io/api/v1/usage-survey"):
         log.error("Bad response while sending usage info: %s: %s",
                   resp.status_code, resp.text)
         raise Exception("%s: %s" % (resp.status_code, resp.text))
+
+
+@dramatiq.actor(store_results=True)
+def create_backup(
+        databases=['mongo', 'influx', 'elastic', 'victoria', 'vault']):
+    """
+        Backup databases if s3 creds are set.
+    """
+
+    start = datetime.datetime.now()
+    dt = start.strftime('%Y%m%d%H%M')
+    s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
+    portal_host = config.CORE_URI.split('//')[1]
+
+    # Encrypt backup if GPG configured
+    has_gpg = not all(
+        value == '' for value in config.BACKUP.get('gpg', {}).values())
+    if has_gpg:
+        f = open('pub.key', 'w+')
+        f.write(config.BACKUP['gpg']['public'])
+        f.close()
+        os.system("gpg --import pub.key")
+        gpg_cmd = (
+            f"gpg --yes --trust-model always --encrypt"
+            f" --recipient {config.BACKUP['gpg']['recipient']} |"
+        )
+    else:
+        gpg_cmd = ""
+    if 'mongo' in databases:
+        start_mongo = datetime.datetime.now()
+        # If MONGO_URI consists of multiple hosts get the last one
+        mongo_backup_host = config.MONGO_URI.split('//')[-1].split(
+            '/')[0].split(',')[-1]
+        cmd = (
+            f"mongodump --host {mongo_backup_host} --gzip --archive |"
+            f"{gpg_cmd}"
+            f"s3cmd --host={s3_host} --access_key={config.BACKUP['key']}"
+            f" --secret_key={config.BACKUP['secret']} put - "
+            f" s3://{config.BACKUP['bucket']}/{portal_host}/mongo/{dt}"
+        )
+
+        os.system(cmd)
+        log.info('MongoDB backup finished in %s' % (
+            datetime.datetime.now() - start_mongo))
+
+    if 'influx' in databases:
+        start_influx = datetime.datetime.now()
+        # Strip protocol prefix from influx backup uri
+        influx_backup_host = config.INFLUX.get('backup', '').replace(
+            'http://', '').replace('https://', '')
+        if influx_backup_host:
+            cmd = (
+                f"influxd backup -portable -host {influx_backup_host} "
+                f"./influx-snapshot && tar cv influx-snapshot |"
+                f"{gpg_cmd}"
+                f"s3cmd --host={s3_host} --access_key={config.BACKUP['key']}"
+                f" --secret_key={config.BACKUP['secret']} put - "
+                f" s3://{config.BACKUP['bucket']}/{portal_host}/"
+                f"influx/{dt} && rm -rf influx-snapshot"
+            )
+            os.system(cmd)
+            log.info('InfluxDB backup finished in %s' % (
+                datetime.datetime.now() - start_influx))
+
+    if 'victoria' in databases:
+        from mist.api.users.models import Organization
+
+        start_victoria = datetime.datetime.now()
+        last_month = start_victoria - datetime.timedelta(days=31)
+        start_of_hour = start_victoria.replace(
+            minute=0, second=0, microsecond=0)
+        last_backup_time = start_of_hour - datetime.timedelta(
+            hours=config.BACKUP_INTERVAL)
+        start_ts = int(last_backup_time.timestamp())
+        suffix = '.gpg' if has_gpg else ''
+        for org in Organization.objects(
+                last_active__gt=last_month).order_by('-last_active'):
+            uri = get_victoriametrics_uri(org)
+            cmd = (
+                f'curl "{uri}/api/v1/export?start={start_ts}&'
+                f'match[]=\{{__name__!=\\\"\\\"\}}" | gzip | '
+                f'{gpg_cmd}'
+                f's3cmd --host={s3_host} --access_key={config.BACKUP["key"]}'
+                f' --secret_key={config.BACKUP["secret"]} put - '
+                f's3://{config.BACKUP["bucket"]}/{portal_host}/victoria/'
+                f'{dt}/{org.id}{suffix}'
+            )
+            # print(cmd)
+            os.system(cmd)
+        log.info('VictoriaMetrics backup finished in %s' % (
+            datetime.datetime.now() - start_victoria))
+    log.info('All backups finished in %s' % (
+        datetime.datetime.now() - start))
+
+
+def restore_backup(backup, portal=None, until=False, databases=[
+        'mongodb', 'influxdb', 'elasticsearch', 'victoriametrics', 'vault']):
+    if not portal:
+        portal = config.CORE_URI.split('//')[1]
+    portal_path = f"{portal}/" if portal else ""
+    s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
+    start = datetime.datetime.now()
+    has_gpg = not all(
+        value == '' for value in config.BACKUP.get('gpg', {}).values())
+
+    for db in databases:
+        cmd = (
+            f"s3cmd --host={s3_host} --access_key={config.BACKUP['key']}"
+            f" --secret_key={config.BACKUP['secret']} get --recursive --force"
+            f" s3://{config.BACKUP['bucket']}/{portal_path}{db}/{backup}"
+            f" {backup}.{db} && "
+        )
+        if 'mongo' in db:
+            start_mongo = datetime.datetime.now()
+            if has_gpg:
+                cmd += (
+                    f"mv {backup}.{db} {backup}.{db}.gpg && "
+                    f"gpg -o {backup}.{db} --pinentry-mode loopback"
+                    f" -d {backup}.{db}.gpg && "
+                )
+            cmd += (
+                f"mongorestore -h {config.MONGO_URI} --gzip"
+                f" --archive={backup}.{db}"
+            )
+            os.system(cmd)
+            log.info('MongoDB restore finished in %s' % (
+                datetime.datetime.now() - start_mongo))
+        elif 'influx' in db:
+            start_influx = datetime.datetime.now()
+            if has_gpg:
+                cmd += (
+                    f"mv {backup}.{db} {backup}.{db}.gpg && "
+                    f"gpg -o {backup}.{db} --pinentry-mode loopback"
+                    f" -d {backup}.{db}.gpg && "
+                )
+            influx_backup_host = config.INFLUX.get('backup', '').replace(
+                'http://', '').replace('https://', '')
+            # Prepare base URL.
+            url = '%s/query' % config.INFLUX['host']
+            cmd += (
+                f"rm -rf influx-snapshot && tar xvf {backup}.{db}"
+            )
+            # print(cmd)
+            os.system(cmd)
+
+            for idb in ['telegraf', 'metering']:
+                cmd = (
+                    f"influxd restore -host {influx_backup_host} -portable"
+                    f" -db {idb} -newdb {idb}_bak influx-snapshot && "
+                    f"echo Restored database as {idb}_bak"
+                )
+                print(cmd)
+                os.system(cmd)
+                resp = input("Move data from %s_bak to %s? [y/n] " % (
+                    idb, idb))
+                if resp.lower() == 'y':
+                    requests.post('%s?q=CREATE database %s' % (url, idb))
+                    query = (
+                        "SELECT * INTO %s..:MEASUREMENT FROM /.*/ "
+                        "GROUP BY *;"
+                    )
+                    query += "DROP DATABASE %s_bak"
+                    query = query % (idb, idb)
+                    requests.post('%s?db=%s_bak&q=%s' % (url, idb, query))
+                    requests.post('%s?q=DROP database %s_bak' % (url, idb))
+            log.info('InfluxDB restore finished in %s' % (
+                datetime.datetime.now() - start_influx))
+        elif 'elastic' in db:
+            # TODO
+            print(cmd)
+        elif 'vault' in db:
+            # TODO
+            print(cmd)
+        elif 'victoria' in db:
+            from mist.api.models import Organization
+            start_victoria = datetime.datetime.now()
+            if has_gpg:
+                cmd += (
+                    f"gpg --pinentry-mode loopback --decrypt-files"
+                    f" {backup}.{db}/{backup}/*.gpg && "
+                    f"rm {backup}.{db}/{backup}/*.gpg && "
+                )
+
+            cmd += "echo Dowloaded"
+            cmd = f"rm -rf {backup}.{db} && mkdir {backup}.{db} && " + cmd
+            # print(cmd)
+            os.system(cmd)
+            last_month = start - datetime.timedelta(days=31)
+            for org_id in os.listdir(f'{backup}.{db}/{backup}'):
+                try:
+                    org = Organization.objects.get(id=org_id)
+                except org.DoesNotExist:
+                    log.error(f"Organization {org_id} not found")
+                    continue
+                if org.last_active < last_month:
+                    log.error(
+                        f"Organization {org.name} not recently active")
+                    continue
+
+                uri = get_victoriametrics_write_uri(org)
+                cmd = (
+                    f'cat {backup}.{db}/{backup}/{org_id} | '
+                    f'gzip -d > {backup}.{db}/{org_id}.plain && '
+                    f'curl -X POST "{uri}/api/v1/import" '
+                    f' -T {backup}.{db}/{org_id}.plain'
+                )
+                # print(cmd)
+                os.system(cmd)
+            if until:
+                cmd = (
+                    f"s3cmd --host={s3_host} "
+                    f" --access_key={config.BACKUP['key']}"
+                    f" --secret_key={config.BACKUP['secret']} ls "
+                    f"s3://{config.BACKUP['bucket']}/{portal_path}{db}/ |"
+                    f" grep {db}"
+                )
+                result = subprocess.check_output(cmd, shell=True)
+                available_backups = [
+                    int(l.strip().split('/victoria/')[1].rstrip('/'))
+                    for l in result.decode().split('\n') if '/victoria/' in l]
+                available_backups.sort(reverse=True)
+                for b in available_backups:
+                    if b < int(backup) and b >= int(until or 0):
+                        restore_backup(b, databases=['victoria'])
+
+            log.info('VictoriaMetrics restore finished in %s' % (
+                datetime.datetime.now() - start_victoria))
+
+        else:
+            print('Unknown backup type')
+
+    return
