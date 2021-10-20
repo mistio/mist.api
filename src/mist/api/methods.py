@@ -675,6 +675,9 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 if getattr(resource_model, 'name', None) and \
                         not isinstance(getattr(resource_model, 'name'), property):  # noqa
                     field_name = 'name'
+                elif getattr(resource_model, 'domain', None) and \
+                        not isinstance(getattr(resource_model, 'domain'), property):  # noqa
+                    field_name = 'domain'
                 else:
                     field_name = 'title'
                 # id will always be exact match
