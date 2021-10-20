@@ -4221,6 +4221,61 @@ class DockerComputeController(BaseComputeController):
         """Private method to rename a given machine"""
         self.connection.ex_rename_container(node, name)
 
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
+        try:
+            port_bindings = networks_dict['port_bindings']
+        except KeyError:
+            return None
+
+        if not isinstance(port_bindings, dict):
+            raise BadRequestError('Invalid port_bindings parameter')
+
+        host_port_regex = r'^\d{1,5}$'
+        container_port_regex = r'^\d{1,5}(\/\w+)?$'
+
+        for container_port, host_port in port_bindings.items():
+            if (not re.match(host_port_regex, host_port) or
+                    not re.match(container_port_regex, container_port)):
+                raise BadRequestError('Invalid port bindings')
+
+        return port_bindings
+
+    def _generate_plan__parse_extra(self, extra, plan) -> None:
+        if extra.get('command'):
+            plan['command'] = extra['command']
+
+        if extra.get('environment'):
+            if not isinstance(extra['environment'], dict):
+                raise BadRequestError('Invalid port_bindings parameter')
+
+            plan['environment'] = extra['environment']
+
+        if extra.get('limits'):
+            if not isinstance(extra['limits'], dict):
+                raise BadRequestError('Invalid limits parameter')
+
+            limits = {}
+            try:
+                cpu_limit = float(extra['limits']['cpu'])
+            except KeyError:
+                pass
+            except (ValueError, TypeError):
+                raise BadRequestError('Invalid cpu limit')
+            else:
+                limits['cpu'] = cpu_limit
+
+            try:
+                memory_limit = int(extra['limits']['memory'])
+            except KeyError:
+                pass
+            except (ValueError, TypeError):
+                raise BadRequestError('Invalid memory limit')
+            else:
+                limits['memory'] = memory_limit
+
+            plan['limits'] = limits
+
 
 class LXDComputeController(BaseComputeController):
     """
