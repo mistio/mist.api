@@ -115,8 +115,8 @@ def create_backup(
         mongo_backup_host = config.MONGO_URI.split('//')[-1].split(
             '/')[0].split(',')[-1]
         cmd = (
-            f"mongodump --host {mongo_backup_host} --gzip --archive |"
-            f"{gpg_cmd}"
+            f"mongodump --host {mongo_backup_host} --gzip --archive"
+            f" --forceTableScan | {gpg_cmd}"
             f"s3cmd --host={s3_host} --access_key={config.BACKUP['key']}"
             f" --secret_key={config.BACKUP['secret']} put - "
             f" s3://{config.BACKUP['bucket']}/{portal_host}/mongo/{dt}"
@@ -154,7 +154,8 @@ def create_backup(
             minute=0, second=0, microsecond=0)
         last_backup_time = start_of_hour - datetime.timedelta(
             hours=config.BACKUP_INTERVAL)
-        start_ts = int(last_backup_time.timestamp())
+        start_ts = int((last_backup_time - datetime.timedelta(
+            hours=config.BACKUP_INTERVAL)).timestamp())
         suffix = '.gpg' if has_gpg else ''
         for org in Organization.objects(
                 last_active__gt=last_month).order_by('-last_active'):
