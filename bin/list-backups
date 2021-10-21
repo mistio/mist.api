@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-import os
 import argparse
 
+from libcloud.storage.types import Provider
+from libcloud.storage.providers import get_driver
 from mist.api import config
 
 
@@ -11,10 +12,17 @@ if __name__ == '__main__':
         description="List available backups"
     )
     argparser.add_argument('--db', help="Database backups to list.")
-    argparser.add_argument('--portal', help="Portal nane.", default=portal_host)
+    argparser.add_argument(
+        '--portal', help="Portal nane.", default=portal_host)
     args = argparser.parse_args()
     portal_path = f"{args.portal}/" if args.portal else ""
     s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
+    driver = get_driver(Provider.S3)(
+        config.BACKUP['key'],
+        config.BACKUP['secret'],
+        region=config.BACKUP['region']
+    )
+    container = driver.get_container(container_name=config.BACKUP['bucket'])
     if not args.db:
         dbs = ['mongo', 'influx', 'victoria', 'vault']
     else:
@@ -28,9 +36,7 @@ if __name__ == '__main__':
         if 'vault' in args.db:
             dbs.append('vault')
     for db in dbs:
-        cmd = (
-            f"s3cmd --host={s3_host} --access_key={config.BACKUP['key']}"
-            f" --secret_key={config.BACKUP['secret']} ls -r "
-            f"s3://{config.BACKUP['bucket']}/{portal_path}{db}/"
-        )
-        os.system(cmd)
+        backups = container.list_objects(prefix=f'{portal_path}{db}/')
+        for backup in backups:
+            print("{0:74}\t{1:12}\t{2}".format(
+                backup.name, backup.size, backup.extra["last_modified"]))
