@@ -15,7 +15,7 @@ graphite_to_victoriametrics_map = {
     'df.sda1.df_complex.used_percent': 'disk_used_percent{device="sda1"}',
     'df.vda1.df_complex.free': 'disk_free{device="vda1"}',
     'disk.total.disk_octets.read': 'sum(rate(diskio_read_bytes))',
-    'disk.total.disk_octets.write': 'sum(rate(diskio_write_bytes)',
+    'disk.total.disk_octets.write': 'sum(rate(diskio_write_bytes))',
     'interface.total.if_octets.tx': 'sum(rate(net_bytes_sent))',
     'load.midterm': 'system_load5',
     'load.shortterm': 'system_load1',
