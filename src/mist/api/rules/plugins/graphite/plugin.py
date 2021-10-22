@@ -17,7 +17,7 @@ class GraphiteBackendPlugin(base.BaseBackendPlugin):
         # No data ever reached Graphite? Is the whisper file missing?
         if not len(data):
             log.warning('Empty response for %s.%s', rid, query.target)
-            raise methods.EmptyResponseReturnedError()
+            return None, None
 
         # Check whether the query to Graphite returned multiple series. This
         # should never occur actually, since the query's target belongs to a
