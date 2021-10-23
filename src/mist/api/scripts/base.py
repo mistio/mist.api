@@ -236,8 +236,11 @@ class BaseScriptController(object):
         url = self.generate_signed_url()
         tmp_dir = '/tmp/script-%s-%s-XXXX' % (self.script.id, job_id)
         sudo = 'sudo ' if su else ''
-        env_str = '&& '.join([f"export {kv} " for kv in env.split('\n')])
-        env_str += ' && ' if env_str else ''
+        if env:
+            env_str = '&& '.join([f"export {kv} " for kv in env.split('\n')])
+            env_str += ' && ' if env_str else ''
+        else:
+            env_str = ''
         entrypoint = getattr(self.script.location, 'entrypoint', 'main')
         command = (
             f'{env_str}'
