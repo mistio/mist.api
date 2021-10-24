@@ -30,7 +30,7 @@ def unix_install(machine):
 
 
 def unix_uninstall():
-    return "wget -O- %s/uninstall-telegraf.sh | sudo sh" % REPO
+    return "wget -O- %s/uninstall-telegraf.sh | $(command -v sudo) sh" % REPO
 
 
 def coreos_install(machine):
