@@ -19,7 +19,7 @@ class InfluxDBBackendPlugin(base.BaseBackendPlugin):
         # If response is empty, then data is absent for the given interval.
         if not len(data):
             log.warning('No datapoints for %s.%s', rid, query.target)
-            raise methods.EmptyResponseReturnedError()
+            return None, None
 
         # Check whether the query to InfluxDB returned multiple series.
         if len(data) > 1:
@@ -35,6 +35,9 @@ class InfluxDBBackendPlugin(base.BaseBackendPlugin):
 
         # Sanitize datapoints.
         datapoints = [val for val, _ in data['datapoints'] if val is not None]
+        if not datapoints:
+            log.warning('No datapoints for %s.%s', rid, query.target)
+            return None, None
 
         # Compare against the threshold and compute retval.
         return methods.compute(query.operator, query.aggregation, datapoints,

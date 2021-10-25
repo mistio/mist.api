@@ -50,6 +50,7 @@ THEME = ""
 EMAIL_LOGO = "landing/images/logo-email-440.png"
 
 GC_SCHEDULERS = True
+GC_SESSIONS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
@@ -3212,7 +3213,12 @@ if USAGE_SURVEY:
     }
 if GC_SCHEDULERS:
     _schedule['gc-schedulers'] = {
-        'task': 'mist.api.tasks.gc_schedulers',
+        'task': 'mist.api.portal.tasks.gc_schedulers',
+        'schedule': datetime.timedelta(hours=24),
+    }
+if GC_SESSIONS:
+    _schedule['gc-sessions'] = {
+        'task': 'mist.api.portal.tasks.gc_sessions',
         'schedule': datetime.timedelta(hours=24),
     }
 if ENABLE_MONITORING:

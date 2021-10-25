@@ -23,7 +23,7 @@ class VictoriaMetricsBackendPlugin(base.BaseBackendPlugin):
         # If response is empty, then data is absent for the given interval.
         if not len(data):
             log.warning('No datapoints for %s.%s', rid, query.target)
-            raise methods.EmptyResponseReturnedError()
+            return None, None
 
         # Check whether the query to Victoria Metrics returned multiple series.
         if len(data) > 1:

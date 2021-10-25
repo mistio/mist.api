@@ -5,6 +5,8 @@ import subprocess
 
 import requests
 
+import mongoengine as me
+
 from mist.api.dramatiq_app import dramatiq
 
 from mist.api import config
@@ -12,6 +14,9 @@ from mist.api.helpers import get_victoriametrics_uri
 from mist.api.helpers import get_victoriametrics_write_uri
 from mist.api.portal.models import Portal, AvailableUpgrade
 from mist.api.metering.methods import get_current_portal_usage
+from mist.api.rules.models import NoDataRule
+from mist.api.poller.models import PollingSchedule
+from mist.api.auth.models import SessionToken, ApiToken
 
 
 log = logging.getLogger(__name__)
@@ -36,6 +41,55 @@ def get_version_params(portal=None):
     for key, value in list(get_current_portal_usage().items()):
         params['usage_%s' % key] = value
     return params
+
+
+@dramatiq.actor
+def gc_schedulers():
+    """Delete disabled schedules.
+
+    This takes care of:
+
+    1. Removing disabled list_machines polling schedules.
+    2. Removing ssh/ping probe schedules, whose machines are missing or
+       corresponding clouds have been deleted.
+    3. Removing inactive no-data rules. They are added idempotently the
+       first time get_stats receives data for a newly monitored machine.
+
+    Note that this task does not run GC on user-defined schedules.
+
+    """
+    for collection in (PollingSchedule, NoDataRule, ):
+        for entry in collection.objects():
+            try:
+                if not entry.enabled:
+                    log.warning('Removing %s', entry)
+                    entry.delete()
+            except me.DoesNotExist:
+                entry.delete()
+            except Exception as exc:
+                log.error(exc)
+
+
+@dramatiq.actor
+def gc_sessions():
+    """Delete expired sessions & invalid old tokens.
+    """
+    tdelta = datetime.timedelta(days=7)
+    expired_sessions = SessionToken.objects(
+        created_at__lt=datetime.datetime.now() - tdelta)
+    expired_session_count = expired_sessions.count()
+    if expired_session_count:
+        print(f"Removing {expired_session_count} expired sessions.")
+        expired_sessions.delete()
+    aged_tokens = ApiToken.objects(
+        created_at__lt=datetime.datetime.now() - tdelta)
+    expired_tokens = [t.id for t in aged_tokens if not t.is_valid()]
+    expired_token_count = len(expired_tokens)
+    if expired_token_count:
+        print(f"Removing {expired_token_count} expired API tokens.")
+        ApiToken.objects(id__in=expired_tokens).delete()
+    print(f"{SessionToken.objects.count()} sessions remaining")
+    print(f"{ApiToken.objects.count()} api tokens remaining")
 
 
 @dramatiq.actor
@@ -115,8 +169,8 @@ def create_backup(
         mongo_backup_host = config.MONGO_URI.split('//')[-1].split(
             '/')[0].split(',')[-1]
         cmd = (
-            f"mongodump --host {mongo_backup_host} --gzip --archive |"
-            f"{gpg_cmd}"
+            f"mongodump --host {mongo_backup_host} --gzip --archive"
+            f" --forceTableScan | {gpg_cmd}"
             f"s3cmd --host={s3_host} --access_key={config.BACKUP['key']}"
             f" --secret_key={config.BACKUP['secret']} put - "
             f" s3://{config.BACKUP['bucket']}/{portal_host}/mongo/{dt}"
@@ -154,7 +208,8 @@ def create_backup(
             minute=0, second=0, microsecond=0)
         last_backup_time = start_of_hour - datetime.timedelta(
             hours=config.BACKUP_INTERVAL)
-        start_ts = int(last_backup_time.timestamp())
+        start_ts = int((last_backup_time - datetime.timedelta(
+            hours=config.BACKUP_INTERVAL)).timestamp())
         suffix = '.gpg' if has_gpg else ''
         for org in Organization.objects(
                 last_active__gt=last_month).order_by('-last_active'):

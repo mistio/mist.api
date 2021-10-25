@@ -174,7 +174,8 @@ class BaseScriptController(object):
         """Returns a file or archive."""
 
         if self.script.location.type == 'inline':
-            return self.script.location.source_code
+            return Response(content_type='text/plain', charset='utf-8',
+                            body=self.script.location.source_code)
             # return Response(self.script.location.source_code)
         else:
             # Download a file over HTTP
@@ -228,26 +229,38 @@ class BaseScriptController(object):
         return url + '?' + encode_params
 
     def run(self, auth_context, machine, host=None, port=None, username=None,
-            password=None, su=False, key_id=None, params=None, job_id=None):
+            password=None, su=False, key_id=None, params=None, job_id=None,
+            env=''):
         from mist.api.shell import Shell
 
         url = self.generate_signed_url()
         tmp_dir = '/tmp/script-%s-%s-XXXX' % (self.script.id, job_id)
         sudo = 'sudo ' if su else ''
+        if env:
+            env_str = '&& '.join([f"export {kv} " for kv in env.split('\n')])
+            env_str += ' && ' if env_str else ''
+        else:
+            env_str = ''
+        entrypoint = getattr(self.script.location, 'entrypoint', 'main')
         command = (
-            "TMP_DIR=$(mktemp -d {tmp_dir}) && cd $TMP_DIR &&"
-            " command -v curl > /dev/null 2>&1 && CMD=\"curl -o \""
-            "  || CMD=\"wget -O \" &&"
-            " $CMD ./script \"{url}\" > /dev/null 2>&1 && (("
-            "  (unzip ./script > /dev/null 2>&1 || "
-            "   tar xvzf ./script > /dev/null 2>&1) && "
-            "  chmod +x ./*/{entrypoint} &&"
-            "  {sudo} ./*/{entrypoint} {params}) ||"
-            "  (chmod +x ./script && {sudo} ./script {params}) &&"
-            "   rm -rf $TMP_DIR); cd - > /dev/null 2>&1").format(
-            tmp_dir=tmp_dir, url=url, sudo=sudo,
-            entrypoint=getattr(self.script.location, 'entrypoint', 'main'),
-            params=params
+            f'{env_str}'
+            'fetchrun() {'
+            f'  TMP_DIR=$(mktemp -d {tmp_dir}) && '
+            f'  cd $TMP_DIR && '
+            f'  command -v curl > /dev/null 2>&1 && DLCMD="curl -o "'
+            f'  || DLCMD="wget -O " && '
+            f'  $DLCMD ./script "{url}" > /dev/null 2>&1 && '
+            f'  (unzip ./script > /dev/null 2>&1 || '
+            f'   tar xvzf ./script > /dev/null 2>&1); '
+            f'  (chmod +x ./*/{entrypoint}  > /dev/null 2>&1 && '
+            f'   {sudo} ./*/{entrypoint} {params}) ||'
+            f'  (chmod +x ./script && '
+            f'   {sudo} ./script {params});'
+            f'  retval="$?"; echo $retval;'
+            f'  rm -rf $TMP_DIR; echo $retval;'
+            f'  cd - > /dev/null 2>&1;'
+            f'  return "$retval";'
+            '} && fetchrun'
         )
 
         shell = Shell(host)
