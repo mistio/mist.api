@@ -15,9 +15,10 @@ class GraphiteBackendPlugin(base.BaseBackendPlugin):
         data = hrs.MultiHandler(rid).get_data(query.target, start=self.window)
 
         # No data ever reached Graphite? Is the whisper file missing?
+        # Graphite's empty response doesn't mean it has no values
         if not len(data):
             log.warning('Empty response for %s.%s', rid, query.target)
-            return None, None
+            raise methods.EmptyResponseReturnedError()
 
         # Check whether the query to Graphite returned multiple series. This
         # should never occur actually, since the query's target belongs to a
