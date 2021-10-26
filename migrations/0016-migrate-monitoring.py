@@ -6,6 +6,7 @@ from mist.api.config import GRAPHITE_TO_VICTORIAMETRICS_METRICS_MAP
 from mist.api import config
 from mist.api.rules.models import MachineMetricRule
 from mist.api.models import Machine
+from mist.api.monitoring.methods import update_metric
 
 
 graphite_to_victoriametrics_map = {
@@ -104,6 +105,8 @@ def migrate_machines(force_migration=None):
             if metrics_map.get(migration):
                 machine.monitoring.metrics = [metrics_map[migration].get(
                     metric, metric) for metric in machine.monitoring.metrics]
+            for metric in machine.monitoring.metrics:
+                update_metric(machine.owner, metric)
             machine.monitoring.method = config.DEFAULT_MONITORING_METHOD
             machine.save()
             updated += 1
