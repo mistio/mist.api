@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+
+import argparse
+from mist.api.config import GRAPHITE_TO_VICTORIAMETRICS_METRICS_MAP
+
 from mist.api import config
 from mist.api.rules.models import MachineMetricRule
 from mist.api.models import Machine
@@ -25,8 +29,18 @@ graphite_to_victoriametrics_map = {
     'memory_extra.available': 'mem_available',
     'memory.used_percent': '(mem_used/mem_total)*100',
     'system.n_cpus': 'system_n_cpus',
-    'cpu.0.user': 'cpu_usage_user{cpu="cpu0"}'
+    'cpu.0.user': 'cpu_usage_user{cpu="cpu0"}',
+    'df.sda1.df_complex.total': 'disk_total{device="sda1"}',
+    'df.sda1.df_complex.used_percent': 'disk_used_percent{device="sda1"}',
+    'disk.sda1.disk_octets.write': 'rate(diskio_write_bytes{name="sda1"})',
+    'disk_extra.md0.iops_in_progress': 'diskio_iops_in_progress{name="md0"}',
+    'interface.eth0.if_errors.rx': 'net_err_in{interface="eth0"}',
+    'kernel.boot_time': 'kernel_boot_time',
+    'kernel.interrupts': 'kernel_interrupts',
+    'swap.free': 'swap_free',
 }
+
+graphite_to_victoriametrics_map.update(GRAPHITE_TO_VICTORIAMETRICS_METRICS_MAP)
 
 influxdb_to_graphite_map = {
     "system.load1": "load.shortterm",
@@ -49,7 +63,29 @@ def invert_map(map):
     return {v: k for k, v in map.items()}
 
 
-def migrate_machines():
+metrics_map = {
+    'influxdb-graphite': influxdb_to_graphite_map,
+    'influxdb-victoriametrics': influxdb_to_victoriametrics_map,
+    'graphite-influxdb': invert_map(influxdb_to_graphite_map),
+    'graphite-victoriametrics': graphite_to_victoriametrics_map,
+    'victoriametrics-graphite': invert_map(
+        graphite_to_victoriametrics_map),
+    'victoriametrics-influxdb': invert_map(
+        influxdb_to_victoriametrics_map)
+}
+
+
+def parse_args():
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument(
+        '-f', '--force-migration', type=ascii,
+        help="Force a specific migration e.g. graphite-victoriametrics"
+    )
+    return argparser.parse_args()
+
+
+def migrate_machines(force_migration=None):
+    default_timeseries_db = config.DEFAULT_MONITORING_METHOD.split("-")[1]
     failed = updated = 0
     machines = Machine.objects(
         missing_since=None, monitoring__hasmonitoring=True)
@@ -60,6 +96,14 @@ def migrate_machines():
 
     for machine in machines:
         try:
+            current_timeseries_db = machine.monitoring.method.split("-")[1]
+            if force_migration:
+                migration = force_migration
+            else:
+                migration = f"{current_timeseries_db}-{default_timeseries_db}"
+            if metrics_map.get(migration):
+                machine.monitoring.metrics = [metrics_map[migration].get(
+                    metric, metric) for metric in machine.monitoring.metrics]
             machine.monitoring.method = config.DEFAULT_MONITORING_METHOD
             machine.save()
             updated += 1
@@ -73,21 +117,14 @@ def migrate_machines():
     print(f'{failed} machines failed')
 
 
-def migrate_rules():
-    metrics_map = {
-        'influxdb-graphite': influxdb_to_graphite_map,
-        'influxdb-victoriametrics': influxdb_to_victoriametrics_map,
-        'graphite-influxdb': invert_map(influxdb_to_graphite_map),
-        'graphite-victoriametrics': graphite_to_victoriametrics_map,
-        'victoriametrics-graphite': invert_map(
-            graphite_to_victoriametrics_map),
-        'victoriametrics-influxdb': invert_map(
-            influxdb_to_victoriametrics_map)
-    }
-
-    _, default_timeseries_db = (config.DEFAULT_MONITORING_METHOD).split("-")
-    possible_timeseries_migrations = [migration for migration in list(
-        metrics_map.keys()) if migration.endswith(f"-{default_timeseries_db}")]
+def migrate_rules(force_migration=None):
+    default_timeseries_db = config.DEFAULT_MONITORING_METHOD.split("-")[1]
+    if force_migration:
+        possible_timeseries_migrations = [force_migration, ]
+    else:
+        possible_timeseries_migrations = [migration for migration in list(
+            metrics_map.keys())
+            if migration.endswith(f"-{default_timeseries_db}")]
 
     failed = updated = 0
     rules = MachineMetricRule.objects()
@@ -114,10 +151,18 @@ def migrate_rules():
     print(f'{failed} rules failed')
 
 
-def migrate_monitoring():
-    migrate_rules()
-    migrate_machines()
+def migrate_monitoring(force_migration=None):
+    migrate_rules(force_migration)
+    migrate_machines(force_migration)
 
 
 if __name__ == '__main__':
-    migrate_monitoring()
+    args = parse_args()
+    force_migration = None
+    if args.force_migration:
+        force_migration = args.force_migration.replace("'", "")
+    if force_migration and \
+            not metrics_map.get(force_migration):
+        print(f"Not a supported migration: {force_migration}")
+        exit()
+    migrate_monitoring(force_migration=force_migration)
