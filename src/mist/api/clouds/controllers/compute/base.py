@@ -2520,11 +2520,12 @@ class BaseComputeController(BaseController):
         )
         if not count:
             if self.cloud.ctl.has_feature('custom_image'):
-                image = self._generate_plan__parse_custom_image(image_obj)
+                image, image_attrs = self._generate_plan__parse_custom_image(
+                    image_obj)
                 if image is None:
                     raise NotFoundError('Image not found')
                 else:
-                    return [image], None
+                    return [image], image_attrs
             raise NotFoundError('Image not found')
 
         ret_images = []
@@ -2540,13 +2541,17 @@ class BaseComputeController(BaseController):
 
         return ret_images, None
 
-    def _generate_plan__parse_custom_image(self, image_dict):
+    def _generate_plan__parse_custom_image(self, image_obj) -> Tuple:
         """Get an image that is not saved in mongo.
         This could be a docker image that needs to be pulled.
 
-        Currently unused.
+        Returns:
+            A tuple of the following items:
+                - A CloudImage object
+                - A dictionary of items to be added as is to plan's image
+                  dictionary or by default None
         """
-        pass
+        return None, None
 
     def _generate_plan__parse_location(self, auth_context,
                                        location_search) -> List:
