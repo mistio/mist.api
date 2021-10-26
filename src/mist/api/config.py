@@ -3260,6 +3260,7 @@ else:
 
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
+    'portal_uri': CORE_URI,
     'theme': THEME,
     'cta': CTA,
     'description': DESCRIPTION,
