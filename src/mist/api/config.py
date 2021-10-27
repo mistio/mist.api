@@ -1227,6 +1227,8 @@ VICTORIAMETRICS_URI = "http://vmselect:8481/select/<org_id>/prometheus"
 VICTORIAMETRICS_WRITE_URI = (f"http://vminsert:8480/insert/<org_id>/"
                              f"prometheus")
 
+GRAPHITE_TO_VICTORIAMETRICS_METRICS_MAP = {}
+
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
 CILIA_SECRET_KEY = ""
@@ -3260,6 +3262,7 @@ else:
 
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
+    'portal_uri': CORE_URI,
     'theme': THEME,
     'cta': CTA,
     'description': DESCRIPTION,

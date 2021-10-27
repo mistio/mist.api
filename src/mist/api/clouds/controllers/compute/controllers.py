@@ -4221,6 +4221,171 @@ class DockerComputeController(BaseComputeController):
         """Private method to rename a given machine"""
         self.connection.ex_rename_container(node, name)
 
+    def _generate_plan__parse_custom_image(self, image_obj):
+        # Image does not exist, so it needs to be pulled.
+        # Instead of pulling it here synchronously, we create a dummy
+        # CloudImage object that will be pulled later on asynchronous context
+        from mist.api.images.models import CloudImage
+        from mist.api.helpers import get_docker_image_sha
+        if isinstance(image_obj, str):
+            name = image_obj
+        else:
+            name = image_obj.get('image')
+
+        # Use the default "latest" tag if image path given is not tagged
+        if ':' not in name:
+            name = f'{name}:latest'
+
+        try:
+            image_sha = get_docker_image_sha(name)
+        except Exception:
+            log.exception('Failed to fetch image sha256 hash')
+            raise CloudUnavailableError(
+                'Failed to fetch image sha256 hash') from None
+
+        if image_sha is None:
+            raise BadRequestError('Image does not exist on docker registry')
+
+        try:
+            image = CloudImage.objects.get(cloud=self.cloud,
+                                           external_id=image_sha)
+        except CloudImage.DoesNotExist:
+            image = CloudImage(external_id=image_sha,
+                               name=name,
+                               cloud=self.cloud,
+                               missing_since=datetime.datetime.now()
+                               ).save()
+
+        return image, {'pull': True}
+
+    def _generate_plan__parse_networks(self, auth_context, networks_dict,
+                                       location):
+        port_bindings = networks_dict.get('port_bindings', {})
+
+        if not isinstance(port_bindings, dict):
+            raise BadRequestError('Invalid port_bindings parameter')
+
+        host_port_regex = r'^\d{1,5}$'
+        container_port_regex = r'^\d{1,5}(\/\w+)?$'
+
+        for container_port, host_port in port_bindings.items():
+            if (not re.match(host_port_regex, host_port) or
+                    not re.match(container_port_regex, container_port)):
+                raise BadRequestError('Invalid port bindings')
+
+        return {
+            'port_bindings': port_bindings
+        }
+
+    def _generate_plan__parse_extra(self, extra, plan) -> None:
+        if extra.get('command'):
+            plan['command'] = extra['command']
+
+        if extra.get('environment'):
+            if not isinstance(extra['environment'], dict):
+                raise BadRequestError('Invalid port_bindings parameter')
+
+            plan['environment'] = extra['environment']
+
+        if extra.get('limits'):
+            if not isinstance(extra['limits'], dict):
+                raise BadRequestError('Invalid limits parameter')
+
+            limits = {}
+            try:
+                cpu_limit = float(extra['limits']['cpu'])
+            except KeyError:
+                pass
+            except (ValueError, TypeError):
+                raise BadRequestError('Invalid cpu limit')
+            else:
+                limits['cpu'] = cpu_limit
+
+            try:
+                memory_limit = int(extra['limits']['memory'])
+            except KeyError:
+                pass
+            except (ValueError, TypeError):
+                raise BadRequestError('Invalid memory limit')
+            else:
+                limits['memory'] = memory_limit
+
+            plan['limits'] = limits
+
+    def _create_machine__get_image_object(self, image):
+        if image.get('pull') is True:
+            from mist.api.helpers import pull_docker_image
+            try:
+                image_obj = pull_docker_image(self.cloud.id, image['name'])
+            except Exception as exc:
+                raise MachineCreationError(
+                    f'Failed to pull image with exception: {exc!r}')
+        else:
+            image_obj = super()._create_machine__get_image_object(image['id'])
+            # Docker deploy_container method uses the image name to deploy from
+            image_obj.name = image_obj.id
+
+        return image_obj
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = {
+            'name': plan['machine_name'],
+            'image': self._create_machine__get_image_object(plan['image'])
+        }
+
+        environment = [f'{key}={value}' for key, value in
+                       plan.get('environment', {}).items()]
+
+        key = self._create_machine__get_key_object(
+            plan.get('key', {}).get('id'))
+        if key:
+            environment.append(f'PUBLIC_KEY={key.public}')
+        kwargs['environment'] = environment
+        kwargs['command'] = plan.get('command', '')
+
+        if plan.get('limits'):
+            # The Docker API expects cpu quota in units of 10^9 CPUs.
+            try:
+                kwargs['nano_cpus'] = int(plan['limits']['cpu'] * (10**9))
+            except KeyError:
+                pass
+            # The Docker API expects memory quota in bytes
+            try:
+                kwargs['mem_limit'] = plan['limits']['memory'] * 1024 * 1024
+            except KeyError:
+                pass
+
+        if plan.get('networks'):
+            port_bindings = plan['networks']['port_bindings']
+            exposed_ports = {}
+            bindings = {}
+            # Docker API expects an object with the exposed container ports
+            # in the form: {"<port>/<tcp|udp|sctp>": {}}
+            for container_port, host_port in port_bindings.items():
+                port = (container_port if '/' in container_port
+                        else f'{container_port}/tcp')
+                exposed_ports[port] = {}
+                bindings[port] = [{
+                    'HostPort': host_port
+                }]
+
+            kwargs['ports'] = exposed_ports
+            kwargs['port_bindings'] = bindings
+
+        return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        if plan.get('key'):
+            node_info = self.inspect_node(node)
+            try:
+                ssh_port = int(
+                    node_info.extra[
+                        'network_settings']['Ports']['22/tcp'][0]['HostPort'])
+            except KeyError:
+                pass
+            else:
+                node.extra['ssh_port'] = ssh_port
+
 
 class LXDComputeController(BaseComputeController):
     """

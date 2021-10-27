@@ -1377,13 +1377,13 @@ def create_machine_async_v2(
     # Associate key.
     if plan.get('key'):
         try:
-            key = Key.objects.get(id=plan["key"]["id"])
+            key = Key.objects.get(id=plan['key']['id'])
             username = (plan['key'].get('user') or
                         plan.get('user') or
-                        node.extra.get("username", ""))
-            # TODO port could be something else
+                        node.extra.get('username', ''))
+            port = node.extra.get('ssh_port') or 22
             machine.ctl.associate_key(
-                key, username=username, port=22, no_connect=True
+                key, username=username, port=port, no_connect=True
             )
         except Exception as exc:
             tmp_log_error('Got exception %s in key association'
@@ -1523,6 +1523,16 @@ def ssh_tasks(auth_context_serialized, cloud_id, key_id, host, external_id,
             log_event(action='enable_monitoring_failed', error=repr(e),
                       **log_dict)
     log_event(action='post_deploy_finished', error=False, **log_dict)
+
+
+@dramatiq.actor(max_retries=0)
+def pull_docker_image(cloud_id, image_name):
+    from mist.api.helpers import pull_docker_image
+    try:
+        pull_docker_image(cloud_id, image_name)
+    except Exception:
+        pull_docker_image.logger.exception(
+            'Failed to pull image for cloud: %s', cloud_id)
 
 
 def add_expiration_for_machine(auth_context, expiration, machine):

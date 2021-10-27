@@ -1739,6 +1739,72 @@ def validate_password(password):
     return length and lower_case and upper_case and digit
 
 
+def get_docker_image_sha(name):
+    """Get docker image sha hash without pulling the image
+
+    Parameters:
+        name(str): The image name e.g "mist/mistio:latest". The  image tag
+                   is required.
+
+    Returns:
+        A string containing the image sha256 hash or None if the image hash
+        is not found.
+    """
+    # See the following references:
+    # https://stackoverflow.com/questions/41808763/how-to-determine-the-docker-image-id-for-a-tag-via-docker-hub-api/41830007#41830007  # noqa
+    # https://docs.docker.com/registry/spec/auth/jwt/
+
+    repo_name, tag = name.split(':')
+
+    # Official images e.g "python"  name is library/python
+    if '/' not in repo_name:
+        repo_name = f'library/{repo_name}'
+
+    auth_url = f'https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo_name}:pull'  # noqa
+    response = requests.get(auth_url)
+    token = response.json()['token']
+
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Accept': 'application/vnd.docker.distribution.manifest.v2+json',  # noqa
+    }
+    response = requests.get(
+        f'https://index.docker.io/v2/{repo_name}/manifests/{tag}',
+        headers=headers)
+
+    return response.headers.get('docker-content-digest')
+
+
+def pull_docker_image(cloud_id, image_name):
+    """Pull the docker image specified.
+
+    Parameters:
+        cloud_Id(str): The docker cloud to pull the image for.
+
+        image_name(str): The image name e.g "mist/mistio:latest". If the image
+                         tag is not specified, all available images will be
+                         pulled
+
+    Returns:
+        A ContainerImage object
+    """
+    from mist.api.clouds.models import DockerCloud
+    from mist.api.poller.models import ListImagesPollingSchedule
+
+    cloud = DockerCloud.objects.get(id=cloud_id)
+
+    image = cloud.ctl.compute.connection.install_image(image_name)
+
+    log.info(
+        'Accelerating default image polling interval for cloud: %s', cloud_id)
+
+    schedule = ListImagesPollingSchedule.objects.get(cloud=cloud)
+    schedule.add_interval(20, ttl=60)
+    schedule.save()
+
+    return image
+
+
 def apply_promql_query_rbac(auth_context, tags, search, query):
     try:
         from mist.rbac.methods import apply_promql_rbac
