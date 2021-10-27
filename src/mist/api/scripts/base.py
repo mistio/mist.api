@@ -7,7 +7,6 @@ import urllib.parse
 import urllib.error
 
 import mongoengine as me
-from pyramid.response import Response
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import trigger_session_update, mac_sign
 from mist.api.exceptions import ScriptNameExistsError
@@ -30,7 +29,6 @@ class BaseScriptController(object):
         self.script = script
 
     def add(self, fail_on_invalid_params=False, **kwargs):
-
         """Add an entry to the database
 
         This is only to be called by `Script.add` classmethod to create
@@ -171,12 +169,11 @@ class BaseScriptController(object):
         return redirect_url
 
     def get_file(self):
-        """Returns a file or archive."""
+        """Return a file along with HTTP response parameters."""
 
         if self.script.location.type == 'inline':
-            return Response(content_type='text/plain', charset='utf-8',
-                            body=self.script.location.source_code)
-            # return Response(self.script.location.source_code)
+            return dict(content_type='text/plain', charset='utf-8',
+                        body=self.script.location.source_code)
         else:
             # Download a file over HTTP
             url = self._url()
@@ -194,20 +191,20 @@ class BaseScriptController(object):
                 else:
                     filename = "script.tar.gz"
 
-                return Response(content_type=r.headers['Content-Type'],
-                                content_disposition='attachment; '
-                                                    'filename=%s' %
-                                                    filename,
-                                charset='utf8',
-                                pragma='no-cache',
-                                body=r.content)
+                return dict(content_type=r.headers['Content-Type'],
+                            content_disposition='attachment; '
+                            'filename=%s' %
+                            filename,
+                            charset='utf8',
+                            pragma='no-cache',
+                            body=r.content)
             else:
-                return Response(content_type=r.headers['Content-Type'],
-                                content_disposition='attachment; '
-                                                    'filename="script.gzip"',
-                                charset='utf8',
-                                pragma='no-cache',
-                                body=r.content)
+                return dict(content_type=r.headers['Content-Type'],
+                            content_disposition='attachment; '
+                            'filename="script.gzip"',
+                            charset='utf8',
+                            pragma='no-cache',
+                            body=r.content)
 
     def generate_signed_url(self):
         # build HMAC and inject into the `curl` command
