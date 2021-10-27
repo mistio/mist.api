@@ -58,9 +58,6 @@ from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
-<< << << < HEAD
-== == == =
->>>>>> > Retry on requests to VictoriaMetrics
 
 
 if config.HAS_VPN:
