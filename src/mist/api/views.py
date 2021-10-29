@@ -211,8 +211,10 @@ def home(request):
                             template_inputs['description'] = config.DESCRIPTION
                         images = soup.select('meta[property="og:image"]')
                         if images:
-                            template_inputs['image'] = images[0].get(
-                                'content', '')
+                            img_uri = images[0].get('content', '')
+                            if not img_uri.startswith('http'):
+                                img_uri = config.CORE_URI + img_uri
+                            template_inputs['image'] = img_uri
                         rss = soup.select('link[type="application/rss+xml"]')
                         if rss:
                             template_inputs['rss'] = rss[0].get('href')

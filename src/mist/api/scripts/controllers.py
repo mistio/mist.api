@@ -170,7 +170,10 @@ $(command -v sudo) /opt/mistio/telegraf/usr/bin/telegraf -test -config %s
                 column = value.split('=')[0]
                 if not (machine.monitoring.method == 'telegraf-graphite' and
                         column == 'value'):
-                    metric += '.' + column
+                    if machine.monitoring.method == 'telegraf-victoriametrics':
+                        metric += '_' + column
+                    else:
+                        metric += '.' + column
                 if metric in machine.monitoring.metrics:
                     raise BadRequestError('Metric %s already exists' % metric)
                 metrics.append(metric)
@@ -197,7 +200,10 @@ $(command -v sudo) /opt/mistio/telegraf/usr/bin/telegraf -test -config %s
         ret = self.deploy_python_plugin(machine)
         for metric_id in ret['metrics']:
             if self.script.extra.get('value_type') == 'derive':
-                metric_id = 'derivative(%s)' % metric_id
+                if machine.monitoring.method.endswith('-victoriametrics'):
+                    metric_id = 'rate(%s)' % metric_id
+                else:
+                    metric_id = 'derivative(%s)' % metric_id
             associate_metric(
                 machine, metric_id,
                 name=self.script.extra.get('value_name') or self.script.name,
