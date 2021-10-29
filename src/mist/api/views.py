@@ -212,7 +212,7 @@ def home(request):
                         images = soup.select('meta[property="og:image"]')
                         if images:
                             img_uri = images[0].get('content', '')
-                            if not img.startswith('http'):
+                            if not img_uri.startswith('http'):
                                 img_uri = config.CORE_URI + img_uri
                             template_inputs['image'] = img_uri
                         rss = soup.select('link[type="application/rss+xml"]')
