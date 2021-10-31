@@ -214,9 +214,10 @@ def download_script(request):
     # SEC require READ permission on SCRIPT
     auth_context.check_perm('script', 'read', script_id)
     try:
-        return script.ctl.get_file()
+        file_kwargs = script.ctl.get_file()
     except BadRequestError():
         return Response("Unable to find: {}".format(request.path_info))
+    return Response(**file_kwargs)
 
 
 # SEC
@@ -532,6 +533,7 @@ def fetch(request):
                 id=params.get('object_id'), deleted=None)
         except Script.DoesNotExist:
             raise NotFoundError('Script does not exist')
-        return script.ctl.get_file()
+        file_kwargs = script.ctl.get_file()
+        return Response(**file_kwargs)
     else:
         raise NotImplementedError()
