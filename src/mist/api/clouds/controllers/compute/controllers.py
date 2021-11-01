@@ -2833,7 +2833,7 @@ class EquinixMetalComputeController(BaseComputeController):
                 break
         else:
             ssh_keys = [{
-                'label': f'mistio-{key.name}',
+                'label': f'mistio-{key_obj.name}',
                 'key': key_obj.public
             }]
         return ssh_keys
