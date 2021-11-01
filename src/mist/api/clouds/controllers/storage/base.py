@@ -757,13 +757,23 @@ class BaseStorageController(BaseController):
         if not config.METERING_NOTIFICATIONS_WEBHOOK:
             notify_admin(error_msg, message=error_details)
             return
-        response = requests.post(
-            config.METERING_NOTIFICATIONS_WEBHOOK,
-            data=json.dumps({'text': config.CORE_URI + ': ' + log_entry}),
-            headers={'Content-Type': 'application/json'}
-        )
-        if response.status_code != 200:
+        try:
+            response = requests_retry_session(retries=2).post(
+                config.METERING_NOTIFICATIONS_WEBHOOK,
+                data=json.dumps({'text': config.CORE_URI + ': ' + log_entry}),
+                headers={'Content-Type': 'application/json'},
+                timeout=5
+            )
+        except requests.exceptions.RequestException as e:
+            log.error(
+                'Request to slack returned an error %s'
+                % (str(e))
+            )
+            notify_admin(error_msg, message=error_details)
+            return
+        if response and response.status_code not in (200, 429):
             log.error(
                 'Request to slack returned an error %s, the response is:'
                 '\n%s' % (response.status_code, response.text)
             )
+            notify_admin(error_msg, message=error_details)
