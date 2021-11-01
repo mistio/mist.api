@@ -3775,9 +3775,8 @@ class BaseComputeController(BaseController):
         from mist.api.methods import notify_admin
         log_entry = error_msg + ", " + error_details
         log.warning(log_entry)
-        notify_admin(error_msg,
-                     message=error_details)
         if not config.METERING_NOTIFICATIONS_WEBHOOK:
+            notify_admin(error_msg, message=error_details)
             return
         response = requests.post(
             config.METERING_NOTIFICATIONS_WEBHOOK,
