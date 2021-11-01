@@ -2738,23 +2738,6 @@ class EquinixMetalComputeController(BaseComputeController):
             ret_list.append('x86')
         return ret_list or ['x86']
 
-    def _generate_plan__parse_custom_volume(self, volume_dict):
-        try:
-            size = int(volume_dict['size'])
-        except (KeyError, TypeError):
-            raise BadRequestError('Invalid parameter in volumes')
-        if size < 100:
-            raise BadRequestError('Size value must be at least 100')
-
-        plan = volume_dict.get('plan', 'standard')
-        if plan not in ('standard', 'performance'):
-            raise BadRequestError(
-                'Invalid value for plan, valid values are: '
-                'performance, standard'
-            )
-
-        return {'size': size, 'plan': plan}
-
     def _generate_plan__parse_networks(self, auth_context, networks_dict,
                                        location):
         try:
@@ -2848,59 +2831,6 @@ class EquinixMetalComputeController(BaseComputeController):
         except (KeyError, TypeError):
             pass
         return kwargs
-
-    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
-        volumes = plan.get('volumes', [])
-        if not volumes:
-            return
-        from mist.api.models import Volume
-        from libcloud.compute.base import StorageVolume
-        # volumes cannot be attached while node is pending
-        # so sleep until node is running
-        for _ in range(50):
-            node = self.connection.ex_get_node(node.id)
-            if node.state.value == NodeState.RUNNING.value:
-                break
-            else:
-                sleep(10)
-        for vol in volumes:
-            if vol.get('id'):
-                try:
-                    volume = Volume.objects.get(id=vol['id'])
-                except me.DoesNotExist:
-                    # this shouldn't happen as volume was found
-                    # during plan creation
-                    log.warning('Failed to attach volume.Volume %s does not exist' %  # noqa
-                                (vol['id']))
-                    continue
-                storage_volume = StorageVolume(id=volume.external_id,
-                                               name=volume.name,
-                                               size=volume.size,
-                                               driver=self.connection)
-                try:
-                    self.connection.attach_volume(node, storage_volume)
-                except Exception as exc:
-                    log.warning('Volume attachment failed')
-            else:
-                try:
-                    size = vol['size']
-                    volume_plan = vol['plan']
-                except KeyError:
-                    # this shouldn't happen as these fields
-                    # were checked during plan creation
-                    log.warning('Error while parsing volume attributes')
-                    continue
-                volume_plan = "storage_1" if volume_plan == 'standard' else 'storage_2'  # noqa
-                try:
-                    volume = self.connection.create_volume(
-                                                size=size,
-                                                location=kwargs['location'],
-                                                plan=volume_plan,
-                                                ex_project_id=kwargs['ex_project_id'],  # noqa
-                                                )
-                    self.connection.attach_volume(node, volume)
-                except Exception as exc:
-                    log.warning('Volume attachment failed')
 
 
 class VultrComputeController(BaseComputeController):

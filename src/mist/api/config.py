@@ -1617,7 +1617,7 @@ PROVIDERS = {
                     'location-image-restriction': False,
                 },
             },
-            'storage': True,
+            'storage': False,
             'networks': True,
             'metal': True
         }
