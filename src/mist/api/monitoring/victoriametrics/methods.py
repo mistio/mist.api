@@ -23,7 +23,8 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     raw_machine_data_list = []
     for metric in metrics:
         try:
-            query = inject_promql_machine_id(metric, machine.id)
+            query = inject_promql_machine_id(
+                metric.replace('-', '\-'), machine.id)
             # Need to trim org due to 32 bit limitation of
             # the accountID on victoria metrics tenants
             uri = get_victoriametrics_uri(machine.owner)
