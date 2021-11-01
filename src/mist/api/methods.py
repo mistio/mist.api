@@ -741,3 +741,8 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         result = result.order_by(sort)
 
     return result[start:start + limit], result.count()
+
+
+def cloud_has_feature(cloud, feature):
+    return config.PROVIDERS[cloud.ctl.provider].features.get(
+        feature, False)
