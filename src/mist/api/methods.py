@@ -1,4 +1,5 @@
 import re
+import urllib
 import subprocess
 import distutils.util
 import json
@@ -746,3 +747,51 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
 def cloud_has_feature(cloud, feature):
     return config.PROVIDERS[cloud.ctl.provider].features.get(
         feature, False)
+
+
+def get_console_proxy_uri(machine):
+    if machine.cloud.ctl.provider == 'libvirt':
+        import xml.etree.ElementTree as ET
+        from html import unescape
+        from datetime import datetime
+        import hmac
+        import hashlib
+        xml_desc = unescape(machine.extra.get('xml_description', ''))
+        root = ET.fromstring(xml_desc)
+        vnc_element = root.find('devices').find('graphics[@type="vnc"]')
+        if not vnc_element:
+            return 'Action not supported', 501
+        vnc_port = vnc_element.attrib.get('port')
+        vnc_host = vnc_element.attrib.get('listen')
+        from mongoengine import Q
+        from mist.api.machines.models import KeyMachineAssociation
+        # Get key associations, prefer root or sudoer ones
+        key_associations = KeyMachineAssociation.objects(
+            Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True))) \
+            or KeyMachineAssociation.objects(machine=machine.parent)
+        if not key_associations:
+            return 'You are not authorized to perform this action', 403
+        key_id = key_associations[0].key.id
+        host = '%s@%s:%d' % (key_associations[0].ssh_user,
+                             machine.parent.hostname,
+                             key_associations[0].port)
+        expiry = int(datetime.now().timestamp()) + 100
+        msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
+        mac = hmac.new(
+            config.SECRET.encode(),
+            msg=msg.encode(),
+            digestmod=hashlib.sha256).hexdigest()
+        base_ws_uri = config.CORE_URI.replace('http', 'ws')
+        proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
+            base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
+        return proxy_uri
+    elif machine.cloud.ctl.provider == 'vsphere':
+        console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+        protocol, host = config.CORE_URI.split('://')
+        protocol = protocol.replace('http', 'ws')
+        params = urllib.parse.urlencode({'url': console_uri})
+        proxy_uri = f"{protocol}://{host}/wsproxy/?{params}"
+        return proxy_uri
+    return None
