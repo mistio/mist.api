@@ -7,6 +7,7 @@ from typing import List
 import jsonpatch
 import mongoengine.errors
 import asyncio
+import requests
 
 from requests import ConnectionError
 
@@ -462,22 +463,22 @@ class BaseStorageController(BaseController):
                     not metering_metrics.get(
                         volumes_map[volume_id].cloud.provider):
                 metering_metrics[volumes_map[
-                    volume_id].cloud.provider] = config.METERING_METRICS["volume"].get(
-                    "default", {})
+                    volume_id].cloud.provider] = config.METERING_METRICS[
+                        "volume"].get("default", {})
                 metering_metrics[volumes_map[
                     volume_id].cloud.provider].update(
                         config.METERING_METRICS["volume"].get(
                             volumes_map[volume_id].cloud.provider, {}))
             if config.METERING_METRICS["volume"].get("default") and \
                     not metering_metrics.get("default"):
-                metering_metrics["default"] = config.METERING_METRICS["volume"][
-                    "default"]
+                metering_metrics["default"] = config.METERING_METRICS[
+                    "volume"]["default"]
         return metering_metrics
 
     def _generate_metering_queries(self, cached_volumes_map, volumes_map):
         """
-        Generate metering promql queries while grouping volumes together to limit
-        the number of requests to the DB
+        Generate metering promql queries while grouping volumes together
+        to limit the number of requests to the DB
         """
         # Group the volumes per timestamp
         last_metering_dt_volumes_map = {}

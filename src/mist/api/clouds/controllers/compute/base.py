@@ -3484,22 +3484,22 @@ class BaseComputeController(BaseController):
                     not metering_metrics.get(
                         machines_map[machine_id].cloud.provider):
                 metering_metrics[machines_map[
-                    machine_id].cloud.provider] = config.METERING_METRICS["machine"].get(
-                    "default", {})
+                    machine_id].cloud.provider] = config.METERING_METRICS[
+                        "machine"].get("default", {})
                 metering_metrics[machines_map[
                     machine_id].cloud.provider].update(
                         config.METERING_METRICS["machine"].get(
                             machines_map[machine_id].cloud.provider, {}))
             if config.METERING_METRICS["machine"].get("default") and \
                     not metering_metrics.get("default"):
-                metering_metrics["default"] = config.METERING_METRICS["machine"][
-                    "default"]
+                metering_metrics["default"] = config.METERING_METRICS[
+                    "machine"]["default"]
         return metering_metrics
 
     def _generate_metering_queries(self, cached_machines_map, machines_map):
         """
-        Generate metering promql queries while grouping machines together to limit
-        the number of requests to the DB
+        Generate metering promql queries while grouping machines together
+        to limit the number of requests to the DB
         """
         # Group the machines per timestamp
         last_metering_dt_machines_map = {}
