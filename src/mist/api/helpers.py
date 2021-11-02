@@ -28,6 +28,7 @@ import secrets
 from future.utils import string_types
 from future.standard_library import install_aliases
 install_aliases()
+
 import urllib.parse
 
 import datetime
@@ -55,6 +56,9 @@ from pyramid.httpexceptions import HTTPError
 import iso8601
 import netaddr
 import requests
+
+from requests.packages.urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
 
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
@@ -87,6 +91,7 @@ from mist.api.exceptions import WorkflowExecutionError, BadRequestError
 from mist.api import config
 
 from functools import reduce
+
 
 if config.HAS_RBAC:
     from mist.rbac.tokens import SuperToken
@@ -1821,3 +1826,23 @@ def get_victoriametrics_uri(org):
 def get_victoriametrics_write_uri(org):
     return config.VICTORIAMETRICS_WRITE_URI.replace(
         "<org_id>", str(int(org.id[:8], 16)))
+
+
+def requests_retry_session(retries=3,
+                           backoff_factor=0.3,
+                           status_forcelist=(500, 502, 504),
+                           session=None,
+                           ):
+    session = session or requests.Session()
+    retry = Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+        method_whitelist=frozenset(['GET', 'POST'])
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
