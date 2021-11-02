@@ -77,17 +77,20 @@ def calculate_time_args(start, stop, step):
 
 
 def inject_promql_machine_id(query, machine_id):
+    query = query.replace('-', '\\-')
     if not os.path.isfile('/promql_middleware.so'):
         raise RuntimeError("Could not find promql_middleware.so")
     so = ctypes.cdll.LoadLibrary(
         '/promql_middleware.so')
     process_promql_query = so.processPromqlQuery
-    process_promql_query.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    process_promql_query.argtypes = [
+        ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
     process_promql_query.restype = ctypes.c_void_p
     free = so.free
     free.argtypes = [ctypes.c_void_p]
     ptr = process_promql_query(query.encode(
-        'utf-8'), machine_id.encode('utf-8'))
+        'utf-8'), machine_id.encode('utf-8'),
+        "".encode('utf-8'))
     filtered_query = ctypes.string_at(ptr)
     free(ptr)
     if not filtered_query:
