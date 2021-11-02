@@ -68,6 +68,16 @@ def main(global_config, **settings):
 
     import mist.api.auth.middleware
 
+    if config.SENTRY_CONFIG.get('API_V1_URL'):
+        import sentry_sdk
+        from sentry_sdk.integrations.pyramid import PyramidIntegration
+        sentry_sdk.init(
+            dsn=config.SENTRY_CONFIG['API_V1_URL'],
+            integrations=[PyramidIntegration()],
+            traces_sample_rate=config.SENTRY_CONFIG['TRACES_SAMPLE_RATE'],
+            environment=config.SENTRY_CONFIG['ENVIRONMENT'],
+        )
+
     settings = {}
 
     configurator = Configurator(root_factory=Root, settings=settings)

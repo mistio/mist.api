@@ -1,3 +1,4 @@
+import os
 import logging
 from threading import local
 from time import perf_counter
@@ -92,6 +93,16 @@ class MongoConnectMiddleware(Middleware):
         from mist.api import mongo_connect
         mongo_connect()
 
+
+if (config.SENTRY_CONFIG.get('DRAMATIQ_URL') and
+        os.getenv('DRAMATIQ_CONTEXT')):
+    import sentry_sdk
+    import sentry_dramatiq
+    sentry_sdk.init(
+        config.SENTRY_CONFIG['DRAMATIQ_URL'],
+        integrations=[sentry_dramatiq.DramatiqIntegration()],
+        environment=config.SENTRY_CONFIG['ENVIRONMENT'],
+    )
 
 broker = RabbitmqBroker(url=config.BROKER_URL + '?heartbeat=600')
 broker.add_middleware(LoggingMiddleware())
