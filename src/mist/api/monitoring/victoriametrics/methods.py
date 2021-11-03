@@ -1,6 +1,7 @@
 import logging
 import requests
 import time
+import asyncio
 
 from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import ServiceUnavailableError
@@ -21,27 +22,22 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     if not isinstance(metrics, list):
         metrics = [metrics]
     raw_machine_data_list = []
-    for metric in metrics:
-        try:
-            query = inject_promql_machine_id(metric, machine.id)
-            # Need to trim org due to 32 bit limitation of
-            # the accountID on victoria metrics tenants
-            uri = get_victoriametrics_uri(machine.owner)
-            raw_machine_data = requests.get(
-                f"{uri}/api/v1/query_range"
-                f"?query={query}{time_args}", timeout=20)
-        except Exception as exc:
-            log.error(
-                'Got %r on get_stats for resource %s'
-                % (exc, machine.id))
-            raise ServiceUnavailableError()
-
-        if not raw_machine_data.ok:
-            log.error('Got %d on get_stats: %s',
-                      raw_machine_data.status_code, raw_machine_data.content)
-            raise ServiceUnavailableError()
-        raw_machine_data_list.append((raw_machine_data.json(), metric))
-    for raw_machine_data, target in raw_machine_data_list:
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            raise RuntimeError('loop is closed')
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    raw_machine_data_list = loop.run_until_complete(
+        _async_fetch_queries(metrics, machine, time_args, loop))
+    loop.close()
+    exceptions = 0
+    for item in raw_machine_data_list:
+        if isinstance(item, Exception):
+            exceptions += 1
+            continue
+        raw_machine_data, target = item
         for result in raw_machine_data.get('data', {}).get('result', {}):
             data[generate_metric_mist(result["metric"], target)] = {
                 "name": generate_metric_mist(result["metric"], target),
@@ -51,6 +47,8 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
                 "metric": result["metric"],
                 "target": target
             }
+    if exceptions and exceptions >= len(raw_machine_data_list):
+        raise raw_machine_data_list[0]
 
     if not isinstance(machine, str):
         # set activated_at for collectd/telegraf installation status
@@ -75,6 +73,30 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
 
     return data
 
+def _fetch_query(metric, machine, time_args):
+    try:
+        query = inject_promql_machine_id(metric, machine.id)
+        # Need to trim org due to 32 bit limitation of
+        # the accountID on victoria metrics tenants
+        uri = get_victoriametrics_uri(machine.owner)
+        raw_machine_data = requests.get(
+            f"{uri}/api/v1/query_range"
+            f"?query={query}{time_args}", timeout=20)
+    except Exception as exc:
+        log.error(
+            'Got %r on get_stats for resource %s'
+            % (exc, machine.id))
+        raise ServiceUnavailableError()
+    if not raw_machine_data.ok:
+        log.error('Got %d on get_stats: %s',
+                    raw_machine_data.status_code, raw_machine_data.content)
+        raise ServiceUnavailableError()
+    return (raw_machine_data.json(), metric)
+
+async def _async_fetch_queries(metrics, machine, time_args, loop):
+    return await asyncio.gather(*[loop.run_in_executor(
+                    None, _fetch_query, metric, machine, time_args
+                    ) for metric in metrics], return_exceptions=True)
 
 def find_metrics(machine):
     if not machine.monitoring.hasmonitoring:
