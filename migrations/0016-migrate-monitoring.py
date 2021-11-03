@@ -62,7 +62,8 @@ influxdb_to_victoriametrics_map = {
 
 victoriametrics_to_victoriametrics_map = {}
 
-victoriametrics_to_victoriametrics_map.update(VICTORIAMETRICS_TO_VICTORIAMETRICS_METRICS_MAP)
+victoriametrics_to_victoriametrics_map.update(
+    VICTORIAMETRICS_TO_VICTORIAMETRICS_METRICS_MAP)
 
 
 def invert_map(map):

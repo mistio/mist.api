@@ -73,6 +73,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
 
     return data
 
+
 def _fetch_query(metric, machine, time_args):
     try:
         query = inject_promql_machine_id(metric, machine.id)
@@ -87,14 +88,16 @@ def _fetch_query(metric, machine, time_args):
         raise ServiceUnavailableError()
     if not raw_machine_data.ok:
         log.error('Got %d on get_stats: %s',
-                    raw_machine_data.status_code, raw_machine_data.content)
+                  raw_machine_data.status_code, raw_machine_data.content)
         raise ServiceUnavailableError()
     return (raw_machine_data.json(), metric)
 
+
 async def _async_fetch_queries(metrics, machine, time_args, loop):
     return await asyncio.gather(*[loop.run_in_executor(
-                    None, _fetch_query, metric, machine, time_args
-                    ) for metric in metrics], return_exceptions=True)
+        None, _fetch_query, metric, machine, time_args
+    ) for metric in metrics], return_exceptions=True)
+
 
 def find_metrics(machine):
     if not machine.monitoring.hasmonitoring:
