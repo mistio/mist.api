@@ -76,8 +76,6 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
 def _fetch_query(metric, machine, time_args):
     try:
         query = inject_promql_machine_id(metric, machine.id)
-        # Need to trim org due to 32 bit limitation of
-        # the accountID on victoria metrics tenants
         uri = get_victoriametrics_uri(machine.owner)
         raw_machine_data = requests.get(
             f"{uri}/api/v1/query_range"
