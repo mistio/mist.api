@@ -2,6 +2,7 @@
 
 import argparse
 from mist.api.config import GRAPHITE_TO_VICTORIAMETRICS_METRICS_MAP
+from mist.api.config import VICTORIAMETRICS_TO_VICTORIAMETRICS_METRICS_MAP
 
 from mist.api import config
 from mist.api.rules.models import MachineMetricRule
@@ -59,6 +60,10 @@ influxdb_to_victoriametrics_map = {
     "cpu.cpu=cpu0.usage_idle": 'cpu_usage_idle{cpu="cpu0"}'
 }
 
+victoriametrics_to_victoriametrics_map = {}
+
+victoriametrics_to_victoriametrics_map.update(VICTORIAMETRICS_TO_VICTORIAMETRICS_METRICS_MAP)
+
 
 def invert_map(map):
     return {v: k for k, v in map.items()}
@@ -72,7 +77,8 @@ metrics_map = {
     'victoriametrics-graphite': invert_map(
         graphite_to_victoriametrics_map),
     'victoriametrics-influxdb': invert_map(
-        influxdb_to_victoriametrics_map)
+        influxdb_to_victoriametrics_map),
+    'victoriametrics-victoriametrics': victoriametrics_to_victoriametrics_map
 }
 
 
