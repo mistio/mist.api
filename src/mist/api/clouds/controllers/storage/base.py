@@ -333,6 +333,22 @@ class BaseStorageController(BaseController):
             volume.actions.delete = True
             volume.actions.detach = False
 
+    def rename_volume(self, volume, name):
+        """Renames a volume.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        If a subclass needs to override the way volumes are renamed, it
+        should override the private method `_rename_volume` instead.
+        """
+        assert volume.cloud == self.cloud
+        libcloud_volume = self.get_libcloud_volume(volume)
+        self._rename_volume(libcloud_volume, name)
+        self.list_volumes()
+
+    def _rename_volume(self, libcloud_volume, name):
+        pass
+
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeDeletionError)
     def delete_volume(self, volume):
         """Deletes a volume.
