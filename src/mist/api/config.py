@@ -1539,6 +1539,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1561,6 +1562,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1584,6 +1586,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1605,6 +1608,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1625,6 +1629,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1646,6 +1651,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1665,6 +1671,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1684,6 +1691,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'restrictions': {
@@ -1703,6 +1711,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': False,
                 'restrictions': {
@@ -1722,6 +1731,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'restrictions': {
@@ -1740,6 +1750,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1761,6 +1772,7 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
+            'console': True,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1781,6 +1793,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': True,
             'provision': {
                 'location': False,
                 'restrictions': {
@@ -1800,6 +1813,7 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'custom_size': True,
@@ -1822,6 +1836,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'cloudinit': True,
                 'custom_size': True,
@@ -1842,6 +1857,7 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
+            'console': True,
             'provision': {
                 'location': True,
                 'custom_size': True,
@@ -1863,6 +1879,7 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': False,
                 'restrictions': {
@@ -1881,6 +1898,7 @@ PROVIDERS = {
         'category': 'hypervisor',
         'features': {
             'compute': True,
+            'console': True,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1926,6 +1944,7 @@ PROVIDERS = {
         'category': 'container host',
         'features': {
             'compute': True,
+            'console': False,
             'container': True,
             'provision': {
                 'location': False,
@@ -1949,6 +1968,7 @@ PROVIDERS = {
         'category': 'container host',
         'features': {
             'compute': True,
+            'console': False,
             'container': True,
             'provision': {
                 'location': True,

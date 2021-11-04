@@ -1,10 +1,11 @@
 import os
 import uuid
 import logging
-import urllib
 
 from pyramid.response import Response, FileResponse
 from pyramid.renderers import render_to_response
+
+from mist.api.methods import get_console_proxy_uri
 
 import mist.api.machines.methods as methods
 
@@ -23,7 +24,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
-from mist.api.exceptions import MistNotImplementedError, MethodNotAllowedError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -1084,55 +1085,13 @@ def machine_console(request):
             "VNC console only supported for vSphere, "
             "OpenStack, Vexxhost or KVM")
 
-    if machine.cloud.ctl.provider == 'libvirt':
-        import xml.etree.ElementTree as ET
-        from html import unescape
-        from datetime import datetime
-        import hmac
-        import hashlib
-        xml_desc = unescape(machine.extra.get('xml_description', ''))
-        root = ET.fromstring(xml_desc)
-        vnc_element = root.find('devices').find('graphics[@type="vnc"]')
-        if not vnc_element:
-            raise MethodNotAllowedError(
-                "VNC console not supported by this KVM domain")
-        vnc_port = vnc_element.attrib.get('port')
-        vnc_host = vnc_element.attrib.get('listen')
-        from mongoengine import Q
-        # Get key associations, prefer root or sudoer ones
-        key_associations = KeyMachineAssociation.objects(
-            Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True))) \
-            or KeyMachineAssociation.objects(machine=machine.parent)
-        if not key_associations:
-            raise ForbiddenError()
-        key_id = key_associations[0].key.id
-        host = '%s@%s:%d' % (key_associations[0].ssh_user,
-                             machine.parent.hostname,
-                             key_associations[0].port)
-        expiry = int(datetime.now().timestamp()) + 100
-        msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
-        mac = hmac.new(
-            config.SECRET.encode(),
-            msg=msg.encode(),
-            digestmod=hashlib.sha256).hexdigest()
-        base_ws_uri = config.CORE_URI.replace('http', 'ws')
-        proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
-            base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
-        return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
-    if machine.cloud.ctl.provider == 'vsphere':
-        console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-            machine.machine_id
-        )
-        protocol, host = config.CORE_URI.split('://')
-        protocol = protocol.replace('http', 'ws')
-        params = urllib.parse.urlencode({'url': console_uri})
-        proxy_uri = f"{protocol}://{host}/wsproxy/?{params}"
-        return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
-    else:
+    proxy_uri = get_console_proxy_uri()
+    if proxy_uri is None:
         console_url = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
         )
-    raise RedirectError(console_url)
+        raise RedirectError(console_url)
+    return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
 
 
 @view_config(route_name='api_v1_machine_ssh',
