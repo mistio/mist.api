@@ -115,6 +115,10 @@ class AmazonStorageController(BaseStorageController):
 
         kwargs['location'] = node_location
 
+    def _rename_volume(self, libcloud_volume, name):
+        return self.cloud.ctl.compute.connection.ex_rename_node(
+            libcloud_volume, name)
+
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
         if not kwargs.get('device'):
             raise RequiredParameterMissingError('device')
