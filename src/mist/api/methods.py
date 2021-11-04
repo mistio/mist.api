@@ -744,11 +744,6 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
     return result[start:start + limit], result.count()
 
 
-def cloud_has_feature(cloud, feature):
-    return config.PROVIDERS[cloud.ctl.provider].features.get(
-        feature, False)
-
-
 def get_console_proxy_uri(machine):
     if machine.cloud.ctl.provider == 'libvirt':
         import xml.etree.ElementTree as ET
