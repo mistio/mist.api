@@ -16,6 +16,10 @@ class NetworkController(object):
         """Create `self.network`."""
         return self.cloud.ctl.network.create_network(self.network, **kwargs)
 
+    def rename(self, name):
+        """Rename `self.network`."""
+        return self.cloud.ctl.network.rename_network(self.network, name)
+
     def delete(self):
         """Delete `self.network`."""
         return self.cloud.ctl.network.delete_network(self.network)
@@ -42,6 +46,10 @@ class SubnetController(object):
     def create(self, **kwargs):
         """Create `self.subnet`."""
         return self.cloud.ctl.network.create_subnet(self.subnet, **kwargs)
+
+    def rename(self, name):
+        """Rename `self.subnet`."""
+        return self.cloud.ctl.network.rename_network(self.subnet, name)
 
     def delete(self):
         """Delete `self.subnet`."""

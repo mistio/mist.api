@@ -9,6 +9,10 @@ class StorageController(object):
         """Delete `self.volume`"""
         return self.cloud.ctl.storage.delete_volume(self.volume)
 
+    def rename(self, name):
+        """Rename `self.volume`."""
+        return self.cloud.ctl.storage.rename_volume(self.volume, name)
+
     def attach(self, node, **kwargs):
         """Attach `self.volume` to a node"""
         return self.cloud.ctl.storage.attach_volume(self.volume, node,
