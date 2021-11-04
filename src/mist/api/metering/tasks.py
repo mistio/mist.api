@@ -96,7 +96,9 @@ def push_metering_info(owner_id):
 
     # CPUs
     for machine in Machine.objects(owner=owner_id, last_seen__gte=now.date(),
-                                   cloud__in=Cloud.objects(enabled=True)):
+                                   cloud__in=Cloud.objects(enabled=True,
+                                                           deleted=None,
+                                                           owner=owner_id)):
         metering.setdefault(
             owner_id,
             dict.fromkeys(('cores', 'checks', 'datapoints'), 0)
