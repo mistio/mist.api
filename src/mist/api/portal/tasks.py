@@ -144,6 +144,9 @@ def create_backup(
         Backup databases if s3 creds are set.
     """
 
+    if not config.BACKUP_INTERVAL or not config.BACKUP.get('key'):
+        return
+
     start = datetime.datetime.now()
     dt = start.strftime('%Y%m%d%H%M')
     s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
