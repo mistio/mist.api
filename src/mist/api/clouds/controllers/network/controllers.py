@@ -122,6 +122,14 @@ class AmazonNetworkController(BaseNetworkController):
     def _delete_subnet(self, subnet, libcloud_subnet):
         self.cloud.ctl.compute.connection.ex_delete_subnet(libcloud_subnet)
 
+    def _rename_network(self, libcloud_network, name):
+        return self.cloud.ctl.compute.connection.ex_rename_node(
+            libcloud_network, name)
+
+    def _rename_subnet(self, libcloud_subnet, name):
+        return self.cloud.ctl.compute.connection.ex_rename_node(
+            libcloud_subnet, name)
+
     def _get_libcloud_network(self, network):
         kwargs = {'network_ids': [network.network_id]}
         networks = self.cloud.ctl.compute.connection.ex_list_networks(**kwargs)
