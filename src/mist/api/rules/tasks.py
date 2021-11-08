@@ -25,7 +25,7 @@ __all__ = [
 ]
 
 
-@dramatiq.actor
+@dramatiq.actor(max_retries=3, max_age=60_000, queue_name='dramatiq_rules')
 def evaluate(rule_id):
     """Perform a full rule evaluation."""
     rule = Rule.objects.get(id=rule_id)

@@ -541,6 +541,7 @@ class BaseMainController(object):
             dns
             networks
             storage
+            console
             custom_size
             custom_image
             cloudinit
@@ -564,7 +565,7 @@ class BaseMainController(object):
                 raise NotFoundError('Provider does not exist')
 
         has_feature = False
-        if feature in ['dns', 'networks', 'storage', 'container']:
+        if feature in ['dns', 'networks', 'storage', 'container', 'console']:
             has_feature = provider_dict['features'].get(feature, False)
         elif feature == 'key' and provider_dict['features']['provision']:
             has_feature = provider_dict['features']['provision'].get(feature, True)  # noqa

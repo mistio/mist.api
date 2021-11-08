@@ -572,6 +572,37 @@ class BaseNetworkController(BaseController):
         """
         return
 
+    def rename_network(self, network, name):
+        """Renames a network.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        If a subclass needs to override the way volumes are renamed, it
+        should override the private method `_rename_network` instead.
+        """
+        assert network.cloud == self.cloud
+        libcloud_network = self._get_libcloud_network(network)
+        self._rename_network(libcloud_network, name)
+        self.list_networks()
+
+    def _rename_network(self, libcloud_network, name):
+        pass
+
+    def rename_subnet(self, subnet, name):
+        """Renames a subnet.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        If a subclass needs to override the way volumes are renamed, it
+        should override the private method `_rename_subnet` instead.
+        """
+        assert subnet.network.cloud == self.cloud
+        libcloud_subnet = self._get_libcloud_subnet(subnet)
+        self._rename_subnet(libcloud_subnet, name)
+
+    def _rename_subnet(self, libcloud_subnet, name):
+        pass
+
     @LibcloudExceptionHandler(mist.api.exceptions.NetworkDeletionError)
     def delete_network(self, network):
         """Deletes a network.

@@ -40,6 +40,7 @@ class Volume(OwnershipMixin, me.Document):
                                        default=lambda: VolumeActions())
     extra = MistDictField()
 
+    last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
 
     meta = {
@@ -96,6 +97,10 @@ class Volume(OwnershipMixin, me.Document):
                         for action in self.actions},
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
+            'last_seen': str(self.last_seen.replace(tzinfo=None)
+                             if self.last_seen else ''),
+            'missing_since': str(self.missing_since.replace(tzinfo=None)
+                                 if self.missing_since else '')
         }
 
         return volume_dict
@@ -103,7 +108,8 @@ class Volume(OwnershipMixin, me.Document):
     def as_dict_v2(self, deref='auto', only=''):
         """Returns the API representation of the `Volume` object."""
         from mist.api.helpers import prepare_dereferenced_dict
-        standard_fields = ['id', 'name', 'external_id', 'extra']
+        standard_fields = ['id', 'name', 'external_id',
+                           'extra', 'last_seen', 'missing_since']
         deref_map = {
             'cloud': 'title',
             'location': 'name',

@@ -61,22 +61,37 @@ BLOG_CDN_URI = ""
 METERING_PROMQL_LOOKBACK = "2h"
 METERING_NOTIFICATIONS_WEBHOOK = ""
 METERING_METRICS = {
-    "default": {
-        'core_hours': {'type': 'counter', 'value': lambda machine, dt: dt * (
-            machine.cores if machine.state == 'running' and
-            machine.cores else 0)},
-        'ram_gb_hours': {'type': 'counter', 'value': lambda machine, dt: dt *
-                         (machine.size.ram / 1000
-                          if machine.state == 'running' and machine.size and
-                          machine.size.ram else 0)},
-        'total_cost': {'type': 'counter', 'value': lambda machine, dt: dt * (
-            machine.cost.hourly if machine.state == 'running' and
-            machine.cost.hourly else 0)},
-        'core_count': {'type': 'gauge', 'value': lambda machine: machine.cores
-                       if machine.cores else 0},
-        'ram_gb': {'type': 'gauge', 'value': lambda machine: (
-            machine.size.ram / 1000 if machine.state == 'running' and
-            machine.size and machine.size.ram else 0)}
+    "machine": {
+        "default": {
+            'core_hours': {'type': 'counter', 'value': lambda machine,
+                           dt: dt * (
+                               machine.cores if (machine.state == 'running' and
+                                                 machine.cores) else 0)},
+            'ram_gb_hours': {'type': 'counter', 'value': lambda machine,
+                             dt: dt * (
+                                 machine.size.ram / 1000
+                                 if (machine.state == 'running' and
+                                     machine.size and
+                                     machine.size.ram) else 0)},
+            'total_cost': {'type': 'counter', 'value': lambda machine,
+                           dt: dt * (
+                               machine.cost.hourly
+                               if (machine.state == 'running' and
+                                   machine.cost.hourly) else 0)},
+            'core_count': {'type': 'gauge', 'value': lambda machine:
+                           machine.cores
+                           if machine.cores else 0},
+            'ram_gb': {'type': 'gauge', 'value': lambda machine: (
+                machine.size.ram / 1000 if machine.state == 'running' and
+                machine.size and machine.size.ram else 0)}
+        }
+    },
+    "volume": {
+        "default": {
+            'disk_gb_hours': {'type': 'counter', 'value': lambda volume,
+                              dt: dt * (volume.size)},
+            'disk_gb': {'type': 'gauge', 'value': lambda volume: volume.size}
+        }
     }
 }
 
@@ -1229,6 +1244,8 @@ VICTORIAMETRICS_WRITE_URI = (f"http://vminsert:8480/insert/<org_id>/"
 
 GRAPHITE_TO_VICTORIAMETRICS_METRICS_MAP = {}
 
+VICTORIAMETRICS_TO_VICTORIAMETRICS_METRICS_MAP = {}
+
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
 CILIA_SECRET_KEY = ""
@@ -1522,6 +1539,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1544,6 +1562,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1567,6 +1586,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1588,6 +1608,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1608,6 +1629,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1617,7 +1639,7 @@ PROVIDERS = {
                     'location-image-restriction': False,
                 },
             },
-            'storage': True,
+            'storage': False,
             'networks': True,
             'metal': True
         }
@@ -1629,6 +1651,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1648,6 +1671,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1667,6 +1691,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'restrictions': {
@@ -1686,6 +1711,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': False,
                 'restrictions': {
@@ -1705,6 +1731,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'restrictions': {
@@ -1723,6 +1750,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1744,6 +1772,7 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
+            'console': True,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1764,6 +1793,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': True,
             'provision': {
                 'location': False,
                 'restrictions': {
@@ -1783,6 +1813,7 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': True,
                 'custom_size': True,
@@ -1805,6 +1836,7 @@ PROVIDERS = {
         'category': 'public cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'cloudinit': True,
                 'custom_size': True,
@@ -1825,6 +1857,7 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
+            'console': True,
             'provision': {
                 'location': True,
                 'custom_size': True,
@@ -1846,6 +1879,7 @@ PROVIDERS = {
         'category': 'private cloud',
         'features': {
             'compute': True,
+            'console': False,
             'provision': {
                 'location': False,
                 'restrictions': {
@@ -1864,6 +1898,7 @@ PROVIDERS = {
         'category': 'hypervisor',
         'features': {
             'compute': True,
+            'console': True,
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1909,6 +1944,7 @@ PROVIDERS = {
         'category': 'container host',
         'features': {
             'compute': True,
+            'console': False,
             'container': True,
             'provision': {
                 'location': False,
@@ -1932,6 +1968,7 @@ PROVIDERS = {
         'category': 'container host',
         'features': {
             'compute': True,
+            'console': False,
             'container': True,
             'provision': {
                 'location': True,

@@ -206,7 +206,6 @@ class EquinixMetalMainController(BaseMainController):
 
     provider = 'equinixmetal'
     ComputeController = compute_ctls.EquinixMetalComputeController
-    StorageController = storage_ctls.EquinixMetalStorageController
 
 
 class VultrMainController(BaseMainController):
