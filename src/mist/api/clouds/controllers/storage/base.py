@@ -168,6 +168,7 @@ class BaseStorageController(BaseController):
             volume.name = libcloud_volume.name
             volume.size = libcloud_volume.size
             volume.extra = copy.copy(libcloud_volume.extra)
+            volume.type = self._list_volumes__get_type(volume.extra)
             volume.missing_since = None
             volume.last_seen = now
 
@@ -332,6 +333,12 @@ class BaseStorageController(BaseController):
             volume.actions.attach = True
             volume.actions.delete = True
             volume.actions.detach = False
+
+    def _list_volumes__get_type(self, extra):
+        """Get volume type from `volume.extra`.
+        Subclasses MAY override this method.
+        """
+        return None
 
     def rename_volume(self, volume, name):
         """Renames a volume.

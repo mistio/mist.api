@@ -64,6 +64,9 @@ class GoogleStorageController(BaseStorageController):
             raise NotFoundError("Location with id '%s'." % kwargs['location'])
         kwargs['location'] = location.name
 
+    def _list_volumes__get_type(self, extra):
+        return extra.get("type")
+
 
 class AmazonStorageController(BaseStorageController):
 
@@ -125,6 +128,9 @@ class AmazonStorageController(BaseStorageController):
         self.cloud.ctl.compute.connection.attach_volume(libcloud_node,
                                                         libcloud_volume,
                                                         kwargs['device'])
+
+    def _list_volumes__get_type(self, extra):
+        return extra.get("volume_type")
 
 
 class DigitalOceanStorageController(BaseStorageController):
@@ -343,6 +349,9 @@ class AzureArmStorageController(BaseStorageController):
         kwargs['ex_resource_group'] = ex_resource_group
         account_type = kwargs.pop('storage_account_type', 'Standard_LRS')
         kwargs['ex_storage_account_type'] = account_type
+
+    def _list_volumes__get_type(self, extra):
+        return (extra.get('properties', {})).get('accountType')
 
 
 class AlibabaStorageController(BaseStorageController):

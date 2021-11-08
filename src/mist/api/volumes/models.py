@@ -39,6 +39,7 @@ class Volume(OwnershipMixin, me.Document):
     actions = me.EmbeddedDocumentField(VolumeActions,
                                        default=lambda: VolumeActions())
     extra = MistDictField()
+    type = me.StringField()
 
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
