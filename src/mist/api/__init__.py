@@ -71,11 +71,13 @@ def main(global_config, **settings):
     if config.SENTRY_CONFIG.get('API_V1_URL'):
         import sentry_sdk
         from sentry_sdk.integrations.pyramid import PyramidIntegration
+        from mist.api.helpers import get_version_string
         sentry_sdk.init(
             dsn=config.SENTRY_CONFIG['API_V1_URL'],
             integrations=[PyramidIntegration()],
             traces_sample_rate=config.SENTRY_CONFIG['TRACES_SAMPLE_RATE'],
             environment=config.SENTRY_CONFIG['ENVIRONMENT'],
+            release=get_version_string(),
         )
 
     settings = {}

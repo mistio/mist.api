@@ -98,10 +98,12 @@ if (config.SENTRY_CONFIG.get('DRAMATIQ_URL') and
         os.getenv('DRAMATIQ_CONTEXT')):
     import sentry_sdk
     import sentry_dramatiq
+    from mist.api.helpers import get_version_string
     sentry_sdk.init(
         config.SENTRY_CONFIG['DRAMATIQ_URL'],
         integrations=[sentry_dramatiq.DramatiqIntegration()],
         environment=config.SENTRY_CONFIG['ENVIRONMENT'],
+        release=get_version_string(),
     )
 
 broker = RabbitmqBroker(url=config.BROKER_URL + '?heartbeat=600')

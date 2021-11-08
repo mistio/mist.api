@@ -15,9 +15,11 @@ from mist.api import config
 
 if config.SENTRY_CONFIG.get('SOCK_JS_URL'):
     import sentry_sdk
+    from mist.api.helpers import get_version_string
     sentry_sdk.init(
         dsn=config.SENTRY_CONFIG['SOCK_JS_URL'],
         environment=config.SENTRY_CONFIG['ENVIRONMENT'],
+        release=get_version_string(),
     )
 
 
