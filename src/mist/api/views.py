@@ -272,12 +272,14 @@ def not_found(request):
 
         get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs,
-                                  request=request)
+                                  request=request,
+                                  response=request.response)
 
     get_ui_template(build_path)
     template_inputs['ugly_rbac'] = config.UGLY_RBAC
     return render_to_response('templates/ui.pt', template_inputs,
-                              request=request)
+                              request=request,
+                              response=request.response)
 
 
 # SEC

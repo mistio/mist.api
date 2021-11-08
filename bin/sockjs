@@ -10,6 +10,17 @@ import tornado.ioloop
 # from tornado_profile import TornadoProfiler
 
 import mist.api.sock
+from mist.api import config
+
+
+if config.SENTRY_CONFIG.get('SOCK_JS_URL'):
+    import sentry_sdk
+    from mist.api.helpers import get_version_string
+    sentry_sdk.init(
+        dsn=config.SENTRY_CONFIG['SOCK_JS_URL'],
+        environment=config.SENTRY_CONFIG['ENVIRONMENT'],
+        release=get_version_string(),
+    )
 
 
 def sig_handler(sig, frame):

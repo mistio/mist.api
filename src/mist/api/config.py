@@ -116,6 +116,16 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
+# Sentry Settings
+SENTRY_CONFIG = {
+    'TRACES_SAMPLE_RATE': 0.2,
+    'API_V1_URL': '',
+    'API_V2_URL': '',
+    'SOCK_JS_URL': '',
+    'DRAMATIQ_URL': '',
+    'ENVIRONMENT': '',
+}
+
 DATABASE_VERSION = 16
 
 UI_TEMPLATE_URL = "http://ui"

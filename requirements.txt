@@ -48,6 +48,8 @@ requests
 s3cmd
 scp
 sendgrid-python
+sentry-dramatiq
+sentry-sdk
 sockjs-tornado
 tornado
 #tornado_profile

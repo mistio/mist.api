@@ -1846,3 +1846,11 @@ def requests_retry_session(retries=3,
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     return session
+
+
+def get_version_string():
+    """Convert VERSION dictionary to a string for tracking releases in Sentry
+
+    """
+    return (f"{config.VERSION['repo']}:{config.VERSION['name']}@"
+            f"{config.VERSION['sha']}, modified:{config.VERSION['modified']}")
