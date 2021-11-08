@@ -337,10 +337,15 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         query["query"]["bool"]["filter"]["bool"]["must"].append(
             {"term": {"error": False}}
         )
-    # eliminate results with su in extra
+
+    # eliminate results with su
     if not is_admin:
         query["query"]["bool"]["must_not"] = {
-            "wildcard": {"extra": "*\"su\":*"}}
+            'exists': {
+                "field": "su"
+            }
+        }
+
     # Perform a complex "Query String" Query that may span fields.
     if 'filter' in kwargs:
         f = kwargs.pop('filter')
@@ -353,7 +358,6 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         query["query"]["bool"]["filter"]["bool"]["must"].append({
             'query_string': query_string
         })
-
     # Extend query with additional kwargs.
     for key, value in kwargs.items():
         query["query"]["bool"]["filter"]["bool"]["must"].append(
