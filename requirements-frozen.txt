@@ -68,7 +68,7 @@ pluggy==0.13.1
 pretty==0.1
 prompt-toolkit==3.0.4
 ptyprocess==0.6.0
-py==1.8.1
+py==1.10.0
 pyasn1==0.4.8
 pycodestyle==2.5.0
 pycparser==2.20
