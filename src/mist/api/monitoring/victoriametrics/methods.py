@@ -14,7 +14,8 @@ from mist.api.monitoring.victoriametrics.helpers import (
 log = logging.getLogger(__name__)
 
 
-def get_stats(machine, start="", stop="", step="", metrics=None, metering=True):
+def get_stats(machine, start="", stop="", step="", metrics=None,
+              metering=True):
     assert metering or not metrics
     data = {}
     time_args = calculate_time_args(start, stop, step)
