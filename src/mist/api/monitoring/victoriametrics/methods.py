@@ -14,13 +14,16 @@ from mist.api.monitoring.victoriametrics.helpers import (
 log = logging.getLogger(__name__)
 
 
-def get_stats(machine, start="", stop="", step="", metrics=None):
+def get_stats(machine, start="", stop="", step="", metrics=None, metering=True):
+    assert metering or not metrics
     data = {}
     time_args = calculate_time_args(start, stop, step)
     if not metrics:
         metrics = list(find_metrics(machine).keys())
     if not isinstance(metrics, list):
         metrics = [metrics]
+    if not metering:
+        metrics = ['{metering!="true"}']
     raw_machine_data_list = []
     try:
         loop = asyncio.get_event_loop()

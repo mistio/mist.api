@@ -165,7 +165,7 @@ def set_activated_at():
     log.warn("Found %d monitored machines that remain unactivated" %
              len(machines))
     for machine in machines:
-        stats = get_stats(machine, start="-2min")
+        stats = get_stats(machine, start="-2min", metering=False)
         cutoff = datetime.datetime.now() - datetime.timedelta(hours=24)
         started_at = datetime.datetime.fromtimestamp(
             machine.monitoring.installation_status.started_at)
