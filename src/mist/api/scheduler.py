@@ -76,9 +76,17 @@ def add_job(scheduler, schedule, actor, first_run=False):
         else:
             log.error('Invalid task type: %s' % schedule.task_type._cls)
 
-    new_job = scheduler.add_job(actor.send, **job)
     if not first_run and schedule.run_immediately:
-        new_job.modify(next_run_time=datetime.datetime.now())
+        schedule.run_immediately = False
+        try:
+            schedule.save()
+        except Exception as exc:
+            log.critical(
+                'Failed to save schedule: %s with exception: %s',
+                schedule.id, repr(exc))
+        else:
+            job['next_run_time'] = datetime.datetime.now()
+    new_job = scheduler.add_job(actor.send, **job)
     return new_job
 
 
@@ -86,7 +94,8 @@ def update_job(scheduler, schedule, actor, existing):
     changes = {}
     interval = getattr(existing.trigger, 'interval', None)
     if isinstance(schedule, PollingSchedule):
-        if interval.total_seconds() != schedule.interval.every:
+        if (interval.total_seconds() != schedule.interval.every or
+                schedule.run_immediately):
             scheduler.remove_job(existing.id)
             add_job(scheduler, schedule, actor)
     elif isinstance(schedule, Rule):
@@ -112,8 +121,8 @@ def update_job(scheduler, schedule, actor, existing):
                 changes['trigger'] = new_trigger
         elif schedule.schedule_type.type in ('one_off', 'reminder'):
             # Update run_date
-            if existing.trigger.run_date != \
-                    pytz.utc.localize(schedule.schedule_type.entry):
+            if (existing.trigger.run_date != pytz.utc.localize(schedule.schedule_type.entry) or  # noqa
+                    schedule.run_immediately):
                 scheduler.remove_job(existing.id)
                 add_job(scheduler, schedule, actor)
                 return
@@ -145,7 +154,19 @@ def update_job(scheduler, schedule, actor, existing):
             # Update args
             changes['args'] = new_args
 
-        scheduler.modify_job(existing.id, **changes)
+        if schedule.run_immediately:
+            schedule.run_immediately = False
+            try:
+                schedule.save()
+            except Exception as exc:
+                log.critical(
+                    'Failed to save schedule: %s with exception: %s',
+                    schedule.id, repr(exc))
+            else:
+                changes['next_run_time'] = datetime.datetime.now()
+
+        if changes:
+            scheduler.modify_job(existing.id, **changes)
 
 
 def load_config_schedules(scheduler):
