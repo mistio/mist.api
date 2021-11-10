@@ -70,7 +70,7 @@ log = logging.getLogger(__name__)
 
 def get_stats(
     machine, start="", stop="", step="",
-        metrics=None, monitoring_method=None):
+        metrics=None, monitoring_method=None, metering=True):
     """Get all monitoring data for the specified machine.
 
     If a list of `metrics` is provided, each metric needs to comply with the
@@ -158,7 +158,8 @@ def get_stats(
             start,
             stop,
             step,
-            metrics
+            metrics,
+            metering
         )
 
     else:
