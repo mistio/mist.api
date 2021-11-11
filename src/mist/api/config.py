@@ -51,6 +51,7 @@ EMAIL_LOGO = "landing/images/logo-email-440.png"
 
 GC_SCHEDULERS = True
 GC_SESSIONS = True
+GC_NODATARULETRACKER = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
@@ -3268,6 +3269,11 @@ if GC_SCHEDULERS:
 if GC_SESSIONS:
     _schedule['gc-sessions'] = {
         'task': 'mist.api.portal.tasks.gc_sessions',
+        'schedule': datetime.timedelta(hours=24),
+    }
+if GC_NODATARULETRACKER:
+    _schedule['gc-nodataruletracker'] = {
+        'task': 'mist.api.notifications.tasks.gc_nodataruletracker',
         'schedule': datetime.timedelta(hours=24),
     }
 if ENABLE_MONITORING:

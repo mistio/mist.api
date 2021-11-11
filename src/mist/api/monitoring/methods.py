@@ -58,7 +58,10 @@ from mist.api.monitoring.victoriametrics.methods \
 
 from mist.api.monitoring import traefik
 
-from mist.api.rules.models import Rule
+from mist.api.notifications.models import NoDataRuleTracker
+
+from mist.api.rules.models import MachineMetricRule
+from mist.api.rules.models import NoDataRule
 
 from mist.api.tag.methods import get_tags_for_resource
 
@@ -601,8 +604,10 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
     # If the machine we are trying to disable monitoring for is the only one
     # included in a rule, then delete the rule. Otherwise, attempt to remove
     # the machine from the list of resources the rule is referring to.
-    for rule in Rule.objects(owner_id=machine.owner.id):
-        if rule.ctl.includes_only(machine):
+    for rule in MachineMetricRule.objects(owner_id=machine.owner.id):
+        if isinstance(rule, NoDataRule):
+            NoDataRuleTracker.remove(rule.id, machine.id)
+        elif rule.ctl.includes_only(machine):
             rule.delete()
         else:
             rule.ctl.maybe_remove(machine)
