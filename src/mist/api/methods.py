@@ -6,6 +6,7 @@ import json
 
 import pingparsing
 
+import mongoengine as me
 
 from mongoengine import DoesNotExist, Q, BooleanField
 
@@ -715,31 +716,37 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                            machine=machine).count()]
             query &= Q(id__in=ids)
             result = resource_model.objects(query)
-    if tags:
-        if not isinstance(tags, dict):
-            try:
-                tags = json.loads(tags)
-            except json.JSONDecodeError:
-                tags = dict((key, value[0] if value else '')
-                            for key, *value in (pair.split('=')
-                                                for pair in tags.split(',')))
-        result = filter_resources_by_tags(result, tags)
 
     try:
-        from mist.rbac.models import PERMISSIONS
-    except ImportError:
-        return result[start:start + limit], result.count()
+        if tags:
+            if not isinstance(tags, dict):
+                try:
+                    tags = json.loads(tags)
+                except json.JSONDecodeError:
+                    tags = dict((key, value[0] if value else '')
+                                for key, *value in (pair.split('=')
+                                                    for pair in tags.split(
+                                                        ',')))
+            result = filter_resources_by_tags(result, tags)
 
-    if result.count():
-        if not auth_context.is_owner() \
-                and resource_type in PERMISSIONS.keys():
-            # get_allowed_resources uses plural
-            rtype = resource_type if resource_type.endswith(
-                's') else resource_type + 's'
-            allowed_resources = auth_context.get_allowed_resources(
-                rtype=rtype)
-            result = result.filter(id__in=allowed_resources)
-        result = result.order_by(sort)
+        try:
+            from mist.rbac.models import PERMISSIONS
+        except ImportError:
+            return result[start:start + limit], result.count()
+
+        if result.count():
+            if not auth_context.is_owner() \
+                    and resource_type in PERMISSIONS.keys():
+                # get_allowed_resources uses plural
+                rtype = resource_type if resource_type.endswith(
+                    's') else resource_type + 's'
+                allowed_resources = auth_context.get_allowed_resources(
+                    rtype=rtype)
+                result = result.filter(id__in=allowed_resources)
+            result = result.order_by(sort)
+    except me.errors.InvalidQueryError:
+        log.warn(f'Invalid query: {query}')
+        return [], 0
 
     return result[start:start + limit], result.count()
 
