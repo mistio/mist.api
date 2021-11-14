@@ -137,7 +137,9 @@ def usage_survey(url="https://mist.io/api/v1/usage-survey"):
         raise Exception("%s: %s" % (resp.status_code, resp.text))
 
 
-@dramatiq.actor(store_results=True)
+@dramatiq.actor(store_results=True,
+                time_limit=3_600_000,
+                queue_name='dramatiq_schedules')
 def create_backup(
         databases=['mongo', 'influx', 'elastic', 'victoria', 'vault']):
     """
