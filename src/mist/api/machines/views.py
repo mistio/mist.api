@@ -1085,7 +1085,7 @@ def machine_console(request):
             "VNC console only supported for vSphere, "
             "OpenStack, Vexxhost or KVM")
 
-    proxy_uri = get_console_proxy_uri()
+    proxy_uri = get_console_proxy_uri(machine)
     if proxy_uri is None:
         console_url = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
