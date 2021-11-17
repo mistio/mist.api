@@ -15,12 +15,13 @@ import mist.api.monitoring.tasks
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
-from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.users.models import Metric
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.machines.models import InstallationStatus
+
+from mist.api.methods import list_resources
 
 from mist.api.monitoring.influxdb.helpers import show_fields
 from mist.api.monitoring.influxdb.helpers import show_measurements
@@ -62,8 +63,6 @@ from mist.api.notifications.models import NoDataRuleTracker
 
 from mist.api.rules.models import MachineMetricRule
 from mist.api.rules.models import NoDataRule
-
-from mist.api.tag.methods import get_tags_for_resource
 
 from mist.api.helpers import trigger_session_update, amqp_publish_user
 
@@ -663,7 +662,13 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
 
 
 async def async_find_metrics(resources):
-    loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            raise RuntimeError('loop is closed')
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     metrics_all = [
         loop.run_in_executor(None, find_metrics, resource)
         for resource in resources
@@ -766,145 +771,46 @@ def undeploy_python_plugin(machine, plugin_id):
     return {'metric_id': None, 'stdout': stdout}
 
 
-def filter_resources_by_tags(resources, tags):
-    filtered_resources = []
-    for resource in resources:
-        resource_tags = get_tags_for_resource(resource.owner, resource)
-        if tags.items() <= resource_tags.items():
-            filtered_resources.append(resource)
-    return filtered_resources
+def find_all_metrics(resources):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    metrics = loop.run_until_complete(async_find_metrics(resources))
+    loop.close()
+    return metrics
 
 
-def list_resources(resource_type, owner, as_dict=True):
-    try:
-        resource_objs = getattr(
-            mist.api.models, resource_type.capitalize()).objects(
-            owner=owner)
-    except getattr(
-            mist.api.models, resource_type.capitalize()).DoesNotExist:
-        raise NotFoundError(
-            "Resource with type %s not found" % resource_type)
-    if as_dict:
-        return [resource.as_dict() for resource in resource_objs]
-    return resource_objs
-
-
-def list_resources_by_id(resource_type, resource_id, as_dict=True):
-    try:
-        resource_objs = getattr(
-            mist.api.models, resource_type.capitalize()).objects(
-            id=resource_id)
-    except getattr(
-            mist.api.models, resource_type.capitalize()).DoesNotExist:
-        raise NotFoundError(
-            "Resource with type %s not found" % resource_type)
-    if as_dict:
-        return [resource.as_dict() for resource in resource_objs]
-    return resource_objs
-
-
-# SEC
-def filter_list_resources(resource_type, auth_context, as_dict=True):
-    """Returns a list of resources, which is filtered based on RBAC Mappings for
-    non-Owners.
-    """
-    resources = list_resources(
-        resource_type, auth_context.owner, as_dict=as_dict)
-    if not auth_context.is_owner():
-        if as_dict:
-            resources = [resource for resource in resources if resource['id']
-                         in auth_context.get_allowed_resources(
-                             rtype=resource_type)]
-        else:
-            resources = [resource for resource in resources if resource.id
-                         in auth_context.get_allowed_resources(
-                             rtype=resource_type)]
-    return resources
-
-
-def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
-    from mist.api.machines.methods import filter_list_machines
-    resource_types = ['cloud', 'machine']
+def find_metrics_by_attributes(auth_context, resource_id, resource_type, tags):
+    resource_types = ["machine", "cloud"]
+    if resource_id:
+        if not resource_type:
+            cloud, _ = list_resources(
+                auth_context, "cloud", search=resource_id)
+            # If we have an id which corresponds to a cloud but no resource
+            # type we return all the metrics of all resources of that cloud
+            if cloud:
+                resources, _ = list_resources(
+                    auth_context, "machine", cloud=cloud[0].id)
+                return find_all_metrics(resources)
+        if resource_type:
+            resource_types = [resource_type]
+        for resource_type in resource_types:
+            resources, _ = list_resources(
+                auth_context, resource_type=resource_type, search=resource_id)
+            if resources:
+                return find_all_metrics(resources)
+        return {}
     if resource_type:
-        resource_types = [resource_type]
-    else:
-        # If we have an id which corresponds to a cloud but no resource
-        # type we return all the metrics of all resources of that cloud
-        metrics = {}
-        try:
-            # SEC require permission READ on resource
-            auth_context.check_perm("cloud", "read", resource_id)
-            resource_objs = list_resources_by_id(
-                "cloud", resource_id, as_dict=False)
-            if resource_objs:
-                machines = [machine for machine in
-                            filter_list_machines(auth_context,
-                                                 resource_id,
-                                                 as_dict=False)]
-                for machine in machines:
-                    metrics.update(find_metrics(machine))
-                return metrics
-        except Cloud.DoesNotExist:
-            pass
-    for resource_type in resource_types:
-        try:
-            # SEC require permission READ on resource
-            auth_context.check_perm(resource_type, "read", resource_id)
-            resource_objs = list_resources_by_id(
-                resource_type, resource_id, as_dict=False)
-            if resource_objs:
-                return find_metrics(resource_objs[0])
-        except NotFoundError:
-            pass
-        except PolicyUnauthorizedError:
-            pass
-    raise NotFoundError("resource with id:%s" % resource_id)
-
-
-def find_metrics_by_resource_type(auth_context, resource_type, tags):
-    from mist.api.clouds.methods import filter_list_clouds
-    from mist.api.machines.methods import filter_list_machines
-    resources = []
-    if resource_type == "machine":
-        clouds = filter_list_clouds(auth_context, as_dict=False)
-        for cloud in clouds:
-            try:
-                resources += filter_list_machines(
-                    auth_context, cloud.id, cached=True, as_dict=False)
-            except Cloud.DoesNotExist:
-                log.error("Cloud with id=%s does not exist" % cloud.id)
-    else:
-        resources = filter_list_resources(
-            resource_type, auth_context, as_dict=False)
-
-    if tags and resources:
-        resources = filter_resources_by_tags(resources, tags)
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    metrics = loop.run_until_complete(async_find_metrics(resources))
-    loop.close()
-    return metrics
-
-
-def find_metrics_by_tags(auth_context, tags):
-    resource_types = ['cloud', 'machine']
-    resources = []
-    for resource_type in resource_types:
-        try:
-            resources += filter_list_resources(
-                resource_type, auth_context, as_dict=False)
-        except NotFoundError as e:
-            log.error("%r" % e)
-
-    if resources:
-        resources = filter_resources_by_tags(resources, tags)
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    metrics = loop.run_until_complete(async_find_metrics(resources))
-    loop.close()
-    return metrics
+        resources, _ = list_resources(
+            auth_context, resource_type=resource_type, tags=tags)
+        return find_all_metrics(resources)
+    if tags:
+        resources = []
+        for resource_type in resource_types:
+            resources += (list_resources(auth_context,
+                                         resource_type=resource_type,
+                                         tags=tags))[0]
+        return find_all_metrics(resources)
+    return {}
 
 
 def notify_machine_monitoring(machine):
