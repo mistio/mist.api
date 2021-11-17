@@ -283,9 +283,9 @@ def find_metrics(request):
     auth_context = auth_context_from_request(request)
 
     params = params_from_request(request)
-    resource_type = params.get('resource_type', None)
-    resource_id = params.get('resource_id', None)
-    tags = params.get('tags', None)
+    resource_type = params.get('resource_type', '')
+    resource_id = params.get('resource_id', '')
+    tags = params.get('tags', '')
 
     # Convert the tag list to a dict
     if tags:
@@ -293,17 +293,8 @@ def find_metrics(request):
                     for key, *value in (pair.split(':')
                                         for pair in tags.split(',')))
 
-    if resource_id:
-        return mist.api.monitoring.methods.find_metrics_by_resource_id(
-            auth_context, resource_id, resource_type)
-
-    if resource_type:
-        return mist.api.monitoring.methods.find_metrics_by_resource_type(
-            auth_context, resource_type, tags)
-
-    if tags:
-        return mist.api.monitoring.methods.find_metrics_by_tags(
-            auth_context, tags)
+    return mist.api.monitoring.methods.find_metrics_by_attributes(
+        auth_context, resource_id, resource_type, tags)
 
 
 # SEC FIXME: (Un)deploying a plugin isn't the same as editing a custom metric.
