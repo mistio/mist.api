@@ -287,6 +287,10 @@ def find_metrics(request):
     resource_id = params.get('resource_id', '')
     tags = params.get('tags', '')
 
+    if not (resource_type or resource_id or tags):
+        raise BadRequestError(
+            'At least one of (resource_type, resource_id, tags) required')
+
     # Convert the tag list to a dict
     if tags:
         tags = dict((key, value[0] if value else '')

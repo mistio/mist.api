@@ -812,6 +812,7 @@ def find_metrics_by_attributes(auth_context, resource_id, resource_type, tags):
             resources += (list_resources(auth_context,
                                          resource_type=resource_type, tags=tags))[0]
         return find_all_metrics(resources)
+    return {}
 
 
 def notify_machine_monitoring(machine):
