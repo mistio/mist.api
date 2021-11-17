@@ -552,6 +552,10 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             >>> 't2.nano cpus>1 ram>=1024'
         cloud(str): List resources from these clouds only,
             with the same pattern as `search`.
+        tags(str or dict): List resources which satisfy these tags:
+            Examples:
+            >>> '{"dev": "", "server": "east"}'
+            >>> 'dev,server=east'
         only(str): The fields to load from the resource_type's document,
             comma-seperated.
         sort(str): The field to order the query results by; field may be
