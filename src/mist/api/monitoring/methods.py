@@ -15,7 +15,6 @@ import mist.api.monitoring.tasks
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
-from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.users.models import Metric
 from mist.api.clouds.models import Cloud
@@ -64,8 +63,6 @@ from mist.api.notifications.models import NoDataRuleTracker
 
 from mist.api.rules.models import MachineMetricRule
 from mist.api.rules.models import NoDataRule
-
-from mist.api.tag.methods import get_tags_for_resource
 
 from mist.api.helpers import trigger_session_update, amqp_publish_user
 
@@ -810,7 +807,8 @@ def find_metrics_by_attributes(auth_context, resource_id, resource_type, tags):
         resources = []
         for resource_type in resource_types:
             resources += (list_resources(auth_context,
-                                         resource_type=resource_type, tags=tags))[0]
+                                         resource_type=resource_type,
+                                         tags=tags))[0]
         return find_all_metrics(resources)
     return {}
 
