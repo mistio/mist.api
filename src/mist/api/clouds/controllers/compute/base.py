@@ -2479,6 +2479,9 @@ class BaseComputeController(BaseController):
         plan['monitoring'] = True if monitoring is True else False
         plan['quantity'] = quantity if quantity else 1
 
+        plan['cost'] = self._generate_plan__get_cost(
+            size, image, location, plan)
+
         self._generate_plan__post_parse_plan(plan)
         return plan
 
@@ -3227,6 +3230,30 @@ class BaseComputeController(BaseController):
             ret_schedules.append(ret_schedule)
 
         return ret_schedules
+
+    def _generate_plan__get_cost(self, size, image, location, plan):
+        """Find the plan's total MONTHLY cost.
+
+        Subclasses SHOULD override or extend this method.
+
+        Parameters:
+            size(CloudSize|Dict|None): The plan's selected size.
+            image(CloudImage): The plan's selected image.
+            location(CloudLocation|None): The plan's selected location.
+            plan(Dict): The current plan to calculate the cost for.
+
+        Returns:
+            A ``float`` representing the total cost of the plan.
+        """
+        from mist.api.clouds.models import CloudSize
+        total_cost = 0.0
+        if isinstance(size, CloudSize):
+            total_cost += (size.extra.get('monthly_price') or
+                           size.extra.get('price_monthly') or
+                           size.extra.get('price') or
+                           0)
+
+        return total_cost
 
     def _generate_plan__post_parse_plan(self, plan) -> None:
         """Parse the whole plan IN PLACE. This is useful for cases where
