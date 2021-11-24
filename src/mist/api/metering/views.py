@@ -17,7 +17,10 @@ def metering(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    org_id = params.get('org_id', auth_context.owner.id)
+    # If requester is not admin ignore param org_id
+    org_id = auth_context.owner.id
+    if auth_context.user.role == 'Admin':
+        org_id = params.get('org_id', auth_context.owner.id)
     try:
         start = params.get('start', 6)  # 1 week default.
         start = int(start)
