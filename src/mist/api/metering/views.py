@@ -17,11 +17,11 @@ def metering(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-
+    org_id = params.get('org_id', auth_context.owner.id)
     try:
         start = params.get('start', 6)  # 1 week default.
         start = int(start)
     except ValueError:
         raise BadRequestError('Bad "start" offset: %s. Must be an int' % start)
 
-    return get_usage(auth_context.owner.id, full_days=start)
+    return get_usage(org_id, full_days=start)
