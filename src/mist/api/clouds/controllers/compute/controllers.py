@@ -5720,11 +5720,11 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
         machine.actions.stop = False
         machine.actions.reboot = False
         machine.actions.rename = False
-        machine.actions.tag = False
         machine.actions.expose = False
         machine.actions.resume = False
         machine.actions.suspend = False
         machine.actions.undefine = False
+        machine.actions.tag = True
         machine.actions.destroy = True
 
     def _get_libcloud_node(self, machine):
