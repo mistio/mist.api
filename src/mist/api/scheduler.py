@@ -15,6 +15,10 @@ from mist.api import config
 from mist.api.models import Schedule
 from mist.api.poller.models import PollingSchedule
 from mist.api.rules.models import Rule
+try:
+    from mist.billing.models import BillingUpdateSchedule  # noqa
+except ImportError:
+    pass
 
 log = logging.getLogger(__name__)
 log.setLevel('DEBUG')
@@ -38,8 +42,11 @@ def add_job(scheduler, schedule, actor, first_run=False):
         'name': schedule.name,
     }
     if isinstance(schedule, PollingSchedule):
-        job['trigger'] = 'interval'
-        job['seconds'] = schedule.interval.every
+        if hasattr(schedule, 'crontab'):
+            job['trigger'] = CronTrigger(**schedule.crontab)
+        else:
+            job['trigger'] = 'interval'
+            job['seconds'] = schedule.interval.every
         job['args'] = schedule.args
     elif isinstance(schedule, Rule):
         job['trigger'] = 'interval'
@@ -94,7 +101,12 @@ def update_job(scheduler, schedule, actor, existing):
     changes = {}
     interval = getattr(existing.trigger, 'interval', None)
     if isinstance(schedule, PollingSchedule):
-        if (interval.total_seconds() != schedule.interval.every or
+        if hasattr(schedule, 'crontab'):
+            # Workaround for schedules that use a cron trigger and subclass
+            # PollingSchedule. Currently only implemented by
+            # BillingUpdateSchedule that never gets updated.
+            pass
+        elif (interval.total_seconds() != schedule.interval.every or
                 schedule.run_immediately):
             scheduler.remove_job(existing.id)
             add_job(scheduler, schedule, actor)
