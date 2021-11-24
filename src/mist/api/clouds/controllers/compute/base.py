@@ -2396,17 +2396,13 @@ class BaseComputeController(BaseController):
             from mist.api.clouds.models import CloudLocation
             locations = [CloudLocation()]
 
-        # Container based providers do not support sizes
-        if self.cloud.ctl.has_feature('container') is True:
-            # Create a dummy CloudSize object for container based providers
-            from mist.api.clouds.models import CloudSize
-            sizes = [CloudSize()]
-            size_extra_attrs = {}
-        else:
-            sizes, size_extra_attrs = self._generate_plan__parse_size(
-                auth_context, size)
-            size_extra_attrs = size_extra_attrs or {}
+        sizes, size_extra_attrs = self._generate_plan__parse_size(
+            auth_context, size)
+        size_extra_attrs = size_extra_attrs or {}
 
+        # Container based providers use size parameter to define
+        # requests & limits
+        if self.cloud.ctl.has_feature('container') is False:
             size_constraint = constraints.get('size', {})
             sizes = check_size_constraint(self.cloud.id,
                                           size_constraint,
@@ -2421,7 +2417,7 @@ class BaseComputeController(BaseController):
         if location and location.name is not None:
             plan['location'] = {'id': location.id, 'name': location.name}
 
-        if size and self.cloud.ctl.has_feature('container') is False:
+        if size:
             # custom size
             if isinstance(size, dict):
                 plan['size'] = size
@@ -2613,10 +2609,12 @@ class BaseComputeController(BaseController):
         Subclasses MAY override or extend this method.
         """
         from mist.api.methods import list_resources
+        prefix_preference = None
         if isinstance(size_obj, str):
             size_search = size_obj
         elif isinstance(size_obj, dict):
-            size_search = size_obj.get('size')
+            size_search = size_obj.get('search')
+            prefix_preference = size_obj.get('prefer', {}).get('prefix')
         else:
             raise BadRequestError('Invalid size type')
 
@@ -2631,11 +2629,22 @@ class BaseComputeController(BaseController):
             if not count:
                 raise NotFoundError('Size not found')
 
-            return sizes, None
         else:
             sizes = self._generate_plan__parse_custom_size(
                 auth_context, size_obj)
-            return sizes, None
+
+        if prefix_preference:
+            try:
+                filtered_sizes = sizes.filter(
+                    name__startswith=prefix_preference)
+            except AttributeError:
+                return sizes, None
+
+            # Only use the filtered sizes if there were matched objects
+            if filtered_sizes.count():
+                return filtered_sizes, None
+
+        return sizes, None
 
     def _generate_plan__parse_custom_size(self, auth_context,
                                           size_dict) -> List:
@@ -2842,11 +2851,11 @@ class BaseComputeController(BaseController):
             try:
                 cpus = size.cpus or float('inf')
             except AttributeError:
-                cpus = size['cpus']
+                cpus = size.get('cpus', 0)
             try:
                 ram = size.ram or float('inf')
             except AttributeError:
-                ram = size['ram']
+                ram = size.get('ram', 0)
             return cpus, ram, -image.starred, len(image.name)
 
         if has_price_info:
