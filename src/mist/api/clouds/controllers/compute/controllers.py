@@ -4156,25 +4156,17 @@ class DockerComputeController(BaseComputeController):
         if not isinstance(size_obj, dict):
             raise BadRequestError('Invalid size type')
 
-        cpus = size_obj.get('cpus') or {}
-        if not isinstance(cpus, dict):
-            raise BadRequestError('Invalid size cpus type')
-
-        cpu_shares = cpus.get('shares')
-        if cpu_shares and cpu_shares < 2:
-            raise BadRequestError('Cpu shares value should be at least 2')
-
-        cpu_limit = cpus.get('limit')
+        cpu_limit = size_obj.get('cpus')
         if cpu_limit and cpu_limit <= 0:
             raise BadRequestError('Cpu limit value should be bigger than 0')
 
-        ram = size_obj.get('ram') or {}
-        if not isinstance(ram, dict):
-            raise BadRequestError('Invalid size ram type')
-
-        memory_limit = ram.get('limit')
+        memory_limit = size_obj.get('ram')
         if memory_limit and memory_limit < 6:
             raise BadRequestError('Memory limit value should be at least 6 MB')
+
+        cpu_shares = size_obj.get('prefer', {}).get('cpu_shares')
+        if cpu_shares and cpu_shares < 2:
+            raise BadRequestError('Cpu shares value should be at least 2')
 
         ret_size = {}
         if cpu_shares:
@@ -4492,6 +4484,33 @@ class LXDComputeController(BaseComputeController):
                                                          cert_file=cert_file,
                                                          ca_cert=ca_cert)
 
+    def _generate_plan__parse_size(self, auth_context, size_obj):
+        size_obj = size_obj or {}
+
+        if not isinstance(size_obj, dict):
+            raise BadRequestError('Invalid size type')
+
+        cpu_limit = size_obj.get('cpus')
+        if cpu_limit and cpu_limit <= 0:
+            raise BadRequestError('Cpu limit value should be bigger than 0')
+
+        memory_limit = size_obj.get('ram')
+        if memory_limit and memory_limit < 6:
+            raise BadRequestError('Memory limit value should be at least 6 MB')
+
+        ret_size = {}
+        limits = {}
+
+        if cpu_limit:
+            limits['cpu'] = str(cpu_limit)
+        if memory_limit:
+            limits['memory'] = f'{memory_limit}MB'
+
+        if limits:
+            ret_size['limits'] = limits
+
+        return [ret_size], None
+
     def _generate_plan__parse_networks(self,
                                        auth_context,
                                        networks_dict,
@@ -4561,21 +4580,6 @@ class LXDComputeController(BaseComputeController):
     def _generate_plan__parse_extra(self, extra, plan):
         plan['ephemeral'] = extra.get('ephemeral') is True
 
-        if extra.get('limits'):
-            plan['limits'] = {}
-            try:
-                plan['limits']['cpu'] = str(extra['limits']['cpu'])
-            except KeyError:
-                pass
-            except TypeError:
-                raise BadRequestError(
-                    'Invalid type for limits parameter'
-                )
-            try:
-                plan['limits']['memory'] = f"{extra['limits']['memory']}MB"
-            except KeyError:
-                pass
-
     def _create_machine__compute_kwargs(self, plan):
         from mist.api.volumes.models import Volume
         kwargs = super()._create_machine__compute_kwargs(plan)
@@ -4637,13 +4641,16 @@ class LXDComputeController(BaseComputeController):
             kwargs['ex_devices'] = devices
 
         kwargs['ex_ephemeral'] = plan['ephemeral']
-
-        if plan.get('limits'):
+        if plan.get('size'):
             kwargs['ex_config'] = {}
-            if plan['limits'].get('cpu'):
-                kwargs['ex_config']['limits.cpu'] = plan['limits']['cpu']
-            if plan['limits'].get('memory'):
-                kwargs['ex_config']['limits.memory'] = plan['limits']['memory']
+            try:
+                kwargs['ex_config']['limits.cpu'] = plan['size']['limits']['cpu']  # noqa
+            except KeyError:
+                pass
+            try:
+                kwargs['ex_config']['limits.memory'] = plan['size']['limits']['memory']  # noqa
+            except KeyError:
+                pass
 
         return kwargs
 
