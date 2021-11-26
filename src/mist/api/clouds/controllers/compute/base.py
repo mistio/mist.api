@@ -2550,7 +2550,7 @@ class BaseComputeController(BaseController):
         return None, None
 
     def _generate_plan__parse_location(self, auth_context,
-                                       location_search) -> List:
+                                       location_obj) -> List:
         """Parse the location string parameter from create machine request.
 
         Subclasses MAY override or extend this method.
@@ -2558,12 +2558,22 @@ class BaseComputeController(BaseController):
         Parameters:
             auth_context(AuthContext): The AuthContext object of the user
                                        making the request.
-            location_search(str): The location string from create machine
-                                  request.
+            location_obj(str|dict): The location string or dictionary
+                                    from create machinerequest.
 
         Returns:
             A list of CloudLocation objects
         """
+        if isinstance(location_obj, str):
+            location_search = location_obj
+            prefer_search = None
+        else:
+            location_search = ''
+            try:
+                prefer_search = location_obj['prefer']
+            except KeyError:
+                raise BadRequestError('Parameter prefer_search is required')
+
         from mist.api.methods import list_resources
         locations, count = list_resources(
             auth_context,
@@ -2573,6 +2583,13 @@ class BaseComputeController(BaseController):
             limit=1000)
         if not count:
             raise NotFoundError('Location not found')
+
+        if prefer_search:
+            preferred_locations = locations.filter(
+                name__icontains=prefer_search)
+            # Only use the preferred locations if there were matched objects
+            if preferred_locations.count():
+                locations = preferred_locations
 
         ret_locations = []
         for location in locations:
@@ -2669,8 +2686,8 @@ class BaseComputeController(BaseController):
             A list of either custom sizes or CloudSize objects.
         """
         try:
-            cpus = size_dict['cpus']
-            ram = size_dict['ram']
+            cpus = size_dict['cpu']
+            ram = size_dict['memory']
         except (KeyError, TypeError):
             raise BadRequestError('Required size parameter missing')
 
