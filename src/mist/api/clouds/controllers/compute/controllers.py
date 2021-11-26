@@ -4156,11 +4156,11 @@ class DockerComputeController(BaseComputeController):
         if not isinstance(size_obj, dict):
             raise BadRequestError('Invalid size type')
 
-        cpu_limit = size_obj.get('cpus')
+        cpu_limit = size_obj.get('cpu')
         if cpu_limit and cpu_limit <= 0:
             raise BadRequestError('Cpu limit value should be bigger than 0')
 
-        memory_limit = size_obj.get('ram')
+        memory_limit = size_obj.get('memory')
         if memory_limit and memory_limit < 6:
             raise BadRequestError('Memory limit value should be at least 6 MB')
 
@@ -4490,11 +4490,11 @@ class LXDComputeController(BaseComputeController):
         if not isinstance(size_obj, dict):
             raise BadRequestError('Invalid size type')
 
-        cpu_limit = size_obj.get('cpus')
+        cpu_limit = size_obj.get('cpu')
         if cpu_limit and cpu_limit <= 0:
             raise BadRequestError('Cpu limit value should be bigger than 0')
 
-        memory_limit = size_obj.get('ram')
+        memory_limit = size_obj.get('memory')
         if memory_limit and memory_limit < 6:
             raise BadRequestError('Memory limit value should be at least 6 MB')
 
