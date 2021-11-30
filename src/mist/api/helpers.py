@@ -23,6 +23,7 @@ import smtplib
 import logging
 import codecs
 import secrets
+import operator
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -1854,3 +1855,72 @@ def get_version_string():
     """
     return (f"{config.VERSION['repo']}:{config.VERSION['name']}@"
             f"{config.VERSION['sha']}, modified:{config.VERSION['modified']}")
+
+
+def select_plan(valid_plans, optimize, auth_context):
+    """Helper function for api-v2 create machine endpoint.
+
+    Pick the most appropriate plan from valid_plans based on
+    the optimize parameter.
+
+    Currently the following optimize values are supported:
+        cost
+        performance
+    """
+    if optimize == 'cost':
+        return min(valid_plans, key=operator.itemgetter('cost'))
+
+    if optimize == 'performance':
+        from mist.api.tag.models import Tag
+        for plan in valid_plans:
+            tag = Tag.objects(resource_id=plan['cloud']['id'],
+                              resource_type='cloud',
+                              owner=auth_context.owner,
+                              key='performance',
+                              ).first()
+            if tag and tag.value:
+                try:
+                    plan['performance'] = float(tag.value)
+                except ValueError:
+                    # custom metric case
+                    from mist.api.auth.models import SessionToken
+                    from mist.api.portal.models import Portal
+                    if isinstance(auth_context.token, SessionToken):
+                        headers = {
+                            'Authorization': 'internal %s %s' % (
+                                Portal.get_singleton().internal_api_key,
+                                auth_context.token.token)}
+                    else:
+                        headers = {
+                            'Authorization': auth_context.token.token,
+                        }
+                    params = f'query=last_over_time({tag.value}[10m])&time=0s'
+                    url = f'{config.INTERNAL_API_V2_URL}/api/v2/datapoints'
+                    response = requests.get(url,
+                                            headers=headers,
+                                            params=params)
+                    try:
+                        response.raise_for_status()
+                    except requests.HTTPError as exc:
+                        log.error(
+                            ('Failed to fetch system load for cloud: %s '
+                             'with exception: %s'),
+                            plan['cloud']['id'], repr(exc))
+                        plan['performance'] = float('inf')
+                        continue
+
+                    body = response.json()
+                    try:
+                        plan['performance'] = float(body[
+                            'data']['data']['result'][0]['value'][1])
+                    except (KeyError, IndexError):
+                        log.error(
+                            'Failed to parse system load metric for cloud: %s',
+                            plan['cloud']['id'])
+                        plan['performance'] = float('inf')
+            else:
+                plan['performance'] = float('inf')
+
+        plan = min(valid_plans, key=operator.itemgetter('performance'))
+        plan.pop('performance')
+        return plan

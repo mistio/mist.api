@@ -2396,17 +2396,13 @@ class BaseComputeController(BaseController):
             from mist.api.clouds.models import CloudLocation
             locations = [CloudLocation()]
 
-        # Container based providers do not support sizes
-        if self.cloud.ctl.has_feature('container') is True:
-            # Create a dummy CloudSize object for container based providers
-            from mist.api.clouds.models import CloudSize
-            sizes = [CloudSize()]
-            size_extra_attrs = {}
-        else:
-            sizes, size_extra_attrs = self._generate_plan__parse_size(
-                auth_context, size)
-            size_extra_attrs = size_extra_attrs or {}
+        sizes, size_extra_attrs = self._generate_plan__parse_size(
+            auth_context, size)
+        size_extra_attrs = size_extra_attrs or {}
 
+        # Container based providers use size parameter to define
+        # requests & limits
+        if self.cloud.ctl.has_feature('container') is False:
             size_constraint = constraints.get('size', {})
             sizes = check_size_constraint(self.cloud.id,
                                           size_constraint,
@@ -2421,7 +2417,7 @@ class BaseComputeController(BaseController):
         if location and location.name is not None:
             plan['location'] = {'id': location.id, 'name': location.name}
 
-        if size and self.cloud.ctl.has_feature('container') is False:
+        if size:
             # custom size
             if isinstance(size, dict):
                 plan['size'] = size
@@ -2554,7 +2550,7 @@ class BaseComputeController(BaseController):
         return None, None
 
     def _generate_plan__parse_location(self, auth_context,
-                                       location_search) -> List:
+                                       location_obj) -> List:
         """Parse the location string parameter from create machine request.
 
         Subclasses MAY override or extend this method.
@@ -2562,12 +2558,22 @@ class BaseComputeController(BaseController):
         Parameters:
             auth_context(AuthContext): The AuthContext object of the user
                                        making the request.
-            location_search(str): The location string from create machine
-                                  request.
+            location_obj(str|dict): The location string or dictionary
+                                    from create machinerequest.
 
         Returns:
             A list of CloudLocation objects
         """
+        if isinstance(location_obj, str):
+            location_search = location_obj
+            prefer_search = None
+        else:
+            location_search = ''
+            try:
+                prefer_search = location_obj['prefer']
+            except KeyError:
+                raise BadRequestError('Parameter prefer_search is required')
+
         from mist.api.methods import list_resources
         locations, count = list_resources(
             auth_context,
@@ -2577,6 +2583,13 @@ class BaseComputeController(BaseController):
             limit=1000)
         if not count:
             raise NotFoundError('Location not found')
+
+        if prefer_search:
+            preferred_locations = locations.filter(
+                name__icontains=prefer_search)
+            # Only use the preferred locations if there were matched objects
+            if preferred_locations.count():
+                locations = preferred_locations
 
         ret_locations = []
         for location in locations:
@@ -2613,10 +2626,12 @@ class BaseComputeController(BaseController):
         Subclasses MAY override or extend this method.
         """
         from mist.api.methods import list_resources
+        prefix_preference = None
         if isinstance(size_obj, str):
             size_search = size_obj
         elif isinstance(size_obj, dict):
-            size_search = size_obj.get('size')
+            size_search = size_obj.get('search')
+            prefix_preference = size_obj.get('prefer', {}).get('prefix')
         else:
             raise BadRequestError('Invalid size type')
 
@@ -2631,11 +2646,22 @@ class BaseComputeController(BaseController):
             if not count:
                 raise NotFoundError('Size not found')
 
-            return sizes, None
         else:
             sizes = self._generate_plan__parse_custom_size(
                 auth_context, size_obj)
-            return sizes, None
+
+        if prefix_preference:
+            try:
+                filtered_sizes = sizes.filter(
+                    name__startswith=prefix_preference)
+            except AttributeError:
+                return sizes, None
+
+            # Only use the filtered sizes if there were matched objects
+            if filtered_sizes.count():
+                return filtered_sizes, None
+
+        return sizes, None
 
     def _generate_plan__parse_custom_size(self, auth_context,
                                           size_dict) -> List:
@@ -2660,8 +2686,8 @@ class BaseComputeController(BaseController):
             A list of either custom sizes or CloudSize objects.
         """
         try:
-            cpus = size_dict['cpus']
-            ram = size_dict['ram']
+            cpus = size_dict['cpu']
+            ram = size_dict['memory']
         except (KeyError, TypeError):
             raise BadRequestError('Required size parameter missing')
 
@@ -2842,11 +2868,11 @@ class BaseComputeController(BaseController):
             try:
                 cpus = size.cpus or float('inf')
             except AttributeError:
-                cpus = size['cpus']
+                cpus = size.get('cpus', 0)
             try:
                 ram = size.ram or float('inf')
             except AttributeError:
-                ram = size['ram']
+                ram = size.get('ram', 0)
             return cpus, ram, -image.starred, len(image.name)
 
         if has_price_info:

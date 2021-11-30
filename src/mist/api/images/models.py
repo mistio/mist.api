@@ -27,7 +27,10 @@ class CloudImage(OwnershipMixin, me.Document):
     min_disk_size = me.FloatField()  # min disk size in GBs
     min_memory_size = me.IntField()  # min ram size in MBs
     origin = me.StringField(default='system', null=False,
-                            choices=('system', 'marketplace', 'custom'))
+                            choices=('system',
+                                     'marketplace',
+                                     'custom',
+                                     'snapshot'))
 
     meta = {
         'collection': 'images',
