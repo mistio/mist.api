@@ -1072,6 +1072,12 @@ class DigitalOceanComputeController(BaseComputeController):
             external_id__in=mist_size.extra.get('regions', [])
         ).update(add_to_set__available_sizes=mist_size)
 
+    def _list_images__fetch_images(self, search=None):
+        snapshots = self.connection.ex_list_snapshots(resource_type='droplet')
+        images = self.connection.list_images()
+
+        return images + snapshots
+
     def _list_images__get_available_locations(self, mist_image):
         from mist.api.clouds.models import CloudLocation
         CloudLocation.objects(
@@ -1087,6 +1093,10 @@ class DigitalOceanComputeController(BaseComputeController):
         return min_disk_size
 
     def _list_images__get_origin(self, image):
+        from libcloud.compute.drivers.digitalocean import DigitalOceanSnapshot
+        if isinstance(image, DigitalOceanSnapshot):
+            return 'snapshot'
+
         if image.extra.get('public'):
             return 'system'
         return 'custom'
