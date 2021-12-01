@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+
+import argparse
+
+from mist.api.clouds.methods import purge_cloud
+
+
+def main():
+    argparser = argparse.ArgumentParser(
+        description="Purge from db selected cloud and all resources that reference it"
+    )
+    argparser.add_argument('cloud', help="Id of cloud to purge.")
+    args = argparser.parse_args()
+    purge_cloud(args.cloud)
+
+
+if __name__ == "__main__":
+    main()

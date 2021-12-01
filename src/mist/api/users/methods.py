@@ -7,6 +7,7 @@ from mist.api.users.models import WhitelistIP
 
 from mongoengine import ValidationError
 from mongoengine import OperationError
+from mongoengine import InvalidQueryError
 
 from mist.api.auth.models import get_secure_rand_token
 
@@ -223,3 +224,35 @@ def update_whitelist_ips(auth_context, ips):
         user.save()
     except ValidationError as e:
         raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
+
+
+def purge_org(org):
+    from mist.api.clouds.models import Cloud
+    from mist.api.clouds.methods import purge_cloud
+    from mist.api.keys.models import Key
+    from mist.api.scripts.models import Script
+    from mist.api.schedules.models import Schedule
+    from mist.api.rules.models import Rule
+    from mist.api.notifications.models import Notification
+    from mist.api.notifications.models import UserNotificationPolicy
+    rtypes = [
+        Key, Script, Schedule, Rule, Notification, UserNotificationPolicy]
+    try:
+        from mist.orchestration.models import Stack, Template
+        rtypes.append(Stack)
+        rtypes.append(Template)
+        from mist.vpn.models import Tunnel
+        rtypes.append(Tunnel)
+    except ImportError:
+        pass
+    clouds = Cloud.objects(owner=org)
+    for cloud in clouds:
+        print("Purging cloud %s" % cloud)
+        purge_cloud(cloud.id)
+        print("Done")
+    for rtype in rtypes:
+        try:
+            rtype.objects(owner=org).delete()
+        except InvalidQueryError:
+            rtype.objects(owner_id=org.id).delete()
+    org.delete()

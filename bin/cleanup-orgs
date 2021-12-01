@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+
+import argparse
+
+from mist.api.clouds.methods import purge_cloud
+from mist.api.users.methods import purge_org
+
+
+def main():
+    argparser = argparse.ArgumentParser(
+        description="Cleanup broken references from orgs"
+    )
+    argparser.add_argument('org', help="Id of org to cleanup.")
+    args = argparser.parse_args()
+    def cleanup_org(org):
+        for member in o.members:
+            if member.__class__ != User:
+                if len(o.members) > 1:
+                    o.members.remove(member)
+                    o.save()
+                else:
+                    print('Purging org %s' % org.name)
+                    purge_org(org)
+                    print('Done purging orgP')
+    if not args.org:
+        for org in Organization.objects:
+            cleanup_org(org)
+    else:
+        org = Organization.objects.get(id=args.org)
+        cleanup_org(org)
+
+
+if __name__ == "__main__":
+    main()

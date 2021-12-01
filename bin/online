@@ -4,7 +4,7 @@ import requests
 import datetime
 
 import dns.resolver
-
+from mist.api import config
 
 logging.getLogger().setLevel(logging.CRITICAL)
 
@@ -38,9 +38,7 @@ def query(host='127.0.0.1:8081'):
 
 
 if __name__ == '__main__':
-    entries = dns.resolver.query("sockjs-headless", "A")
-    hosts = list()
-
+    entries = dns.resolver.query(config.INTERNAL_SOCKJS_HOST, "A")
     for entry in entries:
         hosts.append(entry.address)
 
@@ -51,4 +49,3 @@ if __name__ == '__main__':
         except Exception as exc:
             print("Error querying host '%s': %r" % (host, exc))
         print()
-
