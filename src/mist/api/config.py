@@ -1884,25 +1884,6 @@ PROVIDERS = {
             'storage': False,
         }
     },
-    'vcloud': {
-        'name': 'vCloud',
-        'aliases': [],
-        'driver': 'cloud',
-        'category': 'private cloud',
-        'features': {
-            'compute': True,
-            'console': False,
-            'provision': {
-                'location': False,
-                'restrictions': {
-                    'size-image-restriction': False,
-                    'location-size-restriction': False,
-                    'location-image-restriction': False,
-                },
-            },
-            'storage': False,
-        }
-    },
     'kvm': {
         'name': 'KVM',
         'aliases': ['libvirt'],
