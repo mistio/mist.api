@@ -64,6 +64,7 @@ def _populate_clouds():
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
     CLOUDS['amazon'] = CLOUDS['ec2']
+    CLOUDS['aws'] = CLOUDS['ec2']
     CLOUDS['kvm'] = CLOUDS['libvirt']
     CLOUDS['other'] = CLOUDS['bare_metal']
     CLOUDS['google'] = CLOUDS['gce']
