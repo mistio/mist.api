@@ -650,7 +650,11 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 v = bool(v)
 
         if k == 'provider' and 'cloud' in resource_type:
-            query &= Q(_cls=CLOUDS[v]()._cls)
+            try:
+                query &= Q(_cls=CLOUDS[v]()._cls)
+            except KeyError:
+                return Cloud.objects.none(), 0
+
         # TODO: only allow terms on indexed fields
         # TODO: support additional operators: >, <, !=, ~
         elif k in ['cloud', 'location']:
