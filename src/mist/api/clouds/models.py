@@ -63,15 +63,20 @@ def _populate_clouds():
                 continue
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
-    CLOUDS['amazon'] = CLOUDS['ec2']
-    CLOUDS['aws'] = CLOUDS['ec2']
-    CLOUDS['kvm'] = CLOUDS['libvirt']
-    CLOUDS['other'] = CLOUDS['bare_metal']
-    CLOUDS['google'] = CLOUDS['gce']
-    CLOUDS['ibm'] = CLOUDS['softlayer']
-    CLOUDS['equinix'] = CLOUDS['equinixmetal']
-    CLOUDS['azure'] = CLOUDS['azure_arm']
-    CLOUDS['alibaba'] = CLOUDS['aliyun_ecs']
+
+    # Add aliases to CLOUDS dictionary
+    for key, value in config.PROVIDERS.items():
+        driver_name = value['driver']
+        cloud_aliases = [key] + value['aliases']
+        if CLOUDS.get(driver_name):
+            for alias in cloud_aliases:
+                CLOUDS[alias] = CLOUDS[driver_name]
+        else:
+            value = next((CLOUDS.get(alias) for alias in cloud_aliases
+                         if CLOUDS.get(alias)), None)
+            if value:
+                for alias in cloud_aliases:
+                    CLOUDS[alias] = value
 
 
 class Cloud(OwnershipMixin, me.Document):
