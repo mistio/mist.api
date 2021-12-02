@@ -1531,7 +1531,11 @@ def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
     for k, v in deref_map.items():
         # If we have a list, dereference its contents
         if isinstance(getattr(obj, k), list):
-            ret[k] = [getattr(item, v, '') for item in getattr(obj, k)]
+            if k in ('allowed_images', 'available_sizes', 'available_images'):
+                ret[k] = {getattr(item, 'id', ''): getattr(item, v, '')
+                          for item in getattr(obj, k)}
+            else:
+                ret[k] = [getattr(item, v, '') for item in getattr(obj, k)]
         else:
             ref = getattr(obj, k)
             ret[k] = getattr(ref, v, '')
