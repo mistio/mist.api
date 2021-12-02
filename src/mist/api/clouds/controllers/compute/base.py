@@ -1241,10 +1241,13 @@ class BaseComputeController(BaseController):
             _size.name = self._list_sizes__get_name(size)
             # FIXME: Parse unit prefix w/ si-prefix, cast to int e.g 1k to 1000
             _size.disk = size.disk
-            _size.bandwidth = size.bandwidth
             _size.missing_since = None
             _size.extra = self._list_sizes__get_extra(size)
             _size.architecture = self._list_sizes__get_architecture(size)
+            try:
+                _size.bandwidth = int(size.bandwidth)
+            except (TypeError, ValueError):
+                _size.bandwidth = None
 
             try:
                 allowed_images = self._list_sizes__get_allowed_images(size)  # noqa
