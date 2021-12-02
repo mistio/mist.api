@@ -908,6 +908,11 @@ class BaseComputeController(BaseController):
             if cached_images and images_dict:
                 # Publish patches to rabbitmq.
                 new_images = {'%s' % im['id']: im for im in images_dict}
+                # Pop extra attribute to prevent unnecessary patches
+                for image in cached_images.values():
+                    image.pop('extra', None)
+                for image in new_images.values():
+                    image.pop('extra', None)
                 patch = jsonpatch.JsonPatch.from_diff(cached_images,
                                                       new_images).patch
                 if search:
