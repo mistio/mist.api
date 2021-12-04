@@ -443,6 +443,8 @@ class LibvirtMainController(BaseMainController):
             self.cloud.delete()
             raise BadRequestError(total_errors)
 
+        self.add_polling_schedules()
+
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                add=False, **kwargs):
         # FIXME: Add update support, need to clean up kvm 'host' from libcloud,
