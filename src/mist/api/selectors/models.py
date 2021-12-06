@@ -81,12 +81,14 @@ class FieldSelector(BaseSelector):
     field = me.StringField(required=True)
     value = me.DynamicField(required=True)
     operator = me.StringField(required=True, default='eq',
-                              choices=('eq', 'ne', 'gt', 'lt'))
+                              choices=('eq', 'ne', 'gt', 'lt', 'regex'))
 
     @property
     def q(self):
         if self.operator == 'eq':
             return me.Q(**{self.field: self.value})
+        elif self.operator == 'regex':
+            return me.Q(**{self.field: re.compile(self.value)})
         return me.Q(**{'%s__%s' % (self.field, self.operator): self.value})
 
     def as_dict(self):
