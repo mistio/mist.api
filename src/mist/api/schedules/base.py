@@ -4,6 +4,7 @@ This currently contains only BaseController. It includes basic functionality
 for a given schedule.
 Cloud specific controllers are in `mist.api.schedules.controllers`.
 """
+import re
 import logging
 import datetime
 import mongoengine as me
@@ -28,6 +29,17 @@ from mist.api.auth.methods import AuthContext
 
 
 log = logging.getLogger(__name__)
+
+
+def check_machine_perm(auth_context, machine, action):
+    # SEC require permission READ on cloud
+    auth_context.check_perm("cloud", "read", machine.cloud.id)
+    if action and action not in ['notify']:
+        # SEC require permission ACTION on machine
+        auth_context.check_perm("machine", action, machine.id)
+    else:
+        # SEC require permission RUN_SCRIPT on machine
+        auth_context.check_perm("machine", "run_script", machine.id)
 
 
 class BaseController(object):
@@ -316,8 +328,17 @@ class BaseController(object):
                 raise BadRequestError()
             if selector['type'] == 'field':
                 if selector['field'] not in ('created', 'state',
-                                             'cost__monthly'):
+                                             'cost__monthly', 'name'):
                     raise BadRequestError()
+                if selector.get('operator') == 'regex':
+                    if selector['field'] != 'name':
+                        raise BadRequestError(
+                            'Supported regex fields: `name`.')
+                    try:
+                        re.compile(selector['value'])
+                    except re.error:
+                        raise BadRequestError(
+                            f"{selector['value']} is not a valid regex.")
             sel = sel_cls[selector.get('type')]()
             sel.update(**selector)
             self.schedule.selectors.append(sel)
@@ -334,16 +355,14 @@ class BaseController(object):
                                                       state__ne='terminated')
                     except Machine.DoesNotExist:
                         raise NotFoundError('Machine state is terminated')
-
-                    # SEC require permission READ on cloud
-                    auth_context.check_perm("cloud", "read", machine.cloud.id)
-
-                    if action and action not in ['notify']:
-                        # SEC require permission ACTION on machine
-                        auth_context.check_perm("machine", action, mid)
-                    else:
-                        # SEC require permission RUN_SCRIPT on machine
-                        auth_context.check_perm("machine", "run_script", mid)
+                    check_machine_perm(auth_context, machine, action)
+                check = True
+            elif selector.ctype == 'field':
+                regex = re.compile(selector['value'])
+                machines = Machine.objects(
+                    name=regex, state__ne='terminated')
+                for m in machines:
+                    check_machine_perm(auth_context, m, action)
                 check = True
             elif selector.ctype == 'tags':
                 if action and action not in ['notify']:
