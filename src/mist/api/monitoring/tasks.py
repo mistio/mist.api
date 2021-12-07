@@ -125,7 +125,7 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:
         log.error('Error during Telegraf undeployment: %r', err)
-        error = err
+        error = repr(err)
     else:
         error = exit_code or None
         _log.update({'key_id': key, 'ssh_user': user, 'exit_code': exit_code,
