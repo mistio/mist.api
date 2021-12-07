@@ -9,6 +9,7 @@ import logging
 import datetime
 import mongoengine as me
 
+from mist.api.helpers import rtype_to_classpath
 from mist.api.scripts.models import Script
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
@@ -29,6 +30,12 @@ from mist.api.auth.methods import AuthContext
 
 
 log = logging.getLogger(__name__)
+
+
+SELECTOR_CLS = {'tags': TaggingSelector,
+                'resource': ResourceSelector,
+                'field': FieldSelector,
+                'age': AgeSelector}
 
 
 def check_machine_perm(auth_context, machine, action):
@@ -316,17 +323,20 @@ class BaseController(object):
         Subclasses MAY override this method.
 
         """
-        sel_cls = {'tags': TaggingSelector,
-                   'machines': ResourceSelector,
-                   'field': FieldSelector,
-                   'age': AgeSelector}
-
         if kwargs.get('selectors'):
             self.schedule.selectors = []
         for selector in kwargs.get('selectors', []):
-            if selector.get('type') not in sel_cls:
-                raise BadRequestError()
-            if selector['type'] == 'field':
+            sel_cls_key = selector.get('type')
+            if not sel_cls_key:
+                sel_cls_key = 'resource'
+                assert self.schedule.resource_model_name in rtype_to_classpath
+                selector['type'] = self.schedule.resource_model_name
+            elif sel_cls_key in rtype_to_classpath:
+                sel_cls_key = 'resource'
+            if sel_cls_key not in SELECTOR_CLS:
+                raise BadRequestError(
+                    f'Valid selector types: {list(SELECTOR_CLS)}')
+            if sel_cls_key == 'field':
                 if selector['field'] not in ('created', 'state',
                                              'cost__monthly', 'name'):
                     raise BadRequestError()
@@ -339,7 +349,7 @@ class BaseController(object):
                     except re.error:
                         raise BadRequestError(
                             f"{selector['value']} is not a valid regex.")
-            sel = sel_cls[selector.get('type')]()
+            sel = SELECTOR_CLS[sel_cls_key]()
             sel.update(**selector)
             self.schedule.selectors.append(sel)
 

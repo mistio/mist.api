@@ -32,6 +32,9 @@ def add_schedule_entry(request):
     RUN_SCRIPT permission required on machine.
     RUN permission required on script.
     ---
+    resource_type:
+      type: string
+      description: type of resource: machines, clusters, etc.
     script_id:
       type: string
     action:

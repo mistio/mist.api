@@ -283,9 +283,13 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
             raise RequiredParameterMissingError('name')
         if not owner or not isinstance(owner, Organization):
             raise BadRequestError('owner')
+        resource_type = kwargs.pop('resource_type', 'machine').rstrip('s')
+        if resource_type not in rtype_to_classpath:
+            raise BadRequestError('resource_type')
         if Schedule.objects(owner=owner, name=name, deleted=None):
             raise ScheduleNameExistsError()
-        schedule = cls(owner=owner, name=name)
+        schedule = cls(owner=owner, name=name,
+                       resource_model_name=resource_type)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
         schedule.assign_to(auth_context.user)
