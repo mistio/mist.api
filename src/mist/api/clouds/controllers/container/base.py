@@ -275,7 +275,8 @@ class BaseContainerController(BaseController):
         if cluster.name != cluster_dict['name']:
             cluster.name = cluster_dict['name']
             updated = True
-        cluster_state = cluster_dict.get('status')
+        cluster_state = cluster_dict.get(
+            'status') or cluster_dict.get('extra', {}).get('status')
         config_state = config.CLUSTER_STATES.get(cluster_state)
         if cluster_state and config_state and cluster.state != config_state:
             cluster.state = config_state
