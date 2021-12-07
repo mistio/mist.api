@@ -16,7 +16,7 @@ class BaseSelector(me.EmbeddedDocument):
     There are five different types for now:
 
         FieldSelector, TaggingSelector, GenericResourceSelector
-        and MachinesAgeSelector
+        and AgeSelector
 
     """
 
@@ -181,9 +181,9 @@ class GenericResourceSelector(BaseSelector):
         return {'type': self.ctype, 'ids': self.ids}
 
 
-class MachinesAgeSelector(BaseSelector):
-    """Selector which computes machine's age and queries
-    for machines which are older than this age. """
+class AgeSelector(BaseSelector):
+    """Selector which computes a resources's age and queries
+    for resources which are older than this age. """
 
     ctype = 'age'
 
