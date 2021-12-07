@@ -23,7 +23,7 @@ fetch %s
 
 def unix_install(machine):
     cmd = "wget -O- %s/install-telegraf.sh " % REPO + \
-          "| $(command -v sudo) sh -s -- "
+          "| $(command -v sudo) -n sh -s -- "
     cmd += "-m %s " % machine.id
     cmd += "-s %s/%s" % (config.TELEGRAF_TARGET,
                          machine.monitoring.collectd_password)
@@ -31,7 +31,7 @@ def unix_install(machine):
 
 
 def unix_uninstall():
-    return "wget -O- %s/uninstall-telegraf.sh | $(command -v sudo) sh" % REPO
+    return "wget -O- %s/uninstall-telegraf.sh | $(command -v sudo) -n sh" % REPO  # noqa
 
 
 def coreos_install(machine):
