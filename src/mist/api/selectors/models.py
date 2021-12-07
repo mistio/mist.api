@@ -15,8 +15,8 @@ class BaseSelector(me.EmbeddedDocument):
 
     There are five different types for now:
 
-        FieldSelector, TaggingSelector, GenericResourceSelector,
-        MachinesSelector (deprecated), and MachinesAgeSelector
+        FieldSelector, TaggingSelector, GenericResourceSelector
+        and MachinesAgeSelector
 
     """
 
@@ -179,24 +179,6 @@ class GenericResourceSelector(BaseSelector):
 
     def as_dict(self):
         return {'type': self.ctype, 'ids': self.ids}
-
-
-class MachinesSelector(GenericResourceSelector):
-    """Predecessor of the newest GenericResourceSelector.
-
-    This selector was used to declare a list of machines ids.
-
-    This selector is now **DEPRECATED** in favor of GenericResourceSelector.
-    It is still kept for backwards compatibility, since the Schedule and Rule
-    models have been using it up until now and mongoDB stores a reference to
-    this class in the form of: `{"_cls": "MachinesSelector"}`. New/updated
-    documents will use the new `GenericResourceSelector`. When this class is
-    no longer required by mongoDB/mongoengine, it can just be deleted (no db
-    schema migration is required).
-
-    """
-
-    ctype = 'machines'
 
 
 class MachinesAgeSelector(BaseSelector):
