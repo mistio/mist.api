@@ -101,6 +101,25 @@ def remove_cloud(owner, cloud_id):
         owner.save()
 
 
+def purge_cloud(cloud_id):
+    from mist.api.machines.models import Machine
+    from mist.api.networks.models import Network
+    from mist.api.volumes.models import Volume
+    from mist.api.containers.models import Cluster
+    from mist.api.dns.models import Zone, Record  # noqa
+    from mist.api.poller.models import CloudPollingSchedule
+    from mist.api.clouds.models import CloudLocation, CloudSize
+    from mist.api.images.models import CloudImage
+
+    referencing_types = [
+        Cluster, Machine, Volume, Zone, Network, CloudPollingSchedule,
+        CloudImage, CloudSize, CloudLocation,
+    ]
+    for rtype in referencing_types:
+        rtype.objects(cloud=cloud_id).delete()
+    Cloud.objects(id=cloud_id).delete()
+
+
 # SEC
 def filter_list_clouds(auth_context, query_filter=None, sort=None,
                        perm='read', as_dict=True):
