@@ -20,7 +20,7 @@ from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.machines.models import Machine
 from mist.api.exceptions import NotFoundError
 
-from mist.api.selectors.models import FieldSelector, GenericResourceSelector
+from mist.api.selectors.models import FieldSelector, ResourceSelector
 from mist.api.selectors.models import TaggingSelector, AgeSelector
 
 import mist.api.schedules.models as schedules
@@ -317,7 +317,7 @@ class BaseController(object):
 
         """
         sel_cls = {'tags': TaggingSelector,
-                   'machines': GenericResourceSelector,
+                   'machines': ResourceSelector,
                    'field': FieldSelector,
                    'age': AgeSelector}
 

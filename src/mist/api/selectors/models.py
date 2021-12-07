@@ -15,7 +15,7 @@ class BaseSelector(me.EmbeddedDocument):
 
     There are five different types for now:
 
-        FieldSelector, TaggingSelector, GenericResourceSelector
+        FieldSelector, TaggingSelector, ResourceSelector
         and AgeSelector
 
     """
@@ -154,7 +154,7 @@ class TaggingSelector(BaseSelector):
         return {'type': self.ctype, 'include': self.include}
 
 
-class GenericResourceSelector(BaseSelector):
+class ResourceSelector(BaseSelector):
     """Selector used to query any resource which is a me.Document subclass.
 
     The selector's type `ctype` is not hard-coded but rather computed based
