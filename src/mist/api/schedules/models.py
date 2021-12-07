@@ -4,6 +4,8 @@ import logging
 from uuid import uuid4
 
 import mongoengine as me
+
+from mist.api.helpers import rtype_to_classpath
 from mist.api.tag.models import Tag
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
@@ -298,10 +300,14 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
 
     @property
     def args(self):
-        mids = [machine.id for machine in self.get_resources() if
-                machine.state != 'terminated']
+        if self.resource_model_name == 'machine' or \
+                self.resource_model_name == 'machines':
+            ids = [machine.id for machine in self.get_resources() if
+                   machine.state != 'terminated']
+        else:
+            ids = [resource.id for resource in self.get_resources()]
         fire_up = self.task_type.args
-        return [self.owner.id, fire_up, self.name, mids]
+        return [self.owner.id, fire_up, self.name, ids]
 
     @property
     def kwargs(self):
@@ -364,7 +370,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
         super(Schedule, self).validate(clean=True)
 
     def clean(self):
-        if self.resource_model_name != 'machine':
+        if self.resource_model_name not in rtype_to_classpath:
             self.resource_model_name = 'machine'
 
     def delete(self):
