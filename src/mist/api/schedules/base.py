@@ -374,7 +374,7 @@ class BaseController(object):
                 for rid in selector.ids:
                     try:
                         resource = resource_cls.objects.get(id=rid, **query)
-                    except resource_cls.DoesNotExist:
+                    except me.DoesNotExist:
                         raise NotFoundError(not_found_msg)
                     check_perm(
                         auth_context, resource_type, action, resource=resource)
