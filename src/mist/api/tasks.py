@@ -78,8 +78,8 @@ __all__ = [
     'rackspace_first_gen_post_create_steps',
     'create_machine_async',
     'send_email',
-    'group_machines_actions',
-    'run_machine_action',
+    'group_resources_actions',
+    'run_resource_action',
     'group_run_script',
     'run_script',
     'update_poller',
@@ -787,28 +787,30 @@ def send_email(subject, body, recipients, sender=None, bcc=None,
 
 
 @dramatiq.actor(queue_name='dramatiq_schedules', store_results=True)
-def group_machines_actions(owner_id, action, name, machines_uuids):
+def group_resources_actions(owner_id, action, name, resources_ids):
     """
-    Accepts a list of lists in form  cloud_id,machine_id and pass them
-    to run_machine_action like a group
+    Pass resource information to run_resource_action, like a group
 
     :param owner_id:
     :param action:
     :param name:
-    :param machines_uuids:
+    :param resources_ids:
     :return: log_dict
     """
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
-
+    resource_type = schedule.resource_model_name
+    resource_cls = schedule.selector_resource_cls
+    resources_match_key = f'{resource_type}s_match'
+    resource_action_key = f'{resource_type}_action'
     log_dict = {
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
         'schedule_type': str(schedule.schedule_type or ''),
         'owner_id': owner_id,
-        'machines_match': schedule.get_ids(),
-        'machine_action': action,
+        resources_match_key: schedule.get_ids(),
+        resource_action_key: action,
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
         'run_immediately': schedule.run_immediately,
@@ -818,27 +820,30 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
     tasks = []
-    for machine_uuid in machines_uuids:
+    for rid in resources_ids:
         found = False
         _action = action
         try:
-            machine = Machine.objects.get(id=machine_uuid)
+            resource = resource_cls.objects.get(id=rid)
             found = True
         except me.DoesNotExist:
-            log_dict['error'] = "Machine with id %s does not \
-                exist." % machine_uuid
+            log_dict['error'] = \
+                f'{resource_type.capitalize()} with id {rid} does not exist.'
 
         if found:
-            if _action in ['destroy'] and config.SAFE_EXPIRATION and \
-               machine.expiration == schedule and machine.state != 'stopped':
+            if resource_type == 'machine' and \
+                    action in ['destroy'] and \
+                    config.SAFE_EXPIRATION and \
+                    resource.expiration == schedule and \
+                    resource.state != 'stopped':
                 from mist.api.machines.methods import machine_safe_expire
-                machine_safe_expire(owner_id, machine)
+                machine_safe_expire(owner_id, resource)
                 # change action to be executed now
                 _action = 'stop'
 
             try:
-                task = run_machine_action.message(owner_id, _action, name,
-                                                  machine_uuid)
+                task = run_resource_action.message(
+                    owner_id, _action, name, rid)
                 tasks.append(task)
             except Exception as exc:
                 log_dict['error'] = '%s %r\n' % (log_dict.get('error', ''),
@@ -869,23 +874,26 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
 @dramatiq.actor(queue_name='dramatiq_schedules',
                 store_results=True,
                 time_limit=3_600_000)
-def run_machine_action(owner_id, action, name, machine_uuid):
+def run_resource_action(owner_id, action, name, resource_id):
     """
-    Calls specific action for a machine and log the info
+    Calls specific action for a resource and log the info
+
     :param owner_id:
     :param action:
     :param name:
     :param cloud_id:
-    :param machine_id:
+    :param resource_id:
     :return:
     """
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
-
+    resource_type = schedule.resource_model_name
+    resource_cls = schedule.selector_resource_cls
+    resource_id_key = f'{resource_type}_id'
     log_dict = {
         'owner_id': owner_id,
         'event_type': 'job',
-        'machine_uuid': machine_uuid,
+        resource_id_key: resource_id,
         'schedule_id': schedule.id,
     }
 
@@ -893,13 +901,11 @@ def run_machine_action(owner_id, action, name, machine_uuid):
     cloud_id = ''
     owner = Owner.objects.get(id=owner_id)
     started_at = time()
+    query = dict(id=resource_id)
+    if resource_type == 'machine':
+        query['state__ne'] = 'terminated'
     try:
-        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
-        cloud_id = machine.cloud.id
-        external_id = machine.machine_id
-        log_dict.update({'cloud_id': cloud_id,
-                         'machine_id': machine_uuid,
-                         'external_id': external_id})
+        resource = resource_cls.objects.get(**query)
     except me.DoesNotExist:
         log_dict['error'] = "Resource with that id does not exist."
         msg = action + ' failed'
@@ -910,90 +916,107 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         log_event(action=msg, **log_dict)
 
     if not log_dict.get('error'):
-        if action in ('start', 'stop', 'reboot', 'destroy', 'notify'):
-            # call list machines here cause we don't have another way
-            # to update machine state if user isn't logged in
-            from mist.api.machines.methods import list_machines
-            from mist.api.machines.methods import destroy_machine
-            # TODO change this to compute.ctl.list_machines
-            list_machines(owner, cloud_id)
+        if resource_type == 'machine':
+            machine = resource
+            log_dict['cloud_id'] = cloud_id = machine.cloud.id
+            log_dict['external_id'] = external_id = machine.machine_id
+            if action in ('start', 'stop', 'reboot', 'destroy', 'notify'):
+                # call list machines here cause we don't have another way
+                # to update machine state if user isn't logged in
+                from mist.api.machines.methods import list_machines
+                from mist.api.machines.methods import destroy_machine
+                # TODO change this to compute.ctl.list_machines
+                list_machines(owner, cloud_id)
 
-            if action == 'start':
-                log_event(action='Start', **log_dict)
-                try:
-                    machine.ctl.start()
-                except Exception as exc:
-                    log_dict['error'] = '%s Machine in %s state' % (
-                        exc, machine.state)
-                    log_event(action='Start failed', **log_dict)
-                else:
-                    log_event(action='Start succeeded', **log_dict)
-            elif action == 'stop':
-                log_event(action='Stop', **log_dict)
-                try:
-                    machine.ctl.stop()
-                except Exception as exc:
-                    log_dict['error'] = '%s Machine in %s state' % (
-                        exc, machine.state)
-                    log_event(action='Stop failed', **log_dict)
-                else:
-                    log_event(action='Stop succeeded', **log_dict)
-            elif action == 'reboot':
-                log_event(action='Reboot', **log_dict)
-                try:
-                    machine.ctl.reboot()
-                except Exception as exc:
-                    log_dict['error'] = '%s Machine in %s state' % (
-                        exc, machine.state)
-                    log_event(action='Reboot failed', **log_dict)
-                else:
-                    log_event(action='Reboot succeeded', **log_dict)
-            elif action == 'destroy':
+                if action == 'start':
+                    log_event(action='Start', **log_dict)
+                    try:
+                        machine.ctl.start()
+                    except Exception as exc:
+                        log_dict['error'] = '%s Machine in %s state' % (
+                            exc, machine.state)
+                        log_event(action='Start failed', **log_dict)
+                    else:
+                        log_event(action='Start succeeded', **log_dict)
+                elif action == 'stop':
+                    log_event(action='Stop', **log_dict)
+                    try:
+                        machine.ctl.stop()
+                    except Exception as exc:
+                        log_dict['error'] = '%s Machine in %s state' % (
+                            exc, machine.state)
+                        log_event(action='Stop failed', **log_dict)
+                    else:
+                        log_event(action='Stop succeeded', **log_dict)
+                elif action == 'reboot':
+                    log_event(action='Reboot', **log_dict)
+                    try:
+                        machine.ctl.reboot()
+                    except Exception as exc:
+                        log_dict['error'] = '%s Machine in %s state' % (
+                            exc, machine.state)
+                        log_event(action='Reboot failed', **log_dict)
+                    else:
+                        log_event(action='Reboot succeeded', **log_dict)
+                elif action == 'destroy':
+                    log_event(action='Destroy', **log_dict)
+                    try:
+                        destroy_machine(owner, cloud_id, external_id)
+                    except Exception as exc:
+                        log_dict['error'] = '%s Machine in %s state' % (
+                            exc, machine.state)
+                        log_event(action='Destroy failed', **log_dict)
+                    else:
+                        log_event(action='Destroy succeeded', **log_dict)
+                elif action == 'notify':
+                    mails = []
+                    for _user in [machine.owned_by, machine.created_by]:
+                        if _user:
+                            mails.append(_user.email)
+                    for mail in list(set(mails)):
+                        if mail == machine.owned_by.email:
+                            user = machine.owned_by
+                        else:
+                            user = machine.created_by
+                        subject = \
+                            config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT.format(
+                                portal_name=config.PORTAL_NAME
+                            )
+                        if schedule.schedule_type.type == 'reminder' and \
+                           schedule.schedule_type.message:
+                            custom_msg = '\n%s\n' % \
+                                schedule.schedule_type.message
+                        else:
+                            custom_msg = ''
+                        machine_uri = config.CORE_URI + \
+                            '/machines/%s' % machine.id
+                        main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                        sch_entry = machine.expiration.schedule_type.entry
+                        body = main_body.format(
+                            fname=user.first_name,
+                            machine_name=machine.name,
+                            expiration=sch_entry,
+                            uri=machine_uri + '/expiration',
+                            custom_msg=custom_msg,
+                            portal_name=config.PORTAL_NAME)
+                        log.info('About to send email...')
+                        if not helper_send_email(subject, body, user.email):
+                            raise ServiceUnavailableError(
+                                "Could not send notification email "
+                                "about machine that is about to expire.")
+        elif resource_type == 'cluster':
+            cluster = resource
+            log_dict.update({'cloud_id': cluster.cloud.id,
+                             'external_id': cluster.external_id})
+            if action == 'destroy':
                 log_event(action='Destroy', **log_dict)
                 try:
-                    destroy_machine(owner, cloud_id, external_id)
+                    cluster.ctl.destroy()
                 except Exception as exc:
-                    log_dict['error'] = '%s Machine in %s state' % (
-                        exc, machine.state)
+                    log_dict['error'] = str(exc)
                     log_event(action='Destroy failed', **log_dict)
                 else:
                     log_event(action='Destroy succeeded', **log_dict)
-            elif action == 'notify':
-                mails = []
-                for _user in [machine.owned_by, machine.created_by]:
-                    if _user:
-                        mails.append(_user.email)
-                for mail in list(set(mails)):
-                    if mail == machine.owned_by.email:
-                        user = machine.owned_by
-                    else:
-                        user = machine.created_by
-                    subject = \
-                        config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT.format(
-                            portal_name=config.PORTAL_NAME
-                        )
-                    if schedule.schedule_type.type == 'reminder' and \
-                       schedule.schedule_type.message:
-                        custom_msg = '\n%s\n' % schedule.schedule_type.message
-                    else:
-                        custom_msg = ''
-                    machine_uri = config.CORE_URI + \
-                        '/machines/%s' % machine.id
-                    main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
-                    sch_entry = machine.expiration.schedule_type.entry
-                    body = main_body.format(
-                        fname=user.first_name,
-                        machine_name=machine.name,
-                        expiration=sch_entry,
-                        uri=machine_uri + '/expiration',
-                        custom_msg=custom_msg,
-                        portal_name=config.PORTAL_NAME)
-                    log.info('About to send email...')
-                    if not helper_send_email(subject, body, user.email):
-                        raise ServiceUnavailableError("Could not send "
-                                                      "notification email "
-                                                      "about machine that "
-                                                      "is about to expire.")
 
     if action != 'notify' and log_dict.get('error'):
         # TODO markos asked this
@@ -1016,7 +1039,7 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
                      params=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
-    to run_machine_action like a group
+    to run_resource_action like a group
 
     :param owner_id:
     :param script_id:

@@ -150,7 +150,7 @@ class ActionTask(BaseTaskType):
 
     @property
     def task(self):
-        return 'mist.api.tasks.group_machines_actions'
+        return 'mist.api.tasks.group_resources_actions'
 
     def __str__(self):
         return 'Action: %s' % self.action
