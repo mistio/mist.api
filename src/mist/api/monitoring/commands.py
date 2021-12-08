@@ -6,6 +6,19 @@ from mist.api import config
 REPO = "https://gitlab.ops.mist.io/mistio/mist-telegraf/raw/master/scripts"
 
 
+def check_sudo(cmd):
+    return """check_sudo() {
+    if command -v sudo > /dev/null; then
+        sudo -n $@
+    else
+        $@
+    fi
+}
+
+%s
+""" % cmd.replace('sudo', 'check_sudo')
+
+
 def fetch(cmd):
     return """fetch() {
     if command -v wget > /dev/null; then
@@ -23,7 +36,7 @@ fetch %s
 
 def unix_install(machine):
     cmd = "wget -O- %s/install-telegraf.sh " % REPO + \
-          "| $(command -v sudo) -n sh -s -- "
+          "| sudo sh -s -- "
     cmd += "-m %s " % machine.id
     cmd += "-s %s/%s" % (config.TELEGRAF_TARGET,
                          machine.monitoring.collectd_password)
@@ -31,7 +44,7 @@ def unix_install(machine):
 
 
 def unix_uninstall():
-    return "wget -O- %s/uninstall-telegraf.sh | $(command -v sudo) -n sh" % REPO  # noqa
+    return "wget -O- %s/uninstall-telegraf.sh | sudo sh" % REPO
 
 
 def coreos_install(machine):
