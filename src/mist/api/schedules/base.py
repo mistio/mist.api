@@ -358,12 +358,14 @@ class BaseController(object):
                     check_machine_perm(auth_context, machine, action)
                 check = True
             elif selector.ctype == 'field':
-                regex = re.compile(selector['value'])
-                machines = Machine.objects(
-                    name=regex, state__ne='terminated')
-                for m in machines:
-                    check_machine_perm(auth_context, m, action)
-                check = True
+                if selector.operator == 'regex':
+                    machines = Machine.objects({
+                        selector.field: re.compile(selector.value),
+                        'state__ne': 'terminated'
+                    })
+                    for m in machines:
+                        check_machine_perm(auth_context, m, action)
+                    check = True
             elif selector.ctype == 'tags':
                 if action and action not in ['notify']:
                     # SEC require permission ACTION on machine
