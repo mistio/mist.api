@@ -18,7 +18,6 @@ from mist.api.exceptions import ScriptNotFoundError
 from mist.api.exceptions import ScheduleOperationError
 from mist.api.exceptions import ScheduleNameExistsError
 
-from mist.api.machines.models import Machine
 from mist.api.exceptions import NotFoundError
 
 from mist.api.selectors.models import FieldSelector, ResourceSelector
@@ -38,15 +37,21 @@ SELECTOR_CLS = {'tags': TaggingSelector,
                 'age': AgeSelector}
 
 
-def check_machine_perm(auth_context, machine, action):
-    # SEC require permission READ on cloud
-    auth_context.check_perm("cloud", "read", machine.cloud.id)
-    if action and action not in ['notify']:
-        # SEC require permission ACTION on machine
-        auth_context.check_perm("machine", action, machine.id)
+def check_perm(auth_context, resource_type, action, resource=None):
+    assert resource_type in rtype_to_classpath
+    rid = resource.id if resource else None
+    if resource_type == 'machine':
+        if rid:
+            # SEC require permission READ on cloud
+            auth_context.check_perm("cloud", "read", resource.cloud.id)
+        if action and action not in ['notify']:
+            # SEC require permission ACTION on machine
+            auth_context.check_perm(resource_type, action, rid)
+        else:
+            # SEC require permission RUN_SCRIPT on machine
+            auth_context.check_perm(resource_type, "run_script", rid)
     else:
-        # SEC require permission RUN_SCRIPT on machine
-        auth_context.check_perm("machine", "run_script", machine.id)
+        raise NotImplementedError()
 
 
 class BaseController(object):
@@ -86,11 +91,11 @@ class BaseController(object):
         # check if required variables exist.
         if not (kwargs.get('script_id', '') or kwargs.get('action', '')):
             raise BadRequestError("You must provide script_id "
-                                  "or machine's action")
+                                  "or resource's action")
 
         if not kwargs.get('selectors'):
             raise BadRequestError("You must provide a list of selectors, "
-                                  "at least machine ids or tags")
+                                  "at least resource ids or tags")
 
         if kwargs.get('schedule_type') not in ['crontab', 'reminder',
                                                'interval', 'one_off']:
@@ -181,7 +186,7 @@ class BaseController(object):
                                   'Please contact Marty McFly')
         # Schedule selectors pre-parsing.
         try:
-            self._update__preparse_machines(auth_context, kwargs)
+            self._update__preparse_resources(auth_context, kwargs)
         except MistError as exc:
             log.error("Error while updating schedule %s: %r",
                       self.schedule.id, exc)
@@ -272,7 +277,7 @@ class BaseController(object):
                     params = {
                         'action': 'notify',
                         'schedule_type': 'reminder',
-                        'description': 'Machine expiration reminder',
+                        'description': 'Schedule expiration reminder',
                         'task_enabled': True,
                         'schedule_entry': notify_at,
                         'selectors': kwargs.get('selectors'),
@@ -306,8 +311,8 @@ class BaseController(object):
         except me.OperationError:
             raise ScheduleOperationError()
 
-    def _update__preparse_machines(self, auth_context, kwargs):
-        """Preparse machines arguments to `self.update`
+    def _update__preparse_resources(self, auth_context, kwargs):
+        """Preparse resource arguments to `self.update`
 
         This is called by `self.update` when adding a new schedule,
         in order to apply pre processing to the given params. Any subclass
@@ -357,34 +362,37 @@ class BaseController(object):
 
         # check permissions
         check = False
+        resource_cls = self.schedule.selector_resource_cls
+        resource_type = self.schedule.resource_model_name.rstrip('s')
         for selector in self.schedule.selectors:
-            if selector.ctype == 'machines':
-                for mid in selector.ids:
+            if isinstance(selector, ResourceSelector):
+                if resource_type == 'machine':
+                    query = dict(state__ne='terminated')
+                    not_found_msg = 'Machine state is terminated.'
+                else:
+                    not_found_msg = 'Resource not found.'
+                for rid in selector.ids:
                     try:
-                        machine = Machine.objects.get(id=mid,
-                                                      state__ne='terminated')
-                    except Machine.DoesNotExist:
-                        raise NotFoundError('Machine state is terminated')
-                    check_machine_perm(auth_context, machine, action)
+                        resource = resource_cls.objects.get(id=rid, **query)
+                    except resource_cls.DoesNotExist:
+                        raise NotFoundError(not_found_msg)
+                    check_perm(
+                        auth_context, resource_type, action, resource=resource)
                 check = True
             elif selector.ctype == 'field':
                 if selector.operator == 'regex':
-                    machines = Machine.objects({
+                    resources = resource_cls.objects({
                         selector.field: re.compile(selector.value),
                         'state__ne': 'terminated'
                     })
-                    for m in machines:
-                        check_machine_perm(auth_context, m, action)
+                    for r in resources:
+                        check_perm(
+                            auth_context, resource_type, action, resource=r)
                     check = True
             elif selector.ctype == 'tags':
-                if action and action not in ['notify']:
-                    # SEC require permission ACTION on machine
-                    auth_context.check_perm("machine", action, None)
-                else:
-                    # SEC require permission RUN_SCRIPT on machine
-                    auth_context.check_perm("machine", "run_script", None)
+                check_perm(auth_context, resource_type, action)
                 check = True
         if not check:
-            raise BadRequestError("Specify at least machine ids or tags")
+            raise BadRequestError("Specify at least resource ids or tags")
 
         return
