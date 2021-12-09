@@ -5,6 +5,7 @@ import logging
 
 import mongoengine as me
 
+from mist.api.containers.controllers import ClusterController
 from mist.api.models import Cloud
 from mist.api.models import CloudLocation
 from mist.api.models import Organization
@@ -118,6 +119,7 @@ class Cluster(OwnershipMixin, me.Document):
 
     def __init__(self, *args, **kwargs):
         super(Cluster, self).__init__(*args, **kwargs)
+        self.ctl = ClusterController(self)
 
     def clean(self):
         # Populate owner field based on self.cloud.owner
