@@ -38,7 +38,8 @@ SELECTOR_CLS = {'tags': TaggingSelector,
 SUPPORTED_ACTIONS = {
     'machine': ['reboot', 'destroy', 'notify', 'start', 'stop'],
     'cluster': ['destroy'],
-    'network': ['delete']
+    'network': ['delete'],
+    'volume': ['delete'],
 }
 
 
@@ -58,11 +59,11 @@ def check_perm(auth_context, resource_type, action, resource=None):
     elif resource_type == 'cluster':
         # SEC require permission ACTION on machine
         auth_context.check_perm(resource_type, action, rid)
-    elif resource_type == 'network':
+    elif resource_type in ['network', 'volume']:
         auth_context.check_perm(resource_type, 'read', rid)
         if action == 'delete':
             action = 'remove'
-        auth_context.check_perm('network', action, rid)
+        auth_context.check_perm(resource_type, action, rid)
     else:
         raise NotImplementedError(resource_type)
 
