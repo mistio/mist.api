@@ -151,6 +151,16 @@ class TestSearchParser(unittest.TestCase):
                                            'attr7>="value 7"',
                                            ])
 
+    def test_colon(self):
+        search = ('registry.docker.io/dimgal/test:latest '
+                  'attr_3=val:3 attr4=value4')
+        parsed_list = search_parser(search)
+        self.assertListEqual(parsed_list, [
+            'registry.docker.io/dimgal/test:latest',
+            'attr_3=val:3',
+            'attr4=value4',
+        ])
+
     def test_full(self):
         search = ('attr_1=(value 1) AND attr_2>"value 2" '
                   'OR attr_3=val-3 attr4=value4 '
