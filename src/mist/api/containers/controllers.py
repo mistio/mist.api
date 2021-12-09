@@ -13,3 +13,9 @@ class ClusterController(object):
     def destroy(self, **kwargs):
         return self.cluster.cloud.ctl.container.destroy_cluster(
             name=self.cluster.name, **kwargs)
+
+
+class GoogleClusterController(ClusterController):
+    def destroy(self):
+        zone = self.cluster.location.name or self.cluster.extra.get('location')
+        return super().destroy(zone=zone)
