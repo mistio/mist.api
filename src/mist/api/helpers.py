@@ -1692,7 +1692,7 @@ def search_parser(search):
     """
     Parse search string passed to `list_resources` into a list of strings.
 
-    Supports key:value, key=value, key:(value with spaces), key:"exact value",
+    Supports key=value, key=(value with spaces), key="exact value",
     AND/OR operators and a single 'stray' string that will be set to
     id or name.
 
@@ -1703,11 +1703,11 @@ def search_parser(search):
     unless it's the only value in search.
     """
 
-    pattern = (r'([a-zA-Z0-9_]+)(:|=|<=|>=|!=|<|>)'  # capture key and mathematical operator  # noqa
+    pattern = (r'([a-zA-Z0-9_]+)(=|<=|>=|!=|<|>)'  # capture key and mathematical operator  # noqa
                r'(\(.+?\)|".+?"|\S+)'  # capture value or value with spaces enclosed in "", ()  # noqa
-               r'|(OR|AND|[^:=<>!]+?'  # capture OR/AND/'stray' string  # noqa
-               r'(?= [a-zA-Z0-9_]+?[:=<>!]| AND | OR |$)'  # until one of key+mathematical operator, OR , AND is encountered  # noqa
-               r'|^[^:=<>!]+$)')  # capture simple 'stray' string
+               r'|(OR|AND|[^=<>!]+?'  # capture OR/AND/'stray' string  # noqa
+               r'(?= [a-zA-Z0-9_]+?[=<>!]| AND | OR |$)'  # until one of key+mathematical operator, OR , AND is encountered  # noqa
+               r'|^[^=<>!]+$)')  # capture simple 'stray' string
 
     matched = re.findall(pattern, search)
 
