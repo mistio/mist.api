@@ -370,7 +370,8 @@ class BaseController(object):
                     query = dict(state__ne='terminated')
                     not_found_msg = 'Machine state is terminated.'
                 else:
-                    not_found_msg = 'Resource not found.'
+                    query = {}
+                    not_found_msg = f'{resource_type.capitalize()} not found.'
                 for rid in selector.ids:
                     try:
                         resource = resource_cls.objects.get(id=rid, **query)
