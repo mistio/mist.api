@@ -41,7 +41,7 @@ def check_perm(auth_context, resource_type, action, resource=None):
     assert resource_type in rtype_to_classpath
     rid = resource.id if resource else None
     if resource_type == 'machine':
-        if rid:
+        if resource:
             # SEC require permission READ on cloud
             auth_context.check_perm("cloud", "read", resource.cloud.id)
         if action and action not in ['notify']:
@@ -51,7 +51,7 @@ def check_perm(auth_context, resource_type, action, resource=None):
             # SEC require permission RUN_SCRIPT on machine
             auth_context.check_perm(resource_type, "run_script", rid)
     else:
-        raise NotImplementedError()
+        raise NotImplementedError(resource_type)
 
 
 class BaseController(object):
