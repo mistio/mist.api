@@ -40,16 +40,19 @@ SELECTOR_CLS = {'tags': TaggingSelector,
 def check_perm(auth_context, resource_type, action, resource=None):
     assert resource_type in rtype_to_classpath
     rid = resource.id if resource else None
+    if hasattr(resource, 'cloud'):
+        # SEC require permission READ on cloud
+        auth_context.check_perm("cloud", "read", resource.cloud.id)
     if resource_type == 'machine':
-        if resource:
-            # SEC require permission READ on cloud
-            auth_context.check_perm("cloud", "read", resource.cloud.id)
         if action and action not in ['notify']:
             # SEC require permission ACTION on machine
             auth_context.check_perm(resource_type, action, rid)
         else:
             # SEC require permission RUN_SCRIPT on machine
             auth_context.check_perm(resource_type, "run_script", rid)
+    elif resource_type == 'cluster':
+        # SEC require permission ACTION on machine
+        auth_context.check_perm(resource_type, action, rid)
     else:
         raise NotImplementedError(resource_type)
 
