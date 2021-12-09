@@ -1017,6 +1017,19 @@ def run_resource_action(owner_id, action, name, resource_id):
                     log_event(action='Destroy failed', **log_dict)
                 else:
                     log_event(action='Destroy succeeded', **log_dict)
+        elif resource_type == 'network':
+            network = resource
+            log_dict.update({'cloud_id': network.cloud.id,
+                             'network_id': network.network_id})
+            if action == 'delete':
+                log_event(action='Delete', **log_dict)
+                try:
+                    network.ctl.delete()
+                except Exception as exc:
+                    log_dict['error'] = str(exc)
+                    log_event(action='Delete failed', **log_dict)
+                else:
+                    log_event(action='Delete succeeded', **log_dict)
 
     if action != 'notify' and log_dict.get('error'):
         # TODO markos asked this

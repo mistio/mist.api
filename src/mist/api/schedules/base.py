@@ -35,6 +35,11 @@ SELECTOR_CLS = {'tags': TaggingSelector,
                 'resource': ResourceSelector,
                 'field': FieldSelector,
                 'age': AgeSelector}
+SUPPORTED_ACTIONS = {
+    'machine': ['reboot', 'destroy', 'notify', 'start', 'stop'],
+    'cluster': ['destroy'],
+    'network': ['delete']
+}
 
 
 def check_perm(auth_context, resource_type, action, resource=None):
@@ -53,6 +58,11 @@ def check_perm(auth_context, resource_type, action, resource=None):
     elif resource_type == 'cluster':
         # SEC require permission ACTION on machine
         auth_context.check_perm(resource_type, action, rid)
+    elif resource_type == 'network':
+        auth_context.check_perm(resource_type, 'read', rid)
+        if action == 'delete':
+            action = 'remove'
+        auth_context.check_perm('network', action, rid)
     else:
         raise NotImplementedError(resource_type)
 
@@ -129,10 +139,10 @@ class BaseController(object):
             raise MistError("You are not authorized to update schedule")
 
         owner = auth_context.owner
-
-        if kwargs.get('action'):
-            if kwargs.get('action') not in ['reboot', 'destroy', 'notify',
-                                            'start', 'stop']:
+        action = kwargs.get('action')
+        if action:
+            resource_type = self.schedule.resource_model_name
+            if action not in SUPPORTED_ACTIONS[resource_type]:
                 raise BadRequestError("Action is not correct")
 
         script_id = kwargs.pop('script_id', '')
