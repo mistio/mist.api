@@ -237,13 +237,14 @@ class BaseContainerController(BaseController):
         updated = False
         # Fetch cluster mongoengine model from db, or initialize one.
         from mist.api.containers.models import Cluster
+        from mist.api.containers.models import CLUSTERS
         try:
             cluster = Cluster.objects.get(
                 cloud=self.cloud, external_id=cluster_dict["id"]
             )
         except Cluster.DoesNotExist:
-            cluster = Cluster(cloud=self.cloud,
-                              external_id=cluster_dict["id"])
+            cluster = CLUSTERS[self.cloud.provider](
+                cloud=self.cloud, external_id=cluster_dict["id"])
             try:
                 cluster.save()
             except me.ValidationError as exc:

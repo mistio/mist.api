@@ -16,11 +16,11 @@ from mist.api import config as api_config
 
 __all__ = [
     "Cluster",
-    "GKECluster",
-    "EKSCluster",
+    "GoogleCluster",
+    "AmazonCluster",
 ]
 # This is a map from provider name to provider class, eg:
-# 'google': GKECluster
+# 'google': GoogleCluster
 # It is autofilled by _populate_clusters which is run on the end of this file.
 CLUSTERS = {}
 
@@ -35,6 +35,9 @@ def _populate_clusters():
                 'Cluster') and key != 'Cluster':
             if issubclass(value, Cluster) and value is not Cluster:
                 CLUSTERS[value.provider] = value
+                for provider_alias in api_config.PROVIDERS[value.provider][
+                        'aliases']:
+                    CLUSTERS[provider_alias] = value
 
 
 class Cluster(OwnershipMixin, me.Document):
@@ -53,17 +56,17 @@ class Cluster(OwnershipMixin, me.Document):
         Cluster.objects(owner=owner).count()
 
     This will return an iterable of clusters for that owner. Each cluster will
-    be an instance of its respective Cluster subclass, like GKECluster
+    be an instance of its respective Cluster subclass, like GoogleCluster
     instances.
 
     Clusters of a specific type can be queried like this:
 
-        GKECluster.objects(owner=owner).count()
+        GoogleCluster.objects(owner=owner).count()
 
-    This will return an iterable of GKECluster instances.
+    This will return an iterable of GoogleCluster instances.
 
     To create a new cluster, one should initialize a Cluster subclass like
-    GKECluster. Initializing directly a Cluster instance won't have any
+    GoogleCluster. Initializing directly a Cluster instance won't have any
     credential fields or associated handler to work with.
     """
 
@@ -208,20 +211,12 @@ class Cluster(OwnershipMixin, me.Document):
                                              self.id, self.owner)
 
 
-class GKECluster(Cluster):
+class GoogleCluster(Cluster):
     provider = 'google'
-    client_email = me.StringField(required=True)
-    private_key = me.StringField(required=True)
-    project_id = me.StringField(required=True)
-    _private_fields = ('private_key', )
 
 
-class EKSCluster(Cluster):
+class AmazonCluster(Cluster):
     provider = 'amazon'
-    apikey = me.StringField(required=True)
-    apisecret = me.StringField(required=True)
-    region = me.StringField(required=True)
-    _private_fields = ('apisecret', )
 
 
 _populate_clusters()
