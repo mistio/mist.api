@@ -611,7 +611,9 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
     # if the term contains :,=,<,>,!=, <=, >= then assume key/value query
     # otherwise search for objects with id or name matching the term
     terms = search_parser(search)
+    boolean_operator = "and" # this can either be `and` or `or`
     for term in terms:
+        subquery = None
         if ':' in term:
             k, v = term.split(':')
             mongo_operator = '' if startsandendswith(v, '"') else '__contains'
@@ -635,6 +637,7 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             mongo_operator = '' if startsandendswith(v, '"') else '__contains'
         # TODO: support OR keyword
         elif term.lower() in ['and', 'or'] or not term:
+            boolean_operator = term.lower()
             continue
         else:
             id_implicit = True
@@ -651,7 +654,7 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
 
         if k == 'provider' and 'cloud' in resource_type:
             try:
-                query &= Q(_cls=CLOUDS[v]()._cls)
+                subquery = Q(_cls=CLOUDS[v]()._cls)
             except KeyError:
                 return Cloud.objects.none(), 0
 
@@ -666,18 +669,21 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             else:
                 resources, _ = list_resources(auth_context, k, search=v,
                                               only='id')
-            query &= Q(**{f'{k}__in': resources})
+            subquery = Q(**{f'{k}__in': resources})
         elif k in ['owned_by', 'created_by']:
             if not v or v.lower() in ['none', 'nobody']:
-                query &= Q(**{k: None})
+                if boolean_operator == "and":
+                    query &= Q(**{k: None})
+                else:
+                    query |= Q(**{k: None})
                 continue
             try:
                 user = User.objects.get(
                     id__in=[m.id for m in auth_context.org.members],
                     email=v)
-                query &= Q(**{k: user.id})
+                subquery = Q(**{k: user.id})
             except User.DoesNotExist:
-                query &= Q(**{k: v})
+                subquery = Q(**{k: v})
         elif k in ['key_associations', ]:  # Looks like a postfilter
             postfilters.append((k, v))
         elif k == 'id':
@@ -691,13 +697,17 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 else:
                     field_name = 'title'
                 # id will always be exact match
-                query &= (Q(id=v) | Q(**{f'{field_name}{mongo_operator}': v}))
+                subquery = (Q(id=v) | Q(**{f'{field_name}{mongo_operator}': v}))
             else:
-                query &= Q(id=v)
+                subquery = Q(id=v)
         else:
-            query &= Q(**{f'{k}{mongo_operator}': v})
-
+            subquery = Q(**{f'{k}{mongo_operator}': v})
+        if boolean_operator == "and":
+            query &= subquery
+        else:
+            query |= subquery
     result = resource_model.objects(query)
+
     if only:
         only_list = [field for field in only.split(',')
                      if field in resource_model._fields]
