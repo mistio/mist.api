@@ -4259,6 +4259,19 @@ class DockerComputeController(BaseComputeController):
 
             plan['environment'] = extra['environment']
 
+    def _compute_best_combination(self, combination_list):
+        if not combination_list:
+            raise NotFoundError('No available plan exists for given '
+                                'images, sizes, locations')
+
+        # prioritize images tagged latest
+        def sort_by_tag(value):
+            image, size, location = value
+            tagged_latest = ':latest' in image.name
+            return -tagged_latest, -image.starred
+
+        return sorted(combination_list, key=sort_by_tag)[0]
+
     def _create_machine__get_image_object(self, image):
         if image.get('pull') is True:
             from mist.api.helpers import pull_docker_image
