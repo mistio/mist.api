@@ -13,6 +13,7 @@ from mist.api.logs.methods import log_event
 from mist.api.machines.models import Machine
 
 from mist.api.monitoring.commands import unix_install, unix_uninstall, fetch
+from mist.api.monitoring.commands import check_sudo
 from mist.api.monitoring.traefik import reset_config, _get_config
 
 
@@ -55,7 +56,8 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
         stdout = ''
         error = err
     else:
-        exit_code, stdout = shell.command(fetch(unix_install(machine)))
+        exit_code, stdout = shell.command(
+            check_sudo(fetch(unix_install(machine))))
         shell.disconnect()  # Close the SSH connection.
 
         error = exit_code or ''
@@ -121,7 +123,8 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
         shell = mist.api.shell.Shell(machine.ctl.get_host())
         key, user = shell.autoconfigure(machine.owner, machine.cloud.id,
                                         machine.id)
-        exit_code, stdout = shell.command(fetch(unix_uninstall()))
+        exit_code, stdout = shell.command(
+            check_sudo(fetch(unix_uninstall())))
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:
         log.error('Error during Telegraf undeployment: %r', err)
