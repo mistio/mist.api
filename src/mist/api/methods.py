@@ -684,14 +684,23 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             if id_implicit is True:
                 if getattr(resource_model, 'name', None) and \
                         not isinstance(getattr(resource_model, 'name'), property):  # noqa
-                    field_name = 'name'
+                    implicit_field_query = Q(**{
+                        f'name{mongo_operator}': v})
                 elif getattr(resource_model, 'domain', None) and \
                         not isinstance(getattr(resource_model, 'domain'), property):  # noqa
-                    field_name = 'domain'
+                    implicit_field_query = Q(**{
+                        f'domain{mongo_operator}': v})
+                elif getattr(resource_model, 'email', None) and \
+                        not isinstance(getattr(resource_model, 'email'), property): # noqa
+                    implicit_field_query = (Q(**{
+                        f'email{mongo_operator}':v}) | Q(**{
+                            f'first_name{mongo_operator}':v})) | Q(**{
+                                f'last_name{mongo_operator}':v})
                 else:
-                    field_name = 'title'
+                    implicit_field_query = Q(**{
+                        f'title{mongo_operator}': v})
                 # id will always be exact match
-                query &= (Q(id=v) | Q(**{f'{field_name}{mongo_operator}': v}))
+                query &= (Q(id=v) | implicit_field_query)
             else:
                 query &= Q(id=v)
         else:
