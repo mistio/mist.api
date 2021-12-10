@@ -682,25 +682,17 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             postfilters.append((k, v))
         elif k == 'id':
             if id_implicit is True:
-                if getattr(resource_model, 'name', None) and \
-                        not isinstance(getattr(resource_model, 'name'), property):  # noqa
-                    implicit_field_query = Q(**{
-                        f'name{mongo_operator}': v})
-                elif getattr(resource_model, 'domain', None) and \
-                        not isinstance(getattr(resource_model, 'domain'), property):  # noqa
-                    implicit_field_query = Q(**{
-                        f'domain{mongo_operator}': v})
-                elif getattr(resource_model, 'email', None) and \
-                        not isinstance(getattr(resource_model, 'email'), property): # noqa
-                    implicit_field_query = (Q(**{
-                        f'email{mongo_operator}': v}) | Q(**{
-                            f'first_name{mongo_operator}': v})) | Q(**{
-                                f'last_name{mongo_operator}': v})
-                else:
-                    implicit_field_query = Q(**{
-                        f'title{mongo_operator}': v})
+                implicit_query = Q(id=v)
+                implicit_search_fields = {
+                    'name', 'domain', 'title',
+                    'email', 'first_name', 'last_name'}
+                for field in implicit_search_fields:
+                    if getattr(resource_model, field, None) and \
+                            not isinstance(getattr(resource_model, field), property):  # noqa
+                        implicit_query |= Q(**{
+                            f'{field}{mongo_operator}': v})
                 # id will always be exact match
-                query &= (Q(id=v) | implicit_field_query)
+                query &= implicit_query
             else:
                 query &= Q(id=v)
         else:
