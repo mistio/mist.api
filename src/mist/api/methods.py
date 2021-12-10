@@ -693,9 +693,9 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 elif getattr(resource_model, 'email', None) and \
                         not isinstance(getattr(resource_model, 'email'), property): # noqa
                     implicit_field_query = (Q(**{
-                        f'email{mongo_operator}':v}) | Q(**{
-                            f'first_name{mongo_operator}':v})) | Q(**{
-                                f'last_name{mongo_operator}':v})
+                        f'email{mongo_operator}': v}) | Q(**{
+                            f'first_name{mongo_operator}': v})) | Q(**{
+                                f'last_name{mongo_operator}': v})
                 else:
                     implicit_field_query = Q(**{
                         f'title{mongo_operator}': v})
