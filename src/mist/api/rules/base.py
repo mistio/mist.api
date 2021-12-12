@@ -98,12 +98,13 @@ class BaseController(object):
             if field not in kwargs:
                 raise RequiredParameterMissingError(field)
         try:
-            self.update(fail_on_error=fail_on_error, **kwargs)
+            self.update(fail_on_error=fail_on_error,
+                        called_from_add=True, **kwargs)
         except (me.ValidationError, BadRequestError) as err:
             log.error('Error adding %s: %s', self.rule.title, err)
             raise
 
-    def update(self, fail_on_error=True, **kwargs):
+    def update(self, fail_on_error=True, called_from_add=False, **kwargs):
         """Update an existing Rule.
 
         This method is invoked by `self.add` when adding a new Rule, but it
@@ -174,11 +175,26 @@ class BaseController(object):
                                        'errors': err.to_dict()})
             setattr(self.rule, field, doc_cls)
 
+        if called_from_add:
+            try:
+                self.check_auth_context()
+                self.rule.save()
+            except me.ValidationError as err:
+                log.error('Error updating %s: %s', self.rule.title, err)
+                raise BadRequestError({'msg': str(err),
+                                       'errors': err.to_dict()})
+            except me.NotUniqueError as err:
+                log.error('Error updating %s: %s', self.rule.title, err)
+                raise BadRequestError(
+                    'Rule "%s" already exists' % self.rule.title)
+
         # Validate the rule against the plugin in use.
         try:
             self.rule._backend_plugin.validate(self.rule)
         except AssertionError as err:
             log.error('%s: %r', type(self.rule._backend_plugin), err)
+            if called_from_add:
+                self.rule.delete()
             raise BadRequestError('%s is invalid: %s' % (self.rule, err))
 
         # Attempt to save self.rule.
@@ -187,6 +203,8 @@ class BaseController(object):
             self.rule.save()
         except me.ValidationError as err:
             log.error('Error updating %s: %s', self.rule.title, err)
+            if called_from_add:
+                self.rule.delete()
             raise BadRequestError({'msg': str(err),
                                    'errors': err.to_dict()})
         except me.NotUniqueError as err:
