@@ -227,8 +227,14 @@ class BaseScriptController(object):
 
     def run(self, auth_context, machine, host=None, port=None, username=None,
             password=None, su=False, key_id=None, params=None, job_id=None,
-            env=''):
+            env='', owner=None):
         from mist.api.shell import Shell
+        from mist.api.users.models import Organization
+
+        if auth_context:
+            owner = auth_context.owner
+
+        assert isinstance(owner, Organization)
 
         url = self.generate_signed_url()
         tmp_dir = '/tmp/script-%s-%s-XXXX' % (self.script.id, job_id)
@@ -262,7 +268,7 @@ class BaseScriptController(object):
 
         shell = Shell(host)
         key_name, ssh_user = shell.autoconfigure(
-            auth_context.owner, machine.cloud.id, machine.id, key_id,
+            owner, machine.cloud.id, machine.id, key_id,
             username, password, port)
         exit_code, wstdout = shell.command(command)
         shell.disconnect()
