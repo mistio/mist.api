@@ -1254,8 +1254,9 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.error('Error adding size-image constraint: %s'
                           % repr(exc))
-            if allowed_images:
-                _size.allowed_images = allowed_images
+            else:
+                if allowed_images:
+                    _size.allowed_images = allowed_images
 
             if size.ram:
                 try:
@@ -1463,16 +1464,18 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.error('Error adding location-size constraint: %s'
                           % repr(exc))
-            if available_sizes:
-                _location.available_sizes = available_sizes
+            else:
+                if available_sizes:
+                    _location.available_sizes = available_sizes
 
             try:
                 available_images = self._list_locations__get_available_images(loc)  # noqa
             except Exception as exc:
                 log.error('Error adding location-image constraint: %s'
                           % repr(exc))
-            if available_images:
-                _location.available_images = available_images
+            else:
+                if available_images:
+                    _location.available_images = available_images
 
             try:
                 _location.save()
