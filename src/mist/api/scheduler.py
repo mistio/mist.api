@@ -67,11 +67,12 @@ def add_job(scheduler, schedule, actor, first_run=False):
             raise
         if schedule.task_type._cls == 'ScriptTask':
             job['args'] = (
-                schedule.org.id,
+                None,
                 schedule.task_type.script_id,
                 schedule.name,
                 [r.id for r in schedule.get_resources()],
                 schedule.task_type.params,
+                schedule.org.id
             )
         elif schedule.task_type._cls == 'ActionTask':
             job['args'] = (
@@ -148,11 +149,12 @@ def update_job(scheduler, schedule, actor, existing):
 
         if schedule.task_type._cls == 'ScriptTask':
             new_args = (
-                schedule.org.id,
+                None,
                 schedule.task_type.script_id,
                 schedule.name,
                 [r.id for r in schedule.get_resources()],
                 schedule.task_type.params,
+                schedule.org.id,
             )
         elif schedule.task_type._cls == 'ActionTask':
             new_args = (
