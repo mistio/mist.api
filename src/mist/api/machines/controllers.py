@@ -1,13 +1,33 @@
+import logging
 import datetime
 
 import jsonpatch
 
 from random import randrange
 
+from mist.api import config
 from mist.api.helpers import amqp_publish_user
 from mist.api.exceptions import MachineUnavailableError
-
 from mist.api.concurrency.models import PeriodicTaskInfo
+
+logging.basicConfig(level=config.PY_LOG_LEVEL,
+                    format=config.PY_LOG_FORMAT,
+                    datefmt=config.PY_LOG_FORMAT_DATE)
+log = logging.getLogger(__name__)
+
+
+def override_polling_schedule(func):
+    def wrapper(*args, **kwargs):
+        from mist.api.poller.models import ListMachinesPollingSchedule
+        self = args[0]
+        cloud = self.machine.cloud
+        retval = func(*args, **kwargs)
+        log.info('Overriding default polling interval')
+        schedule = ListMachinesPollingSchedule.objects.get(cloud=cloud.id)
+        schedule.add_interval(10, ttl=600)
+        schedule.save()
+        return retval
+    return wrapper
 
 
 class MachineController(object):
@@ -23,29 +43,37 @@ class MachineController(object):
 
         self.machine = machine
 
+    @override_polling_schedule
     def start(self):
         return self.machine.cloud.ctl.compute.start_machine(self.machine)
 
+    @override_polling_schedule
     def stop(self):
         return self.machine.cloud.ctl.compute.stop_machine(self.machine)
 
+    @override_polling_schedule
     def suspend(self):
         """Suspends machine - used in KVM libvirt to pause machine"""
         return self.machine.cloud.ctl.compute.suspend_machine(self.machine)
 
+    @override_polling_schedule
     def resume(self):
         """Resumes machine - used in KVM libvirt to resume suspended machine"""
         return self.machine.cloud.ctl.compute.resume_machine(self.machine)
 
+    @override_polling_schedule
     def reboot(self):
         return self.machine.cloud.ctl.compute.reboot_machine(self.machine)
 
+    @override_polling_schedule
     def destroy(self):
         return self.machine.cloud.ctl.compute.destroy_machine(self.machine)
 
+    @override_polling_schedule
     def remove(self):
         return self.machine.cloud.ctl.compute.remove_machine(self.machine)
 
+    @override_polling_schedule
     def resize(self, size_id, kwargs):
         """Resize a machine on an other plan."""
         return self.machine.cloud.ctl.compute.resize_machine(self.machine,
@@ -95,6 +123,7 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.revert_machine_to_snapshot(
             self.machine, snapshot_name)
 
+    @override_polling_schedule
     def undefine(self, delete_domain_image=False):
         """Undefines machine - used in KVM libvirt
         to destroy machine and delete XML conf"""
@@ -102,6 +131,7 @@ class MachineController(object):
             self.machine,
             delete_domain_image=delete_domain_image)
 
+    @override_polling_schedule
     def clone(self, name=None):
         """
         Clones machine - used in KVM libvirt and vSphere
