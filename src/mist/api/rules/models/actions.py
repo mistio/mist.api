@@ -185,9 +185,10 @@ class ScriptAction(BaseAlertAction):
         assert machine.owner == self._instance.owner
         job_id = uuid.uuid4().hex
         job = 'run_script'
-        tasks.run_script(machine.owner.id, self.script.id,
+        tasks.run_script(None, self.script.id,
                          machine.id, params=self.params,
-                         job_id=job_id, job=job)
+                         job_id=job_id, job=job,
+                         owner_id=machine.owner.id)
         return {'job_id': job_id, 'job': job}
 
     def as_dict(self):

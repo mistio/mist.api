@@ -1060,9 +1060,12 @@ def run_resource_action(owner_id, action, name, resource_id):
         )
 
 
-@dramatiq.actor(queue_name='dramatiq_schedules', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_schedules',
+                time_limit=3_900_000,
+                store_results=True,
+                throws=(me.DoesNotExist,))
 def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
-                     params=''):
+                     params='', owner_id=None):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_resource_action like a group
@@ -1073,17 +1076,23 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
     :param cloud_machines_pairs:
     :return:
     """
-    auth_context = AuthContext.deserialize(auth_context_serialized)
+
+    if auth_context_serialized:
+        auth_context = AuthContext.deserialize(auth_context_serialized)
+        owner = auth_context.owner
+    else:
+        owner = Organization.objects.get(id=owner_id)
+        auth_context = None
+
     job_id = uuid.uuid4().hex
-    owner_id = auth_context.owner.id
-    schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
+    schedule = Schedule.objects.get(owner=owner.id, name=name, deleted=None)
 
     log_dict = {
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
         'schedule_type': str(schedule.schedule_type or ''),
-        'owner_id': owner_id,
+        'owner_id': owner.id,
         'machines_match': schedule.get_ids(),
         'script_id': script_id,
         'expires': str(schedule.expires or ''),
@@ -1102,7 +1111,8 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
         try:
             task = run_script.message(auth_context_serialized, script_id,
                                       machine_uuid, params=params,
-                                      job_id=job_id, job='schedule')
+                                      job_id=job_id, job='schedule',
+                                      owner_id=owner.id)
             tasks.append(task)
         except Exception as exc:
             log_dict['error'] = "%s %r\n" % (log_dict.get('error', ''), exc)
@@ -1124,22 +1134,29 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
     schedule.save()
 
     # This seems wasteful and may contribute to UI performance issues
-    trigger_session_update(auth_context.owner, ['schedules'])
+    trigger_session_update(owner, ['schedules'])
     return log_dict
 
 
 @dramatiq.actor(queue_name='dramatiq_schedules',
                 time_limit=3_600_000,
-                store_results=True)
+                store_results=True,
+                throws=(me.DoesNotExist,))
 def run_script(auth_context_serialized, script_id, machine_uuid, params='',
                host='', key_id='', username='', password='', port=22,
-               job_id='', job='', action_prefix='', su=False, env=""):
+               job_id='', job='', action_prefix='', su=False, env="",
+               owner_id=None):
     from mist.api.methods import notify_admin, notify_user
 
-    auth_context = AuthContext.deserialize(auth_context_serialized)
+    if auth_context_serialized:
+        auth_context = AuthContext.deserialize(auth_context_serialized)
+        owner = auth_context.owner
+    else:
+        owner = Organization.objects.get(id=owner_id)
+        auth_context = None
 
     ret = {
-        'owner_id': auth_context.owner.id,
+        'owner_id': owner.id,
         'job_id': job_id or uuid.uuid4().hex,
         'job': job,
         'script_id': script_id,
@@ -1168,13 +1185,13 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
         external_id = machine.machine_id
         ret.update({'cloud_id': cloud_id, 'external_id': external_id})
         script = Script.objects.get(
-            owner=auth_context.owner, id=script_id, deleted=None)
+            owner=owner, id=script_id, deleted=None)
         from mist.api.machines.methods import find_best_ssh_params
         from mist.api.machines.models import KeyMachineAssociation
 
         if not key_id:
             key_association_id, host, username, port = find_best_ssh_params(
-                auth_context, machine
+                machine, auth_context=auth_context
             )
             key_id = KeyMachineAssociation.objects(
                 id=key_association_id)[0].key.id
@@ -1185,7 +1202,7 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
         result = script.ctl.run(
             auth_context, machine, host=host, port=port, username=username,
             password=password, su=su, key_id=key_id, params=params,
-            job_id=job_id, env=env
+            job_id=job_id, env=env, owner=owner
         )
         ret.update(result)
     except Exception as exc:
@@ -1207,7 +1224,8 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
     title += "failed" if ret['error'] else "succeeded"
     if ret['error']:
         notify_user(
-            auth_context.owner, title,
+            owner,
+            title,
             cloud_id=cloud_id,
             machine_id=external_id,
             machine_name=machine_name,
@@ -1217,7 +1235,7 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
             error=ret['error'],
         )
     if ret['error']:
-        title += " for user %s" % str(auth_context.owner)
+        title += " for user %s" % str(owner)
         notify_admin(
             title, "%s\n\n%s" % (ret['stdout'], ret['error']), team='dev'
         )

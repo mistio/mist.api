@@ -235,8 +235,10 @@ def purge_org(org):
     from mist.api.rules.models import Rule
     from mist.api.notifications.models import Notification
     from mist.api.notifications.models import UserNotificationPolicy
+    from mist.api.poller.models import OwnerPollingSchedule
     rtypes = [
-        Key, Script, Schedule, Rule, Notification, UserNotificationPolicy]
+        Key, Script, Schedule, Rule, Notification, UserNotificationPolicy,
+        OwnerPollingSchedule]
     try:
         from mist.orchestration.models import Stack, Template
         rtypes.append(Stack)
@@ -254,5 +256,15 @@ def purge_org(org):
         try:
             rtype.objects(owner=org).delete()
         except InvalidQueryError:
-            rtype.objects(owner_id=org.id).delete()
+            try:
+                org_id = org.id
+            except AttributeError:
+                org_id = org
+            rtype.objects(owner_id=org_id).delete()
+    try:
+        from mist.rbac.mappings import UserMapping, RBACMapping
+        UserMapping.objects(org=org).delete()
+        RBACMapping.objects(org=org).delete()
+    except ImportError:
+        pass
     org.delete()

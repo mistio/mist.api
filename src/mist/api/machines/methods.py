@@ -2446,7 +2446,7 @@ def machine_safe_expire(owner_id, machine):
     machine.save()
 
 
-def find_best_ssh_params(auth_context, machine):
+def find_best_ssh_params(machine, auth_context=None):
     # Get key associations, prefer root or sudoer ones
     key_associations = KeyMachineAssociation.objects(
         Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
@@ -2455,10 +2455,11 @@ def find_best_ssh_params(auth_context, machine):
         raise ForbiddenError()
     permitted_key_associations = []
     for key_association in key_associations:
-        try:
-            auth_context.check_perm("key", "read", key_association.key.id)
-        except PolicyUnauthorizedError:
-            continue
+        if auth_context:
+            try:
+                auth_context.check_perm("key", "read", key_association.key.id)
+            except PolicyUnauthorizedError:
+                continue
         permitted_key_associations.append(key_association)
     if not permitted_key_associations:
         raise ForbiddenError()
@@ -2509,13 +2510,14 @@ def find_best_ssh_params(auth_context, machine):
 
     # Use the default org keys as a last measure
     default_keys = Key.objects(
-        owner=auth_context.org, default=True, deleted=None)
+        owner=machine.owner, default=True, deleted=None)
     key_associations_default = []
     for key in default_keys:
-        try:
-            auth_context.check_perm("key", "read", key.id)
-        except PolicyUnauthorizedError:
-            continue
+        if auth_context:
+            try:
+                auth_context.check_perm("key", "read", key.id)
+            except PolicyUnauthorizedError:
+                continue
         key_associations_default.append(KeyMachineAssociation(
             key=key, machine=machine))
 
@@ -2611,7 +2613,7 @@ def find_best_ssh_params(auth_context, machine):
 # SEC
 def prepare_ssh_uri(auth_context, machine):
     key_association_id, hostname, user, port = find_best_ssh_params(
-        auth_context, machine)
+        machine, auth_context=auth_context)
     expiry = int(datetime.now().timestamp()) + 100
     msg = '%s,%s,%s,%s,%s' % (user,
                               hostname,
