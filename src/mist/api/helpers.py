@@ -1278,12 +1278,12 @@ def get_file(url, filename, update=True):
     return path
 
 
-def mac_sign(kwargs=None, expires=None, key='', mac_len=0, mac_format='hex'):
+def mac_sign(kwargs, expires=None, key='', mac_len=0, mac_format='hex'):
+    if not kwargs:
+        raise ValueError('No message provided to be signed')
     key = key or config.SIGN_KEY
     if not key:
-        raise Exception('No key configured for signing the HMAC')
-    if not kwargs:
-        raise Exception('No message provided to be signed')
+        raise ValueError('No key configured for signing the HMAC')
     if expires:
         kwargs['_expires'] = int(time() + expires)
     parts = ["%s=%s" % (k, kwargs[k]) for k in sorted(kwargs.keys())]
@@ -1300,20 +1300,20 @@ def mac_sign(kwargs=None, expires=None, key='', mac_len=0, mac_format='hex'):
     kwargs['_mac'] = tag
 
 
-def mac_verify(kwargs=None, key='', mac_len=0, mac_format='hex'):
+def mac_verify(kwargs, key='', mac_len=0, mac_format='hex'):
+    if not kwargs:
+        raise ValueError('No message provided to be verified')
     key = key or config.SIGN_KEY
     if not key:
-        raise Exception('No key configured for HMAC verification')
-    if not kwargs:
-        raise Exception('No message provided to be verified')
+        raise ValueError('No key configured for HMAC verification')
     expiration = kwargs.get('_expires', 0)
     mac = kwargs.pop('_mac', '')
     mac_sign(kwargs=kwargs, key=key, mac_len=mac_len, mac_format=mac_format)
     fresh_mac = kwargs.get('_mac', '')
     if not fresh_mac or fresh_mac != mac:
-        raise Exception('Bad HMAC')
+        raise ValueError('Bad HMAC')
     if expiration and int(expiration) < time():
-        raise Exception('HMAC expired')
+        raise ValueError('HMAC expired')
     for kw in ('_expires', '_mac'):
         if kw in kwargs:
             del kwargs[kw]
