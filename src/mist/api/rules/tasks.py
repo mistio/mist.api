@@ -28,7 +28,11 @@ __all__ = [
 @dramatiq.actor(max_retries=3, max_age=60_000, queue_name='dramatiq_rules')
 def evaluate(rule_id):
     """Perform a full rule evaluation."""
-    rule = Rule.objects.get(id=rule_id)
+    try:
+        rule = Rule.objects.get(id=rule_id)
+    except Rule.DoesNotExist:
+        log.warning('Cannot evaluate rule %s, not found', rule_id)
+        return
     rule.ctl.evaluate(update_state=True, trigger_actions=True)
 
 
