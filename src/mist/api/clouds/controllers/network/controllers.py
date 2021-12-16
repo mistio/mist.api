@@ -54,11 +54,18 @@ class AzureArmNetworkController(BaseNetworkController):
         for subnet in libcloud_network.extra['subnets']:
             ip_configs = subnet.get('properties').get('ipConfigurations', [])
             for ip_config in ip_configs:
-                nic_id = ip_config.get('id').split('/ipConfigurations')[-2]
-                if not network.extra.get('nics', []):
-                    network.extra['nics'] = [nic_id]
-                else:
-                    network.extra['nics'].append(nic_id)
+                # IP configurations can also contain load balancers'
+                # configurations.
+                if 'networkInterfaces' in ip_config.get('id', ''):
+                    try:
+                        nic_id = ip_config.get(
+                            'id').split('/ipConfigurations')[-2]
+                    except IndexError:
+                        continue
+                    if not network.extra.get('nics', []):
+                        network.extra['nics'] = [nic_id]
+                    else:
+                        network.extra['nics'].append(nic_id)
 
     def _list_subnets__fetch_subnets(self, network):
         l_network = AzureNetwork(network.network_id,
