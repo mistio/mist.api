@@ -1,5 +1,8 @@
 #!/usr/bin/env python
+
+import argparse
 import requests
+
 from mist.api import config
 from datetime import datetime
 
@@ -45,7 +48,38 @@ def forcemerge(index):
     print(f"* Force merge for index '{index}': {result.json()}")
 
 
+def merge_stats():
+    method = 'https' if config.ELASTICSEARCH['elastic_use_ssl'] else 'http'
+    result = requests.get(
+        (f"{method}://{config.ELASTICSEARCH['elastic_host']}"
+            f":{config.ELASTICSEARCH['elastic_port']}/_stats/merge"),
+        auth=(
+            config.ELASTICSEARCH['elastic_username'],
+            config.ELASTICSEARCH['elastic_password']
+        ),
+        verify=config.ELASTICSEARCH['elastic_verify_certs'])
+    print(f"* Stats: {(result.json())['_all']['total']}")
+
+
+def parse_args():
+    argparser = argparse.ArgumentParser(
+        description="Apply Elasticsearch cleanup"
+    )
+
+    argparser.add_argument(
+        "-s", "--stats", action="store_true",
+        help=("Return merge stats")
+    )
+
+    return argparser.parse_args()
+
+
 def main():
+    args = parse_args()
+    if args.stats:
+        merge_stats()
+        return
+
     for index in indices_to_modify:
         for year in range(
                 *delete_policy.get(index, delete_policy["default"])):
