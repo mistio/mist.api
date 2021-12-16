@@ -173,7 +173,7 @@ def list_zones(schedule_id):
 
 
 @dramatiq.actor(queue_name='dramatiq_volumes',
-                time_limit=60_000,
+                time_limit=120_000,
                 max_age=30_000,
                 max_retries=0)
 def list_volumes(schedule_id):
@@ -190,7 +190,7 @@ def list_volumes(schedule_id):
 
 
 @dramatiq.actor(queue_name='dramatiq_buckets',
-                time_limit=60_000,
+                time_limit=120_000,
                 max_age=300_000,
                 max_retries=0)
 def list_buckets(schedule_id):
