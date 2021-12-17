@@ -296,15 +296,16 @@ class ARecord(Record):
     def clean(self):
         """Overriding the default clean method to implement param checking"""
         super(ARecord, self).clean()
-        try:
-            ip_addr = self.rdata[0]
-            ip.ip_address(ip_addr)
-        except ValueError:
-            raise me.ValidationError('IPv4 address provided is not valid %s' %
-                                     self.rdata)
-        if not len(self.rdata) == 1:
-            raise me.ValidationError('We cannot have more than one rdata'
-                                     'values for this type of record.')
+        for ip_addr in self.rdata:
+            try:
+                ip.ip_address(ip_addr)
+            except ValueError:
+                raise me.ValidationError(
+                    'IPv4 address provided is not valid %s' % ip_addr)
+
+        if len(self.rdata) < 1:
+            raise me.ValidationError(
+                'At least onne IP address is required for ARecord')
 
 
 class AAAARecord(Record):
