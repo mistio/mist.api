@@ -51,7 +51,8 @@ class GoogleStorageController(BaseStorageController):
                                               missing_since=None)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume, name)
+                log.warning(
+                    '%s attached to unknown machine "%s"', volume, name)
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -91,8 +92,8 @@ class AmazonStorageController(BaseStorageController):
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume,
-                          machine_id)
+                log.warning('%s attached to unknown machine "%s"', volume,
+                            machine_id)
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -153,8 +154,8 @@ class DigitalOceanStorageController(BaseStorageController):
                 )
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume,
-                          machine_id)
+                log.warning('%s attached to unknown machine "%s"', volume,
+                            machine_id)
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -200,8 +201,8 @@ class OpenstackStorageController(BaseStorageController):
                                               cloud=self.cloud)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume,
-                          machine_id)
+                log.warning('%s attached to unknown machine "%s"', volume,
+                            machine_id)
 
     def _create_volume__prepare_args(self, kwargs):
         kwargs['ex_volume_type'] = kwargs.pop('storage_class_name', None)
@@ -281,8 +282,8 @@ class AzureArmStorageController(BaseStorageController):
                     break
 
             if not volume.attached_to:
-                log.error('%s attached to unknown machine "%s"', volume,
-                          owner_id)
+                log.warning('%s attached to unknown machine "%s"', volume,
+                            owner_id)
 
     def _list_volumes__volume_actions(self, volume, libcloud_volume):
         super(AzureArmStorageController, self)._list_volumes__volume_actions(
@@ -382,8 +383,8 @@ class AlibabaStorageController(BaseStorageController):
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume,
-                          machine_id)
+                log.warning('%s attached to unknown machine "%s"', volume,
+                            machine_id)
 
     def _list_volumes__volume_actions(self, volume, libcloud_volume):
         super(AlibabaStorageController, self)._list_volumes__volume_actions(
@@ -493,8 +494,8 @@ class LXDStorageController(BaseStorageController):
                                               cloud=self.cloud)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume,
-                          machine_id)
+                log.warning('%s attached to unknown machine "%s"', volume,
+                            machine_id)
 
     def _create_volume__prepare_args(self, kwargs):
         """
@@ -609,8 +610,8 @@ class LinodeStorageController(BaseStorageController):
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume,
-                          machine_id)
+                log.warning('%s attached to unknown machine "%s"', volume,
+                            machine_id)
 
 
 class CloudSigmaStorageController(BaseStorageController):
