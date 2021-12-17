@@ -53,6 +53,7 @@ EMAIL_LOGO = "landing/images/logo-email-440.png"
 GC_SCHEDULERS = True
 GC_SESSIONS = True
 GC_NODATARULETRACKER = True
+ELASTICSEARCH_CLEANUP = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
@@ -3258,6 +3259,11 @@ if GC_NODATARULETRACKER:
     _schedule['gc-nodataruletracker'] = {
         'task': 'mist.api.notifications.tasks.gc_nodataruletracker',
         'schedule': datetime.timedelta(hours=24),
+    }
+if ELASTICSEARCH_CLEANUP:
+    _schedule['elasticsearch-cleanup'] = {
+        'task': 'mist.api.logs.tasks.elasticsearch_cleanup',
+        'schedule': datetime.timedelta(days=30),
     }
 if ENABLE_MONITORING:
     _schedule['reset-traefik'] = {

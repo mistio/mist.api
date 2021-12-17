@@ -1,0 +1,30 @@
+#!/usr/bin/env python
+
+import argparse
+
+from mist.api.logs.tasks import merge_stats, elasticsearch_cleanup
+
+
+def parse_args():
+    argparser = argparse.ArgumentParser(
+        description="Apply Elasticsearch cleanup"
+    )
+
+    argparser.add_argument(
+        "-s", "--stats", action="store_true",
+        help=("Return merge stats")
+    )
+
+    return argparser.parse_args()
+
+
+def main():
+    args = parse_args()
+    if args.stats:
+        merge_stats()
+        return
+    elasticsearch_cleanup()
+
+
+if __name__ == "__main__":
+    main()
