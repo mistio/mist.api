@@ -1,64 +1,8 @@
 #!/usr/bin/env python
 
 import argparse
-import requests
 
-from mist.api import config
-from datetime import datetime
-
-first_log_year = 2010
-
-indices_to_modify = [
-    'machines_inventory-{year}*', 'exceptions-{year}*',
-    'cloudify-metrics-{year}*', 'portals-{year}'
-]
-
-delete_policy = {
-    "default": (first_log_year, datetime.now().year - 1)
-}
-
-forcemerge_policy = {
-    "default": (datetime.now().year - 1, datetime.now().year)
-}
-
-
-def delete(index):
-    method = 'https' if config.ELASTICSEARCH['elastic_use_ssl'] else 'http'
-    result = requests.delete(
-        (f"{method}://{config.ELASTICSEARCH['elastic_host']}"
-            f":{config.ELASTICSEARCH['elastic_port']}/{index}"),
-        params={"timeout": "1m"}, auth=(
-            config.ELASTICSEARCH['elastic_username'],
-            config.ELASTICSEARCH['elastic_password']),
-        verify=config.ELASTICSEARCH['elastic_verify_certs'])
-    print(f"* Delete index '{index}': {result.json()}")
-
-
-def forcemerge(index):
-    method = 'https' if config.ELASTICSEARCH['elastic_use_ssl'] else 'http'
-    result = requests.post(
-        (f"{method}://{config.ELASTICSEARCH['elastic_host']}"
-            f":{config.ELASTICSEARCH['elastic_port']}/{index}/_forcemerge"),
-        params={"max_num_segments": "1", "flush": "true"},
-        auth=(
-            config.ELASTICSEARCH['elastic_username'],
-            config.ELASTICSEARCH['elastic_password']
-        ),
-        verify=config.ELASTICSEARCH['elastic_verify_certs'])
-    print(f"* Force merge for index '{index}': {result.json()}")
-
-
-def merge_stats():
-    method = 'https' if config.ELASTICSEARCH['elastic_use_ssl'] else 'http'
-    result = requests.get(
-        (f"{method}://{config.ELASTICSEARCH['elastic_host']}"
-            f":{config.ELASTICSEARCH['elastic_port']}/_stats/merge"),
-        auth=(
-            config.ELASTICSEARCH['elastic_username'],
-            config.ELASTICSEARCH['elastic_password']
-        ),
-        verify=config.ELASTICSEARCH['elastic_verify_certs'])
-    print(f"* Stats: {(result.json())['_all']['total']}")
+from mist.api.logs.tasks import merge_stats, elasticsearch_cleanup
 
 
 def parse_args():
@@ -79,14 +23,7 @@ def main():
     if args.stats:
         merge_stats()
         return
-
-    for index in indices_to_modify:
-        for year in range(
-                *delete_policy.get(index, delete_policy["default"])):
-            delete(index.format(year=year))
-        for year in range(
-                *forcemerge_policy.get(index, forcemerge_policy["default"])):
-            forcemerge(index.format(year=year))
+    elasticsearch_cleanup()
 
 
 if __name__ == "__main__":
