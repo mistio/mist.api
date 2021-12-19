@@ -141,7 +141,8 @@ def usage_survey(url="https://mist.io/api/v1/usage-survey"):
                 time_limit=3_600_000,
                 queue_name='dramatiq_schedules')
 def create_backup(
-        databases=['mongo', 'influx', 'elastic', 'victoria', 'vault']):
+        databases=['mongo', 'influx', 'elastic', 'victoria', 'vault'],
+        prefer_incremental=True):
     """
         Backup databases if s3 creds are set.
     """
@@ -211,10 +212,13 @@ def create_backup(
         last_month = start_victoria - datetime.timedelta(days=31)
         start_of_hour = start_victoria.replace(
             minute=0, second=0, microsecond=0)
-        last_backup_time = start_of_hour - datetime.timedelta(
-            hours=config.BACKUP_INTERVAL)
-        start_ts = int((last_backup_time - datetime.timedelta(
-            hours=config.BACKUP_INTERVAL)).timestamp())
+        if prefer_incremental:
+            last_backup_time = start_of_hour - datetime.timedelta(
+                hours=config.BACKUP_INTERVAL)
+            start_ts = int((last_backup_time - datetime.timedelta(
+                hours=config.BACKUP_INTERVAL)).timestamp())
+        else:
+            start_ts = 0
         suffix = '.gpg' if has_gpg else ''
         for org in Organization.objects(
                 last_active__gt=last_month).order_by('-last_active'):

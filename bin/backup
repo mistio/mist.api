@@ -21,6 +21,8 @@ if __name__ == '__main__':
         description="Create a mist backup"
     )
     argparser.add_argument('--db', help="Database to backup.")
+    argparser.add_argument('--no-incremental', dest='incremental', help="Perform full backup always.", action='store_false')
+    argparser.set_defaults(incremental=True)
     args = argparser.parse_args()
     if not args.db:
         databases = ['mongo', 'influx', 'victoria', 'vault']
@@ -34,4 +36,4 @@ if __name__ == '__main__':
             databases.append('victoria')
         if 'vault' in args.db:
             databases.append('vault')
-    create_backup(databases)
+    create_backup(databases, prefer_incremental=args.incremental)
