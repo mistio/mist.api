@@ -273,7 +273,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
         error = False
         if script_id:
             tmp_log('will run script_id %s', script_id)
-            ret = run_script.run(
+            ret = run_script(
                 auth_context.serialize(), script_id, machine.id,
                 params=script_params, host=host, job_id=job_id
             )
@@ -331,7 +331,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
 
         if post_script_id:
             tmp_log('will run post_script_id %s', post_script_id)
-            ret = run_script.run(
+            ret = run_script(
                 auth_context.serialize(), post_script_id, machine.id,
                 params=post_script_params, host=host, job_id=job_id,
                 action_prefix='post_',
