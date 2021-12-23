@@ -1387,6 +1387,7 @@ class RackSpaceComputeController(BaseComputeController):
             # TODO: RackSpace mentions on
             # https://www.rackspace.com/cloud/public-pricing
             # there's a minimum service charge of $50/mo across all servers.
+        return 0, 0
 
     def _list_machines__postparse_machine(self, machine, node_dict):
         updated = False
