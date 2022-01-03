@@ -1029,7 +1029,12 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
     """
 
     if auth_context_serialized:
-        auth_context = AuthContext.deserialize(auth_context_serialized)
+        try:
+            auth_context = AuthContext.deserialize(auth_context_serialized)
+        except TypeError:
+            group_run_script.logger.error(
+                'Invalid serialized AuthContext type, exiting')
+            return
         owner = auth_context.owner
     else:
         owner = Organization.objects.get(id=owner_id)
@@ -1100,7 +1105,12 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
     from mist.api.methods import notify_admin, notify_user
 
     if auth_context_serialized:
-        auth_context = AuthContext.deserialize(auth_context_serialized)
+        try:
+            auth_context = AuthContext.deserialize(auth_context_serialized)
+        except TypeError:
+            run_script.logger.error(
+                'Invalid serialized AuthContext type, exiting')
+            return
         owner = auth_context.owner
     else:
         owner = Organization.objects.get(id=owner_id)
