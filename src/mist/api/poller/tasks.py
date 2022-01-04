@@ -63,6 +63,10 @@ def list_machines(schedule_id):
         list_machines.logger.warning(
             '%s failed with %r',
             sched.name, exc)
+    except Exception as exc:
+        list_machines.logger.error(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='dramatiq_clusters',
@@ -82,6 +86,10 @@ def list_clusters(schedule_id):
         list_clusters.logger.warning(
             '%s failed with %r',
             sched.name, exc)
+    except Exception as exc:
+        list_clusters.logger.error(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='dramatiq_polling',
@@ -97,6 +105,10 @@ def list_locations(schedule_id):
         sched.cloud.ctl.compute.list_locations(persist=False)
     except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
         list_locations.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
+    except Exception as exc:
+        list_locations.logger.error(
             '%s failed with %r',
             sched.name, exc)
 
@@ -116,6 +128,10 @@ def list_sizes(schedule_id):
         list_sizes.logger.warning(
             '%s failed with %r',
             sched.name, exc)
+    except Exception as exc:
+        list_sizes.logger.error(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='dramatiq_polling',
@@ -131,6 +147,10 @@ def list_images(schedule_id):
         sched.cloud.ctl.compute.list_images(persist=False)
     except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
         list_images.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
+    except Exception as exc:
+        list_images.logger.error(
             '%s failed with %r',
             sched.name, exc)
 
@@ -149,6 +169,10 @@ def list_networks(schedule_id):
         sched.cloud.ctl.network.list_networks(persist=False)
     except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
         list_networks.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
+    except Exception as exc:
+        list_networks.logger.error(
             '%s failed with %r',
             sched.name, exc)
 
@@ -170,6 +194,10 @@ def list_zones(schedule_id):
         list_zones.logger.warning(
             '%s failed with %r',
             sched.name, exc)
+    except Exception as exc:
+        list_zones.logger.error(
+            '%s failed with %r',
+            sched.name, exc)
 
 
 @dramatiq.actor(queue_name='dramatiq_volumes',
@@ -185,6 +213,10 @@ def list_volumes(schedule_id):
         sched.cloud.ctl.storage.list_volumes(persist=False)
     except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
         list_volumes.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
+    except Exception as exc:
+        list_volumes.logger.error(
             '%s failed with %r',
             sched.name, exc)
 
@@ -205,6 +237,10 @@ def list_buckets(schedule_id):
         sched.cloud.ctl.objectstorage.list_buckets(persist=False)
     except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun) as exc:
         list_buckets.logger.warning(
+            '%s failed with %r',
+            sched.name, exc)
+    except Exception as exc:
+        list_buckets.logger.error(
             '%s failed with %r',
             sched.name, exc)
 
