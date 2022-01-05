@@ -5,12 +5,14 @@ import time
 import logging
 import importlib
 
-from pyramid.config import Configurator
-from pyramid.renderers import JSON
-
 import mongoengine as me
 
 from mist.api import config
+
+dramatiq_context = os.getenv('DRAMATIQ_CONTEXT') is not None
+if not dramatiq_context:
+    from pyramid.config import Configurator
+    from pyramid.renderers import JSON
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -50,12 +52,10 @@ def mongo_connect(*args, **kwargs):
 try:
     import uwsgi  # noqa
 except ImportError:
-    if os.getenv('CELERY_CONTEXT'):
-        log.info('Celery context')
-        from celery.signals import worker_process_init
-        worker_process_init.connect(mongo_connect)
+    if dramatiq_context:
+        log.info('Dramatiq context')
     else:
-        log.debug('Not in uwsgi/celery context')
+        log.info('Not in uwsgi/dramatiq context')
         mongo_connect()
 else:
     log.info('Uwsgi context')
