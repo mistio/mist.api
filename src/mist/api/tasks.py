@@ -1193,7 +1193,9 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
     return ret
 
 
-@dramatiq.actor(queue_name='dramatiq_polling', store_results=True)
+@dramatiq.actor(queue_name='dramatiq_polling',
+                max_age=90_000,
+                store_results=True)
 def update_poller(org_id):
     org = Organization.objects.get(id=org_id)
     update_threshold = datetime.datetime.now() - datetime.timedelta(
