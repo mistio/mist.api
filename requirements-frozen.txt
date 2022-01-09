@@ -90,7 +90,7 @@ pytz==2019.3
 pyvmomi==6.7.3
 PyYAML==5.4.1
 repoze.lru==0.7
-requests==2.23.0
+requests==2.27.1
 scandir==1.10.0
 sendgrid==6.2.0
 sentinels==1.0.0
