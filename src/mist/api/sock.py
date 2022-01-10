@@ -282,6 +282,7 @@ class MainConnection(MistConnection):
             'ip': self.ip,
             'user_agent': self.user_agent,
             'sockjs_session_id': self.session_id,
+            'session_id': str(self.auth_context.token.id),
             'user_id': self.auth_context.user.id,
             'owner_id': self.auth_context.owner.id,
             'event_type': 'session'
