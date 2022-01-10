@@ -222,10 +222,13 @@ def create_backup(
         suffix = '.gpg' if has_gpg else ''
         for org in Organization.objects(
                 last_active__gt=last_month).order_by('-last_active'):
-            uri = get_victoriametrics_uri(org)
+            base_uri = get_victoriametrics_uri(org)
+            uri = (
+                f'{base_uri}/api/v1/export/native?start={start_ts}&'
+                f'match[]={{__name__!=""}}'
+            )
             cmd = (
-                f'curl "{uri}/api/v1/export?start={start_ts}&'
-                f'match[]=\{{__name__!=\\\"\\\"\}}" | gzip | '
+                f'curl "{uri}" | gzip | '
                 f'{gpg_cmd}'
                 f's3cmd --host={s3_host} --access_key={config.BACKUP["key"]}'
                 f' --secret_key={config.BACKUP["secret"]} put - '
@@ -348,7 +351,7 @@ def restore_backup(backup, portal=None, until=False, databases=[
                 cmd = (
                     f'cat {backup}.{db}/{backup}/{org_id} | '
                     f'gzip -d > {backup}.{db}/{org_id}.plain && '
-                    f'curl -X POST "{uri}/api/v1/import" '
+                    f'curl -X POST "{uri}/api/v1/import/native" '
                     f' -T {backup}.{db}/{org_id}.plain'
                 )
                 # print(cmd)
