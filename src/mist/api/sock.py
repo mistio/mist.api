@@ -281,7 +281,7 @@ class MainConnection(MistConnection):
         self.log_kwargs = {
             'ip': self.ip,
             'user_agent': self.user_agent,
-            'session_id': self.session_id,
+            'sockjs_session_id': self.session_id,
             'user_id': self.auth_context.user.id,
             'owner_id': self.auth_context.owner.id,
             'event_type': 'session'
