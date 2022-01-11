@@ -61,4 +61,4 @@ for plugin in config.PLUGINS:
 print(
     f"Will execute command: dramatiq {BROKER} {' '.join(modules)} -Q {' '.join(QUEUES)}")
 
-os.system(f"dramatiq {BROKER} {' '.join(modules)} -Q {' '.join(QUEUES)}")
+os.system(f"dramatiq --processes 1 --threads 4 {BROKER} {' '.join(modules)} -Q {' '.join(QUEUES)}")
