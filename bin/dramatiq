@@ -25,6 +25,14 @@ QUEUES = os.getenv('QUEUES', '').split(',') or [
 
 POSSIBLE_MODULES = []  # 'mist.api.dramatiq_tasks', 'mist.rbac.dramatiq_tasks']
 
+command = 'dramatiq'
+processes = os.getenv('DRAMATIQ_PROCESSES')
+if processes:
+    command += f' --processes {processes}'
+threads = os.getenv('DRAMATIQ_THREADS')
+if threads:
+    command += f' --threads {threads}'
+
 for root, dirs, files in os.walk("src"):
     for file in files:
         if file.endswith('tasks.py'):
@@ -59,6 +67,6 @@ for plugin in config.PLUGINS:
     print(f"  * {module}")
 
 print(
-    f"Will execute command: dramatiq {BROKER} {' '.join(modules)} -Q {' '.join(QUEUES)}")
+    f"Will execute command: {command} {BROKER} {' '.join(modules)} -Q {' '.join(QUEUES)}")
 
-os.system(f"dramatiq {BROKER} {' '.join(modules)} -Q {' '.join(QUEUES)}")
+os.system(f"{command} {BROKER} {' '.join(modules)} -Q {' '.join(QUEUES)}")
