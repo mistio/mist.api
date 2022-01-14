@@ -43,9 +43,6 @@ from mist.api.poller.models import ListNetworksPollingSchedule
 from mist.api.poller.models import ListZonesPollingSchedule
 from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import ListClustersPollingSchedule
-from mist.api.poller.models import FindCoresMachinePollingSchedule
-from mist.api.poller.models import PingProbeMachinePollingSchedule
-from mist.api.poller.models import SSHProbeMachinePollingSchedule
 from mist.api.poller.models import ListLocationsPollingSchedule
 from mist.api.poller.models import ListSizesPollingSchedule
 from mist.api.poller.models import ListImagesPollingSchedule
@@ -1234,17 +1231,7 @@ def update_poller(org_id):
                 cloud.object_storage_enabled:
             ListBucketsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
                                            ttl=120)
-        if config.ACCELERATE_MACHINE_POLLING:
-            for machine in cloud.ctl.compute.list_cached_machines():
-                if machine.machine_type != 'container':
-                    log.info("Updating poller for machine %s", machine)
-                    FindCoresMachinePollingSchedule.add(machine=machine,
-                                                        interval=600, ttl=360,
-                                                        run_immediately=False)
-                    PingProbeMachinePollingSchedule.add(machine=machine,
-                                                        interval=300, ttl=120)
-                    SSHProbeMachinePollingSchedule.add(machine=machine,
-                                                       interval=300, ttl=120)
+
     org.poller_updated = datetime.datetime.now()
     org.save()
 
