@@ -166,7 +166,10 @@ class BaseStorageController(BaseController):
                 new_volumes.append(volume)
 
             volume.name = libcloud_volume.name
-            volume.size = libcloud_volume.size
+            try:
+                volume.size = int(libcloud_volume.size)
+            except (TypeError, ValueError):
+                volume.size = None
             volume.extra = copy.copy(libcloud_volume.extra)
             volume.missing_since = None
             volume.last_seen = now

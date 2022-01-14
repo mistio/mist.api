@@ -1240,7 +1240,10 @@ class BaseComputeController(BaseController):
 
             _size.name = self._list_sizes__get_name(size)
             # FIXME: Parse unit prefix w/ si-prefix, cast to int e.g 1k to 1000
-            _size.disk = size.disk
+            try:
+                _size.disk = int(size.disk)
+            except (TypeError, ValueError):
+                _size.disk = None
             _size.missing_since = None
             _size.extra = self._list_sizes__get_extra(size)
             _size.architecture = self._list_sizes__get_architecture(size)
