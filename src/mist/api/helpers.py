@@ -1898,7 +1898,7 @@ def select_plan(valid_plans, optimize, auth_context):
                         headers = {
                             'Authorization': auth_context.token.token,
                         }
-                    params = f'query=last_over_time({tag.value}[10m])&time=0s'
+                    params = f'query={tag.value}[10m]&time=0s'
                     url = f'{config.INTERNAL_API_V2_URL}/api/v2/datapoints'
                     response = requests.get(url,
                                             headers=headers,
@@ -1915,8 +1915,8 @@ def select_plan(valid_plans, optimize, auth_context):
 
                     body = response.json()
                     try:
-                        plan['performance'] = float(body[
-                            'data']['data']['result'][0]['value'][1])
+                        plan['performance'] = float(
+                            body['data']['data']['result'][0]['values'][-1][1])
                     except (KeyError, IndexError):
                         log.error(
                             'Failed to parse system load metric for cloud: %s',
