@@ -85,6 +85,7 @@ from mist.api.helpers import node_to_dict
 from mist.api.helpers import generate_secure_password, validate_password
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
+from mist.api.clouds.controllers.base import ConnectionProxy
 
 from mist.api import config
 
@@ -5562,6 +5563,11 @@ class _KubernetesBaseComputeController(BaseComputeController):
 
 
 class KubernetesComputeController(_KubernetesBaseComputeController):
+    def __init__(self, main_ctl, driver=None):
+        super(KubernetesComputeController, self).__init__(main_ctl)
+        if driver:
+            self._conn = ConnectionProxy(driver)
+
     def _connect(self, **kwargs):
         return super()._connect(Container_Provider.KUBERNETES, **kwargs)
 
