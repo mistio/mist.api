@@ -2,33 +2,43 @@
 
 import argparse
 
-from mist.api.clouds.methods import purge_cloud
+import mongoengine as me
 from mist.api.users.methods import purge_org
+from mist.api.models import User, Organization
 
 
 def main():
     argparser = argparse.ArgumentParser(
-        description="Cleanup broken references from orgs"
+        description='Cleanup broken references from orgs'
     )
-    argparser.add_argument('org', help="Id of org to cleanup.")
+    argparser.add_argument('-o', '--organization',
+                           help='ID of org to cleanup.',
+                           required=False)
     args = argparser.parse_args()
+
     def cleanup_org(org):
-        for member in o.members:
+        for member in org.members:
             if member.__class__ != User:
-                if len(o.members) > 1:
-                    o.members.remove(member)
-                    o.save()
+                if len(org.members) > 1:
+                    org.members.remove(member)
+                    try:
+                        org.save()
+                    except me.ValidationError:
+                        print('Purging org %s' % org.name)
+                        purge_org(org)
+                        print('Done purging org')
                 else:
                     print('Purging org %s' % org.name)
                     purge_org(org)
-                    print('Done purging orgP')
-    if not args.org:
+                    print('Done purging org')
+
+    if not args.organization:
         for org in Organization.objects:
             cleanup_org(org)
     else:
-        org = Organization.objects.get(id=args.org)
+        org = Organization.objects.get(id=args.organization)
         cleanup_org(org)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
