@@ -1,3 +1,5 @@
+from mist.api.clouds.controllers.compute.controllers import KubernetesComputeController
+
 class ClusterController(object):
     def __init__(self, cluster):
         """Initialize cluster controller given a cluster
@@ -9,6 +11,10 @@ class ClusterController(object):
           cluster.ctl.destroy()
         """
         self.cluster = cluster
+
+    def _set_k8s_controller(self):
+        self.k8s_controller = KubernetesComputeController(self.cluster.cloud.ctl,
+                                                          driver=self.cluster.cloud.ctl.container.connection._get_cluster_driver(self.cluster))
 
     def destroy(self, **kwargs):
         return self.cluster.cloud.ctl.container.destroy_cluster(
