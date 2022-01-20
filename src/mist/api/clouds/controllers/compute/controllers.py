@@ -5566,9 +5566,11 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
     def __init__(self, main_ctl, driver=None):
         super(KubernetesComputeController, self).__init__(main_ctl)
         if driver:
-            self._conn = ConnectionProxy(driver)
+            self.driver = driver
 
     def _connect(self, **kwargs):
+        if self.driver:
+            return self.driver
         return super()._connect(Container_Provider.KUBERNETES, **kwargs)
 
     def check_connection(self):
