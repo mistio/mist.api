@@ -24,6 +24,7 @@ import logging
 import codecs
 import secrets
 import operator
+import copy
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -1489,7 +1490,7 @@ def node_to_dict(node):
         return node.isoformat()
     elif not getattr(node, "__dict__"):
         return str(node)
-    ret = node.__dict__
+    ret = copy.deepcopy(node.__dict__)
     if ret.get('driver'):
         ret.pop('driver')
     if ret.get('size'):

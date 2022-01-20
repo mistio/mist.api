@@ -11,8 +11,6 @@ class ClusterController(object):
           cluster.ctl.destroy()
         """
         self.cluster = cluster
-
-    def _set_k8s_controller(self):
         self.k8s_controller = KubernetesComputeController(self.cluster.cloud.ctl,
                                                           driver=self.cluster.cloud.ctl.container.connection._get_cluster_driver(self.cluster))
 
