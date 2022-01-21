@@ -85,7 +85,6 @@ from mist.api.helpers import node_to_dict
 from mist.api.helpers import generate_secure_password, validate_password
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
-from mist.api.clouds.controllers.base import ConnectionProxy
 
 from mist.api import config
 
