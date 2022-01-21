@@ -214,6 +214,8 @@ def add_routes(configurator):
     # Clusters
     configurator.add_route('api_v1_cloud_clusters',
                            '/api/v1/clouds/{cloud}/clusters')
+    configurator.add_route('api_v1_cluster_resources',
+                           '/api/v1/clusters/{cluster}/resources')
 
     configurator.add_route('api_v1_cloud_machines',
                            '/api/v1/clouds/{cloud}/machines')

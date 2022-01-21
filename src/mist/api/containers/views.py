@@ -1,6 +1,8 @@
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.models import Cloud
+from mist.api.containers.models import Cluster
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.helpers import view_config, params_from_request
 from mist.api.containers import methods
 
@@ -35,3 +37,18 @@ def list_cloud_clusters(request):
     clusters = methods.filter_list_clusters(auth_context, cloud_id,
                                             cached=cached)
     return clusters
+
+@view_config(route_name='api_v1_cluster_resources',
+             request_method='GET', renderer='json')
+def list_cluster_resources(request):
+    auth_context = auth_context_from_request(request)
+    cluster_id = request.matchdict['cluster']
+
+    try:
+      cluster = Cluster.objects.get(id=cluster_id)
+    except Cluster.DoesNotExist:
+      raise NotFoundError('Cluster does not exist')
+
+    auth_context.check_perm('cloud', 'read', cluster.cloud.id)
+
+    return cluster.ctl.list_resources()
