@@ -7,10 +7,8 @@ import mongoengine as me
 
 from mist.api.containers.controllers import ClusterController
 from mist.api.containers.controllers import GoogleClusterController
-from mist.api.models import Cloud
-from mist.api.models import CloudLocation
-from mist.api.models import Organization
 from mist.api.tag.models import Tag
+from mist.api.clouds.models import Cloud
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
 
@@ -75,14 +73,12 @@ class Cluster(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField(Cloud, required=True,
                               reverse_delete_rule=me.CASCADE)
-    owner = me.ReferenceField(Organization, required=True,
+    owner = me.ReferenceField('Organization', required=True,
                               reverse_delete_rule=me.CASCADE)
-    location = me.ReferenceField(CloudLocation, required=False,
+    location = me.ReferenceField('CloudLocation', required=False,
                                  reverse_delete_rule=me.DENY)
     name = me.StringField(required=True)
     external_id = me.StringField(required=True)
-    cloud = me.ReferenceField('Cloud', required=True,
-                              reverse_delete_rule=me.CASCADE)
     name = me.StringField()
     total_nodes = me.IntField()
     total_cpus = me.IntField()

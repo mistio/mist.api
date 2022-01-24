@@ -502,6 +502,16 @@ class BaseComputeController(BaseController):
                          exc)
                 return None, is_new
 
+        try:
+            cluster = self._list_machines__get_machine_cluster(machine, node)
+        except Exception as exc:
+            log.error('Failed to get cluster for machine: %s, %r',
+                      machine, exc)
+        else:
+            if machine.cluster != cluster:
+                machine.cluster = cluster
+                updated = True
+
         # Discover location of machine.
         try:
             location_id = self._list_machines__get_location(node)
@@ -1554,6 +1564,17 @@ class BaseComputeController(BaseController):
 
         """
         return ''
+
+    def _list_machines__get_machine_cluster(self,
+                                            machine,
+                                            node):
+        """Return the cluster this machine is associated with.
+
+        This is to be called exclusively by `self._list_machines`.
+
+        Subclasses MAY override this method.
+        """
+        return
 
     def _get_libcloud_node(self, machine, no_fail=False):
         """Return an instance of a libcloud node
