@@ -297,6 +297,27 @@ class AmazonComputeController(BaseComputeController):
 
         return images
 
+    def _list_machines__get_machine_cluster(self,
+                                            machine,
+                                            node):
+        # Nodes belonging to an EKS Cluster automatically get assigned
+        # the 'eks:cluster-name' tag.
+        try:
+            cluster_name = node['extra']['tags']['eks:cluster-name']
+        except KeyError:
+            return None
+
+        from mist.api.containers.models import Cluster
+        cluster = None
+        try:
+            cluster = Cluster.objects.get(name=cluster_name,
+                                          cloud=self.cloud,
+                                          missing_since=None)
+        except Cluster.DoesNotExist as exc:
+            log.warn('Error getting cluster of %s: %r', machine, exc)
+
+        return cluster
+
     def image_is_default(self, image_id):
         return image_id in config.EC2_IMAGES[self.cloud.region]
 
@@ -2311,6 +2332,30 @@ class GoogleComputeController(BaseComputeController):
 
     def _list_machines__get_location(self, node_dict):
         return node_dict['extra'].get('zone', {}).get('id')
+
+    def _list_machines__get_machine_cluster(self, machine, node):
+        try:
+            metadata = node['extra']['metadata']['items']
+        except KeyError:
+            return None
+
+        for item in metadata:
+            if item.get('key') == 'cluster-uid':
+                cluster_id = item.get('value')
+                break
+        else:
+            return None
+
+        from mist.api.containers.models import Cluster
+        cluster = None
+        try:
+            cluster = Cluster.objects.get(external_id=cluster_id,
+                                          cloud=self.cloud,
+                                          missing_since=None)
+        except Cluster.DoesNotExist as exc:
+            log.warn('Error getting cluster of %s: %r', machine, exc)
+
+        return cluster
 
     def _list_sizes__get_name(self, size):
         return "%s (%s)" % (size.name, size.extra.get('description'))

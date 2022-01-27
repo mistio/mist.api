@@ -15,7 +15,7 @@ from mist.api.keys.models import Key
 from mist.api.schedules.models import Schedule
 from mist.api.machines.controllers import MachineController
 from mist.api.ownership.mixins import OwnershipMixin
-
+from mist.api.containers.models import Cluster
 from mist.api import config
 
 
@@ -276,6 +276,9 @@ class Machine(OwnershipMixin, me.Document):
                                 reverse_delete_rule=me.NULLIFY)
     subnet = me.ReferenceField('Subnet', required=False,
                                reverse_delete_rule=me.NULLIFY)
+    cluster = me.ReferenceField(Cluster, required=False,
+                                reverse_delete_rule=me.NULLIFY)
+
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -421,7 +424,8 @@ class Machine(OwnershipMixin, me.Document):
             'network': 'name',
             'subnet': 'name',
             'owned_by': 'email',
-            'created_by': 'email'
+            'created_by': 'email',
+            'cluster': 'name',
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
@@ -584,7 +588,8 @@ class Machine(OwnershipMixin, me.Document):
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'expiration': expiration,
-            'provider': self.cloud.ctl.provider
+            'provider': self.cloud.ctl.provider,
+            'cluster': self.cluster.id if self.cluster else '',
         }
 
     def __str__(self):
