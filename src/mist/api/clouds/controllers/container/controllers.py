@@ -43,7 +43,7 @@ class GoogleContainerController(BaseContainerController):
         return self.connection.ex_destroy_cluster(*args, **kwargs)
 
     def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
-        return cluster_dict.get("createTime")
+        return cluster_dict.get('extra', {}).get('createTime')
 
     def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
         updated = False
@@ -71,3 +71,6 @@ class AmazonContainerController(BaseContainerController):
         cluster.total_cpus = cluster_dict['total_cpus']
         cluster.total_memory = cluster_dict['total_memory']
         return updated
+
+    def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
+        return cluster_dict.get('extra', {}).get('createdAt')
