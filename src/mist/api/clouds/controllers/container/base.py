@@ -172,7 +172,7 @@ class BaseContainerController(BaseController):
 
     def _list_clusters__fetch_clusters(self):
         """Perform the actual libcloud call to get list of clusters"""
-        return [node_to_dict(c) for c in self.connection.list_clusters()]
+        return self.connection.list_clusters()
 
     def _list_clusters__get_location(self, cluster_dict):
         """Find location code name/identifier from libcloud data
@@ -278,9 +278,8 @@ class BaseContainerController(BaseController):
             updated = True
         cluster_state = cluster_dict.get(
             'status') or cluster_dict.get('extra', {}).get('status')
-        config_state = config.CLUSTER_STATES.get(cluster_state)
-        if cluster_state and config_state and cluster.state != config_state:
-            cluster.state = config_state
+        if cluster_state and cluster_state != cluster.state:
+            cluster.state = cluster_state
             updated = True
         # Set cluster extra dict.
         # Make sure we don't meet any surprises when we try to json encode
@@ -388,10 +387,10 @@ class BaseContainerController(BaseController):
             from time import time
 
             start = time()
-            cluster_dicts = self._list_clusters__fetch_clusters()
+            libcloud_clusters = self._list_clusters__fetch_clusters()
             log.info(
                 "List clusters returned %d results for %s in %d.",
-                len(cluster_dicts),
+                len(libcloud_clusters),
                 self.cloud,
                 time() - start,
             )
@@ -426,40 +425,15 @@ class BaseContainerController(BaseController):
         # Process each cluster in returned list.
         # Store previously unseen clusters separately.
         new_clusters = []
-        if config.PROCESS_POOL_WORKERS:
-            from concurrent.futures import ProcessPoolExecutor
-
-            cloud_id = self.cloud.id
-            choices = map(
-                lambda cluster_dict: {
-                    "cluster_dict": cluster_dict,
-                    "cloud_id": cloud_id,
-                    "locations_map": locations_map,
-                    "now": now,
-                },
-                cluster_dicts,
+        for libcloud_cluster in libcloud_clusters:
+            cluster, is_new = self._update_cluster_from_dict(
+                node_to_dict(libcloud_cluster), locations_map, now
             )
-            with ProcessPoolExecutor(
-                max_workers=config.PROCESS_POOL_WORKERS
-            ) as executor:
-                res = executor.map(
-                    _update_cluster_from_dict_in_process_pool, choices)
-            for cluster, is_new in list(res):
-                if not cluster:
-                    continue
-                if is_new:
-                    new_clusters.append(cluster)
-                clusters.append(cluster)
-        else:
-            for cluster_dict in cluster_dicts:
-                cluster, is_new = self._update_cluster_from_dict(
-                    cluster_dict, locations_map, now
-                )
-                if not cluster:
-                    continue
-                if is_new:
-                    new_clusters.append(cluster)
-                clusters.append(cluster)
+            if not cluster:
+                continue
+            if is_new:
+                new_clusters.append(cluster)
+            clusters.append(cluster)
         # Set missing_since on cluster models we didn't see for the first time.
         Cluster.objects(
             cloud=self.cloud,
