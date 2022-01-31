@@ -242,8 +242,14 @@ class BaseComputeController(BaseController):
         first_run = False if task.last_success else True
         try:
             with task.task_runner(persist=persist):
-                cached_machines = [m.as_dict()
-                                   for m in self.list_cached_machines()]
+                if (hasattr(self.cloud.ctl, 'container') and
+                        self.cloud.container_enabled):
+                    cached_machines = [m.as_dict()
+                                       for m in self.list_cached_machines()
+                                       if m.machine_type != 'pod']
+                else:
+                    cached_machines = [m.as_dict()
+                                       for m in self.list_cached_machines()]
                 machines = self._list_machines()
         except PeriodicTaskThresholdExceeded:
             self.cloud.ctl.disable()
@@ -429,9 +435,18 @@ class BaseComputeController(BaseController):
             machines.append(machine)
 
         # Set missing_since on machine models we didn't see for the first time.
-        Machine.objects(cloud=self.cloud,
-                        id__nin=[m.id for m in machines],
-                        missing_since=None).update(missing_since=now)
+        # Do not set `missing_since` on pods if container is enabled,
+        # because they are fetched/updated by the container controller.
+        if hasattr(self.cloud.ctl, 'container') and self.cloud.container_enabled:
+            Machine.objects(cloud=self.cloud,
+                            id__nin=[m.id for m in machines],
+                            missing_since=None,
+                            machine_type__ne='pod').update(missing_since=now)
+        else:
+            Machine.objects(cloud=self.cloud,
+                            id__nin=[m.id for m in machines],
+                            missing_since=None).update(missing_since=now)
+
         # Set last_seen, unset missing_since on machine models we just saw
         Machine.objects(cloud=self.cloud,
                         id__in=[m.id for m in machines]).update(
