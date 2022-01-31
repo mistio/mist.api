@@ -375,6 +375,22 @@ class BaseContainerController(BaseController):
             )
         return cluster, is_new
 
+    def _list_clusters__get_pod_node(self, pod, cluster, libcloud_cluster):
+        """Get the node the pod is running on.
+
+        Subclasses MAY override this method.
+        """
+        from mist.api.machines.models import Machine
+        if pod.node_name:
+            try:
+                node = Machine.objects.get(name=pod.node_name,
+                                           cloud=self.cloud,
+                                           cluster=cluster)
+            except Machine.DoesNotExist:
+                log.warning('Failed to get parent node: %s for pod: %s',
+                            pod.node_name, pod.id)
+            return node
+
     def _list_clusters(self):
         """Core logic of list_clusters method
         A list of clusters is fetched from libcloud, the data is processed,
@@ -425,6 +441,7 @@ class BaseContainerController(BaseController):
         # Process each cluster in returned list.
         # Store previously unseen clusters separately.
         new_clusters = []
+        pod_ids = []
         for libcloud_cluster in libcloud_clusters:
             cluster, is_new = self._update_cluster_from_dict(
                 node_to_dict(libcloud_cluster), locations_map, now
@@ -434,6 +451,102 @@ class BaseContainerController(BaseController):
             if is_new:
                 new_clusters.append(cluster)
             clusters.append(cluster)
+
+            pods = libcloud_cluster.driver.ex_list_pods(fetch_metrics=True)
+            from mist.api.machines.models import Machine
+            for pod in pods:
+                updated = False
+                new_pod = False
+                try:
+                    machine = Machine.objects.get(machine_id=pod.id,
+                                                  cloud=self.cloud,
+                                                  cluster=cluster,
+                                                  machine_type='pod')
+                except Machine.DoesNotExist:
+                    machine = Machine(cloud=self.cloud,
+                                      machine_id=pod.id,
+                                      cluster=cluster,
+                                      machine_type='pod'
+                                      ).save()
+                    new_pod = True
+
+                pod_ids.append(machine.id)
+
+                if pod.name != machine.name:
+                    machine.name = pod.name
+                    updated = True
+
+                # TODO update status choices
+                # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+                if pod.state != machine.state:
+                    updated = True
+                    machine.state = pod.state
+
+                if pod.created_at:
+                    try:
+                        created = get_datetime(pod.created_at)
+                    except Exception as exc:
+                        log.error(
+                            'Failed to get creation date for pod %s: %r',
+                            machine, exc)
+                    else:
+                        if machine.created != created:
+                            machine.created = created
+                            updated = True
+
+                node = self._list_clusters__get_pod_node(
+                    pod, cluster, libcloud_cluster)
+
+                if node and machine.parent != node:
+                    machine.parent = node
+                    updated = True
+
+                ips = [ip for ip in pod.ip_addresses if ':' not in ip]
+                if ips != machine.private_ips:
+                    machine.private_ips = ips
+                    updated = True
+
+                extra = {}
+                extra['resources'] = pod.extra['resources']
+                extra['namespace'] = pod.namespace
+                extra['containers'] = []
+                metrics = pod.extra.get('metrics')
+                for container in pod.containers:
+                    container_dict = {
+                        'id': container.id,
+                        'name': container.name,
+                        'state': container.state,
+                        'image': container.image.name,
+                    }
+                    if container.extra.get('resources'):
+                        container_dict['resources'] = container.extra['resources']
+                    if metrics:
+                        usage = next((metric.get('usage')
+                                      for metric in metrics
+                                      if metric.get('name') == container.name),
+                                     None)
+                        if usage:
+                            container_dict['usage'] = usage
+                    extra['containers'].append(container_dict)
+                machine.extra = extra
+                machine.last_seen = now
+
+                # TODO only save machine when it's new or updated
+                try:
+                    machine.save()
+                except me.ValidationError as exc:
+                    log.error("Error saving pod %s: %r", machine.name, exc)
+                except me.NotUniqueError as exc:
+                    log.error("Pod %s not unique error: %r", machine.name, exc)
+
+        Machine.objects(cloud=self.cloud,
+                        id__nin=pod_ids,
+                        missing_since=None,
+                        machine_type='pod').update(missing_since=now)
+        # Set last_seen, unset missing_since on pods we just saw
+        Machine.objects(cloud=self.cloud, id__in=pod_ids).update(
+            last_seen=now, missing_since=None)
+
         # Set missing_since on cluster models we didn't see for the first time.
         Cluster.objects(
             cloud=self.cloud,
