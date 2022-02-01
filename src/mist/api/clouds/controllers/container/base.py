@@ -449,7 +449,12 @@ class BaseContainerController(BaseController):
                 new_clusters.append(cluster)
             clusters.append(cluster)
 
-            pods = libcloud_cluster.driver.ex_list_pods(fetch_metrics=True)
+            try:
+                pods = libcloud_cluster.driver.ex_list_pods(fetch_metrics=True)
+            except Exception as exc:
+                log.error('Failed to fetch pods/metrics for cluster: %s, %r',
+                          cluster, exc)
+
             from mist.api.machines.models import Machine
             for pod in pods:
                 updated = False
@@ -523,17 +528,24 @@ class BaseContainerController(BaseController):
                         if usage:
                             container_dict['usage'] = usage
                     extra['containers'].append(container_dict)
-                machine.extra = extra
-                machine.last_seen = now
 
-                # TODO only save machine when it's new or updated
-                try:
-                    machine.save()
-                except me.ValidationError as exc:
-                    log.error("Error saving pod %s: %r", machine.name, exc)
-                except me.NotUniqueError as exc:
-                    log.error("Pod %s not unique error: %r", machine.name, exc)
+                if json.dumps(cluster.extra, default=json_util.default) != json.dumps(
+                    extra, default=json_util.default
+                ):
+                    machine.extra = extra
+                    updated = True
 
+                if updated or new_pod:
+                    try:
+                        machine.save()
+                    except me.ValidationError as exc:
+                        log.error("Error saving pod %s: %r", machine.name, exc)
+                    except me.NotUniqueError as exc:
+                        log.error("Pod %s not unique error: %r",
+                                  machine.name, exc)
+
+        # TODO this could be a cloud/owner property that is caluclated when needed
+        # self.cloud.machine.count
         Machine.objects(cloud=self.cloud,
                         id__nin=pod_ids,
                         missing_since=None,
