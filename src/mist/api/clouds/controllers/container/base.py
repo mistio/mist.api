@@ -18,8 +18,6 @@ import mongoengine as me
 
 from libcloud.common.types import InvalidCredsError
 
-from mist.api import config
-
 from mist.api.exceptions import ConflictError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudUnavailableError
@@ -563,7 +561,8 @@ class BaseContainerController(BaseController):
                         'image': container.image.name,
                     }
                     if container.extra.get('resources'):
-                        container_dict['resources'] = container.extra['resources']
+                        container_dict['resources'] = container.extra[
+                            'resources']
                     if metrics:
                         usage = next((metric.get('usage')
                                       for metric in metrics
@@ -600,8 +599,9 @@ class BaseContainerController(BaseController):
                         missing_since=None,
                         machine_type='pod').update(missing_since=now)
         # Set last_seen, unset missing_since on pods we just saw
-        Machine.objects(cloud=self.cloud, id__in=[pod.id for pod in pods]).update(
-            last_seen=now, missing_since=None)
+        Machine.objects(cloud=self.cloud,
+                        id__in=[pod.id for pod in pods]
+                        ).update(last_seen=now, missing_since=None)
 
         # Set missing_since on cluster models we didn't see for the first time.
         Cluster.objects(

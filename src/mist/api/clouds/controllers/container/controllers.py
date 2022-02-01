@@ -86,7 +86,7 @@ class AmazonContainerController(BaseContainerController):
                         pod.node_name, pod.id)
             return None
 
-        # provider_id is returned as: 'aws:///<availability-zone>/<external_id>'
+        # provider_id is returned as: 'aws:///<availability-zone>/<external_id>'  # noqa
         provider_id = provider_id.split('/')[-1]
         try:
             node = Machine.objects.get(machine_id=provider_id,
@@ -96,4 +96,3 @@ class AmazonContainerController(BaseContainerController):
         except Machine.DoesNotExist:
             log.warning('Failed to get parent node: %s for pod: %s',
                         pod.node_name, pod.id)
-        

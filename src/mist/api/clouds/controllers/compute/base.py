@@ -437,7 +437,8 @@ class BaseComputeController(BaseController):
         # Set missing_since on machine models we didn't see for the first time.
         # Do not set `missing_since` on pods if container is enabled,
         # because they are fetched/updated by the container controller.
-        if hasattr(self.cloud.ctl, 'container') and self.cloud.container_enabled:
+        if (hasattr(self.cloud.ctl, 'container') and
+                self.cloud.container_enabled):
             Machine.objects(cloud=self.cloud,
                             id__nin=[m.id for m in machines],
                             missing_since=None,
