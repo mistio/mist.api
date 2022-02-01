@@ -322,9 +322,6 @@ class BaseContainerController(BaseController):
                 cluster,
                 exc,
             )
-        # TODO: Consider if we should fall back to using current date.
-        # if not cluster_model.created and is_new:
-        #     cluster_model.created = datetime.datetime.utcnow()
 
         # Update with available cluster actions.
         # try:
@@ -476,8 +473,6 @@ class BaseContainerController(BaseController):
                     machine.name = pod.name
                     updated = True
 
-                # TODO update status choices
-                # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
                 if pod.state != machine.state:
                     updated = True
                     machine.state = pod.state

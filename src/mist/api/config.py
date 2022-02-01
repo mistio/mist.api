@@ -1443,7 +1443,6 @@ LANDING_FORMS = [
 ###############################################################################
 # App constants
 ###############################################################################
-
 STATES = {
     NodeState.RUNNING.value: 'running',
     NodeState.REBOOTING.value: 'rebooting',
@@ -1461,6 +1460,10 @@ STATES = {
     NodeState.RECONFIGURING.value: 'reconfiguring',
     NodeState.MIGRATING.value: 'migrating',
     NodeState.NORMAL.value: 'normal',
+    # The following are pod states returned by the Kubernetes API
+    # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase  # noqa
+    NodeState.SUCCEEDED: 'succeeded',
+    NodeState.FAILED: 'failed',
 }
 
 CLUSTER_STATES = [
