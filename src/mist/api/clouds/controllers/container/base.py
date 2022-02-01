@@ -388,6 +388,48 @@ class BaseContainerController(BaseController):
                             pod.node_name, pod.id)
             return node
 
+    def list_cached_pods(self, timedelta=datetime.timedelta(days=1)):
+        """Return list of pod machines from database
+        Only returns machines that existed last time we check and we've seen
+        during the last `timedelta`.
+        """
+        from mist.api.machines.models import Machine
+        return Machine.objects(
+            cloud=self.cloud,
+            missing_since=None,
+            machine_type='pod',
+            last_seen__gt=datetime.datetime.utcnow() - timedelta,
+        )
+
+    def produce_and_publish_pod_patch(self, cached_pods, fresh_pods,
+                                      first_run=False):
+        old_machines = {'%s-%s' % (m['id'], m['machine_id']): copy.copy(m)
+                        for m in cached_pods}
+        new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                        for m in fresh_pods}
+        # Exclude last seen and probe fields from patch.
+        for md in old_machines, new_machines:
+            for m in list(md.values()):
+                m.pop('last_seen')
+                m.pop('probe')
+                if m.get('extra') and m['extra'].get('ports'):
+                    m['extra']['ports'] = sorted(
+                        m['extra']['ports'],
+                        key=lambda x: x.get('PublicPort', 0) * 100000 + x.get(
+                            'PrivatePort', 0))
+        patch = jsonpatch.JsonPatch.from_diff(old_machines,
+                                              new_machines).patch
+        if patch:  # Publish patches to rabbitmq.
+            if not first_run and self.cloud.observation_logs_enabled:
+                from mist.api.logs.methods import log_observations
+                log_observations(self.cloud.owner.id, self.cloud.id,
+                                 'machine', patch, old_machines, new_machines)
+            if amqp_owner_listening(self.cloud.owner.id):
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='patch_machines',
+                                  data={'cloud_id': self.cloud.id,
+                                        'patch': patch})
+
     def _list_clusters(self):
         """Core logic of list_clusters method
         A list of clusters is fetched from libcloud, the data is processed,
@@ -434,11 +476,14 @@ class BaseContainerController(BaseController):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
         from mist.api.containers.models import Cluster
-
+        from mist.api.machines.models import Machine
         # Process each cluster in returned list.
         # Store previously unseen clusters separately.
         new_clusters = []
-        pod_ids = []
+        pods = []
+        new_pods = []
+        cached_pods = [m.as_dict()
+                       for m in self.list_cached_pods()]
         for libcloud_cluster in libcloud_clusters:
             cluster, is_new = self._update_cluster_from_dict(
                 node_to_dict(libcloud_cluster), locations_map, now
@@ -450,41 +495,40 @@ class BaseContainerController(BaseController):
             clusters.append(cluster)
 
             try:
-                pods = libcloud_cluster.driver.ex_list_pods(fetch_metrics=True)
+                libcloud_pods = libcloud_cluster.driver.ex_list_pods(
+                    fetch_metrics=True)
             except Exception as exc:
                 log.error('Failed to fetch pods/metrics for cluster: %s, %r',
                           cluster, exc)
+                continue
 
-            from mist.api.machines.models import Machine
-            for pod in pods:
+            for libcloud_pod in libcloud_pods:
                 updated = False
                 new_pod = False
                 try:
-                    machine = Machine.objects.get(machine_id=pod.id,
+                    machine = Machine.objects.get(machine_id=libcloud_pod.id,
                                                   cloud=self.cloud,
                                                   cluster=cluster,
                                                   machine_type='pod')
                 except Machine.DoesNotExist:
                     machine = Machine(cloud=self.cloud,
-                                      machine_id=pod.id,
+                                      machine_id=libcloud_pod.id,
                                       cluster=cluster,
                                       machine_type='pod'
                                       ).save()
                     new_pod = True
 
-                pod_ids.append(machine.id)
-
-                if pod.name != machine.name:
-                    machine.name = pod.name
+                if libcloud_pod.name != machine.name:
+                    machine.name = libcloud_pod.name
                     updated = True
 
-                if pod.state != machine.state:
+                if libcloud_pod.state != machine.state:
                     updated = True
-                    machine.state = pod.state
+                    machine.state = libcloud_pod.state
 
-                if pod.created_at:
+                if libcloud_pod.created_at:
                     try:
-                        created = get_datetime(pod.created_at)
+                        created = get_datetime(libcloud_pod.created_at)
                     except Exception as exc:
                         log.error(
                             'Failed to get creation date for pod %s: %r',
@@ -495,23 +539,23 @@ class BaseContainerController(BaseController):
                             updated = True
 
                 node = self._list_clusters__get_pod_node(
-                    pod, cluster, libcloud_cluster)
+                    libcloud_pod, cluster, libcloud_cluster)
 
                 if node and machine.parent != node:
                     machine.parent = node
                     updated = True
 
-                ips = [ip for ip in pod.ip_addresses if ':' not in ip]
+                ips = [ip for ip in libcloud_pod.ip_addresses if ':' not in ip]
                 if ips != machine.private_ips:
                     machine.private_ips = ips
                     updated = True
 
                 extra = {}
-                extra['resources'] = pod.extra['resources']
-                extra['namespace'] = pod.namespace
+                extra['resources'] = libcloud_pod.extra['resources']
+                extra['namespace'] = libcloud_pod.namespace
                 extra['containers'] = []
-                metrics = pod.extra.get('metrics')
-                for container in pod.containers:
+                metrics = libcloud_pod.extra.get('metrics')
+                for container in libcloud_pod.containers:
                     container_dict = {
                         'id': container.id,
                         'name': container.name,
@@ -529,7 +573,8 @@ class BaseContainerController(BaseController):
                             container_dict['usage'] = usage
                     extra['containers'].append(container_dict)
 
-                if json.dumps(cluster.extra, default=json_util.default) != json.dumps(
+                if json.dumps(cluster.extra,
+                              default=json_util.default) != json.dumps(
                     extra, default=json_util.default
                 ):
                     machine.extra = extra
@@ -543,15 +588,19 @@ class BaseContainerController(BaseController):
                     except me.NotUniqueError as exc:
                         log.error("Pod %s not unique error: %r",
                                   machine.name, exc)
+                if new_pod:
+                    new_pods.append(machine)
+                pods.append(machine)
 
-        # TODO this could be a cloud/owner property that is caluclated when needed
-        # self.cloud.machine.count
+        self.cloud.owner.mapper.update(new_pods, asynchronous=False)
+        self.produce_and_publish_pod_patch(cached_pods, pods)
+
         Machine.objects(cloud=self.cloud,
-                        id__nin=pod_ids,
+                        id__nin=[pod.id for pod in pods],
                         missing_since=None,
                         machine_type='pod').update(missing_since=now)
         # Set last_seen, unset missing_since on pods we just saw
-        Machine.objects(cloud=self.cloud, id__in=pod_ids).update(
+        Machine.objects(cloud=self.cloud, id__in=[pod.id for pod in pods]).update(
             last_seen=now, missing_since=None)
 
         # Set missing_since on cluster models we didn't see for the first time.
