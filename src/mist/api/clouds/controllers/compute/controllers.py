@@ -2632,7 +2632,7 @@ class GoogleComputeController(BaseComputeController):
             'sshKeys': '%s:%s' % (username, key.public)
         }
         if plan.get('cloudinit'):
-            metadata['startup-script'] = plan['cloudinit']
+            metadata['user-data'] = plan['cloudinit']
         kwargs['ex_metadata'] = metadata
 
         boot_volume = plan['volumes'].pop(0)
