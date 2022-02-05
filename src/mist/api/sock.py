@@ -182,7 +182,7 @@ class ShellConnection(MistConnection):
         if self.ssh_info:
             self.close()
         try:
-            if not data.get('job_id') and data.get('provider') != 'docker':
+            if not data.get('job_id'):
                 m = Machine.objects.get(id=data['machine_id'])
                 self.auth_context.check_perm('machine', 'open_shell', m.id)
         except PolicyUnauthorizedError as err:

@@ -456,8 +456,9 @@ class DockerShell(WebSocketWrapper):
 
     def interactive_shell(self, owner, **kwargs):
 
-        docker_port, cloud = \
-            self.get_docker_endpoint(owner, cloud_id=kwargs['cloud_id'])
+        docker_port, cloud, container_id = \
+            self.get_docker_endpoint(owner, cloud_id=kwargs['cloud_id'],
+                                     machine_id=kwargs['machine_id'])
         log.info("Autoconfiguring DockerShell for machine %s:%s",
                  cloud.id, kwargs['machine_id'])
 
@@ -476,7 +477,7 @@ class DockerShell(WebSocketWrapper):
         self.uri = self.build_uri(container_id, docker_port, allow_logs=1,
                                   allow_stdin=0)
 
-    def get_docker_endpoint(self, owner, cloud_id, job_id=None):
+    def get_docker_endpoint(self, owner, cloud_id, job_id=None, machine_id=None):
         if job_id:
             event = get_story(owner.id, job_id)
             assert owner.id == event['owner_id'], 'Owner ID mismatch!'
@@ -484,8 +485,9 @@ class DockerShell(WebSocketWrapper):
             return docker_port, event['logs'][0]['container_id']
 
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        machine = Machine.objects.get(id=machine_id)
         self.host, docker_port = dnat(owner, self.host, cloud.port)
-        return docker_port, cloud
+        return docker_port, cloud, machine.machine_id
 
     def build_uri(self, container_id, docker_port, cloud=None,
                   ssl_enabled=False, allow_logs=0, allow_stdin=1):
