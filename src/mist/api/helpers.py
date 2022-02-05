@@ -1489,7 +1489,7 @@ def node_to_dict(node):
         return node.isoformat()
     elif not getattr(node, "__dict__"):
         return str(node)
-    ret = node.__dict__
+    ret = node.__dict__.copy()
     if ret.get('driver'):
         ret.pop('driver')
     if ret.get('size'):

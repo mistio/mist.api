@@ -43,7 +43,7 @@ class GoogleContainerController(BaseContainerController):
         return self.connection.ex_destroy_cluster(*args, **kwargs)
 
     def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
-        return cluster_dict.get("createTime")
+        return cluster_dict.get('extra', {}).get('createTime')
 
     def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
         updated = False
@@ -71,3 +71,28 @@ class AmazonContainerController(BaseContainerController):
         cluster.total_cpus = cluster_dict['total_cpus']
         cluster.total_memory = cluster_dict['total_memory']
         return updated
+
+    def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
+        return cluster_dict.get('extra', {}).get('createdAt')
+
+    def _list_clusters__get_pod_node(self, pod, cluster, libcloud_cluster):
+        from mist.api.machines.models import Machine
+        for node in libcloud_cluster.extra['nodes']:
+            if pod.node_name == node['name']:
+                provider_id = node['provider_id']
+                break
+        else:
+            log.warning('Failed to get parent node: %s for pod: %s',
+                        pod.node_name, pod.id)
+            return None
+
+        # provider_id is returned as: 'aws:///<availability-zone>/<external_id>'  # noqa
+        provider_id = provider_id.split('/')[-1]
+        try:
+            node = Machine.objects.get(machine_id=provider_id,
+                                       cloud=self.cloud,
+                                       cluster=cluster)
+            return node
+        except Machine.DoesNotExist:
+            log.warning('Failed to get parent node: %s for pod: %s',
+                        pod.node_name, pod.id)

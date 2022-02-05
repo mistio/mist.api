@@ -12,6 +12,7 @@ import urllib.parse
 
 import libcloud.security
 from libcloud.compute.types import NodeState
+from libcloud.container.base import ClusterState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.compute.types import Provider
 
@@ -1442,7 +1443,6 @@ LANDING_FORMS = [
 ###############################################################################
 # App constants
 ###############################################################################
-
 STATES = {
     NodeState.RUNNING.value: 'running',
     NodeState.REBOOTING.value: 'rebooting',
@@ -1460,20 +1460,32 @@ STATES = {
     NodeState.RECONFIGURING.value: 'reconfiguring',
     NodeState.MIGRATING.value: 'migrating',
     NodeState.NORMAL.value: 'normal',
+    # The following are pod states returned by the Kubernetes API
+    # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase  # noqa
+    NodeState.SUCCEEDED: 'succeeded',
+    NodeState.FAILED: 'failed',
 }
 
-CLUSTER_STATES = {
-    state: state.lower()
-    for state in [
-        'STATUS_UNSPECIFIED',
-        'PROVISIONING',
-        'RUNNING',
-        'RECONCILING',
-        'STOPPING',
-        'ERROR',
-        'DEGRADED',
-    ]
-}
+CLUSTER_STATES = [
+    ClusterState.RUNNING,
+    ClusterState.STARTING,
+    ClusterState.STOPPING,
+    ClusterState.TERMINATED,
+    ClusterState.PENDING,
+    ClusterState.UNKNOWN,
+    ClusterState.ERROR,
+    ClusterState.RECONFIGURING,
+    ClusterState.UPDATING,
+    # the following values are deprecated, we don't delete them to maintain
+    # backwards compatibility
+    'status_unspecified',
+    'provisioning',
+    'running',
+    'reconciling',
+    'stopping',
+    'error',
+    'degraded'
+]
 
 STAR_IMAGE_ON_MACHINE_CREATE = True
 
