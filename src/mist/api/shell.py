@@ -477,7 +477,8 @@ class DockerShell(WebSocketWrapper):
         self.uri = self.build_uri(container_id, docker_port, allow_logs=1,
                                   allow_stdin=0)
 
-    def get_docker_endpoint(self, owner, cloud_id, job_id=None, machine_id=None):
+    def get_docker_endpoint(self, owner, cloud_id, job_id=None,
+                            machine_id=None):
         if job_id:
             event = get_story(owner.id, job_id)
             assert owner.id == event['owner_id'], 'Owner ID mismatch!'
