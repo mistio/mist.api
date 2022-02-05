@@ -1147,7 +1147,7 @@ def machine_ssh(request):
     if machine.machine_type == 'container' and \
             machine.cloud.provider == 'kubernetes':
         base_ws_uri = config.CORE_URI.replace('http', 'ws')
-        ssh_uri = '%s/k8s-exec/%s' % (base_ws_uri, machine.name)
+        ssh_uri = '%s/exec/%s' % (base_ws_uri, machine.name)
     else:
         ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
 
