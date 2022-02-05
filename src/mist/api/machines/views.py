@@ -1144,7 +1144,13 @@ def machine_ssh(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
+    if machine.machine_type == 'container' and \
+            machine.cloud.provider == 'kubernetes':
+        base_ws_uri = config.CORE_URI.replace('http', 'ws')
+        ssh_uri = '%s/k8s-exec/%s' % (base_ws_uri, machine.name)
+    else:
+        ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
+
     return {"location": ssh_uri}
 
 
