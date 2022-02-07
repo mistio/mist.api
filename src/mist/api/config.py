@@ -69,8 +69,9 @@ METERING_METRICS = {
         "default": {
             'core_hours': {'type': 'counter', 'value': lambda machine,
                            dt: dt * (
-                               machine.cores if (machine.state == 'running' and
-                                                 machine.cores) else 0)},
+                               float(machine.cores) if (
+                                   machine.state == 'running' and
+                                   machine.cores) else 0)},
             'ram_gb_hours': {'type': 'counter', 'value': lambda machine,
                              dt: dt * (
                                  machine.size.ram / 1000
