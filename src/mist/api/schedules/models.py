@@ -4,6 +4,8 @@ import logging
 from uuid import uuid4
 
 import mongoengine as me
+
+from mist.api.helpers import rtype_to_classpath
 from mist.api.tag.models import Tag
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
@@ -148,7 +150,7 @@ class ActionTask(BaseTaskType):
 
     @property
     def task(self):
-        return 'mist.api.tasks.group_machines_actions'
+        return 'mist.api.tasks.group_resources_actions'
 
     def __str__(self):
         return 'Action: %s' % self.action
@@ -281,9 +283,13 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
             raise RequiredParameterMissingError('name')
         if not owner or not isinstance(owner, Organization):
             raise BadRequestError('owner')
+        resource_type = kwargs.pop('resource_type', 'machine').rstrip('s')
+        if resource_type not in rtype_to_classpath:
+            raise BadRequestError('resource_type')
         if Schedule.objects(owner=owner, name=name, deleted=None):
             raise ScheduleNameExistsError()
-        schedule = cls(owner=owner, name=name)
+        schedule = cls(owner=owner, name=name,
+                       resource_model_name=resource_type)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
         schedule.assign_to(auth_context.user)
@@ -298,10 +304,14 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
 
     @property
     def args(self):
-        mids = [machine.id for machine in self.get_resources() if
-                machine.state != 'terminated']
+        if self.resource_model_name == 'machine' or \
+                self.resource_model_name == 'machines':
+            ids = [machine.id for machine in self.get_resources() if
+                   machine.state != 'terminated']
+        else:
+            ids = [resource.id for resource in self.get_resources()]
         fire_up = self.task_type.args
-        return [self.owner.id, fire_up, self.name, mids]
+        return [self.owner.id, fire_up, self.name, ids]
 
     @property
     def kwargs(self):
@@ -364,7 +374,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
         super(Schedule, self).validate(clean=True)
 
     def clean(self):
-        if self.resource_model_name != 'machine':
+        if self.resource_model_name not in rtype_to_classpath:
             self.resource_model_name = 'machine'
 
     def delete(self):

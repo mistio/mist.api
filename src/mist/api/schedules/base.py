@@ -9,6 +9,7 @@ import logging
 import datetime
 import mongoengine as me
 
+from mist.api.helpers import rtype_to_classpath
 from mist.api.scripts.models import Script
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
@@ -17,11 +18,10 @@ from mist.api.exceptions import ScriptNotFoundError
 from mist.api.exceptions import ScheduleOperationError
 from mist.api.exceptions import ScheduleNameExistsError
 
-from mist.api.machines.models import Machine
 from mist.api.exceptions import NotFoundError
 
-from mist.api.selectors.models import FieldSelector, GenericResourceSelector
-from mist.api.selectors.models import TaggingSelector, MachinesAgeSelector
+from mist.api.selectors.models import FieldSelector, ResourceSelector
+from mist.api.selectors.models import TaggingSelector, AgeSelector
 
 import mist.api.schedules.models as schedules
 
@@ -31,15 +31,41 @@ from mist.api.auth.methods import AuthContext
 log = logging.getLogger(__name__)
 
 
-def check_machine_perm(auth_context, machine, action):
-    # SEC require permission READ on cloud
-    auth_context.check_perm("cloud", "read", machine.cloud.id)
-    if action and action not in ['notify']:
+SELECTOR_CLS = {'tags': TaggingSelector,
+                'resource': ResourceSelector,
+                'field': FieldSelector,
+                'age': AgeSelector}
+SUPPORTED_ACTIONS = {
+    'machine': ['reboot', 'destroy', 'notify', 'start', 'stop'],
+    'cluster': ['destroy'],
+    'network': ['delete'],
+    'volume': ['delete'],
+}
+
+
+def check_perm(auth_context, resource_type, action, resource=None):
+    assert resource_type in rtype_to_classpath
+    rid = resource.id if resource else None
+    if hasattr(resource, 'cloud'):
+        # SEC require permission READ on cloud
+        auth_context.check_perm("cloud", "read", resource.cloud.id)
+    if resource_type == 'machine':
+        if action and action not in ['notify']:
+            # SEC require permission ACTION on machine
+            auth_context.check_perm(resource_type, action, rid)
+        else:
+            # SEC require permission RUN_SCRIPT on machine
+            auth_context.check_perm(resource_type, "run_script", rid)
+    elif resource_type == 'cluster':
         # SEC require permission ACTION on machine
-        auth_context.check_perm("machine", action, machine.id)
+        auth_context.check_perm(resource_type, action, rid)
+    elif resource_type in ['network', 'volume']:
+        auth_context.check_perm(resource_type, 'read', rid)
+        if action == 'delete':
+            action = 'remove'
+        auth_context.check_perm(resource_type, action, rid)
     else:
-        # SEC require permission RUN_SCRIPT on machine
-        auth_context.check_perm("machine", "run_script", machine.id)
+        raise NotImplementedError(resource_type)
 
 
 class BaseController(object):
@@ -79,11 +105,11 @@ class BaseController(object):
         # check if required variables exist.
         if not (kwargs.get('script_id', '') or kwargs.get('action', '')):
             raise BadRequestError("You must provide script_id "
-                                  "or machine's action")
+                                  "or resource's action")
 
         if not kwargs.get('selectors'):
             raise BadRequestError("You must provide a list of selectors, "
-                                  "at least machine ids or tags")
+                                  "at least resource ids or tags")
 
         if kwargs.get('schedule_type') not in ['crontab', 'reminder',
                                                'interval', 'one_off']:
@@ -114,10 +140,10 @@ class BaseController(object):
             raise MistError("You are not authorized to update schedule")
 
         owner = auth_context.owner
-
-        if kwargs.get('action'):
-            if kwargs.get('action') not in ['reboot', 'destroy', 'notify',
-                                            'start', 'stop']:
+        action = kwargs.get('action')
+        if action:
+            resource_type = self.schedule.resource_model_name
+            if action not in SUPPORTED_ACTIONS[resource_type]:
                 raise BadRequestError("Action is not correct")
 
         script_id = kwargs.pop('script_id', '')
@@ -174,7 +200,7 @@ class BaseController(object):
                                   'Please contact Marty McFly')
         # Schedule selectors pre-parsing.
         try:
-            self._update__preparse_machines(auth_context, kwargs)
+            self._update__preparse_resources(auth_context, kwargs)
         except MistError as exc:
             log.error("Error while updating schedule %s: %r",
                       self.schedule.id, exc)
@@ -265,7 +291,7 @@ class BaseController(object):
                     params = {
                         'action': 'notify',
                         'schedule_type': 'reminder',
-                        'description': 'Machine expiration reminder',
+                        'description': 'Schedule expiration reminder',
                         'task_enabled': True,
                         'schedule_entry': notify_at,
                         'selectors': kwargs.get('selectors'),
@@ -299,8 +325,8 @@ class BaseController(object):
         except me.OperationError:
             raise ScheduleOperationError()
 
-    def _update__preparse_machines(self, auth_context, kwargs):
-        """Preparse machines arguments to `self.update`
+    def _update__preparse_resources(self, auth_context, kwargs):
+        """Preparse resource arguments to `self.update`
 
         This is called by `self.update` when adding a new schedule,
         in order to apply pre processing to the given params. Any subclass
@@ -316,17 +342,20 @@ class BaseController(object):
         Subclasses MAY override this method.
 
         """
-        sel_cls = {'tags': TaggingSelector,
-                   'machines': GenericResourceSelector,
-                   'field': FieldSelector,
-                   'age': MachinesAgeSelector}
-
         if kwargs.get('selectors'):
             self.schedule.selectors = []
         for selector in kwargs.get('selectors', []):
-            if selector.get('type') not in sel_cls:
-                raise BadRequestError()
-            if selector['type'] == 'field':
+            sel_cls_key = selector.get('type')
+            if not sel_cls_key:
+                sel_cls_key = 'resource'
+                assert self.schedule.resource_model_name in rtype_to_classpath
+                selector['type'] = self.schedule.resource_model_name
+            elif sel_cls_key in rtype_to_classpath:
+                sel_cls_key = 'resource'
+            if sel_cls_key not in SELECTOR_CLS:
+                raise BadRequestError(
+                    f'Valid selector types: {list(SELECTOR_CLS)}')
+            if sel_cls_key == 'field':
                 if selector['field'] not in ('created', 'state',
                                              'cost__monthly', 'name'):
                     raise BadRequestError()
@@ -339,7 +368,7 @@ class BaseController(object):
                     except re.error:
                         raise BadRequestError(
                             f"{selector['value']} is not a valid regex.")
-            sel = sel_cls[selector.get('type')]()
+            sel = SELECTOR_CLS[sel_cls_key]()
             sel.update(**selector)
             self.schedule.selectors.append(sel)
 
@@ -347,34 +376,38 @@ class BaseController(object):
 
         # check permissions
         check = False
+        resource_cls = self.schedule.selector_resource_cls
+        resource_type = self.schedule.resource_model_name.rstrip('s')
         for selector in self.schedule.selectors:
-            if selector.ctype == 'machines':
-                for mid in selector.ids:
+            if isinstance(selector, ResourceSelector):
+                if resource_type == 'machine':
+                    query = dict(state__ne='terminated')
+                    not_found_msg = 'Machine state is terminated.'
+                else:
+                    query = {}
+                    not_found_msg = f'{resource_type.capitalize()} not found.'
+                for rid in selector.ids:
                     try:
-                        machine = Machine.objects.get(id=mid,
-                                                      state__ne='terminated')
-                    except Machine.DoesNotExist:
-                        raise NotFoundError('Machine state is terminated')
-                    check_machine_perm(auth_context, machine, action)
+                        resource = resource_cls.objects.get(id=rid, **query)
+                    except me.DoesNotExist:
+                        raise NotFoundError(not_found_msg)
+                    check_perm(
+                        auth_context, resource_type, action, resource=resource)
                 check = True
             elif selector.ctype == 'field':
                 if selector.operator == 'regex':
-                    machines = Machine.objects({
+                    resources = resource_cls.objects({
                         selector.field: re.compile(selector.value),
                         'state__ne': 'terminated'
                     })
-                    for m in machines:
-                        check_machine_perm(auth_context, m, action)
+                    for r in resources:
+                        check_perm(
+                            auth_context, resource_type, action, resource=r)
                     check = True
             elif selector.ctype == 'tags':
-                if action and action not in ['notify']:
-                    # SEC require permission ACTION on machine
-                    auth_context.check_perm("machine", action, None)
-                else:
-                    # SEC require permission RUN_SCRIPT on machine
-                    auth_context.check_perm("machine", "run_script", None)
+                check_perm(auth_context, resource_type, action)
                 check = True
         if not check:
-            raise BadRequestError("Specify at least machine ids or tags")
+            raise BadRequestError("Specify at least resource ids or tags")
 
         return

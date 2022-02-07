@@ -20,7 +20,7 @@ from mist.api.rules.models import NoDataAction
 
 from mist.api.selectors.models import FieldSelector
 from mist.api.selectors.models import TaggingSelector
-from mist.api.selectors.models import GenericResourceSelector
+from mist.api.selectors.models import ResourceSelector
 
 if config.HAS_RBAC:
     from mist.rbac.methods import AuthContext
@@ -33,8 +33,8 @@ log = logging.getLogger(__name__)
 
 SELECTORS = {
     'tags': TaggingSelector,
-    'machines': GenericResourceSelector,  # FIXME For backwards compatibility.
-    'resources': GenericResourceSelector,
+    'machines': ResourceSelector,  # FIXME For backwards compatibility.
+    'resources': ResourceSelector,
 }
 
 TIMEPERIOD = {
@@ -327,7 +327,7 @@ class ResourceRuleController(BaseController):
         # Attempt to remove `resource` from any of the rule's selectors,
         # if `resource` is explicitly specified by its UUID.
         for selector in self.rule.selectors:
-            if isinstance(selector, GenericResourceSelector):
+            if isinstance(selector, ResourceSelector):
                 for i, rid in enumerate(selector.ids):
                     if rid == resource.id:
                         log.info('Removing %s from %s', resource, self.rule)
@@ -346,7 +346,7 @@ class ResourceRuleController(BaseController):
             return False
 
         # The rule does not refer to resources by their UUID.
-        if not isinstance(self.rule.selectors[0], GenericResourceSelector):
+        if not isinstance(self.rule.selectors[0], ResourceSelector):
             return False
 
         # The rule refers to multiple resources.
@@ -366,7 +366,7 @@ class ResourceRuleController(BaseController):
         if not self.rule.selectors:
             raise UnauthorizedError('Only Owners may edit global rules')
         for selector in self.rule.selectors:
-            if not isinstance(selector, GenericResourceSelector):
+            if not isinstance(selector, ResourceSelector):
                 raise UnauthorizedError('Only Owners may edit rules on tags')
             for mid in selector.ids:
                 try:
