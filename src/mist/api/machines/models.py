@@ -324,7 +324,7 @@ class Machine(OwnershipMixin, me.Document):
 
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
-    cores = me.IntField()
+    cores = me.FloatField()
 
     meta = {
         'collection': 'machines',
