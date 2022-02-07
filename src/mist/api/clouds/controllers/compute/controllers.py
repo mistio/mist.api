@@ -5501,7 +5501,7 @@ class _KubernetesBaseComputeController(BaseComputeController):
     def _connect(self, provider, use_container_driver=True, **kwargs):
         host, port = dnat(self.cloud.owner,
                           self.cloud.host, self.cloud.port)
-        url = f'https://{sanitize_host(host)}'
+        url = f'https://{sanitize_host(host)}:{port}'
         try:
             requests.get(url, verify=False, timeout=15)
         except (ConnectionError, ConnectTimeout):
@@ -5749,7 +5749,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
                     updated = True
         node_cpu = node_dict.get('extra', {}).get('cpu')
         if node_cpu and (isinstance(node_cpu, int) or node_cpu.isdigit()):
-            machine.cores = node_cpu
+            machine.cores = float(node_cpu)
             updated = True
         os_type = node_dict.get('extra', {}).get('os')
         if machine.os_type != os_type:
