@@ -164,19 +164,7 @@
     <script type="text/javascript">
         function ABToStr(ab) {
             const arr = new Uint8Array(ab);
-            const len = arr.length;
-            let output = '';
-            for (let i=0; i < len;){
-                char = arr[i++];
-                output += String.fromCharCode(
-                    char > 0xdf && char < 0xf0 && i < len-1
-                        ? (char & 0xf) << 12 | (arr[i++] & 0x3f) << 6 | arr[i++] & 0x3f
-                    : char > 0x7f && i < len
-                        ? (char & 0x1f) << 6 | arr[i++] & 0x3f
-                    : char
-                );}
-
-            return output;
+            return new TextDecoder('utf-8').decode(arr);
         }
 
         function resizeTerminal(term, socket, fitAddon) {
