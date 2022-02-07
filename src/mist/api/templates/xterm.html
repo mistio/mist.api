@@ -163,11 +163,8 @@
     </div>
     <script type="text/javascript">
         function ABToStr(ab) {
-            const ret = new Uint8Array(ab).reduce(
-                (p, c) => p + String.fromCharCode(c),
-                ''
-            );
-            return ret;
+            const arr = new Uint8Array(ab);
+            return new TextDecoder('utf-8').decode(arr);
         }
 
         function resizeTerminal(term, socket, fitAddon) {
