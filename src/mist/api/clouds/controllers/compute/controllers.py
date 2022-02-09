@@ -276,26 +276,35 @@ class AmazonComputeController(BaseComputeController):
                     raise()
         else:
             # search on EC2.
-            try:
-                libcloud_images = self.connection.list_images(
-                    ex_filters={'name': '*%s*' % search}
-                )
-            except BaseHTTPError as e:
-                if 'UnauthorizedOperation' in str(e.message):
-                    libcloud_images = []
+            filters = [
+                {
+                    'image-id': search,
+                    'image-type': 'machine',
+                },
+                {
+                    'name': '%s*' % search,
+                    'image-type': 'machine',
+                },
+                {
+                    'description': '*%s*' % search,
+                    'image-type': 'machine',
+                },
+            ]
+            libcloud_images = []
+            for filter_ in filters:
+                try:
+                    libcloud_images = self.connection.list_images(
+                        ex_filters=filter_)
+                except BaseHTTPError as e:
+                    if 'UnauthorizedOperation' in str(e.message):
+                        break
+                    else:
+                        raise()
                 else:
-                    raise()
+                    if libcloud_images:
+                        break
 
-            search = search.lower()
-            images = [img for img in libcloud_images
-                      if search in img.id.lower() or
-                      search in img.name.lower()]
-
-        # filter out invalid images
-        images = [img for img in images
-                  if img.name and img.id[:3] not in ('aki', 'ari')]
-
-        return images
+        return images[:50]
 
     def _list_machines__get_machine_cluster(self,
                                             machine,
