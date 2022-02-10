@@ -526,6 +526,7 @@ class BaseComputeController(BaseController):
         else:
             if machine.cluster != cluster:
                 machine.cluster = cluster
+                machine.machine_type = 'node'
                 updated = True
 
         # Discover location of machine.
