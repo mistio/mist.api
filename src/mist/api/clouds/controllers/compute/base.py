@@ -525,8 +525,8 @@ class BaseComputeController(BaseController):
                       machine, exc)
         else:
             if machine.cluster and machine.machine_type != 'node':
-+                machine.machine_type = 'node'
-+                updated = True
+                machine.machine_type = 'node'
+                updated = True
             if machine.cluster != cluster:
                 machine.cluster = cluster
                 updated = True
