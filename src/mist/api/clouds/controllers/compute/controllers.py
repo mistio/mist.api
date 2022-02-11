@@ -276,6 +276,7 @@ class AmazonComputeController(BaseComputeController):
                     raise()
         else:
             # search on EC2.
+            search = search.lstrip()
             filters = [
                 {
                     'image-id': search,
@@ -290,10 +291,10 @@ class AmazonComputeController(BaseComputeController):
                     'image-type': 'machine',
                 },
             ]
-            libcloud_images = []
+            images = []
             for filter_ in filters:
                 try:
-                    libcloud_images = self.connection.list_images(
+                    images = self.connection.list_images(
                         ex_filters=filter_)
                 except BaseHTTPError as e:
                     if 'UnauthorizedOperation' in str(e.message):
@@ -301,10 +302,29 @@ class AmazonComputeController(BaseComputeController):
                     else:
                         raise()
                 else:
-                    if libcloud_images:
+                    if images:
                         break
 
-        return images[:50]
+            def sort_by_owner(libcloud_image):
+                """Sort images fetched based on the owner alias.
+
+                Give priority first to Amazon's own images,
+                then self and `None` and finally marketplace.
+                """
+                owner_alias = libcloud_image.extra.get('owner_alias')
+                if owner_alias == 'amazon':
+                    return 0
+                if owner_alias == 'self':
+                    return 1
+                if owner_alias is None:
+                    return 2
+                if owner_alias == 'aws-marketplace':
+                    return 3
+                return 4
+
+            images = sorted(images, key=sort_by_owner)[:50]
+
+        return images
 
     def _list_machines__get_machine_cluster(self,
                                             machine,
