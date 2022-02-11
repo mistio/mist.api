@@ -524,9 +524,11 @@ class BaseComputeController(BaseController):
             log.error('Failed to get cluster for machine: %s, %r',
                       machine, exc)
         else:
+            if machine.cluster and machine.machine_type != 'node':
++                machine.machine_type = 'node'
++                updated = True
             if machine.cluster != cluster:
                 machine.cluster = cluster
-                machine.machine_type = 'node'
                 updated = True
 
         # Discover location of machine.
