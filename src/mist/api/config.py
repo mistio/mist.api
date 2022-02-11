@@ -1468,15 +1468,15 @@ STATES = {
 }
 
 CLUSTER_STATES = [
-    ClusterState.RUNNING,
-    ClusterState.STARTING,
-    ClusterState.STOPPING,
-    ClusterState.TERMINATED,
-    ClusterState.PENDING,
-    ClusterState.UNKNOWN,
-    ClusterState.ERROR,
-    ClusterState.RECONFIGURING,
-    ClusterState.UPDATING,
+    ClusterState.RUNNING.value,
+    ClusterState.STARTING.value,
+    ClusterState.STOPPING.value,
+    ClusterState.TERMINATED.value,
+    ClusterState.PENDING.value,
+    ClusterState.UNKNOWN.value,
+    ClusterState.ERROR.value,
+    ClusterState.RECONFIGURING.value,
+    ClusterState.UPDATING.value,
     # the following values are deprecated, we don't delete them to maintain
     # backwards compatibility
     'status_unspecified',
