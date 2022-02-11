@@ -1352,6 +1352,37 @@ def tmp_log(msg, *args):
 
 
 @dramatiq.actor(queue_name="dramatiq_provisioning",
+                time_limit=2_400_000,
+                max_retries=0)
+def create_cluster(auth_context_serialized, cloud_id, job_id=None, job=None, **kwargs):
+    auth_context = AuthContext.deserialize(auth_context_serialized)
+    job_id = job_id or uuid.uuid4().hex
+    log_event(auth_context.owner.id, 'job', 'cluster_creation_started',
+              user_id=auth_context.user.id, job_id=job_id, job=job,
+              **kwargs)
+    try:
+        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
+    except me.DoesNotExist:
+        log_event(auth_context.owner.id, 'job', 'create_cluster_finished',
+                  user_id=auth_context.user.id, job_id=job_id, job=job,
+                  error=f'Cloud with id: {cloud_id} does not exist')
+        raise
+
+    try:
+        cluster = cloud.ctl.container.create_cluster(**kwargs)
+    except Exception as exc:
+        log_event(auth_context.owner.id, 'job', 'create_cluster_finished',
+                  user_id=auth_context.user.id, job_id=job_id, job=job,
+                  cloud_id=cloud.id, error=f'Failed to create cluster with {repr(exc)}',
+                  **kwargs)
+        raise
+    else:
+        log_event(auth_context.owner.id, 'job', 'create_cluster_finished',
+                  user_id=auth_context.user.id, job_id=job_id, job=job,
+                  cloud_id=cloud.id, **kwargs)
+
+
+@dramatiq.actor(queue_name="dramatiq_provisioning",
                 store_results=True,
                 max_retries=0)
 def multicreate_async_v2(
