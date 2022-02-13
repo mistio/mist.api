@@ -1354,7 +1354,8 @@ def tmp_log(msg, *args):
 @dramatiq.actor(queue_name="dramatiq_provisioning",
                 time_limit=2_400_000,
                 max_retries=0)
-def create_cluster_async(auth_context_serialized, cloud_id, job_id=None, job=None, **kwargs):
+def create_cluster_async(auth_context_serialized, cloud_id,
+                         job_id=None, job=None, **kwargs):
     auth_context = AuthContext.deserialize(auth_context_serialized)
     job_id = job_id or uuid.uuid4().hex
     log_event(auth_context.owner.id, 'job', 'cluster_creation_started',
@@ -1373,7 +1374,8 @@ def create_cluster_async(auth_context_serialized, cloud_id, job_id=None, job=Non
     except Exception as exc:
         log_event(auth_context.owner.id, 'job', 'create_cluster_finished',
                   user_id=auth_context.user.id, job_id=job_id, job=job,
-                  cloud_id=cloud.id, error=f'Failed to create cluster with {repr(exc)}',
+                  cloud_id=cloud.id,
+                  error=f'Failed to create cluster with {repr(exc)}',
                   **kwargs)
         raise
     else:

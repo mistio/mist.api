@@ -125,7 +125,8 @@ class AmazonContainerController(BaseContainerController):
             subnets = AmazonSubnet.objects(id__in=subnets, network=network)
         else:
             # use the default subnets if no subnet list is given
-            subnets = [subnet for subnet in AmazonSubnet.objects(network=network)
+            subnets = [subnet for subnet
+                       in AmazonSubnet.objects(network=network)
                        if subnet.extra.get('default') == 'true']
 
         subnet_ids = [subnet.subnet_id for subnet in subnets]
@@ -148,7 +149,8 @@ class AmazonContainerController(BaseContainerController):
         if nodegroup_role_arn:
             for _ in range(40):
                 log.info(
-                    'Waiting for cluster: %s to be in running state', cluster.name)
+                    'Waiting for cluster: %s to be in running state',
+                    cluster.name)
                 time.sleep(30)
                 try:
                     cluster = self.connection.get_cluster(
