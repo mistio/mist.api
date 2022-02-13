@@ -73,12 +73,12 @@ class BaseContainerController(BaseController):
             schedule.add_interval(10, ttl=600)
             schedule.save()
 
-    def _create_cluster(self, *args, **kwargs):
+    def _create_cluster(self, auth_context, *args, **kwargs):
         return self.connection.create_cluster(*args, **kwargs)
 
-    def create_cluster(self, *args, **kwargs):
+    def create_cluster(self, auth_context, *args, **kwargs):
         self._assert_container_feature_enabled()
-        result = self._create_cluster(*args, **kwargs)
+        result = self._create_cluster(auth_context, *args, **kwargs)
         if result:
             self._add_schedule_interval()
         return result
@@ -277,7 +277,7 @@ class BaseContainerController(BaseController):
         cluster_state = cluster_dict.get(
             'status') or cluster_dict.get('extra', {}).get('status')
         if cluster_state and cluster_state != cluster.state:
-            cluster.state = cluster_state
+            cluster.state = str(cluster_state)
             updated = True
         # Set cluster extra dict.
         # Make sure we don't meet any surprises when we try to json encode

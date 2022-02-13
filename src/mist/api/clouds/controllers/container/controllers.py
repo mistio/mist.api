@@ -37,7 +37,7 @@ class GoogleContainerController(BaseContainerController):
             self.cloud.private_key,
             project=self.cloud.project_id)
 
-    def _create_cluster(self, *args, **kwargs):
+    def _create_cluster(self, auth_context, *args, **kwargs):
         return self.connection.ex_create_cluster(*args, **kwargs)
 
     def _destroy_cluster(self, *args, **kwargs):
@@ -99,7 +99,7 @@ class AmazonContainerController(BaseContainerController):
                         pod.node_name, pod.id)
 
     def _create_cluster(self, auth_context, name, role_arn,
-                        security_group_ids=None, network=None, subnets=None,
+                        security_groups=None, network=None, subnets=None,
                         nodegroup_role_arn=None, nodegroup_size=None,
                         nodegroup_disk_size=None, desired_nodes=None,):
 
@@ -130,18 +130,18 @@ class AmazonContainerController(BaseContainerController):
 
         subnet_ids = [subnet.subnet_id for subnet in subnets]
 
-        if not security_group_ids:
+        if not security_groups:
             groups = self.cloud.ctl.compute.connection.ex_list_security_groups()  # noqa
-            security_group_ids = [group['id'] for group in groups
-                                  if group.get('name') == 'default' and
-                                  group.get('vpc_id') == network.network_id]
+            security_groups = [group['id'] for group in groups
+                               if group.get('name') == 'default' and
+                               group.get('vpc_id') == network.network_id]
 
         cluster = self.connection.create_cluster(
             name=name,
             role_arn=role_arn,
             vpc_id=network.network_id,
             subnet_ids=subnet_ids,
-            security_group_ids=security_group_ids)
+            security_group_ids=security_groups)
 
         # Only wait for the cluster to be in running state if we need
         # to create a nodegroup.
@@ -151,7 +151,8 @@ class AmazonContainerController(BaseContainerController):
                     'Waiting for cluster: %s to be in running state', cluster.name)
                 time.sleep(30)
                 try:
-                    cluster = self.connection.get_cluster(cluster.name, fetch_nodes=False)
+                    cluster = self.connection.get_cluster(
+                        cluster.name, fetch_nodes=False)
                 except Exception as exc:
                     log.error('Failed to get cluster with exception %r', exc)
                 else:
