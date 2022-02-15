@@ -457,7 +457,7 @@ class Machine(OwnershipMixin, me.Document):
 
         if 'key_associations' in only or not only:
             ret['key_associations'] = [
-                ka.as_dict() for ka in KeyMachineAssociation.objects(
+                ka.as_dict_v2() for ka in KeyMachineAssociation.objects(
                     machine=self)
             ]
 
@@ -624,7 +624,10 @@ class KeyMachineAssociation(me.Document):
 
     def as_dict_v2(self):
         return {
+            'key': self.key.id,
             'machine': self.machine.id,
+            'last_used': self.last_used,
             'user': self.ssh_user,
-            'port': self.port
+            'port': self.port,
+            'sudo': self.sudo
         }
