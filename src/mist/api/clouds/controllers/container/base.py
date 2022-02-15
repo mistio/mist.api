@@ -381,10 +381,10 @@ class BaseContainerController(BaseController):
                 node = Machine.objects.get(name=pod.node_name,
                                            cloud=self.cloud,
                                            cluster=cluster)
+                return node
             except Machine.DoesNotExist:
                 log.warning('Failed to get parent node: %s for pod: %s',
                             pod.node_name, pod.id)
-            return node
 
     def list_cached_pods(self, timedelta=datetime.timedelta(days=1)):
         """Return list of pod machines from database

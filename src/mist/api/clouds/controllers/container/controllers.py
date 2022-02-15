@@ -37,12 +37,6 @@ class GoogleContainerController(BaseContainerController):
             self.cloud.private_key,
             project=self.cloud.project_id)
 
-    def _create_cluster(self, auth_context, *args, **kwargs):
-        return self.connection.ex_create_cluster(*args, **kwargs)
-
-    def _destroy_cluster(self, *args, **kwargs):
-        return self.connection.ex_destroy_cluster(*args, **kwargs)
-
     def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
         return cluster_dict.get('extra', {}).get('createTime')
 
@@ -55,6 +49,59 @@ class GoogleContainerController(BaseContainerController):
         cluster.total_cpus = cluster_dict['total_cpus']
         cluster.total_memory = cluster_dict['total_memory']
         return updated
+
+    def _create_cluster(self, auth_context, name, location,
+                        desired_nodes=None,
+                        nodepool_size=None,
+                        nodepool_disk_size=None,
+                        nodepool_disk_type=None,
+                        preemptible=None):
+        from mist.api.methods import list_resources
+        try:
+            [location], _ = list_resources(
+                auth_context,
+                'location',
+                search=location,
+                cloud=self.cloud.id,
+                limit=1)
+        except ValueError:
+            raise Exception(f'Location {location} not found')
+
+        kwargs = {
+            'name': name,
+            'zone': location.name,
+
+        }
+
+        if desired_nodes:
+            kwargs['initial_node_count'] = desired_nodes
+
+        if nodepool_disk_size:
+            kwargs['disk_size'] = nodepool_disk_size
+
+        if nodepool_disk_type:
+            kwargs['disk_type'] = nodepool_disk_type
+
+        if preemptible:
+            kwargs['preemptible'] = preemptible
+
+        if nodepool_size:
+            try:
+                [size], _ = list_resources(
+                    auth_context,
+                    'size',
+                    search=nodepool_size,
+                    cloud=self.cloud.id,
+                    limit=1
+                )
+            except ValueError:
+                raise Exception(f'Size {nodepool_size} does not exist')
+
+            # We use "<size-name> (<size-description>)" for size names in GCE
+            kwargs['size'] = size.name.replace(
+                f" ({size.extra['description']})", '')
+
+        return self.connection.create_cluster(**kwargs)
 
 
 class AmazonContainerController(BaseContainerController):
