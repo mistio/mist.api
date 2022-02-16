@@ -83,6 +83,19 @@ class BaseContainerController(BaseController):
             self._add_schedule_interval()
         return result
 
+    def validate_create_cluster_request(self, auth_context,
+                                        create_cluster_request):
+        """Make sure request parameters are valid for this cloud and return
+        the kwargs that will be passed as is to create cluster.
+        """
+        self._assert_container_feature_enabled()
+        return self._validate_create_cluster_request(auth_context,
+                                                     create_cluster_request)
+
+    def _validate_create_cluster_request(self, auth_context,
+                                         create_cluster_request):
+        raise NotImplementedError()
+
     def _destroy_cluster(self, *args, **kwargs):
         return self.connection.destroy_cluster(*args, **kwargs)
 
