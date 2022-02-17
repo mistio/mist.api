@@ -50,56 +50,78 @@ class GoogleContainerController(BaseContainerController):
         cluster.total_memory = cluster_dict['total_memory']
         return updated
 
-    def _create_cluster(self, auth_context, name, location,
-                        desired_nodes=None,
-                        nodepool_size=None,
-                        nodepool_disk_size=None,
-                        nodepool_disk_type=None,
-                        preemptible=None):
+    def _validate_create_cluster_request(self, auth_context,
+                                         create_cluster_request):
+        kwargs = {
+            'name': create_cluster_request.name,
+        }
+        if create_cluster_request.location is None:
+            raise Exception('Cluster location is required')
+
         from mist.api.methods import list_resources
         try:
             [location], _ = list_resources(
                 auth_context,
                 'location',
-                search=location,
+                search=create_cluster_request.location,
                 cloud=self.cloud.id,
                 limit=1)
         except ValueError:
             raise Exception(f'Location {location} not found')
 
+        kwargs['location'] = location.name
+
+        if create_cluster_request.nodepools:
+            # TODO support more than one nodegroups
+            nodepool = create_cluster_request.nodepools[0]
+            if nodepool.size:
+                try:
+                    [size], _ = list_resources(
+                        auth_context,
+                        'size',
+                        search=nodepool.size,
+                        cloud=self.cloud.id,
+                        limit=1
+                    )
+                except ValueError:
+                    raise Exception(
+                        f'Size {nodepool.size} does not exist')
+
+                # We use "<size-name> (<size-description>)" for size names
+                kwargs['size'] = size.name.replace(
+                    f" ({size.extra['description']})", '')
+
+            kwargs['disk_size'] = nodepool.disk_size
+            kwargs['nodes'] = nodepool.nodes
+            kwargs['preemptible'] = nodepool.preemptible
+            kwargs['disk_type'] = nodepool.disk_type
+
+        return kwargs
+
+    def _create_cluster(self, auth_context, name, location,
+                        nodes=None,
+                        size=None,
+                        disk_size=None,
+                        disk_type=None,
+                        preemptible=None):
+
         kwargs = {
             'name': name,
-            'zone': location.name,
-
+            'zone': location,
         }
 
-        if desired_nodes:
-            kwargs['initial_node_count'] = desired_nodes
+        kwargs['initial_node_count'] = nodes or 2
 
-        if nodepool_disk_size:
-            kwargs['disk_size'] = nodepool_disk_size
+        kwargs['disk_size'] = disk_size or 20
 
-        if nodepool_disk_type:
-            kwargs['disk_type'] = nodepool_disk_type
+        if disk_type:
+            kwargs['disk_type'] = disk_type
 
         if preemptible:
             kwargs['preemptible'] = preemptible
 
-        if nodepool_size:
-            try:
-                [size], _ = list_resources(
-                    auth_context,
-                    'size',
-                    search=nodepool_size,
-                    cloud=self.cloud.id,
-                    limit=1
-                )
-            except ValueError:
-                raise Exception(f'Size {nodepool_size} does not exist')
-
-            # We use "<size-name> (<size-description>)" for size names in GCE
-            kwargs['size'] = size.name.replace(
-                f" ({size.extra['description']})", '')
+        if size:
+            kwargs['size'] = size
 
         return self.connection.create_cluster(**kwargs)
 
@@ -145,11 +167,51 @@ class AmazonContainerController(BaseContainerController):
             log.warning('Failed to get parent node: %s for pod: %s',
                         pod.node_name, pod.id)
 
+    def _validate_create_cluster_request(self, auth_context,
+                                         create_cluster_request):
+        kwargs = {
+            'name': create_cluster_request.name,
+        }
+
+        if create_cluster_request.role_arn is None:
+            raise Exception('Cluster role_arn is required')
+
+        kwargs['role_arn'] = create_cluster_request.role_arn
+        kwargs['security_groups'] = create_cluster_request.security_groups
+        kwargs['network'] = create_cluster_request.network
+        kwargs['subnets'] = create_cluster_request.subnets
+
+        if create_cluster_request.nodepools:
+            # TODO support more than one nodegroups
+            nodepool = create_cluster_request.nodepools[0]
+            if nodepool.role_arn is None:
+                raise Exception('Nodepool role_arn is required')
+
+            kwargs['nodegroup_role_arn'] = nodepool.role_arn
+            if nodepool.size:
+                from mist.api.methods import list_resources
+                try:
+                    [size], _ = list_resources(
+                        auth_context,
+                        'size',
+                        search=nodepool.size,
+                        cloud=self.cloud.id,
+                        limit=1
+                    )
+                except ValueError:
+                    raise Exception(f"Size {nodepool.size} does not exist")
+
+                kwargs['size'] = size.external_id
+
+            kwargs['disk_size'] = nodepool.disk_size
+            kwargs['nodes'] = nodepool.nodes
+
+        return kwargs
+
     def _create_cluster(self, auth_context, name, role_arn,
                         security_groups=None, network=None, subnets=None,
-                        nodegroup_role_arn=None, nodegroup_size=None,
-                        nodegroup_disk_size=None, desired_nodes=None,):
-
+                        nodegroup_role_arn=None, size=None,
+                        disk_size=None, nodes=None,):
         from mist.api.methods import list_resources
         from mist.api.networks.models import AmazonSubnet
         network_search = network or ''
@@ -217,27 +279,16 @@ class AmazonContainerController(BaseContainerController):
                 'subnet_ids': subnet_ids,
             }
 
-            if desired_nodes:
-                kwargs['desired_nodes'] = desired_nodes
-                kwargs['max_nodes'] = desired_nodes
-                kwargs['min_nodes'] = desired_nodes
+            if nodes:
+                kwargs['desired_nodes'] = nodes
+                kwargs['max_nodes'] = nodes
+                kwargs['min_nodes'] = nodes
 
-            if nodegroup_size:
-                try:
-                    [size], _ = list_resources(
-                        auth_context,
-                        'size',
-                        search=nodegroup_size,
-                        cloud=self.cloud.id,
-                        limit=1
-                    )
-                except ValueError:
-                    raise Exception(f'Size {nodegroup_size} does not exist')
+            if size:
+                kwargs['instance_types'] = [size]
 
-                kwargs['instance_types'] = [size.external_id]
-
-            if nodegroup_disk_size:
-                kwargs['node_group_disk_size'] = nodegroup_disk_size
+            if disk_size:
+                kwargs['node_group_disk_size'] = disk_size
 
             self.connection.ex_create_cluster_node_group(**kwargs)
 
