@@ -276,6 +276,7 @@ class Cloud(OwnershipMixin, me.Document):
         cdict.update({key: getattr(self, key)
                       for key in self._cloud_specific_fields
                       if key not in self._private_fields})
+        cdict['summary'] = self.get_resources_summary()
         return cdict
 
     def as_dict_v2(self, deref='auto', only=''):
@@ -314,7 +315,21 @@ class Cloud(OwnershipMixin, me.Document):
                 for key in self._cloud_specific_fields
                 if key not in self._private_fields
             })
+        ret['summary'] = self.get_resources_summary()
         return ret
+
+    def get_resources_summary(self):
+        from mist.api.helpers import cloud_rtypes, get_resource_model
+        r_count = {}
+        for rtype in cloud_rtypes:
+            model = get_resource_model(rtype)
+            if rtype == 'zone':
+                count = model.objects(cloud=self, deleted=None).count()
+            else:
+                count = model.objects(cloud=self, missing_since=None).count()
+            r_count[f'{rtype}s'] = count
+        return r_count
+
 
     def __str__(self):
         return '%s cloud %s (%s) of %s' % (type(self), self.title,

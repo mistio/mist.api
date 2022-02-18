@@ -759,7 +759,16 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
                 log.warn("Retrying in 5 seconds...")
                 sleep(5)
 
-
+cloud_rtypes = {
+    'bucket',
+    'image',
+    'location',
+    'machine',
+    'network',
+    'size',
+    'volume',
+    'zone'
+}
 rtype_to_classpath = {
     'cloud': 'mist.api.clouds.models.Cloud',
     'clouds': 'mist.api.clouds.models.Cloud',
