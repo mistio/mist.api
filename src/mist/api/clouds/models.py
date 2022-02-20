@@ -330,7 +330,6 @@ class Cloud(OwnershipMixin, me.Document):
             r_count[f'{rtype}s'] = count
         return r_count
 
-
     def __str__(self):
         return '%s cloud %s (%s) of %s' % (type(self), self.title,
                                            self.id, self.owner)
