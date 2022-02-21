@@ -7,7 +7,8 @@ from mist.api.config import MONGO_URI
 COLLECTIONS = ('schedules', 'rules')
 SELECTOR_CLS_NEW_NAME = {
     'GenericResourceSelector': 'ResourceSelector',
-    'MachinesAgeSelector': 'AgeSelector'
+    'MachinesAgeSelector': 'AgeSelector',
+    'MachinesSelector': 'ResourceSelector'
 }
 
 
@@ -19,6 +20,8 @@ def migrate_selectors():
         for cls, newcls in SELECTOR_CLS_NEW_NAME.items():
             query = {'selectors._cls': cls}
             value = {'$set': {'selectors.$._cls': newcls}}
+            if cls == 'MachinesSelector':
+                value['$set']['resource_model_name'] = 'machine'
             try:
                 db_collection.update_many(query, value)
             except Exception:
