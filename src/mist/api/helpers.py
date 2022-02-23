@@ -1928,3 +1928,12 @@ def select_plan(valid_plans, optimize, auth_context):
         plan = min(valid_plans, key=operator.itemgetter('performance'))
         plan.pop('performance')
         return plan
+
+
+def get_boto_driver(service, key, secret, region):
+    import boto3
+    return boto3.client(service,
+                        aws_access_key_id=key,
+                        aws_secret_access_key=secret,
+                        region_name=region,
+                        )
