@@ -597,7 +597,7 @@ class MainConnection(MistConnection):
 
         elif routing_key in ['patch_machines', 'patch_networks',
                              'patch_volumes', 'patch_zones',
-                             'patch_buckets']:
+                             'patch_buckets', 'patch_clusters']:
             cloud_id = result['cloud_id']
             patch = result['patch']
             rtype = routing_key.replace('patch_', '')
