@@ -202,9 +202,10 @@ class AmazonContainerController(BaseContainerController):
             }]
         return kwargs
 
-    def _create_cluster(self, auth_context, name, version="1.21", nodepools=None):
+    def _create_cluster(self, auth_context, name,
+                        version="1.21", nodepools=None):
         from mist.api.clouds.models import CloudLocation
-        from mist.api.helpers import get_boto_driver
+        from mist.api.helpers import get_boto_driver, get_aws_tags
         from mist.api.aws_templates import ClusterAWSTemplate
         from mist.api.aws_templates import ClusterNodeGroupAWSTemplate
         zone_names = [location.name for location
@@ -224,6 +225,7 @@ class AmazonContainerController(BaseContainerController):
             StackName=stack_name,
             TemplateBody=cluster_template.to_json(),
             Capabilities=["CAPABILITY_IAM"],
+            Tags=get_aws_tags(resource_type='cluster', cluster_name=name),
         )
 
         waiter = cfn_driver.get_waiter("stack_create_complete")
@@ -243,14 +245,85 @@ class AmazonContainerController(BaseContainerController):
                 volume_size=nodepool['disk_size'],
                 volume_type=nodepool['disk_type'],
             )
-            nodegroup_stack_name = f"{stack_name}-nodegroup-{uuid.uuid4().hex[:5]}"
+            nodegroup_stack_name = (
+                f"{stack_name}-nodegroup-{uuid.uuid4().hex[:5]}")
             stack = cfn_driver.create_stack(
                 StackName=nodegroup_stack_name,
                 TemplateBody=nodepool_template.to_json(),
                 Capabilities=["CAPABILITY_IAM"],
+                Tags=get_aws_tags(resource_type='nodegroup',
+                                  cluster_name=name),
             )
             stack_ids.append(stack["StackId"])
 
         for stack_id in stack_ids:
             waiter.wait(StackName=stack_id)
 
+    def _destroy_cluster(self, name):
+        from mist.api.helpers import get_boto_driver, get_aws_tags
+        tag_driver = get_boto_driver(service='resourcegroupstaggingapi',
+                                     key=self.cloud.apikey,
+                                     secret=self.cloud.apisecret,
+                                     region=self.cloud.region,
+                                     )
+        cluster_stacks = tag_driver.get_resources(
+            ResourceTypeFilters=['cloudformation:stack'],
+            TagFilters=get_aws_tags(resource_type='cluster',
+                                    cluster_name=name,
+                                    resource_group_tagging=True)
+        )
+        cluster_stack_arns = [stack['ResourceARN'] for stack
+                              in cluster_stacks['ResourceTagMappingList']]
+        # Determine if cluster is created through CloudFormation
+        if len(cluster_stack_arns) > 0:
+            cluster_stack = cluster_stack_arns[0]
+            return self._destroy_cluster_stacks(
+                name=name,
+                cluster_stack=cluster_stack,
+                tag_driver=tag_driver)
+        else:
+            raise NotImplementedError()
+
+    def _destroy_cluster_stacks(self, name, cluster_stack, tag_driver=None):
+        """Helper method to destroy a cluster that is managed with
+        CloudFormation stacks deployed by Mist.
+        """
+        from mist.api.helpers import get_boto_driver, get_aws_tags
+        if tag_driver is None:
+            tag_driver = get_boto_driver(
+                service='resourcegroupstaggingapi',
+                key=self.cloud.apikey,
+                secret=self.cloud.apisecret,
+                region=self.cloud.region,
+            )
+        cfn_driver = get_boto_driver(
+            service='cloudformation',
+            key=self.cloud.apikey,
+            secret=self.cloud.apisecret,
+            region=self.cloud.region,
+        )
+        # Find all CloudFormation stacks describing deployed nodegroups
+        nodegroup_stacks = tag_driver.get_resources(
+            ResourceTypeFilters=['cloudformation:stack'],
+            TagFilters=get_aws_tags(resource_type='nodegroup',
+                                    cluster_name=name,
+                                    resource_group_tagging=True)
+        )
+        nodegroup_stack_arns = [stack['ResourceARN']for stack
+                                in nodegroup_stacks['ResourceTagMappingList']]
+
+        log.info('Cloud: %s,Cluster:%s. Deleting nodegroup stacks',
+                 self.cloud, name)
+        for stack in nodegroup_stack_arns:
+            cfn_driver.delete_stack(StackName=stack)
+
+        log.info('Cloud: %s,Cluster:%s. Waiting for nodegroup stacks deletion',
+                 self.cloud, name)
+        waiter = cfn_driver.get_waiter('stack_delete_complete')
+        for stack in nodegroup_stack_arns:
+            waiter.wait(StackName=stack)
+
+        log.info('Cloud: %s,Cluster:%s. Deleting cluster stack',
+                 self.cloud, name)
+        cfn_driver.delete_stack(StackName=cluster_stack)
+        waiter.wait(StackName=cluster_stack)
