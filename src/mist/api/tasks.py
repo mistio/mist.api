@@ -1364,7 +1364,7 @@ def create_cluster_async(auth_context_serialized, cloud_id,
     try:
         cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
     except me.DoesNotExist:
-        log_event(auth_context.owner.id, 'job', 'create_cluster_finished',
+        log_event(auth_context.owner.id, 'job', 'cluster_creation_finished',
                   user_id=auth_context.user.id, job_id=job_id, job=job,
                   error=f'Cloud with id: {cloud_id} does not exist')
         raise
@@ -1372,14 +1372,14 @@ def create_cluster_async(auth_context_serialized, cloud_id,
     try:
         cloud.ctl.container.create_cluster(auth_context, **kwargs)
     except Exception as exc:
-        log_event(auth_context.owner.id, 'job', 'create_cluster_finished',
+        log_event(auth_context.owner.id, 'job', 'cluster_creation_finished',
                   user_id=auth_context.user.id, job_id=job_id, job=job,
                   cloud_id=cloud.id,
                   error=f'Failed to create cluster with {repr(exc)}',
                   **kwargs)
         raise
     else:
-        log_event(auth_context.owner.id, 'job', 'create_cluster_finished',
+        log_event(auth_context.owner.id, 'job', 'cluster_creation_finished',
                   user_id=auth_context.user.id, job_id=job_id, job=job,
                   cloud_id=cloud.id, **kwargs)
 
@@ -1636,6 +1636,7 @@ def pull_docker_image(cloud_id, image_name):
 
 @dramatiq.actor(queue_name="dramatiq_provisioning",
                 time_limit=2_400_000,
+                max_retries=0,
                 throws=(me.DoesNotExist,))
 def destroy_cluster_async(auth_context_serialized,
                           cluster_id,
