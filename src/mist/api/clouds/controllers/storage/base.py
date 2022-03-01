@@ -172,7 +172,6 @@ class BaseStorageController(BaseController):
                 volume.size = None
             volume.extra = copy.copy(libcloud_volume.extra)
             volume.missing_since = None
-            volume.last_seen = now
 
             # Apply cloud-specific processing.
             try:
