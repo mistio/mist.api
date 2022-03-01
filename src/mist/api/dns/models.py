@@ -48,6 +48,7 @@ class Zone(OwnershipMixin, me.Document):
     cloud = me.ReferenceField(Cloud, required=True,
                               reverse_delete_rule=me.CASCADE)
     last_seen = me.DateTimeField()
+    missing_since = me.DateTimeField()
     deleted = me.DateTimeField()
 
     meta = {
@@ -55,7 +56,8 @@ class Zone(OwnershipMixin, me.Document):
         'indexes': [
             'owner',
             {
-                'fields': ['cloud', 'external_id', 'last_seen', 'deleted'],
+                'fields': ['cloud', 'external_id', 'last_seen', 'deleted',
+                           'missing_since'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -133,8 +135,7 @@ class Zone(OwnershipMixin, me.Document):
 
         if 'records' in only or not only:
             ret['records'] = {r.id: r.as_dict() for r
-                              in Record.objects(zone=self, deleted=None)}
-
+                              in Record.objects(zone=self, missing_since=None)}
         if 'tags' in only or not only:
             ret['tags'] = {
                 tag.key: tag.value for tag in Tag.objects(
@@ -154,10 +155,11 @@ class Zone(OwnershipMixin, me.Document):
             'extra': self.extra,
             'cloud': self.cloud.id,
             'last_seen': self.last_seen,
+            'missing_since': self.missing_since,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'records': {r.id: r.as_dict() for r
-                        in Record.objects(zone=self, deleted=None)},
+                        in Record.objects(zone=self, missing_since=None)},
             'tags': self.tags
         }
 
@@ -191,6 +193,7 @@ class Record(OwnershipMixin, me.Document):
     owner = me.ReferenceField('Organization', required=True,
                               reverse_delete_rule=me.CASCADE)
     last_seen = me.DateTimeField()
+    missing_since = me.DateTimeField()
     deleted = me.DateTimeField()
 
     meta = {
@@ -198,7 +201,8 @@ class Record(OwnershipMixin, me.Document):
         'allow_inheritance': True,
         'indexes': [
             {
-                'fields': ['zone', 'external_id', 'last_seen', 'deleted'],
+                'fields': ['zone', 'external_id', 'last_seen', 'deleted',
+                           'missing_since'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -285,6 +289,7 @@ class Record(OwnershipMixin, me.Document):
             'extra': self.extra,
             'zone': self.zone.id,
             'last_seen': self.last_seen,
+            'missing_since': self.missing_since,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'tags': self.tags

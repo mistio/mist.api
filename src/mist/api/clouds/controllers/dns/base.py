@@ -170,10 +170,15 @@ class BaseDNSController(BaseController):
         Zone.objects(cloud=self.cloud, id__nin=[z.id for z in zones],
                      deleted=None).update(
                          set__deleted=now)
-        # Set last_seen on zones we just saw
+        # Set missing_since on zones not returned by libcloud
+        Zone.objects(
+            cloud=self.cloud, missing_since=None,
+            external_id__nin=[z.id for z in zones]
+        ).update(missing_since=now)
+        # Set last_seen, unset missing_since on zones we just saw
         Zone.objects(cloud=self.cloud,
                      id__in=[z.id for z in zones]).update(
-            last_seen=now)
+            last_seen=now, missing_since=None)
 
         # Format zone information.
         return zones
@@ -290,9 +295,15 @@ class BaseDNSController(BaseController):
         Record.objects(zone=zone,
                        id__nin=[r.id for r in records],
                        deleted=None).update(set__deleted=now)
+        # Set missing_since on records not returned by libcloud
+        Record.objects(
+            cloud=self.cloud, missing_since=None,
+            external_id__nin=[r.id for r in records]
+        ).update(missing_since=now)
         # Set last_seen on records we just saw
         Record.objects(cloud=self.cloud,
-                       id__in=[r.id for r in records]).update(last_seen=now)
+                       id__in=[r.id for r in records]).update(
+            last_seen=now, missing_since=None)
 
         # Format zone information.
         return records
