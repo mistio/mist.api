@@ -78,8 +78,7 @@ class BaseContainerController(BaseController):
     def create_cluster(self, auth_context, *args, **kwargs):
         self._assert_container_feature_enabled()
         result = self._create_cluster(auth_context, *args, **kwargs)
-        if result:
-            self._add_schedule_interval()
+        self._add_schedule_interval()
         return result
 
     def validate_create_cluster_request(self, auth_context,
@@ -101,8 +100,7 @@ class BaseContainerController(BaseController):
     def destroy_cluster(self, *args, **kwargs):
         self._assert_container_feature_enabled()
         result = self._destroy_cluster(*args, **kwargs)
-        if result:
-            self._add_schedule_interval()
+        self._add_schedule_interval()
         return result
 
     def list_cached_clusters(self, timedelta=datetime.timedelta(days=1)):
