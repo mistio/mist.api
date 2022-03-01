@@ -36,6 +36,7 @@ class Bucket(OwnershipMixin, me.Document):
     content = me.EmbeddedDocumentListField(BucketItem)
 
     extra = MistDictField()
+    last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
 
     def __init__(self, *args, **kwargs):
@@ -52,7 +53,8 @@ class Bucket(OwnershipMixin, me.Document):
             'name': self.name,
             'provider': self.cloud.provider,
             'region': self.cloud.region,
-            'extra': self.extra
+            'extra': self.extra,
+            'last_seen': self.last_seen,
         }
 
     def get_content(self):

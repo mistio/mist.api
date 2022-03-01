@@ -1032,15 +1032,20 @@ class BaseComputeController(BaseController):
 
             images.append(_image)
 
-        # update missing_since for images not returned by libcloud
         if not search:
+            now = datetime.datetime.utcnow()
+            # update missing_since for images not returned by libcloud
             CloudImage.objects(cloud=self.cloud,
                                missing_since=None,
                                stored_after_search=False,
                                external_id__nin=[i.external_id
                                                  for i in images]).update(
-                                                     missing_since=datetime.
-                                                     datetime.utcnow())
+                                                     missing_since=now)
+            # update last_seen, missing_since for images we just saw
+            CloudImage.objects(
+                cloud=self.cloud,
+                id__in=[i.external_id for i in images]
+            ).update(last_seen=now, missing_since=None)
         if not search:
             # return images stored in database, because there are also
             # images stored after search, or imported from external repo
@@ -1316,11 +1321,16 @@ class BaseComputeController(BaseController):
                 log.error("Error adding size-location constraint: %s"
                           % repr(exc))
         # Update missing_since for sizes not returned by libcloud
+        now = datetime.datetime.utcnow()
         CloudSize.objects(
             cloud=self.cloud, missing_since=None,
             external_id__nin=[s.external_id for s in sizes]
-        ).update(missing_since=datetime.datetime.utcnow())
-
+        ).update(missing_since=now)
+        # Update last_seen, missing_since for sizes we just saw
+        CloudSize.objects(
+            cloud=self.cloud,
+            id__in=[s.external_id for s in sizes]
+        ).update(last_seen=now, missing_since=None)
         return sizes
 
     def _list_sizes__fetch_sizes(self):
@@ -1521,14 +1531,18 @@ class BaseComputeController(BaseController):
                 raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
             locations.append(_location)
-
+        now = datetime.datetime.utcnow()
         # update missing_since for locations not returned by libcloud
         CloudLocation.objects(cloud=self.cloud,
                               missing_since=None,
                               external_id__nin=[l.external_id
                                                 for l in locations]).update(
-                                                    missing_since=datetime.
-                                                    datetime.utcnow())
+                                                    missing_since=now)
+        # update last_seen, unset missing_since for locations we just saw
+        CloudLocation.objects(cloud=self.cloud,
+                              id__in=[l.external_id
+                                      for l in locations]).update(
+                                          last_seen=now, missing_since=None)
         return locations
 
     def _list_locations__fetch_locations(self):

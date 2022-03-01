@@ -372,15 +372,15 @@ class BaseNetworkController(BaseController):
                 log.error("Network %s is not unique: %s", network.name, exc)
                 raise mist.api.exceptions.NetworkExistsError()
             networks.append(network)
-
+        now = datetime.datetime.utcnow()
         # Set missing_since for networks not returned by libcloud.
         Network.objects(
             cloud=self.cloud, id__nin=[n.id for n in networks],
             missing_since=None
-        ).update(missing_since=datetime.datetime.utcnow())
-        Network.objects(
-            cloud=self.cloud, id__in=[n.id for n in networks],
-        ).update(missing_since=None)
+        ).update(missing_since=now)
+        Network.objects(cloud=self.cloud, id__in=[
+                        n.id for n in networks]).update(
+            last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of new networks.
         self.cloud.owner.mapper.update(new_networks, asynchronous=False)
@@ -506,13 +506,16 @@ class BaseNetworkController(BaseController):
                 raise mist.api.exceptions.SubnetExistsError()
 
             subnets.append(subnet)
-
+        now = datetime.datetime.utcnow()
         # Set missing_since for subnets not returned by libcloud.
         Subnet.objects(
             network=network, id__nin=[s.id for s in subnets],
             missing_since=None
-        ).update(missing_since=datetime.datetime.utcnow())
-
+        ).update(missing_since=now)
+        # Set last_seen, unset missing_since for subnets we just saw
+        Subnet.objects(cloud=self.cloud, id__in=[
+                       s.id for s in subnets]).update(
+            last_seen=now, missing_since=None)
         return subnets
 
     def list_cached_subnets(self, network):
