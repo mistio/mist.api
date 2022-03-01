@@ -1634,6 +1634,43 @@ def pull_docker_image(cloud_id, image_name):
             'Failed to pull image for cloud: %s', cloud_id)
 
 
+@dramatiq.actor(queue_name="dramatiq_provisioning",
+                time_limit=2_400_000,
+                throws=(me.DoesNotExist,))
+def destroy_cluster_async(auth_context_serialized,
+                          cluster_id,
+                          job_id=None,
+                          job=None):
+    from mist.api.containers.models import Cluster
+    job_id = job_id or uuid.uuid4().hex
+    cluster = Cluster.objects.get(id=cluster_id)
+    cloud = cluster.cloud
+    try:
+        auth_context = AuthContext.deserialize(auth_context_serialized)
+    except TypeError:
+        destroy_cluster_async.logger.error(
+            'Invalid serialized AuthContext type, exiting')
+        return
+    log_event(auth_context.owner.id, 'job', 'cluster_deletion_started',
+              user_id=auth_context.user.id, job_id=job_id, job=job,
+              cloud_id=cloud.id, cluster=cluster.id)
+
+    try:
+        cluster.ctl.destroy()
+    except Exception as exc:
+        destroy_cluster_async.logger.error(
+            'Failed to destroy cluster %s with exception %r',
+            cluster.id, exc)
+        log_event(auth_context.owner.id, 'job', 'cluster_deletion_finished',
+                  user_id=auth_context.user.id, job_id=job_id, job=job,
+                  cloud_id=cloud.id, cluster=cluster.id, error=repr(exc))
+        return
+
+    log_event(auth_context.owner.id, 'job', 'cluster_deletion_finished',
+              user_id=auth_context.user.id, job_id=job_id, job=job,
+              cloud_id=cloud.id, cluster=cluster.id)
+
+
 def add_expiration_for_machine(auth_context, expiration, machine):
     if expiration.get('notify'):
         # convert notify value from datetime str to seconds
