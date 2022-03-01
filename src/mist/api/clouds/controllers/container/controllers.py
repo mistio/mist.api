@@ -119,6 +119,9 @@ class GoogleContainerController(BaseContainerController):
                                               zone=location,
                                               nodepools=nodepools)
 
+    def _destroy_cluster(self, name, zone):
+        return self.connection.destroy_cluster(name=name, zone=zone)
+
 
 class AmazonContainerController(BaseContainerController):
     def _connect(self, **kwargs):
