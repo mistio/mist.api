@@ -164,12 +164,16 @@ class BaseDNSController(BaseController):
                 raise ZoneExistsError()
             zones.append(zone)
         self.cloud.owner.mapper.update(new_zones)
-
+        now = datetime.datetime.utcnow()
         # Delete any zones in the DB that were not returned by the provider
         # meaning they were deleted otherwise.
         Zone.objects(cloud=self.cloud, id__nin=[z.id for z in zones],
                      deleted=None).update(
-                         set__deleted=datetime.datetime.utcnow())
+                         set__deleted=now)
+        # Set last_seen on zones we just saw
+        Zone.objects(cloud=self.cloud,
+                     id__in=[z.id for z in zones]).update(
+            last_seen=now)
 
         # Format zone information.
         return zones
@@ -279,14 +283,16 @@ class BaseDNSController(BaseController):
                     break
             records.append(record)
         self.cloud.owner.mapper.update(new_records)
-
+        now = datetime.datetime.utcnow()
         # Then delete any records that are in the DB for this zone but were not
         # returned by the list_records() method meaning the were deleted in the
         # DNS provider.
         Record.objects(zone=zone,
                        id__nin=[r.id for r in records],
-                       deleted=None).update(
-                           set__deleted=datetime.datetime.utcnow())
+                       deleted=None).update(set__deleted=now)
+        # Set last_seen on records we just saw
+        Record.objects(cloud=self.cloud,
+                       id__in=[r.id for r in records]).update(last_seen=now)
 
         # Format zone information.
         return records

@@ -54,13 +54,14 @@ class Network(OwnershipMixin, me.Document):
                                  reverse_delete_rule=me.DENY)
 
     extra = MistDictField()  # The `extra` dictionary returned by libcloud.
-
+    last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,
         'collection': 'networks',
         'indexes': [
+            'last_seen',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -153,6 +154,7 @@ class Network(OwnershipMixin, me.Document):
             'description': self.description,
             'extra': self.extra,
             'tags': self.tags,
+            'last_seen': self.last_seen,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'location': self.location.id if self.location else '',
@@ -166,7 +168,7 @@ class Network(OwnershipMixin, me.Document):
         """Returns the API representation of the `Volume` object."""
         # TODO: add machines
         from mist.api.helpers import prepare_dereferenced_dict
-        standard_fields = ['id', 'name', 'extra']
+        standard_fields = ['id', 'name', 'extra', 'last_seen']
         deref_map = {
             'cloud': 'title',
             'location': 'name',
@@ -297,13 +299,14 @@ class Subnet(me.Document):
     description = me.StringField()
 
     extra = MistDictField()  # The `extra` dictionary returned by libcloud.
-
+    last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,
         'collection': 'subnets',
         'indexes': [
+            'last_seen',
             {
                 'fields': ['network', 'external_id'],
                 'sparse': False,
@@ -383,6 +386,7 @@ class Subnet(me.Document):
             'description': self.description,
             'extra': self.extra,
             'tags': self.tags,
+            'last_seen': self.last_seen,
         }
         subnet_dict.update(
             {key: getattr(self, key) for key in self._subnet_specific_fields}

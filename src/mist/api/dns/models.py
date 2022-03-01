@@ -47,7 +47,7 @@ class Zone(OwnershipMixin, me.Document):
     extra = MistDictField()
     cloud = me.ReferenceField(Cloud, required=True,
                               reverse_delete_rule=me.CASCADE)
-
+    last_seen = me.DateTimeField()
     deleted = me.DateTimeField()
 
     meta = {
@@ -55,7 +55,7 @@ class Zone(OwnershipMixin, me.Document):
         'indexes': [
             'owner',
             {
-                'fields': ['cloud', 'external_id', 'deleted'],
+                'fields': ['cloud', 'external_id', 'last_seen', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -114,7 +114,7 @@ class Zone(OwnershipMixin, me.Document):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
-            'id', 'domain', 'type', 'ttl', 'extra']
+            'id', 'domain', 'type', 'ttl', 'extra', 'last_seen', ]
         deref_map = {
             'cloud': 'title',
             'owned_by': 'email',
@@ -153,6 +153,7 @@ class Zone(OwnershipMixin, me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'cloud': self.cloud.id,
+            'last_seen': self.last_seen,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'records': {r.id: r.as_dict() for r
@@ -189,7 +190,7 @@ class Record(OwnershipMixin, me.Document):
                              reverse_delete_rule=me.CASCADE)
     owner = me.ReferenceField('Organization', required=True,
                               reverse_delete_rule=me.CASCADE)
-
+    last_seen = me.DateTimeField()
     deleted = me.DateTimeField()
 
     meta = {
@@ -197,7 +198,7 @@ class Record(OwnershipMixin, me.Document):
         'allow_inheritance': True,
         'indexes': [
             {
-                'fields': ['zone', 'external_id', 'deleted'],
+                'fields': ['zone', 'external_id', 'last_seen', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -283,6 +284,7 @@ class Record(OwnershipMixin, me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'zone': self.zone.id,
+            'last_seen': self.last_seen,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'tags': self.tags

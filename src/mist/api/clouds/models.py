@@ -332,6 +332,7 @@ class CloudLocation(OwnershipMixin, me.Document):
     external_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
+    last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     extra = MistDictField()
     parent = me.ReferenceField('CloudLocation',
@@ -345,12 +346,11 @@ class CloudLocation(OwnershipMixin, me.Document):
     available_images = me.ListField(
         me.ReferenceField('CloudImage')
     )
-
     meta = {
         'collection': 'locations',
         'indexes': [
             'cloud', 'external_id', 'name', 'missing_since',
-            'location_type', 'parent',
+            'last_seen', 'location_type', 'parent',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -371,7 +371,8 @@ class CloudLocation(OwnershipMixin, me.Document):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
-            'id', 'name', 'external_id', 'country', 'extra', 'location_type']
+            'id', 'name', 'external_id', 'country', 'extra', 'last_seen',
+            'location_type']
         deref_map = {
             'cloud': 'title',
             'owned_by': 'email',
@@ -395,6 +396,7 @@ class CloudLocation(OwnershipMixin, me.Document):
             'country': self.country,
             'parent': self.parent.id if self.parent else None,
             'location_type': self.location_type,
+            'last_seen': self.last_seen,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
         }
@@ -432,6 +434,7 @@ class CloudSize(me.Document):
     ram = me.IntField()
     disk = me.IntField()
     bandwidth = me.IntField()
+    last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     extra = MistDictField()  # price info  is included here
     architecture = me.StringField(default='x86', choices=('x86', 'arm'))
@@ -444,6 +447,7 @@ class CloudSize(me.Document):
         'indexes': [
             'cloud',
             'external_id',
+            'last_seen',
             'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
@@ -466,7 +470,7 @@ class CloudSize(me.Document):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
             'id', 'name', 'external_id', 'cpus', 'ram', 'bandwidth', 'disk',
-            'architecture', 'extra']
+            'architecture', 'extra', 'last_seen']
         deref_map = {
             'cloud': 'title',
             'allowed_images': 'name',
@@ -488,6 +492,7 @@ class CloudSize(me.Document):
             'extra': self.extra,
             'disk': self.disk,
             'architecture': self.architecture,
+            'last_seen': self.last_seen,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
         }

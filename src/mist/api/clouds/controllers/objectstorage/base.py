@@ -153,15 +153,15 @@ class BaseObjectStorageController(BaseController):
                 raise mist.api.exceptions.BucketExistsError()
 
             buckets.append(bucket)
-
+        now = datetime.datetime.utcnow()
         # Set missing_since for buckets returned by libcloud.
         Bucket.objects(
             cloud=self.cloud, name__nin=[b.name for b in buckets],
             missing_since=None
-        ).update(missing_since=datetime.datetime.utcnow())
+        ).update(missing_since=now)
         Bucket.objects(
             cloud=self.cloud, name__in=[b.name for b in buckets]
-        ).update(missing_since=None)
+        ).update(last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of new storage.
         self.cloud.owner.mapper.update(new_buckets, asynchronous=False)
