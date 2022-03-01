@@ -151,7 +151,7 @@ class ClusterAWSTemplate(BaseAWSTemplate):
         vpc = self._get_resource("VPC")
         control_plane_security_group = ec2.SecurityGroup(
             "ControlPlaneSecurityGroup",
-            GroupDescription="Communication between the control plane and worker nodegroups",
+            GroupDescription="Communication between the control plane and worker nodegroups",  # noqa
             VpcId=Ref(vpc),
             Tags=Tags(Name=Sub("${AWS::StackName}/ControlPlaneSecurityGroup")),
         )
@@ -192,10 +192,10 @@ class ClusterAWSTemplate(BaseAWSTemplate):
             },
             ManagedPolicyArns=[
                 Sub(
-                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSClusterPolicy"
+                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSClusterPolicy"  # noqa
                 ),
                 Sub(
-                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSVPCResourceController"
+                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSVPCResourceController"  # noqa
                 ),
             ],
             Tags=Tags(Name=Sub("${AWS::StackName}/ServiceRole")),
@@ -261,8 +261,7 @@ class ClusterAWSTemplate(BaseAWSTemplate):
                     {
                         "Key": "Name",
                         "Value": Sub(
-                            "${AWS::StackName}/SubnetPrivate"
-                            + capitalized_name
+                            "${AWS::StackName}/SubnetPrivate" + capitalized_name  # noqa
                         ),
                     },
                 ],
@@ -277,8 +276,7 @@ class ClusterAWSTemplate(BaseAWSTemplate):
                     {
                         "Key": "Name",
                         "Value": Sub(
-                            "${AWS::StackName}/PrivateRouteTable"
-                            + capitalized_name
+                            "${AWS::StackName}/PrivateRouteTable" + capitalized_name  # noqa
                         ),
                     },
                 ],
@@ -360,7 +358,7 @@ class ClusterAWSTemplate(BaseAWSTemplate):
 
         ingress_default_cluster_to_node_sg = ec2.SecurityGroupIngress(
             "IngressDefaultClusterToNodeSG",
-            Description="Allow managed and unmanaged nodes to communicate with each other (all ports)",
+            Description="Allow managed and unmanaged nodes to communicate with each other (all ports)",  # noqa
             FromPort=0,
             GroupId=Ref(cluster_shared_node_security_group),
             IpProtocol="-1",
@@ -373,7 +371,7 @@ class ClusterAWSTemplate(BaseAWSTemplate):
 
         ingress_inter_nodegroup_sg = ec2.SecurityGroupIngress(
             "IngressInterNodeGroupSG",
-            Description="Allow nodes to communicate with each other (all ports)",
+            Description="Allow nodes to communicate with each other (all ports)",  # noqa
             FromPort=0,
             GroupId=Ref(cluster_shared_node_security_group),
             IpProtocol="-1",
@@ -384,7 +382,7 @@ class ClusterAWSTemplate(BaseAWSTemplate):
 
         ingress_node_to_default_cluster_sg = ec2.SecurityGroupIngress(
             "IngressNodeToDefaultClusterSG",
-            Description="Allow unmanaged nodes to communicate with control plane (all ports)",
+            Description="Allow unmanaged nodes to communicate with control plane (all ports)",  # noqa
             FromPort=0,
             GroupId=GetAtt(control_plane, "ClusterSecurityGroupId"),
             IpProtocol="-1",
@@ -699,16 +697,16 @@ class ClusterNodeGroupAWSTemplate(BaseAWSTemplate):
             },
             ManagedPolicyArns=[
                 Sub(
-                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"  # noqa
                 ),
                 Sub(
-                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy"  # noqa
                 ),
                 Sub(
-                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEKS_CNI_Policy"
+                    "arn:${AWS::Partition}:iam::aws:policy/AmazonEKS_CNI_Policy"  # noqa
                 ),
                 Sub(
-                    "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
+                    "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"  # noqa
                 ),
             ],
             Path="/",
