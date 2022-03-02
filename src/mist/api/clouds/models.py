@@ -333,6 +333,9 @@ class CloudLocation(OwnershipMixin, me.Document):
     country = me.StringField()
     missing_since = me.DateTimeField()
     extra = MistDictField()
+    parent = me.ReferenceField('CloudLocation',
+                               required=False,
+                               reverse_delete_rule=me.NULLIFY)
     available_sizes = me.ListField(
         me.ReferenceField('CloudSize')
     )
