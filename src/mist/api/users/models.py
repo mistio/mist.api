@@ -188,6 +188,7 @@ class Owner(me.Document):
     avatar = me.StringField(default='')
 
     last_active = me.DateTimeField()
+    deleted = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,

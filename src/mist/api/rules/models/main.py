@@ -111,6 +111,8 @@ class Rule(me.Document):
     # Field updated by dramatiq workers. This is where workers keep state.
     states = me.MapField(field=me.EmbeddedDocumentField(RuleState))
 
+    deleted = me.DateTimeField()
+
     meta = {
         'strict': False,
         'collection': 'rules',
