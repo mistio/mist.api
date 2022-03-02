@@ -1,6 +1,7 @@
 """Key entity model"""
 import io
 import logging
+import datetime
 from uuid import uuid4
 import mongoengine as me
 from paramiko.rsakey import RSAKey
@@ -75,6 +76,7 @@ class Key(OwnershipMixin, me.Document):
     name = me.StringField(required=True)
     owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
     default = me.BooleanField(default=False)
+    created = me.DateTimeField(default=datetime.datetime.now)
     deleted = me.DateTimeField()
 
     _private_fields = ()

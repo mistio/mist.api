@@ -1,5 +1,6 @@
 """Script entity model."""
 import re
+import datetime
 from uuid import uuid4
 import mongoengine as me
 import mist.api.tag.models
@@ -154,6 +155,8 @@ class Script(OwnershipMixin, me.Document):
     owner = me.ReferenceField(Owner, required=True,  # TODO Owner -> Org
                               reverse_delete_rule=me.CASCADE)
     location = me.EmbeddedDocumentField(Location, required=True)
+
+    created = me.DateTimeField(default=datetime.datetime.now)
 
     deleted = me.DateTimeField()
 
