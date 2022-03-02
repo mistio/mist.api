@@ -2,6 +2,7 @@
 
 import uuid
 import logging
+import datetime
 
 import mongoengine as me
 
@@ -143,7 +144,7 @@ class Cloud(OwnershipMixin, me.Document):
 
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)
-
+    created = me.DateTimeField(default=datetime.datetime.now)
     deleted = me.DateTimeField()
 
     meta = {
@@ -332,6 +333,7 @@ class CloudLocation(OwnershipMixin, me.Document):
     external_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
+    created = me.DateTimeField()
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     first_seen = me.DateTimeField()
@@ -373,7 +375,7 @@ class CloudLocation(OwnershipMixin, me.Document):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
             'id', 'name', 'external_id', 'country', 'extra', 'last_seen',
-            'location_type']
+            'location_type', 'created']
         deref_map = {
             'cloud': 'title',
             'owned_by': 'email',
@@ -397,6 +399,7 @@ class CloudLocation(OwnershipMixin, me.Document):
             'country': self.country,
             'parent': self.parent.id if self.parent else None,
             'location_type': self.location_type,
+            'created': self.created,
             'last_seen': self.last_seen,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
@@ -435,6 +438,7 @@ class CloudSize(me.Document):
     ram = me.IntField()
     disk = me.IntField()
     bandwidth = me.IntField()
+    created = me.DateTimeField()
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     first_seen = me.DateTimeField()
@@ -472,7 +476,7 @@ class CloudSize(me.Document):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
             'id', 'name', 'external_id', 'cpus', 'ram', 'bandwidth', 'disk',
-            'architecture', 'extra', 'last_seen']
+            'architecture', 'extra', 'last_seen', 'created']
         deref_map = {
             'cloud': 'title',
             'allowed_images': 'name',
@@ -494,6 +498,7 @@ class CloudSize(me.Document):
             'extra': self.extra,
             'disk': self.disk,
             'architecture': self.architecture,
+            'created': self.created,
             'last_seen': self.last_seen,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),

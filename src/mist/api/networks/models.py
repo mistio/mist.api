@@ -54,6 +54,7 @@ class Network(OwnershipMixin, me.Document):
                                  reverse_delete_rule=me.DENY)
 
     extra = MistDictField()  # The `extra` dictionary returned by libcloud.
+    created = me.DateTimeField()
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     first_seen = me.DateTimeField()
@@ -155,6 +156,7 @@ class Network(OwnershipMixin, me.Document):
             'description': self.description,
             'extra': self.extra,
             'tags': self.tags,
+            'created': self.created,
             'last_seen': self.last_seen,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
@@ -169,7 +171,7 @@ class Network(OwnershipMixin, me.Document):
         """Returns the API representation of the `Volume` object."""
         # TODO: add machines
         from mist.api.helpers import prepare_dereferenced_dict
-        standard_fields = ['id', 'name', 'extra', 'last_seen']
+        standard_fields = ['id', 'name', 'extra', 'last_seen', 'created']
         deref_map = {
             'cloud': 'title',
             'location': 'name',
@@ -300,6 +302,7 @@ class Subnet(me.Document):
     description = me.StringField()
 
     extra = MistDictField()  # The `extra` dictionary returned by libcloud.
+    created = me.DateTimeField()
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     first_seen = me.DateTimeField()
@@ -388,6 +391,7 @@ class Subnet(me.Document):
             'description': self.description,
             'extra': self.extra,
             'tags': self.tags,
+            'created': self.created,
             'last_seen': self.last_seen,
         }
         subnet_dict.update(

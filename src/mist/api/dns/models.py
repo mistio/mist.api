@@ -48,6 +48,7 @@ class Zone(OwnershipMixin, me.Document):
     cloud = me.ReferenceField(Cloud, required=True,
                               reverse_delete_rule=me.CASCADE)
     last_seen = me.DateTimeField()
+    created = me.DateTimeField()
     missing_since = me.DateTimeField()
     deleted = me.DateTimeField()
     first_seen = me.DateTimeField()
@@ -155,6 +156,7 @@ class Zone(OwnershipMixin, me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'cloud': self.cloud.id,
+            'created': self.created,
             'last_seen': self.last_seen,
             'missing_since': self.missing_since,
             'owned_by': self.owned_by.id if self.owned_by else '',
@@ -193,6 +195,7 @@ class Record(OwnershipMixin, me.Document):
                              reverse_delete_rule=me.CASCADE)
     owner = me.ReferenceField('Organization', required=True,
                               reverse_delete_rule=me.CASCADE)
+    created = me.DateTimeField()
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     deleted = me.DateTimeField()
@@ -290,6 +293,7 @@ class Record(OwnershipMixin, me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'zone': self.zone.id,
+            'created': self.created,
             'last_seen': self.last_seen,
             'missing_since': self.missing_since,
             'owned_by': self.owned_by.id if self.owned_by else '',

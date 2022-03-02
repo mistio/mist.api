@@ -186,7 +186,7 @@ class Owner(me.Document):
     alerts_email = me.ListField(me.StringField(), default=[])
 
     avatar = me.StringField(default='')
-
+    created = me.DateTimeField(default=datetime.datetime.now)
     last_active = me.DateTimeField()
     deleted = me.DateTimeField()
 
@@ -481,7 +481,6 @@ class Organization(Owner):
     insights_enabled = me.BooleanField(default=config.HAS_INSIGHTS)
     ownership_enabled = me.BooleanField(default=True)
 
-    created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
 
     # used to allow creation of sub-org

@@ -36,6 +36,7 @@ class Bucket(OwnershipMixin, me.Document):
     content = me.EmbeddedDocumentListField(BucketItem)
 
     extra = MistDictField()
+    created = me.DateTimeField()
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     first_seen = me.DateTimeField()
@@ -55,6 +56,7 @@ class Bucket(OwnershipMixin, me.Document):
             'provider': self.cloud.provider,
             'region': self.cloud.region,
             'extra': self.extra,
+            'created': self.created,
             'last_seen': self.last_seen,
         }
 
