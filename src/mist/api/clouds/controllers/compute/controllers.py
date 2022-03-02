@@ -2403,9 +2403,45 @@ class GoogleComputeController(BaseComputeController):
         extra['isSharedCpu'] = size.extra.get('isSharedCpu')
         return extra
 
+    def _list_locations__fetch_locations(self):
+        regions = self.connection.region_list
+        zones = self.connection.zone_list
+        # use only the region's slug instead of a GCE url
+        for zone in zones:
+            try:
+                zone.extra['region'] = zone.extra['region'].split('/')[-1]
+            except (KeyError, AttributeError):
+                zone.extra['region'] = None
+            zone.extra['acceleratorTypes'] = (
+                self.connection.ex_list_accelerator_types_for_location(zone))
+
+        return regions + zones
+
+    def _list_locations__get_parent(self, location, libcloud_location):
+        from libcloud.compute.drivers.gce import GCERegion
+        from mist.api.clouds.models import CloudLocation
+
+        if isinstance(libcloud_location, GCERegion):
+            return None
+
+        region_name = libcloud_location.extra['region']
+        try:
+            parent = CloudLocation.objects.get(name=region_name,
+                                               cloud=self.cloud)
+            return parent
+        except me.DoesNotExist:
+            log.error('Parent does not exist for Location: %s',
+                      location.id)
+        except me.MultipleObjectsReturned:
+            log.error('Multiple parents found for Location: %s',
+                      location.id)
+
     def _list_locations__get_available_sizes(self, location):
-        libcloud_size_ids = [size.id
-                          for size in self.connection.list_sizes(location=location)]  # noqa
+        from libcloud.compute.drivers.gce import GCERegion
+        if isinstance(location, GCERegion):
+            return None
+        libcloud_size_ids = [size.id for size
+                             in self.connection.list_sizes(location=location)]
 
         from mist.api.clouds.models import CloudSize
 
