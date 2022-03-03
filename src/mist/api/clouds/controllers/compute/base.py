@@ -1494,7 +1494,8 @@ class BaseComputeController(BaseController):
             _location.extra = copy.deepcopy(loc.extra)
             _location.missing_since = None
             _location.parent = self._list_locations__get_parent(_location, loc)
-
+            _location.location_type = self._list_locations__get_type(
+                _location, loc)
             try:
                 available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
@@ -1553,6 +1554,16 @@ class BaseComputeController(BaseController):
         Returns the parent CloudLocation object.
         """
         return
+
+    def _list_locations__get_type(self, location, libcloud_location):
+        """Get the CloudLocation type.
+
+        Valid values are "zone" & "region".
+
+        A "region" is a geographical or logical location
+        that consists of one or more "zones".
+        """
+        return 'zone'
 
     def _list_locations__get_available_sizes(self, location):
         """Find available sizes for NodeLocation.
