@@ -56,7 +56,7 @@ class Zone(OwnershipMixin, me.Document):
     meta = {
         'collection': 'zones',
         'indexes': [
-            'owner',
+            'owner', 'last_seen', 'missing_since',
             {
                 'fields': ['cloud', 'external_id', 'last_seen', 'deleted',
                            'missing_since'],
@@ -205,6 +205,7 @@ class Record(OwnershipMixin, me.Document):
         'collection': 'records',
         'allow_inheritance': True,
         'indexes': [
+            'last_seen', 'missing_since',
             {
                 'fields': ['zone', 'external_id', 'last_seen', 'deleted',
                            'missing_since'],
