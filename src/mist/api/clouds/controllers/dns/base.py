@@ -165,11 +165,6 @@ class BaseDNSController(BaseController):
             zones.append(zone)
         self.cloud.owner.mapper.update(new_zones)
         now = datetime.datetime.utcnow()
-        # Delete any zones in the DB that were not returned by the provider
-        # meaning they were deleted otherwise.
-        Zone.objects(cloud=self.cloud, id__nin=[z.id for z in zones],
-                     deleted=None).update(
-                         set__deleted=now)
         # Set missing_since on zones not returned by libcloud
         Zone.objects(
             cloud=self.cloud, missing_since=None,
@@ -289,12 +284,6 @@ class BaseDNSController(BaseController):
             records.append(record)
         self.cloud.owner.mapper.update(new_records)
         now = datetime.datetime.utcnow()
-        # Then delete any records that are in the DB for this zone but were not
-        # returned by the list_records() method meaning the were deleted in the
-        # DNS provider.
-        Record.objects(zone=zone,
-                       id__nin=[r.id for r in records],
-                       deleted=None).update(set__deleted=now)
         # Set missing_since on records not returned by libcloud
         Record.objects(
             cloud=self.cloud, missing_since=None,
