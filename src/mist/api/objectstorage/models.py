@@ -38,6 +38,7 @@ class Bucket(OwnershipMixin, me.Document):
     extra = MistDictField()
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
 
     def __init__(self, *args, **kwargs):
         super(Bucket, self).__init__(*args, **kwargs)

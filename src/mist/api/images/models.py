@@ -20,6 +20,7 @@ class CloudImage(OwnershipMixin, me.Document):
     stored_after_search = me.BooleanField(default=False)
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
     extra = MistDictField()
     os_type = me.StringField(default='linux')
     os_distro = me.StringField(default='other', null=False)

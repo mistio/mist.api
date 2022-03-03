@@ -334,6 +334,7 @@ class CloudLocation(OwnershipMixin, me.Document):
     country = me.StringField()
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
     extra = MistDictField()
     parent = me.ReferenceField('CloudLocation',
                                required=False,
@@ -436,6 +437,7 @@ class CloudSize(me.Document):
     bandwidth = me.IntField()
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
     extra = MistDictField()  # price info  is included here
     architecture = me.StringField(default='x86', choices=('x86', 'arm'))
     allowed_images = me.ListField(

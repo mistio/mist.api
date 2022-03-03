@@ -91,6 +91,7 @@ class Cluster(OwnershipMixin, me.Document):
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     created = me.DateTimeField()
+    first_seen = me.DateTimeField()
 
     meta = {
         'strict': False,

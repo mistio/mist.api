@@ -50,6 +50,7 @@ class Zone(OwnershipMixin, me.Document):
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     deleted = me.DateTimeField()
+    first_seen = me.DateTimeField()
 
     meta = {
         'collection': 'zones',
@@ -195,6 +196,7 @@ class Record(OwnershipMixin, me.Document):
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     deleted = me.DateTimeField()
+    first_seen = me.DateTimeField()
 
     meta = {
         'collection': 'records',

@@ -310,7 +310,7 @@ class Machine(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     unreachable_since = me.DateTimeField()
     created = me.DateTimeField()
-
+    first_seen = me.DateTimeField()
     monitoring = me.EmbeddedDocumentField(Monitoring,
                                           default=lambda: Monitoring())
 
