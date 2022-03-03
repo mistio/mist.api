@@ -2448,6 +2448,12 @@ class GoogleComputeController(BaseComputeController):
         return CloudSize.objects(cloud=self.cloud,
                                  external_id__in=libcloud_size_ids)
 
+    def _list_locations__get_type(self, location, libcloud_location):
+        from libcloud.compute.drivers.gce import GCERegion
+        if isinstance(libcloud_location, GCERegion):
+            return 'region'
+        return 'zone'
+
     def _list_images__get_min_disk_size(self, image):
         try:
             min_disk_size = int(image.extra.get('diskSizeGb'))
