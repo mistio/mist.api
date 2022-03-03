@@ -56,6 +56,7 @@ class Network(OwnershipMixin, me.Document):
     extra = MistDictField()  # The `extra` dictionary returned by libcloud.
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,
@@ -301,6 +302,7 @@ class Subnet(me.Document):
     extra = MistDictField()  # The `extra` dictionary returned by libcloud.
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,

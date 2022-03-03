@@ -42,6 +42,7 @@ class Volume(OwnershipMixin, me.Document):
 
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,

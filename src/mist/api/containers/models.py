@@ -93,6 +93,8 @@ class Cluster(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     created = me.DateTimeField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
+    first_seen = me.DateTimeField()
+
     meta = {
         'strict': False,
         'allow_inheritance': True,
