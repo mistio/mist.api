@@ -414,6 +414,12 @@ class CloudLocation(OwnershipMixin, me.Document):
         if not self.owner:
             self.owner = self.cloud.owner
 
+    @property
+    def children(self):
+        if self.location_type == 'region':
+            return CloudLocation.objects(parent=self.id)
+        return CloudLocation.objects.none()
+
 
 class CloudSize(me.Document):
     """A base Cloud Size Model."""
