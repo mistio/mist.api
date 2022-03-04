@@ -26,7 +26,7 @@ class PeriodicTaskInfo(me.Document):
 
     class Lock(me.EmbeddedDocument):
         id = me.StringField(default=lambda: uuid.uuid4().hex)
-        created_at = me.DateTimeField(default=lambda: datetime.datetime.now())
+        created = me.DateTimeField(default=lambda: datetime.datetime.now())
 
     # Unique task identifier.
     key = me.StringField(primary_key=True)
@@ -132,7 +132,7 @@ class PeriodicTaskInfo(me.Document):
                 break
             if self.break_lock_after:
                 now = datetime.datetime.now()
-                if now - self.lock.created_at > self.break_lock_after:
+                if now - self.lock.created > self.break_lock_after:
                     # Has been running for too long or has died. Ignore.
                     log.error("Other task '%s' seems to have started, but "
                               "it's been quite a while, will ignore and run.",
