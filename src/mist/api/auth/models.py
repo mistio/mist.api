@@ -40,7 +40,7 @@ class AuthToken(me.Document):
     org = me.ReferenceField(Organization, required=False, null=True,
                             reverse_delete_rule=me.CASCADE)
 
-    created_at = me.DateTimeField(default=datetime.utcnow)
+    created = me.DateTimeField(default=datetime.utcnow)
     ttl = me.IntField(min_value=0, default=0)
 
     last_accessed_at = me.DateTimeField()
@@ -67,7 +67,7 @@ class AuthToken(me.Document):
 
     def expires(self):
         if self.ttl:
-            return self.created_at + timedelta(seconds=self.ttl)
+            return self.created + timedelta(seconds=self.ttl)
 
     def is_expired(self):
         return self.ttl and self.expires() < datetime.utcnow()
@@ -142,7 +142,7 @@ class AuthToken(me.Document):
     def get_public_view(self):
         return {
             'id': str(self.id),
-            'created_at': str(self.created_at),
+            'created': str(self.created),
             'last_accessed_at': str(self.last_accessed_at),
             'ip_address': self.ip_address,
             'user_agent': self.user_agent,
