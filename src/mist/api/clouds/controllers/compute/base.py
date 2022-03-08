@@ -1054,7 +1054,7 @@ class BaseComputeController(BaseController):
             # update last_seen, missing_since for images we just saw
             CloudImage.objects(
                 cloud=self.cloud,
-                id__in=[i.external_id for i in images]
+                external_id__in=[i.external_id for i in images]
             ).update(last_seen=now, missing_since=None)
         if not search:
             # return images stored in database, because there are also
@@ -1345,7 +1345,7 @@ class BaseComputeController(BaseController):
         # Update last_seen, missing_since for sizes we just saw
         CloudSize.objects(
             cloud=self.cloud,
-            id__in=[s.external_id for s in sizes]
+            external_id__in=[s.external_id for s in sizes]
         ).update(last_seen=now, missing_since=None)
         return sizes
 
@@ -1562,9 +1562,10 @@ class BaseComputeController(BaseController):
                                                    first_seen=now)
         # update last_seen, unset missing_since for locations we just saw
         CloudLocation.objects(cloud=self.cloud,
-                              id__in=[l.external_id
-                                      for l in locations]).update(
-                                          last_seen=now, missing_since=None)
+                              external_id__in=[l.external_id
+                                               for l in locations]).update(
+                                                   last_seen=now,
+                                                   missing_since=None)
         return locations
 
     def _list_locations__fetch_locations(self):
