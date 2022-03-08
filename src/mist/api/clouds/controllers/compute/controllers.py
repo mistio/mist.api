@@ -3860,8 +3860,9 @@ class OpenStackComputeController(BaseComputeController):
                 break
         else:
             try:
-                server_key = self.connection.ex_import_keypair_from_string(
+                server_key = self.connection.import_key_pair_from_string(
                     name=f'mistio-{secrets.token_hex(3)}',
+                    key_material=key.public,
                 )
             except Exception:
                 log.exception('Failed to create keypair')
