@@ -447,7 +447,10 @@ class BaseComputeController(BaseController):
             Machine.objects(cloud=self.cloud,
                             id__nin=[m.id for m in machines],
                             missing_since=None).update(missing_since=now)
-
+        # Set first_seen on machine models seen for the first time
+        Machine.objects(cloud=self.cloud,
+                        id__in=[m.id for m in machines],
+                        first_seen=None).update(first_seen=now)
         # Set last_seen, unset missing_since on machine models we just saw
         Machine.objects(cloud=self.cloud,
                         id__in=[m.id for m in machines]).update(
@@ -1041,6 +1044,13 @@ class BaseComputeController(BaseController):
                                external_id__nin=[i.external_id
                                                  for i in images]).update(
                                                      missing_since=now)
+            # update first_seen for images seen for the first time
+            CloudImage.objects(cloud=self.cloud,
+                               first_seen=None,
+                               stored_after_search=False,
+                               external_id__in=[i.external_id
+                                                for i in images]).update(
+                                                    first_seen=now)
             # update last_seen, missing_since for images we just saw
             CloudImage.objects(
                 cloud=self.cloud,
@@ -1320,12 +1330,18 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.error("Error adding size-location constraint: %s"
                           % repr(exc))
-        # Update missing_since for sizes not returned by libcloud
         now = datetime.datetime.utcnow()
+        # Update missing_since for sizes not returned by libcloud
         CloudSize.objects(
             cloud=self.cloud, missing_since=None,
             external_id__nin=[s.external_id for s in sizes]
         ).update(missing_since=now)
+        # Update first_seen for sizes seen for the first time
+        CloudSize.objects(
+            cloud=self.cloud,
+            first_seen=None,
+            external_id__in=[s.external_id for s in sizes]
+        ).update(first_seen=now)
         # Update last_seen, missing_since for sizes we just saw
         CloudSize.objects(
             cloud=self.cloud,
@@ -1538,6 +1554,12 @@ class BaseComputeController(BaseController):
                               external_id__nin=[l.external_id
                                                 for l in locations]).update(
                                                     missing_since=now)
+        # update locations for locations seen for the first time
+        CloudLocation.objects(cloud=self.cloud,
+                              first_seen=None,
+                              external_id__in=[l.external_id
+                                               for l in locations]).update(
+                                                   first_seen=now)
         # update last_seen, unset missing_since for locations we just saw
         CloudLocation.objects(cloud=self.cloud,
                               id__in=[l.external_id
