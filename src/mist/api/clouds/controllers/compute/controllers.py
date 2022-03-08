@@ -2611,6 +2611,30 @@ class GoogleComputeController(BaseComputeController):
             image_extra_attrs,
             size_extra_attrs)
 
+    def _generate_plan__parse_extra(self, extra, plan) -> None:
+        try:
+            service_account = extra['service_account']
+        except KeyError:
+            return
+
+        if not isinstance(service_account, dict):
+            raise BadRequestError(
+                'Invalid type for service account parameter')
+
+        # use the default service account & scopes if one of the values
+        # is not provided
+        email = service_account.get('email') or 'default'
+        scopes = service_account.get('scopes') or ['devstorage.read_only']
+
+        if not isinstance(email, str) or not isinstance(scopes, list):
+            raise BadRequestError(
+                'Invalid type for service_account email/scopes parameter')
+
+        plan['service_account'] = {
+            'email': email,
+            'scopes': scopes
+        }
+
     def _generate_plan__post_parse_plan(self, plan):
         from mist.api.images.models import CloudImage
         image = CloudImage.objects.get(id=plan['image']['id'])
@@ -2688,6 +2712,8 @@ class GoogleComputeController(BaseComputeController):
             # required when attaching accelerators to an instance
             kwargs['ex_on_host_maintenance'] = 'TERMINATE'
 
+        if plan.get('service_account'):
+            kwargs['ex_service_accounts'] = [plan['service_account']]
         return kwargs
 
     def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
