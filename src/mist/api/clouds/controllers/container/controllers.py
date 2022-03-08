@@ -70,60 +70,54 @@ class GoogleContainerController(BaseContainerController):
             raise Exception(f'Location {location} not found')
 
         kwargs['location'] = location.name
-
+        kwargs['nodepools'] = []
         if create_cluster_request.nodepools:
-            # TODO support more than one nodegroups
-            nodepool = create_cluster_request.nodepools[0]
-            if nodepool.size:
-                try:
-                    [size], _ = list_resources(
-                        auth_context,
-                        'size',
-                        search=nodepool.size,
-                        cloud=self.cloud.id,
-                        limit=1
-                    )
-                except ValueError:
-                    raise Exception(
-                        f'Size {nodepool.size} does not exist')
+            for nodepool in create_cluster_request.nodepools:
+                if nodepool.size:
+                    try:
+                        [size], _ = list_resources(
+                            auth_context,
+                            'size',
+                            search=nodepool.size,
+                            cloud=self.cloud.id,
+                            limit=1
+                        )
+                    except ValueError:
+                        raise Exception(
+                            f'Size {nodepool.size} does not exist')
 
-                # We use "<size-name> (<size-description>)" for size names
-                kwargs['size'] = size.name.replace(
-                    f" ({size.extra['description']})", '')
+                    # We use "<size-name> (<size-description>)" for size names
+                    size = size.name.replace(
+                        f" ({size.extra['description']})", '')
+                else:
+                    size = 'e2-medium'
+                disk_size = nodepool.disk_size or 20
+                nodes = nodepool.nodes or 2
+                preemptible = nodepool.preemptible or False
+                disk_type = nodepool.disk_type or 'pd-standard'
 
-            kwargs['disk_size'] = nodepool.disk_size
-            kwargs['nodes'] = nodepool.nodes
-            kwargs['preemptible'] = nodepool.preemptible
-            kwargs['disk_type'] = nodepool.disk_type
-
+                kwargs['nodepools'].append({
+                    'node_count': nodes,
+                    'size': size,
+                    'disk_size': disk_size,
+                    'disk_type': disk_type,
+                    'preemptible': preemptible,
+                })
+        else:
+            # If no nodepool is given add a default
+            kwargs['nodepools'].append({
+                'node_count': 2,
+                'size': 'e2-medium',
+                'disk_size': 20,
+                'disk_type': 'pd-standard',
+                'preemptible': False,
+            })
         return kwargs
 
-    def _create_cluster(self, auth_context, name, location,
-                        nodes=None,
-                        size=None,
-                        disk_size=None,
-                        disk_type=None,
-                        preemptible=None):
-
-        kwargs = {
-            'name': name,
-            'zone': location,
-        }
-
-        kwargs['initial_node_count'] = nodes or 2
-
-        kwargs['disk_size'] = disk_size or 20
-
-        if disk_type:
-            kwargs['disk_type'] = disk_type
-
-        if preemptible:
-            kwargs['preemptible'] = preemptible
-
-        if size:
-            kwargs['size'] = size
-
-        return self.connection.create_cluster(**kwargs)
+    def _create_cluster(self, auth_context, name, location, nodepools):
+        return self.connection.create_cluster(name=name,
+                                              zone=location,
+                                              nodepools=nodepools)
 
 
 class AmazonContainerController(BaseContainerController):
