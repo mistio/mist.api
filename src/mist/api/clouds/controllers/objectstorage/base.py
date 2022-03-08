@@ -159,6 +159,11 @@ class BaseObjectStorageController(BaseController):
             cloud=self.cloud, name__nin=[b.name for b in buckets],
             missing_since=None
         ).update(missing_since=now)
+        # Set first_seen for buckets seen for the first time.
+        Bucket.objects(
+            cloud=self.cloud, name__in=[b.name for b in buckets],
+            first_seen=None
+        ).update(first_seen=now)
         Bucket.objects(
             cloud=self.cloud, name__in=[b.name for b in buckets]
         ).update(last_seen=now, missing_since=None)

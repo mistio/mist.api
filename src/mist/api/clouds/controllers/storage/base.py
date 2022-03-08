@@ -212,6 +212,11 @@ class BaseStorageController(BaseController):
             cloud=self.cloud, id__nin=[v.id for v in volumes],
             missing_since=None
         ).update(missing_since=now)
+        # Set first_seen for volumes seen for the first time.
+        Volume.objects(
+            cloud=self.cloud, id__in=[v.id for v in volumes],
+            first_seen=None
+        ).update(first_seen=now)
         # Set last_seen, unset missing_since on volume models we just saw
         Volume.objects(
             cloud=self.cloud, id__in=[v.id for v in volumes]
