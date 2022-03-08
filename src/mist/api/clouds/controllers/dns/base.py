@@ -178,7 +178,7 @@ class BaseDNSController(BaseController):
         ).update(first_seen=now)
         # Set last_seen, unset missing_since on zones we just saw
         Zone.objects(cloud=self.cloud,
-                     id__in=[z.id for z in zones]).update(
+                     external_id__in=[z.id for z in zones]).update(
             last_seen=now, missing_since=None)
 
         # Format zone information.
@@ -303,7 +303,7 @@ class BaseDNSController(BaseController):
         ).update(first_seen=now)
         # Set last_seen on records we just saw
         Record.objects(cloud=self.cloud,
-                       id__in=[r.id for r in records]).update(
+                       external_id__in=[r.id for r in records]).update(
             last_seen=now, missing_since=None)
 
         # Format zone information.
