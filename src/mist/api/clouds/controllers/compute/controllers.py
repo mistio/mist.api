@@ -352,18 +352,35 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_locations__fetch_locations(self):
         """List availability zones for EC2 region
-
-        In EC2 all locations of a region have the same name, so the
-        availability zones are listed instead.
-
         """
+        from libcloud.compute.base import NodeLocation
         locations = self.connection.list_locations()
-        for location in locations:
-            try:
-                location.name = location.availability_zone.name
-            except:
-                pass
+        region = NodeLocation(id=self.cloud.region,
+                              name=self.cloud.region,
+                              country=self.connection.country,
+                              driver=self.connection,
+                              extra={})
+        locations.insert(0, region)
         return locations
+
+    def _list_locations__get_parent(self, location, libcloud_location):
+        from mist.api.clouds.models import CloudLocation
+        if libcloud_location.id == self.cloud.region:
+            return None
+
+        try:
+            parent = CloudLocation.objects.get(
+                external_id=self.cloud.region,
+                cloud=self.cloud)
+            return parent
+        except me.DoesNotExist:
+            log.error('Parent does not exist for Location: %s',
+                      location.id)
+
+    def _list_locations__get_type(self, location, libcloud_location):
+        if libcloud_location.id == self.cloud.region:
+            return 'region'
+        return 'zone'
 
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('vcpu', 1))
@@ -2403,14 +2420,56 @@ class GoogleComputeController(BaseComputeController):
         extra['isSharedCpu'] = size.extra.get('isSharedCpu')
         return extra
 
+    def _list_locations__fetch_locations(self):
+        regions = self.connection.region_list
+        zones = self.connection.zone_list
+        # use only the region's slug instead of a GCE url
+        for zone in zones:
+            try:
+                zone.extra['region'] = zone.extra['region'].split('/')[-1]
+            except (KeyError, AttributeError):
+                zone.extra['region'] = None
+            zone.extra['acceleratorTypes'] = (
+                self.connection.ex_list_accelerator_types_for_location(zone))
+
+        return regions + zones
+
+    def _list_locations__get_parent(self, location, libcloud_location):
+        from libcloud.compute.drivers.gce import GCERegion
+        from mist.api.clouds.models import CloudLocation
+
+        if isinstance(libcloud_location, GCERegion):
+            return None
+
+        region_name = libcloud_location.extra['region']
+        try:
+            parent = CloudLocation.objects.get(name=region_name,
+                                               cloud=self.cloud)
+            return parent
+        except me.DoesNotExist:
+            log.error('Parent does not exist for Location: %s',
+                      location.id)
+        except me.MultipleObjectsReturned:
+            log.error('Multiple parents found for Location: %s',
+                      location.id)
+
     def _list_locations__get_available_sizes(self, location):
-        libcloud_size_ids = [size.id
-                          for size in self.connection.list_sizes(location=location)]  # noqa
+        from libcloud.compute.drivers.gce import GCERegion
+        if isinstance(location, GCERegion):
+            return None
+        libcloud_size_ids = [size.id for size
+                             in self.connection.list_sizes(location=location)]
 
         from mist.api.clouds.models import CloudSize
 
         return CloudSize.objects(cloud=self.cloud,
                                  external_id__in=libcloud_size_ids)
+
+    def _list_locations__get_type(self, location, libcloud_location):
+        from libcloud.compute.drivers.gce import GCERegion
+        if isinstance(libcloud_location, GCERegion):
+            return 'region'
+        return 'zone'
 
     def _list_images__get_min_disk_size(self, image):
         try:

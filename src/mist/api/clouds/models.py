@@ -333,6 +333,12 @@ class CloudLocation(OwnershipMixin, me.Document):
     country = me.StringField()
     missing_since = me.DateTimeField()
     extra = MistDictField()
+    parent = me.ReferenceField('CloudLocation',
+                               required=False,
+                               reverse_delete_rule=me.NULLIFY)
+    location_type = me.StringField(default='zone',
+                                   choices=('zone', 'region'))
+
     available_sizes = me.ListField(
         me.ReferenceField('CloudSize')
     )
@@ -344,6 +350,7 @@ class CloudLocation(OwnershipMixin, me.Document):
         'collection': 'locations',
         'indexes': [
             'cloud', 'external_id', 'name', 'missing_since',
+            'location_type', 'parent',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -364,13 +371,14 @@ class CloudLocation(OwnershipMixin, me.Document):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
-            'id', 'name', 'external_id', 'country', 'extra']
+            'id', 'name', 'external_id', 'country', 'extra', 'location_type']
         deref_map = {
             'cloud': 'title',
             'owned_by': 'email',
             'created_by': 'email',
             'available_sizes': 'name',
             'available_images': 'name',
+            'parent': 'id',
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
@@ -385,6 +393,8 @@ class CloudLocation(OwnershipMixin, me.Document):
             'external_id': self.external_id,
             'name': self.name,
             'country': self.country,
+            'parent': self.parent.id if self.parent else None,
+            'location_type': self.location_type,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
         }
@@ -403,6 +413,12 @@ class CloudLocation(OwnershipMixin, me.Document):
         # Populate owner field based on self.cloud.owner
         if not self.owner:
             self.owner = self.cloud.owner
+
+    @property
+    def children(self):
+        if self.location_type == 'region':
+            return CloudLocation.objects(parent=self.id)
+        return CloudLocation.objects.none()
 
 
 class CloudSize(me.Document):
