@@ -1007,7 +1007,15 @@ class BaseComputeController(BaseController):
             _image.min_memory_size = self._list_images__get_min_memory_size(img)  # noqa
             _image.architecture = self._list_images__get_architecture(img)
             _image.origin = self._list_images__get_origin(img)
-
+            try:
+                created = self._list_images__image_creation_date(img)
+                if created:
+                    created = get_datetime(created)
+                    if _image.created != created:
+                        _image.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, _image, exc)
             try:
                 self._list_images__postparse_image(_image, img)
             except Exception as exc:
@@ -1195,6 +1203,9 @@ class BaseComputeController(BaseController):
         """
         return 'system'
 
+    def _list_images__image_creation_date(self, libcloud_image):
+        return libcloud_image.extra.get('created_at')
+
     def image_is_default(self, image_id):
         return True
 
@@ -1291,6 +1302,15 @@ class BaseComputeController(BaseController):
             _size.missing_since = None
             _size.extra = self._list_sizes__get_extra(size)
             _size.architecture = self._list_sizes__get_architecture(size)
+            try:
+                created = self._list_sizes__size_creation_date(size)
+                if created:
+                    created = get_datetime(created)
+                    if _size.created != created:
+                        _size.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, _size, exc)
             try:
                 _size.bandwidth = int(size.bandwidth)
             except (TypeError, ValueError):
@@ -1410,6 +1430,9 @@ class BaseComputeController(BaseController):
             return 'arm'
         return 'x86'
 
+    def _list_sizes__size_creation_date(self, libcloud_size):
+        return libcloud_size.extra.get('created_at')
+
     def list_cached_sizes(self):
         """Return list of sizes from database for a specific cloud"""
         # FIXME: resolve circular import issues
@@ -1523,6 +1546,15 @@ class BaseComputeController(BaseController):
             _location.location_type = self._list_locations__get_type(
                 _location, loc)
             try:
+                created = self._list_locations__location_creation_date(loc)
+                if created:
+                    created = get_datetime(created)
+                    if _location.created != created:
+                        _location.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, _location, exc)
+            try:
                 available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
                 log.error('Error adding location-size constraint: %s'
@@ -1627,6 +1659,9 @@ class BaseComputeController(BaseController):
         should override this method.
         """
         return
+
+    def _list_locations__location_creation_date(self, libcloud_location):
+        return libcloud_location.extra.get('created_at')
 
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""

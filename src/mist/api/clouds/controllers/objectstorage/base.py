@@ -10,6 +10,7 @@ from libcloud.common.types import LibcloudError
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.concurrency.models import PeriodicTaskInfo
 
+from mist.api.helpers import get_datetime
 from mist.api.helpers import bucket_to_dict
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
@@ -110,7 +111,16 @@ class BaseObjectStorageController(BaseController):
                 new_buckets.append(bucket)
 
             bucket.extra = copy.copy(libcloud_bucket.extra)
-
+            try:
+                created = self._list_buckets__bucket_creation_date(
+                    libcloud_bucket)
+                if created:
+                    created = get_datetime(created)
+                    if bucket.created != created:
+                        bucket.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, bucket, exc)
             # Attach bucket content
             try:
                 """
@@ -230,3 +240,6 @@ class BaseObjectStorageController(BaseController):
         from mist.api.objectstorage.models import BucketItem
 
         bucket.content = [BucketItem(**item) for item in content]
+
+    def _list_buckets__bucket_creation_date(self, libcloud_bucket):
+        return libcloud_bucket.extra.get('created_at')
