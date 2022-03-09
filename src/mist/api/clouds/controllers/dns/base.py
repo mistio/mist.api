@@ -20,6 +20,7 @@ from mist.api.concurrency.models import PeriodicTaskInfo
 
 from mist.api.clouds.controllers.base import BaseController
 
+from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
@@ -153,6 +154,16 @@ class BaseDNSController(BaseController):
             zone.type = pr_zone.type
             zone.ttl = pr_zone.ttl
             zone.extra = pr_zone.extra
+            # Get zone creation date.
+            try:
+                created = self._list_zones__zone_creation_date(pr_zone)
+                if created:
+                    created = get_datetime(created)
+                    if zone.created != created:
+                        zone.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, zone, exc)
             try:
                 zone.save()
             except me.ValidationError as exc:
@@ -192,6 +203,9 @@ class BaseDNSController(BaseController):
         # import issues are resolved
         from mist.api.dns.models import Zone
         return Zone.objects(cloud=self.cloud, deleted=None)
+
+    def _list_zones__zone_creation_date(self, libcloud_zone):
+        return libcloud_zone.extra.get('created_at')
 
     def _list_zones__fetch_zones(self):
         """
@@ -261,6 +275,17 @@ class BaseDNSController(BaseController):
             if record.extra != pr_record.extra:
                 record.extra = pr_record.extra
                 changed = True
+            # Get record creation date.
+            try:
+                created = self._list_records__record_creation_date(pr_record)
+                if created:
+                    created = get_datetime(created)
+                    if record.created != created:
+                        record.created = created
+                        changed = True
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, record, exc)
 
             self._list_records__postparse_data(pr_record, record)
             try:
@@ -344,6 +369,9 @@ class BaseDNSController(BaseController):
                 data += '.'
         if data not in record.rdata:
             record.rdata.append(data)
+
+    def _list_records__record_creation_date(self, libcloud_record):
+        return libcloud_record.extra.get('created_at')
 
     def delete_record(self, record, expire=False):
         """

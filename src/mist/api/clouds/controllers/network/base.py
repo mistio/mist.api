@@ -26,6 +26,7 @@ from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 
+from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
@@ -341,7 +342,15 @@ class BaseNetworkController(BaseController):
             network.name = net.name
             network.extra = copy.copy(net.extra)
             network.missing_since = None
-
+            try:
+                created = self._list_networks__network_creation_date(net)
+                if created:
+                    created = get_datetime(created)
+                    if network.created != created:
+                        network.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, network, exc)
             # Get the Network's CIDR.
             try:
                 network.cidr = self._list_networks__cidr_range(network, net)
@@ -435,6 +444,9 @@ class BaseNetworkController(BaseController):
         """
         return
 
+    def _list_networks__network_creation_date(self, libcloud_network):
+        return libcloud_network.extra.get('created_at')
+
     @LibcloudExceptionHandler(mist.api.exceptions.SubnetListingError)
     def list_subnets(self, network, **kwargs):
         """Lists all Subnets attached to a Network present on the Cloud.
@@ -478,7 +490,16 @@ class BaseNetworkController(BaseController):
             subnet.name = libcloud_subnet.name
             subnet.extra = copy.copy(libcloud_subnet.extra)
             subnet.missing_since = None
-
+            try:
+                created = self._list_subnets__subnet_creation_date(
+                    libcloud_subnet)
+                if created:
+                    created = get_datetime(created)
+                    if subnet.created != created:
+                        subnet.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, subnet, exc)
             # Get the Subnet's CIDR.
             try:
                 subnet.cidr = self._list_subnets__cidr_range(subnet,
@@ -584,6 +605,9 @@ class BaseNetworkController(BaseController):
         :param libcloud_subnet: A libcloud subnet object.
         """
         return
+
+    def _list_subnets__subnet_creation_date(self, libcloud_subnet):
+        return libcloud_subnet.extra.get('created_at')
 
     def rename_network(self, network, name):
         """Renames a network.
