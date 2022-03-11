@@ -2654,7 +2654,7 @@ class BaseComputeController(BaseController):
         locations, count = list_resources(
             auth_context,
             'location',
-            search=location_search,
+            search=f'{location_search} location_type:zone',
             cloud=self.cloud.id,
             limit=1000)
         if not count:

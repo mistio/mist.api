@@ -63,7 +63,7 @@ class GoogleContainerController(BaseContainerController):
             [location], _ = list_resources(
                 auth_context,
                 'location',
-                search=create_cluster_request.location,
+                search=f'{create_cluster_request.location} location_type:zone',
                 cloud=self.cloud.id,
                 limit=1)
         except ValueError:
