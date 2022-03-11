@@ -531,7 +531,7 @@ def filter_resources_by_tags(resources, tags):
 
 
 def list_resources(auth_context, resource_type, search='', cloud='', tags='',
-                   only='', sort='', start=0, limit=100, deref=''):
+                   only='', sort='', start=0, limit=100, deref='', at=''):
     """
     List resources of any type.
 
@@ -563,6 +563,8 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         start(int): The index of the first item to return.
         limit(int): Return up to this many items.
         deref(str):
+        at(str): Return resources created at or before a specific datetime
+            (irrespectively of deleted or missing_since status after it)
 
     Returns:
         tuple(A mongoengine QuerySet containing the objects found,
@@ -580,14 +582,23 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
     else:
         query = Q()
 
+    if at:
+        query &= Q(created__lte=at)
+
     if resource_type in ['cloud', 'key', 'script', 'template']:
-        query &= Q(deleted=False)
+        if at:
+            query &= Q(deleted=False) | Q(deleted__gte=at)
+        else:
+            query &= Q(deleted=False)
         if resource_type == 'cloud':
             query &= Q(enabled=True)
     elif resource_type in ['machine', 'cluster', 'network',
                            'volume', 'image', 'subnet',
                            'location', 'size']:
-        query &= Q(missing_since=None)
+        if at:
+            query &= Q(missing_since=None) | Q(missing_since__gte=at)
+        else:
+            query &= Q(missing_since=None)
 
     if cloud:
         clouds, _ = list_resources(
