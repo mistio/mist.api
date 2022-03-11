@@ -19,7 +19,7 @@ it is accessed through a cloud model, using the `ctl` abbreviation, like this:
 
 """
 import logging
-import time
+import uuid
 
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
@@ -119,6 +119,9 @@ class GoogleContainerController(BaseContainerController):
                                               zone=location,
                                               nodepools=nodepools)
 
+    def _destroy_cluster(self, name, zone):
+        return self.connection.destroy_cluster(name=name, zone=zone)
+
 
 class AmazonContainerController(BaseContainerController):
     def _connect(self, **kwargs):
@@ -166,124 +169,164 @@ class AmazonContainerController(BaseContainerController):
         kwargs = {
             'name': create_cluster_request.name,
         }
-
-        if create_cluster_request.role_arn is None:
-            raise Exception('Cluster role_arn is required')
-
-        kwargs['role_arn'] = create_cluster_request.role_arn
-        kwargs['security_groups'] = create_cluster_request.security_groups
-        kwargs['network'] = create_cluster_request.network
-        kwargs['subnets'] = create_cluster_request.subnets
-
+        nodepools = []
         if create_cluster_request.nodepools:
-            # TODO support more than one nodegroups
-            nodepool = create_cluster_request.nodepools[0]
-            if nodepool.role_arn is None:
-                raise Exception('Nodepool role_arn is required')
+            for nodepool in create_cluster_request.nodepools:
+                nodepool_dict = {}
+                if nodepool.size:
+                    from mist.api.methods import list_resources
+                    try:
+                        [size], _ = list_resources(
+                            auth_context,
+                            'size',
+                            search=nodepool.size,
+                            cloud=self.cloud.id,
+                            limit=1
+                        )
+                    except ValueError:
+                        raise Exception(f'Size {nodepool.size} does not exist')
 
-            kwargs['nodegroup_role_arn'] = nodepool.role_arn
-            if nodepool.size:
-                from mist.api.methods import list_resources
-                try:
-                    [size], _ = list_resources(
-                        auth_context,
-                        'size',
-                        search=nodepool.size,
-                        cloud=self.cloud.id,
-                        limit=1
-                    )
-                except ValueError:
-                    raise Exception(f"Size {nodepool.size} does not exist")
+                    nodepool_dict['size'] = size.external_id
+                else:
+                    nodepool_dict['size'] = ' t3.medium'
 
-                kwargs['size'] = size.external_id
-
-            kwargs['disk_size'] = nodepool.disk_size
-            kwargs['nodes'] = nodepool.nodes
-
+                nodepool_dict['disk_size'] = nodepool.disk_size or 20
+                nodepool_dict['nodes'] = nodepool.nodes or 2
+                nodepool_dict['disk_type'] = nodepool.disk_type or 'gp3'
+                nodepools.append(nodepool_dict)
+            kwargs['nodepools'] = nodepools
+        else:
+            # create a nodepool with the default parameters
+            kwargs['nodepools'] = [{
+                'size': 't3.medium',
+                'nodes': 2,
+                'disk_size': 20,
+                'disk_type': 'gp3'
+            }]
         return kwargs
 
-    def _create_cluster(self, auth_context, name, role_arn,
-                        security_groups=None, network=None, subnets=None,
-                        nodegroup_role_arn=None, size=None,
-                        disk_size=None, nodes=None,):
-        from mist.api.methods import list_resources
-        from mist.api.networks.models import AmazonSubnet
-        network_search = network or ''
-        networks, count = list_resources(auth_context,
-                                         'network',
-                                         search=network_search,
-                                         cloud=self.cloud.id,
-                                         )
-        if count == 0:
-            raise Exception(f'Network {network} does not exist')
+    def _create_cluster(self, auth_context, name,
+                        version="1.21", nodepools=None):
+        from mist.api.clouds.models import CloudLocation
+        from mist.api.helpers import get_boto_driver, get_aws_tags
+        from mist.api.aws_templates import ClusterAWSTemplate
+        from mist.api.aws_templates import ClusterNodeGroupAWSTemplate
+        zone_names = [location.name for location
+                      in CloudLocation.objects(
+                          cloud=self.cloud, missing_since=None)]
 
-        # try to use the default network if returned by list_resources
-        try:
-            network = next(network for network in networks
-                           if network.extra.get('is_default') == 'true')
-        except StopIteration:
-            network = networks[0]
+        cluster_template = ClusterAWSTemplate(cluster_name=name,
+                                              availability_zones=zone_names,
+                                              cluster_version=version)
+        cfn_driver = get_boto_driver(service="cloudformation",
+                                     key=self.cloud.apikey,
+                                     secret=self.cloud.apisecret,
+                                     region=self.cloud.region,
+                                     )
+        stack_name = f"mist-{name}-cluster"
+        stack = cfn_driver.create_stack(
+            StackName=stack_name,
+            TemplateBody=cluster_template.to_json(),
+            Capabilities=["CAPABILITY_IAM"],
+            Tags=get_aws_tags(resource_type='cluster', cluster_name=name),
+        )
 
-        if subnets:
-            subnets = AmazonSubnet.objects(id__in=subnets, network=network)
+        waiter = cfn_driver.get_waiter("stack_create_complete")
+        waiter.wait(StackName=stack["StackId"])
+        log.info("Cloud: %s, Cluster %s stack deployment finished",
+                 self.cloud, name)
+        nodepools = nodepools or []
+        stack_ids = []
+        for nodepool in nodepools:
+            nodepool_template = ClusterNodeGroupAWSTemplate(
+                cluster_stack_name=stack_name,
+                cluster_name=name,
+                size=nodepool['size'],
+                nodes=nodepool['nodes'],
+                min_nodes=nodepool['nodes'],
+                max_nodes=nodepool['nodes'],
+                volume_size=nodepool['disk_size'],
+                volume_type=nodepool['disk_type'],
+            )
+            nodegroup_stack_name = (
+                f"{stack_name}-nodegroup-{uuid.uuid4().hex[:5]}")
+            stack = cfn_driver.create_stack(
+                StackName=nodegroup_stack_name,
+                TemplateBody=nodepool_template.to_json(),
+                Capabilities=["CAPABILITY_IAM"],
+                Tags=get_aws_tags(resource_type='nodegroup',
+                                  cluster_name=name),
+            )
+            stack_ids.append(stack["StackId"])
+
+        for stack_id in stack_ids:
+            waiter.wait(StackName=stack_id)
+
+    def _destroy_cluster(self, name):
+        from mist.api.helpers import get_boto_driver, get_aws_tags
+        tag_driver = get_boto_driver(service='resourcegroupstaggingapi',
+                                     key=self.cloud.apikey,
+                                     secret=self.cloud.apisecret,
+                                     region=self.cloud.region,
+                                     )
+        cluster_stacks = tag_driver.get_resources(
+            ResourceTypeFilters=['cloudformation:stack'],
+            TagFilters=get_aws_tags(resource_type='cluster',
+                                    cluster_name=name,
+                                    resource_group_tagging=True)
+        )
+        cluster_stack_arns = [stack['ResourceARN'] for stack
+                              in cluster_stacks['ResourceTagMappingList']]
+        # Determine if cluster is created through CloudFormation
+        if len(cluster_stack_arns) > 0:
+            cluster_stack = cluster_stack_arns[0]
+            return self._destroy_cluster_stacks(
+                name=name,
+                cluster_stack=cluster_stack,
+                tag_driver=tag_driver)
         else:
-            # use the default subnets if no subnet list is given
-            subnets = [subnet for subnet
-                       in AmazonSubnet.objects(network=network)
-                       if subnet.extra.get('default') == 'true']
+            raise NotImplementedError()
 
-        subnet_ids = [subnet.subnet_id for subnet in subnets]
+    def _destroy_cluster_stacks(self, name, cluster_stack, tag_driver=None):
+        """Helper method to destroy a cluster that is managed with
+        CloudFormation stacks deployed by Mist.
+        """
+        from mist.api.helpers import get_boto_driver, get_aws_tags
+        if tag_driver is None:
+            tag_driver = get_boto_driver(
+                service='resourcegroupstaggingapi',
+                key=self.cloud.apikey,
+                secret=self.cloud.apisecret,
+                region=self.cloud.region,
+            )
+        cfn_driver = get_boto_driver(
+            service='cloudformation',
+            key=self.cloud.apikey,
+            secret=self.cloud.apisecret,
+            region=self.cloud.region,
+        )
+        # Find all CloudFormation stacks describing deployed nodegroups
+        nodegroup_stacks = tag_driver.get_resources(
+            ResourceTypeFilters=['cloudformation:stack'],
+            TagFilters=get_aws_tags(resource_type='nodegroup',
+                                    cluster_name=name,
+                                    resource_group_tagging=True)
+        )
+        nodegroup_stack_arns = [stack['ResourceARN']for stack
+                                in nodegroup_stacks['ResourceTagMappingList']]
 
-        if not security_groups:
-            groups = self.cloud.ctl.compute.connection.ex_list_security_groups()  # noqa
-            security_groups = [group['id'] for group in groups
-                               if group.get('name') == 'default' and
-                               group.get('vpc_id') == network.network_id]
+        log.info('Cloud: %s,Cluster:%s. Deleting nodegroup stacks',
+                 self.cloud, name)
+        for stack in nodegroup_stack_arns:
+            cfn_driver.delete_stack(StackName=stack)
 
-        cluster = self.connection.create_cluster(
-            name=name,
-            role_arn=role_arn,
-            vpc_id=network.network_id,
-            subnet_ids=subnet_ids,
-            security_group_ids=security_groups)
+        log.info('Cloud: %s,Cluster:%s. Waiting for nodegroup stacks deletion',
+                 self.cloud, name)
+        waiter = cfn_driver.get_waiter('stack_delete_complete')
+        for stack in nodegroup_stack_arns:
+            waiter.wait(StackName=stack)
 
-        # Only wait for the cluster to be in running state if we need
-        # to create a nodegroup.
-        if nodegroup_role_arn:
-            for _ in range(40):
-                log.info(
-                    'Waiting for cluster: %s to be in running state',
-                    cluster.name)
-                time.sleep(30)
-                try:
-                    cluster = self.connection.get_cluster(
-                        cluster.name, fetch_nodes=False)
-                except Exception as exc:
-                    log.error('Failed to get cluster with exception %r', exc)
-                else:
-                    if cluster.status == 'running':
-                        break
-
-            log.info('Cluster: %s is running', cluster.name)
-
-            kwargs = {
-                'cluster': cluster,
-                'name': f'{cluster.name}-nodegroup',
-                'role_arn': nodegroup_role_arn,
-                'subnet_ids': subnet_ids,
-            }
-
-            if nodes:
-                kwargs['desired_nodes'] = nodes
-                kwargs['max_nodes'] = nodes
-                kwargs['min_nodes'] = nodes
-
-            if size:
-                kwargs['instance_types'] = [size]
-
-            if disk_size:
-                kwargs['node_group_disk_size'] = disk_size
-
-            self.connection.ex_create_cluster_node_group(**kwargs)
-
-        return cluster
+        log.info('Cloud: %s,Cluster:%s. Deleting cluster stack',
+                 self.cloud, name)
+        cfn_driver.delete_stack(StackName=cluster_stack)
+        waiter.wait(StackName=cluster_stack)

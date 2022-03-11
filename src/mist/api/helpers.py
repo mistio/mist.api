@@ -1928,3 +1928,44 @@ def select_plan(valid_plans, optimize, auth_context):
         plan = min(valid_plans, key=operator.itemgetter('performance'))
         plan.pop('performance')
         return plan
+
+
+def get_boto_driver(service, key, secret, region):
+    import boto3
+    return boto3.client(service,
+                        aws_access_key_id=key,
+                        aws_secret_access_key=secret,
+                        region_name=region,
+                        )
+
+
+def get_aws_tags(resource_type: str,
+                 cluster_name: str,
+                 resource_group_tagging: bool = False):
+    """Return the tags that should be applied to a CloudFormation stack
+    that manages the given cluster or cluster nodegroup.
+    These tags will determine if the given cluster/nodegroup is managed
+    by a CloudFormation stack created by Mist.
+    """
+    tags = {
+        'mist.io/cluster-name': cluster_name,
+        'mist.io/managed': '1',
+        'mist.io/type': resource_type,
+
+    }
+    aws_tags = []
+    # Convert tags to the way AWS API expects them
+    # The Resource Groups Tagging API accepts multiple Tag values for a
+    # key.
+    for key, value in tags.items():
+        if resource_group_tagging:
+            aws_tags.append({
+                'Key': key,
+                'Values': [value],
+            })
+        else:
+            aws_tags.append({
+                'Key': key,
+                'Value': value,
+            })
+    return aws_tags

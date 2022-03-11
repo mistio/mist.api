@@ -23,7 +23,6 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
-from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
@@ -59,7 +58,7 @@ class BaseContainerController(BaseController):
     def _assert_container_feature_enabled(self):
         if not hasattr(self.cloud.ctl, 'container') or \
                 not self.cloud.container_enabled:
-            raise ServiceUnavailableError(
+            raise BadRequestError(
                 f'Container feature is disabled on cloud: {self.cloud}')
 
     def _add_schedule_interval(self):
@@ -79,8 +78,7 @@ class BaseContainerController(BaseController):
     def create_cluster(self, auth_context, *args, **kwargs):
         self._assert_container_feature_enabled()
         result = self._create_cluster(auth_context, *args, **kwargs)
-        if result:
-            self._add_schedule_interval()
+        self._add_schedule_interval()
         return result
 
     def validate_create_cluster_request(self, auth_context,
@@ -102,8 +100,7 @@ class BaseContainerController(BaseController):
     def destroy_cluster(self, *args, **kwargs):
         self._assert_container_feature_enabled()
         result = self._destroy_cluster(*args, **kwargs)
-        if result:
-            self._add_schedule_interval()
+        self._add_schedule_interval()
         return result
 
     def list_cached_clusters(self, timedelta=datetime.timedelta(days=1)):
@@ -393,11 +390,15 @@ class BaseContainerController(BaseController):
             try:
                 node = Machine.objects.get(name=pod.node_name,
                                            cloud=self.cloud,
-                                           cluster=cluster)
+                                           cluster=cluster,
+                                           missing_since=None)
                 return node
             except Machine.DoesNotExist:
                 log.warning('Failed to get parent node: %s for pod: %s',
                             pod.node_name, pod.id)
+            except me.MultipleObjectsReturned:
+                log.error("Multiple Machines found for pod %s, Cloud: %s",
+                          pod.node_name, self.cloud)
 
     def list_cached_pods(self, timedelta=datetime.timedelta(days=1)):
         """Return list of pod machines from database

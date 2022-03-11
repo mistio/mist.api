@@ -9,6 +9,7 @@
 amqp<3.0
 apscheduler
 beautifulsoup4
+boto3
 dnspython
 dateparser
 dramatiq
@@ -52,6 +53,7 @@ sentry-dramatiq
 sentry-sdk
 sockjs-tornado
 tornado
+troposphere
 #tornado_profile
 uwsgidecorators
 websocket-client
