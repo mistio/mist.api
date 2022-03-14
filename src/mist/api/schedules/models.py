@@ -417,3 +417,16 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
         }
 
         return sdict
+
+    def as_dict_v2(self, deref='auto', only=''):
+        """Returns the API representation of the `Schedule` object."""
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['id', 'name', 'description']
+        deref_map = {
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        return ret

@@ -11,6 +11,7 @@ import mongoengine as me
 
 from mist.api.helpers import rtype_to_classpath
 from mist.api.scripts.models import Script
+from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import BadRequestError
@@ -219,8 +220,8 @@ class BaseController(object):
 
         schedule_type = kwargs.pop('schedule_type', '')
 
-        if (schedule_type == 'crontab' or
-                isinstance(self.schedule.schedule_type, schedules.Crontab)):
+        if (schedule_type == 'crontab' or isinstance(
+                self.schedule.schedule_type, schedules.Crontab)):
             schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
@@ -232,8 +233,8 @@ class BaseController(object):
                 self.schedule.schedule_type = schedules.Crontab(
                     **schedule_entry)
 
-        elif (schedule_type == 'interval' or
-                type(self.schedule.schedule_type) == schedules.Interval):
+        elif (schedule_type == 'interval' or type(
+                self.schedule.schedule_type) == schedules.Interval):
             schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
@@ -244,8 +245,8 @@ class BaseController(object):
                 self.schedule.schedule_type = schedules.Interval(
                     **schedule_entry)
 
-        elif (schedule_type in ['one_off', 'reminder'] or
-                type(self.schedule.schedule_type) == schedules.OneOff):
+        elif (schedule_type in ['one_off', 'reminder'] or type(
+                self.schedule.schedule_type) == schedules.OneOff):
             # implements Interval under the hood
             future_date = kwargs.pop('schedule_entry', '')
 
@@ -411,3 +412,15 @@ class BaseController(object):
             raise BadRequestError("Specify at least resource ids or tags")
 
         return
+
+    def delete(self):
+        """ Delete a schedule
+
+        By default the corresponding mongodb document is not actually
+        deleted, but rather marked as deleted.
+
+        """
+
+        self.schedule.deleted = datetime.datetime.utcnow()
+        self.schedule.save()
+        trigger_session_update(self.schedule.owner, ['schedules'])
