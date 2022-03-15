@@ -213,7 +213,9 @@ class AmazonContainerController(BaseContainerController):
         from mist.api.aws_templates import ClusterNodeGroupAWSTemplate
         zone_names = [location.name for location
                       in CloudLocation.objects(
-                          cloud=self.cloud, missing_since=None)]
+                          cloud=self.cloud,
+                          missing_since=None,
+                          location_type='zone')]
 
         cluster_template = ClusterAWSTemplate(cluster_name=name,
                                               availability_zones=zone_names,
