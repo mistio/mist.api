@@ -413,6 +413,18 @@ class BaseController(object):
 
         return
 
+    def edit(self, name=None, description=None):
+        """Edit name or description of an existing schedule"""
+        log.info("Edit schedule '%s''.", self.schedule.name)
+
+        if name:
+            self.schedule.name = name
+        if description:
+            self.schedule.description = description
+        self.schedule.save()
+        log.info("Edit schedule: '%s'.", self.schedule.id)
+        trigger_session_update(self.schedule.owner, ['schedules'])
+
     def delete(self):
         """ Delete a schedule
 
