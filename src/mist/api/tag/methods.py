@@ -1,7 +1,8 @@
 from mongoengine import Q
 from mist.api.tag.models import Tag
 from mist.api.helpers import trigger_session_update
-from mist.api.helpers import get_object_with_id, search_parser, startsandendswith
+from mist.api.helpers import get_object_with_id, search_parser
+from mist.api.helpers import startsandendswith
 from functools import reduce
 from mist.api.config import TAGS_RESOURCE_TYPES
 
@@ -60,7 +61,7 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
             kv_temp = kv.copy()
             kv['resources'] = {}
             for resource_type in TAGS_RESOURCE_TYPES:
-                kv['resources'][resource_type+'s'] = [
+                kv['resources'][resource_type + 's'] = [
                                             tag.resource_id for tag in
                                             tags.filter(**kv_temp,
                                                         resource_type=resource_type)  # noqa: E501
@@ -84,12 +85,12 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
 
     meta = {
         'total': len(data),
-        'returned': len(data[start:start+limit]),
+        'returned': len(data[start:start + limit]),
         'sort': sort,
         'start': start
     }
 
-    return data[start:start+limit], meta
+    return data[start:start + limit], meta
 
 
 def get_tags_for_resource(owner, resource_obj, *args, **kwargs):
