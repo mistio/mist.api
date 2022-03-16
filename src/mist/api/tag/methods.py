@@ -1,8 +1,95 @@
 from mongoengine import Q
 from mist.api.tag.models import Tag
 from mist.api.helpers import trigger_session_update
-from mist.api.helpers import get_object_with_id
+from mist.api.helpers import get_object_with_id, search_parser, startsandendswith
 from functools import reduce
+from mist.api.config import TAGS_RESOURCE_TYPES
+
+
+def get_tags(auth_context, verbose='', resource='', search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
+    query = Q(owner=auth_context.owner)
+    if resource:
+        query &= Q(resource_type=resource.rstrip('s'))
+
+    # search filter contains space separated terms
+    # if the term contains :,=,<,>,!=, <=, >= then assume key/value query
+    # otherwise search for objects with id or name matching the term
+    terms = search_parser(search)
+    for term in terms:
+        if ':' in term:
+            k, v = term.split(':')
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+        elif '!=' in term:
+            k, v = term.split('!=')
+            mongo_operator = '__ne'
+        elif '<=' in term:
+            k, v = term.split('<=')
+            mongo_operator = '__lte'
+        elif '>=' in term:
+            k, v = term.split('>=')
+            mongo_operator = '__gte'
+        elif '>' in term:
+            k, v = term.split('>')
+            mongo_operator = '__gt'
+        elif '<' in term:
+            k, v = term.split('<')
+            mongo_operator = '__lt'
+        elif '=' in term:
+            k, v = term.split('=')
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+        else:
+            k, v = 'key', term
+            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+        query &= Q(**{f'{k}{mongo_operator}': v})
+
+    if sort[0] in ['+', '-'] and sort[1:] in ['key', 'resource_count']:
+        reverse = True if sort[0] == '-' else False
+        sort = sort[1:]
+    elif sort in ['key', 'resource_count']:
+        reverse = False
+    else:
+        sort = 'key'
+        reverse = False
+
+    tags = Tag.objects(query)
+    data = [{'key': k, 'value': v} for k, v in
+            set((t.key, t.value) for t in tags)]
+
+    if verbose:
+        for kv in data:
+            kv_temp = kv.copy()
+            kv['resources'] = {}
+            for resource_type in TAGS_RESOURCE_TYPES:
+                kv['resources'][resource_type+'s'] = [
+                                            tag.resource_id for tag in
+                                            tags.filter(**kv_temp,
+                                                        resource_type=resource_type)  # noqa: E501
+                ]
+    if sort == "resource_count" and verbose:
+        data.sort(key=lambda x: sum(map(len, x['resources'])), reverse=reverse)
+    elif sort == 'key':
+        data.sort(key=lambda x: x['key'], reverse=False)
+
+    try:
+        start = int(start)
+        limit = int(limit)
+    except (ValueError, TypeError):
+        start = 0
+        limit = 100
+
+    if only:
+        only_list = [field for field in data[0]
+                     if field in only.split(',')]
+        data = [{k: v for k, v in d.items() if k in only_list} for d in data]
+
+    meta = {
+        'total': len(data),
+        'returned': len(data[start:start+limit]),
+        'sort': sort,
+        'start': start
+    }
+
+    return data[start:start+limit], meta
 
 
 def get_tags_for_resource(owner, resource_obj, *args, **kwargs):
