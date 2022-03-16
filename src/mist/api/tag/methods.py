@@ -1,8 +1,8 @@
+import re
 from mongoengine import Q
 from mist.api.tag.models import Tag
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import get_object_with_id, search_parser
-from mist.api.helpers import startsandendswith
 from functools import reduce
 from mist.api.config import TAGS_RESOURCE_TYPES
 
@@ -17,30 +17,12 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
     # otherwise search for objects with id or name matching the term
     terms = search_parser(search)
     for term in terms:
-        if ':' in term:
-            k, v = term.split(':')
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
-        elif '!=' in term:
-            k, v = term.split('!=')
+        if "!=" in term:
+            k, v = term.split("!=")
             mongo_operator = '__ne'
-        elif '<=' in term:
-            k, v = term.split('<=')
-            mongo_operator = '__lte'
-        elif '>=' in term:
-            k, v = term.split('>=')
-            mongo_operator = '__gte'
-        elif '>' in term:
-            k, v = term.split('>')
-            mongo_operator = '__gt'
-        elif '<' in term:
-            k, v = term.split('<')
-            mongo_operator = '__lt'
-        elif '=' in term:
-            k, v = term.split('=')
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
-        else:
-            k, v = 'key', term
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+        elif ':' in term or '=' in term:
+            k, v = re.split(r'[:,=]', term)
+            mongo_operator = ''
         query &= Q(**{f'{k}{mongo_operator}': v})
 
     if sort[0] in ['+', '-'] and sort[1:] in ['key', 'resource_count']:
