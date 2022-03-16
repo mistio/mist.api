@@ -582,11 +582,9 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
     else:
         query = Q()
 
-    if at:
-        query &= Q(created__lte=at)
-
     if resource_type in ['cloud', 'key', 'script', 'template']:
         if at:
+            query &= Q(created__lte=at)
             query &= Q(deleted=False) | Q(deleted__gte=at)
         else:
             query &= Q(deleted=False)
