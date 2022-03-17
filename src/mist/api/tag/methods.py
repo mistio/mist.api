@@ -5,6 +5,7 @@ from mist.api.helpers import trigger_session_update
 from mist.api.helpers import get_object_with_id, search_parser
 from functools import reduce
 from mist.api.config import TAGS_RESOURCE_TYPES
+from mist.api.helpers import get_resource_model
 
 
 def get_tags(auth_context, verbose='', resource='', search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
@@ -39,14 +40,21 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
             set((t.key, t.value) for t in tags)]
 
     if verbose:
+        # import ipdb; ipdb.set_trace()
         for kv in data:
             kv_temp = kv.copy()
             kv['resources'] = {}
             for resource_type in TAGS_RESOURCE_TYPES:
+                resource_obj = get_resource_model(resource_type)
+                if deref == "name":
+                    attr = "title" if resource_type == "cloud" else deref
+                else:
+                    attr = "id"
+
                 kv['resources'][resource_type + 's'] = [
-                                            tag.resource_id for tag in
-                                            tags.filter(**kv_temp,
-                                                        resource_type=resource_type)  # noqa: E501
+                                            getattr(resource_obj.objects('id' == tag.resource_id)[0], attr)  # noqa: E501
+                                            for tag in tags.filter(**kv_temp,
+                                                                   resource_type=resource_type)  # noqa: E501
                 ]
     if sort == "resource_count" and verbose:
         data.sort(key=lambda x: sum(map(len, x['resources'])), reverse=reverse)
