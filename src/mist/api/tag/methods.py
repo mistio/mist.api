@@ -57,8 +57,8 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
                             resource_obj = get_resource_model(resource_type)
                             try:
                                 attr = getattr(
-                                        resource_obj.objects.get(id=rid),
-                                        deref)
+                                    resource_obj.objects.get(id=rid),
+                                    deref)
                             except me.DoesNotExist:
                                 log.error('%s with id %s does not exist',
                                           resource_type, tag.resource_id)
