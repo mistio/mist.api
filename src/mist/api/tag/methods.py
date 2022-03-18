@@ -43,7 +43,6 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
     data = [{'key': k, 'value': v} for k, v in
             set((t.key, t.value) for t in tags)]
 
-    deref = deref if deref == ('name') else 'id'
     if verbose:
         # import ipdb; ipdb.set_trace()
         for kv in data:
@@ -52,18 +51,23 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
             for resource_type in TAGS_RESOURCE_TYPES:
                 kv['resources'][resource_type + 's'] = []
                 for tag in tags.filter(**kv_temp, resource_type=resource_type):
-                    try:
-                        resource_obj = get_resource_model(resource_type)
+                    rid = tag.resource_id
+                    if deref == "name":
                         try:
-                            kv['resources'][resource_type + 's'].append(
-                                getattr(resource_obj.objects.get(
-                                        id=tag.resource_id), deref))
-                        except me.DoesNotExist:
-                            log.error('%s with id %s does not exist',
-                                      resource_type, tag.resource_id)
-                    except KeyError:
-                        log.error('Failed to resolve classpath for %s',
-                                  resource_type)
+                            resource_obj = get_resource_model(resource_type)
+                            try:
+                                attr = getattr(
+                                        resource_obj.objects.get(id=rid),
+                                        deref)
+                            except me.DoesNotExist:
+                                log.error('%s with id %s does not exist',
+                                          resource_type, tag.resource_id)
+                        except KeyError:
+                            log.error('Failed to resolve classpath for %s',
+                                      resource_type)
+                    else:
+                        attr = rid
+                    kv['resources'][resource_type + 's'] = attr
 
     if sort == "resource_count" and verbose:
         data.sort(key=lambda x: sum(map(len, x['resources'])), reverse=reverse)
@@ -77,7 +81,7 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
         start = 0
         limit = 100
 
-    if only:
+    if only and data:
         only_list = [field for field in data[0]
                      if field in only.split(',')]
         data = [{k: v for k, v in d.items() if k in only_list} for d in data]
