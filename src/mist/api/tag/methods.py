@@ -1,11 +1,15 @@
+import logging
 import re
 from mongoengine import Q
+import mongoengine as me
 from mist.api.tag.models import Tag
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import get_object_with_id, search_parser
 from functools import reduce
 from mist.api.config import TAGS_RESOURCE_TYPES
 from mist.api.helpers import get_resource_model
+
+log = logging.getLogger(__name__)
 
 
 def get_tags(auth_context, verbose='', resource='', search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
@@ -39,27 +43,32 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
     data = [{'key': k, 'value': v} for k, v in
             set((t.key, t.value) for t in tags)]
 
+    deref = deref if deref == ('name') else 'id'
     if verbose:
         # import ipdb; ipdb.set_trace()
         for kv in data:
             kv_temp = kv.copy()
             kv['resources'] = {}
             for resource_type in TAGS_RESOURCE_TYPES:
-                resource_obj = get_resource_model(resource_type)
-                if deref == "name":
-                    attr = "title" if resource_type == "cloud" else deref
-                else:
-                    attr = "id"
+                kv['resources'][resource_type + 's'] = []
+                for tag in tags.filter(**kv_temp, resource_type=resource_type):
+                    try:
+                        resource_obj = get_resource_model(resource_type)
+                        try:
+                            kv['resources'][resource_type+'s'].append(
+                                getattr(resource_obj.objects.get(
+                                        id=tag.resource_id), deref))
+                        except me.DoesNotExist:
+                            log.error('%s with id %s does not exist',
+                                      resource_type, tag.resource_id)
+                    except KeyError:
+                        log.error('Failed to resolve classpath for %s',
+                                  resource_type)
 
-                kv['resources'][resource_type + 's'] = [
-                                            getattr(resource_obj.objects('id' == tag.resource_id)[0], attr)  # noqa: E501
-                                            for tag in tags.filter(**kv_temp,
-                                                                   resource_type=resource_type)  # noqa: E501
-                ]
     if sort == "resource_count" and verbose:
         data.sort(key=lambda x: sum(map(len, x['resources'])), reverse=reverse)
     elif sort == 'key':
-        data.sort(key=lambda x: x['key'], reverse=False)
+        data.sort(key=lambda x: x['key'], reverse=reverse)
 
     try:
         start = int(start)
