@@ -55,7 +55,7 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
                     try:
                         resource_obj = get_resource_model(resource_type)
                         try:
-                            kv['resources'][resource_type+'s'].append(
+                            kv['resources'][resource_type + 's'].append(
                                 getattr(resource_obj.objects.get(
                                         id=tag.resource_id), deref))
                         except me.DoesNotExist:
