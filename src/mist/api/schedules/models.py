@@ -421,7 +421,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
     def as_dict_v2(self, deref='auto', only=''):
         """Returns the API representation of the `Schedule` object."""
         from mist.api.helpers import prepare_dereferenced_dict
-        standard_fields = ['id', 'name', 'description', 'task_enabled', 
+        standard_fields = ['id', 'name', 'description', 'task_enabled',
                            'start_after', 'run_immediately']
         deref_map = {
             'owned_by': 'email',
@@ -429,15 +429,15 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
-        
+
         if 'schedule_entry' in only or not only:
             ret['schedule_entry'] = self.schedule_type.as_dict()
-        
+
         if 'schedule_type' in only or not only:
             ret['schedule_type'] = self.schedule_type.type
 
         ret['action'] = self.task_type.action
-        
+
         selectors = [selector.as_dict() for selector in self.selectors]
 
         ret['resource_type'] = selectors[0]['type']
