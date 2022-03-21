@@ -44,27 +44,26 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
             set((t.key, t.value) for t in tags)]
 
     if verbose:
-        # import ipdb; ipdb.set_trace()
+
         for kv in data:
             kv_temp = kv.copy()
             kv['resources'] = {}
             for resource_type in TAGS_RESOURCE_TYPES:
                 kv['resources'][resource_type + 's'] = []
+                try:
+                    resource_obj = get_resource_model(resource_type)
+                except KeyError:
+                    continue
                 for tag in tags.filter(**kv_temp, resource_type=resource_type):
                     rid = tag.resource_id
                     if deref == "name":
                         try:
-                            resource_obj = get_resource_model(resource_type)
-                            try:
-                                attr = getattr(
-                                    resource_obj.objects.get(id=rid),
-                                    deref)
-                            except me.DoesNotExist:
-                                log.error('%s with id %s does not exist',
-                                          resource_type, tag.resource_id)
-                        except KeyError:
-                            log.error('Failed to resolve classpath for %s',
-                                      resource_type)
+                            attr = getattr(
+                                resource_obj.objects.get(id=rid),
+                                deref)
+                        except me.DoesNotExist:
+                            log.error('%s with id %s does not exist',
+                                      resource_type, tag.resource_id)
                     else:
                         attr = rid
                     kv['resources'][resource_type + 's'] = attr
