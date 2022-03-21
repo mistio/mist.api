@@ -732,7 +732,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     password = mail_settings.get('mail.password')
     tls = mail_settings.get('mail.tls')
     starttls = mail_settings.get('mail.starttls')
-
+    ret_val = False
     # try 3 times to circumvent network issues
     for attempt in range(attempts):
         try:
@@ -746,18 +746,25 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
                 server.login(username, password)
 
             server.sendmail(sender, recipients, msg.as_string())
-            server.quit()
-            return True
+            ret_val = True
         except smtplib.SMTPException as exc:
             if attempt == attempts - 1:
                 log.error(
                     "Could not send email to %s after %d retries! Error: %r",
                     recipients, attempts, exc)
-                return False
             else:
                 log.warn("Could not send email! Error: %r", exc)
                 log.warn("Retrying in 5 seconds...")
                 sleep(5)
+        finally:
+            try:
+                server.quit()
+            except Exception as exc:
+                log.error("Failed to terminate SMTP Session with exception %r",
+                          exc)
+            if ret_val:
+                return ret_val
+    return ret_val
 
 
 rtype_to_classpath = {
