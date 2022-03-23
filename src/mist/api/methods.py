@@ -392,21 +392,21 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
         if cloud_name:
             body += "  Name: %s\n" % cloud_name
         body += "  Id: %s\n" % cloud_id
-        if 'machine_id' in kwargs:
-            machine_id = kwargs['machine_id']
+        if 'external_id' in kwargs:
+            external_id = kwargs['external_id']
             body += "Machine:\n"
             if kwargs.get('machine_name'):
                 name = kwargs['machine_name']
             else:
                 try:
                     name = Machine.objects.get(cloud=cloud,
-                                               external_id=machine_id).name
+                                               external_id=external_id).name
                 except DoesNotExist:
                     name = ''
             if name:
                 body += "  Name: %s\n" % name
-            title += " for machine %s" % (name or machine_id)
-            body += "  Id: %s\n" % machine_id
+            title += " for machine %s" % (name or external_id)
+            body += "  Id: %s\n" % external_id
     if 'error' in kwargs:
         error = kwargs['error']
         body += "Result: %s\n" % ('Success' if not error else 'Error')
