@@ -3315,7 +3315,7 @@ class VultrComputeController(BaseComputeController):
 
 class VSphereComputeController(BaseComputeController):
 
-        def _connect(self, **kwargs):
+    def _connect(self, **kwargs):
         from libcloud.compute.drivers.vsphere import VSphereNodeDriver
         from libcloud.compute.drivers.vsphere import VSphere_6_7_NodeDriver
         ca_cert = None

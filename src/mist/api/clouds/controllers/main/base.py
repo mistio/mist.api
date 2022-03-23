@@ -19,8 +19,6 @@ import datetime
 
 import mongoengine as me
 
-from mist.api import config
-
 from mist.api.exceptions import MistError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudExistsError

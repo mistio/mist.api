@@ -94,7 +94,7 @@ class AmazonStorageController(BaseStorageController):
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
                 log.warning('%s attached to unknown machine "%s"', volume,
-                          external_id)
+                            external_id)
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -156,7 +156,7 @@ class DigitalOceanStorageController(BaseStorageController):
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
                 log.warning('%s attached to unknown machine "%s"', volume,
-                          external_id)
+                            external_id)
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
