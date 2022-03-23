@@ -98,18 +98,18 @@ def _get_alert_details(resource, rule, incident_id,
 
 # TODO Deprecate.
 def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
-                                  cloud_id='', machine_id='', action='',
+                                  cloud_id='', external_id='', action='',
                                   level='', description=''):
-    # Always pass (cloud_id, machine_id) explicitly instead of getting them
+    # Always pass (cloud_id, external_id) explicitly instead of getting them
     # from  the `Rule` instance, as before, since instances of `NoDataRule`
     # will most likely return multiple resources, which is not supported by
     # the current implementation.
     from mist.api.monitoring.methods import find_metrics
-    assert cloud_id and machine_id
+    assert cloud_id and external_id
     rule = Rule.objects.get(owner_id=owner.id, title=rule_id)
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    machine = Machine.objects.get(cloud=cloud, external_id=machine_id)
+    machine = Machine.objects.get(cloud=cloud, external_id=external_id)
 
     metrics = find_metrics(machine)
 
@@ -165,7 +165,8 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
         'rule_id': rule.id,
         'rule_title': rule.title,
         'cloud_id': cloud_id,
-        'machine_id': machine_id,
+        'machine_id': machine.id,
+        'external_id': external_id,
         'name': machine.name,
         'resource_name': machine.name,
         'resource_repr': _get_resource_repr(machine),
