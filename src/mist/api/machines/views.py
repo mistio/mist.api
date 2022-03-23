@@ -663,37 +663,40 @@ def edit_machine(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-        machine_id = request.matchdict['machine']
+        external_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          external_id=machine_id,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_uuid'] = machine.id
+                                          external_id=external_id,
+                                          owner=auth_context.org)
         except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+            try:
+                machine = Machine.objects.get(cloud=cloud_id,
+                                              id=external_id,
+                                              owner=auth_context.org)
+            except Machine.DoesNotExist:
+                raise NotFoundError("Machine %s doesn't exist" % external_id)
     else:
-        machine_uuid = request.matchdict['machine_uuid']
+        machine_id = request.matchdict['machine']
         try:
-            machine = Machine.objects.get(id=machine_uuid)
+            machine = Machine.objects.get(
+                id=machine_id, owner=auth_context.org)
             # VMs in libvirt can be started no matter if they are terminated
             if machine.state == 'terminated' and not isinstance(machine.cloud,
                                                                 LibvirtCloud):
                 raise NotFoundError(
-                    "Machine %s has been terminated" % machine_uuid
+                    "Machine %s has been terminated" % machine_id
                 )
-            # used by logging_view_decorator
-            request.environ['machine_id'] = machine.external_id
-            request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
 
         cloud_id = machine.cloud.id
         auth_context.check_perm("cloud", "read", cloud_id)
 
-    if machine.cloud.owner != auth_context.owner:
-        raise NotFoundError("Machine %s doesn't exist" % machine.id)
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
 
     tags, constraints = auth_context.check_perm("machine", "edit", machine.id)
     expiration = params.get('expiration', {})
@@ -722,7 +725,7 @@ def machine_actions(request):
     ACTION permission required on machine(ACTION can be START,
     STOP, DESTROY, REBOOT or RESIZE, RENAME for some providers).
     ---
-    machine_uuid:
+    machine:
       in: path
       required: true
       type: string
@@ -780,43 +783,42 @@ def machine_actions(request):
     delete_domain_image = params.get('delete_domain_image', False)
     auth_context = auth_context_from_request(request)
     if cloud_id:
-        machine_id = request.matchdict['machine']
+        external_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          external_id=machine_id)
+                                          external_id=external_id,
+                                          owner=auth_context.org)
             # VMs in libvirt can be started no matter if they are terminated
             # also they may be undefined from a terminated state
             if machine.state == 'terminated' and not isinstance(machine.cloud,
                                                                 LibvirtCloud):
                 raise NotFoundError(
-                    "Machine %s has been terminated" % machine_id
+                    "Machine %s has been terminated" % external_id
                 )
-            # used by logging_view_decorator
-            request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+            raise NotFoundError("Machine %s doesn't exist" % external_id)
     else:
-        machine_uuid = request.matchdict['machine_uuid']
+        machine_id = request.matchdict['machine']
         try:
-            machine = Machine.objects.get(id=machine_uuid)
+            machine = Machine.objects.get(
+                id=machine_id, owner=auth_context.org)
             # VMs in libvirt can be started no matter if they are terminated
             if machine.state == 'terminated' and not isinstance(machine.cloud,
                                                                 LibvirtCloud):
                 raise NotFoundError(
-                    "Machine %s has been terminated" % machine_uuid
+                    "Machine %s has been terminated" % machine_id
                 )
-            # used by logging_view_decorator
-            request.environ['machine_id'] = machine.external_id
-            request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
 
         cloud_id = machine.cloud.id
         auth_context.check_perm("cloud", "read", cloud_id)
 
-    if machine.cloud.owner != auth_context.owner:
-        raise NotFoundError("Machine %s doesn't exist" % machine.id)
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
 
     auth_context.check_perm("machine", action, machine.id)
 
@@ -968,29 +970,31 @@ def machine_rdp(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-        machine_id = request.matchdict['machine']
+        external_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          external_id=machine_id,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_uuid'] = machine.id
+                                          external_id=external_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % external_id)
+    else:
+        machine_id = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    else:
-        machine_uuid = request.matchdict['machine_uuid']
-        try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_id'] = machine.external_id
-            request.environ['cloud_id'] = machine.cloud.id
-        except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
         cloud_id = machine.cloud.id
         auth_context.check_perm("cloud", "read", cloud_id)
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
 
     auth_context.check_perm("machine", "read", machine.id)
     rdp_port = request.params.get('rdp_port', 3389)
@@ -1052,29 +1056,31 @@ def machine_console(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-        machine_id = request.matchdict['machine']
+        external_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          external_id=machine_id,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_uuid'] = machine.id
+                                          external_id=external_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % external_id)
+    else:
+        machine_id = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    else:
-        machine_uuid = request.matchdict['machine_uuid']
-        try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_id'] = machine.external_id
-            request.environ['cloud_id'] = machine.cloud.id
-        except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
         cloud_id = machine.cloud.id
         auth_context.check_perm("cloud", "read", cloud_id)
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
 
     auth_context.check_perm("machine", "read", machine.id)
 
@@ -1118,29 +1124,31 @@ def machine_ssh(request):
     cloud_id = request.matchdict.get('cloud')
     auth_context = auth_context_from_request(request)
     if cloud_id:
-        machine_id = request.matchdict['machine']
+        external_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_uuid'] = machine.id
+                                          external_id=external_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % external_id)
+    else:
+        machine_id = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    else:
-        machine_uuid = request.matchdict['machine_uuid']
-        try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_id'] = machine.machine_id
-            request.environ['cloud_id'] = machine.cloud.id
-        except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
         cloud_id = machine.cloud.id
         auth_context.check_perm("cloud", "read", cloud_id)
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
 
     auth_context.check_perm("machine", "read", machine.id)
 

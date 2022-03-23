@@ -314,23 +314,22 @@ def volume_action(request):
 
     params = params_from_request(request)
     action = params.pop('action', '')
-    machine_uuid = params.pop('machine', '')
+    machine_id = params.pop('machine', '')
 
     if action not in ('attach', 'detach'):
         raise BadRequestError()
 
-    if not machine_uuid:
+    if not machine_id:
         raise RequiredParameterMissingError('machine')
 
     cloud_id = request.matchdict.get('cloud')
-    external_id = request.matchdict.get('volume_ext')
-    if external_id:
-        external_id = '/'.join(external_id)
+    external_id = request.matchdict.get(
+        'external_id', request.matchdict.get('volume_ext', None))
 
-    volume_id = request.matchdict.get('volume_id')
+    volume_id = request.matchdict.get(
+        'volume', request.matchdict.get('volume_id', None))
 
     if cloud_id:
-
         try:
             cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
                                       deleted=None)
@@ -347,20 +346,23 @@ def volume_action(request):
             request.matchdict['volume'] = volume.id
         except me.DoesNotExist:
             raise VolumeNotFoundError()
-
     else:
-
         try:
-            volume = Volume.objects.get(id=volume_id, missing_since=None)
+            volume = Volume.objects.get(
+                id=volume_id, missing_since=None, owner=auth_context.org)
         except me.DoesNotExist:
             raise VolumeNotFoundError()
-
         cloud = volume.cloud
 
     try:
-        machine = Machine.objects.get(id=machine_uuid, missing_since=None)
+        machine = Machine.objects.get(id=machine_id, missing_since=None)
     except Machine.DoesNotExist:
         raise MachineNotFoundError()
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = volume.cloud.id
+    request.environ['volume'] = volume.id
+    request.environ['external_id'] = volume.external_id
 
     auth_context.check_perm("cloud", "read", cloud.id)
     auth_context.check_perm("volume", "read", volume.id)

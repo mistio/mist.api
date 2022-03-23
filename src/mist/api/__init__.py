@@ -178,7 +178,7 @@ def add_routes(configurator):
                            custom_predicates=[valid_ui_section])
     configurator.add_route('home', '/')
     configurator.add_route('switch_context', '/switch_context')
-    configurator.add_route('switch_context_org', '/switch_context/{org_id}')
+    configurator.add_route('switch_context_org', '/switch_context/{org}')
     configurator.add_route('login', '/login')
     configurator.add_route('login_service', 'login/{service}')
     configurator.add_route('logout', '/logout')
@@ -220,22 +220,22 @@ def add_routes(configurator):
     configurator.add_route('api_v1_cloud_machine',
                            '/api/v1/clouds/{cloud}/machines/{machine}')
     configurator.add_route('api_v1_machine',
-                           '/api/v1/machines/{machine_uuid}')
+                           '/api/v1/machines/{machine}')
 
     configurator.add_route('api_v1_cloud_machine_rdp',
                            '/api/v1/clouds/{cloud}/machines/{machine}/rdp')
     configurator.add_route('api_v1_machine_rdp',
-                           '/api/v1/machines/{machine_uuid}/rdp')
+                           '/api/v1/machines/{machine}/rdp')
 
     configurator.add_route(
         'api_v1_cloud_machine_console',
         '/api/v1/clouds/{cloud}/machines/{machine}/console'
     )
     configurator.add_route('api_v1_machine_console',
-                           '/api/v1/machines/{machine_uuid}/console')
+                           '/api/v1/machines/{machine}/console')
 
     configurator.add_route('api_v1_machine_ssh',
-                           '/api/v1/machines/{machine_uuid}/ssh')
+                           '/api/v1/machines/{machine}/ssh')
 
     configurator.add_route('api_v1_machine_tags',
                            '/api/v1/clouds/{cloud}/machines/{machine}/tags')
@@ -267,7 +267,7 @@ def add_routes(configurator):
     configurator.add_route('api_v1_cloud_probe',
                            '/api/v1/clouds/{cloud}/machines/{machine}/probe')
     configurator.add_route('api_v1_probe',
-                           '/api/v1/machines/{machine_uuid}/probe')
+                           '/api/v1/machines/{machine}/probe')
 
     configurator.add_route('api_v1_ping', '/api/v1/ping')
 
@@ -340,7 +340,7 @@ def add_routes(configurator):
         '/api/v1/clouds/{cloud}/machines/{machine}/keys/{key}'
     )
     configurator.add_route('api_v1_key_association',
-                           '/api/v1/machines/{machine_uuid}/keys/{key}')
+                           '/api/v1/machines/{machine}/keys/{key}')
 
     # Rules
     configurator.add_route('api_v1_rules', '/api/v1/rules')
@@ -385,7 +385,7 @@ def add_routes(configurator):
 
     # Scripts
     configurator.add_route('api_v1_scripts', '/api/v1/scripts')
-    configurator.add_route('api_v1_script', '/api/v1/scripts/{script_id}')
+    configurator.add_route('api_v1_script', '/api/v1/scripts/{script}')
     configurator.add_route('api_v1_script_file',
                            '/api/v1/scripts/{script_id}/file')
     configurator.add_route('api_v1_script_url',
@@ -438,33 +438,33 @@ def add_routes(configurator):
         'api_v1_cloud_machine_dashboard',
         '/api/v1/clouds/{cloud}/machines/{machine}/dashboard')
     configurator.add_route('api_v1_machine_dashboard',
-                           '/api/v1/machines/{machine_uuid}/dashboard')
+                           '/api/v1/machines/{machine}/dashboard')
     configurator.add_route('api_v1_monitoring', '/api/v1/monitoring')
     configurator.add_route(
         'api_v1_cloud_machine_monitoring',
         '/api/v1/clouds/{cloud}/machines/{machine}/monitoring')
     configurator.add_route('api_v1_machine_monitoring',
-                           '/api/v1/machines/{machine_uuid}/monitoring')
+                           '/api/v1/machines/{machine}/monitoring')
     configurator.add_route(
         'api_v1_cloud_metrics',
         '/api/v1/clouds/{cloud}/machines/{machine}/metrics')
     configurator.add_route('api_v1_metrics',
                            '/api/v1/metrics')
     configurator.add_route('api_v1_machine_metrics',
-                           '/api/v1/machines/{machine_uuid}/metrics')
+                           '/api/v1/machines/{machine}/metrics')
     configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
     configurator.add_route(
         'api_v1_cloud_deploy_plugin',
         '/api/v1/clouds/{cloud}/machines/{machine}/plugins/{plugin}')
     configurator.add_route(
         'api_v1_deploy_plugin',
-        '/api/v1/machines/{machine_uuid}/plugins/{plugin}')
+        '/api/v1/machines/{machine}/plugins/{plugin}')
     configurator.add_route(
         'api_v1_cloud_stats',
         '/api/v1/clouds/{cloud}/machines/{machine}/stats')
     configurator.add_route(
         'api_v1_stats',
-        '/api/v1/machines/{machine_uuid}/stats')
+        '/api/v1/machines/{machine}/stats')
     configurator.add_route('api_v1_load', '/api/v1/machines/stats/load')
 
     # Notifications

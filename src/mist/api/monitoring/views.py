@@ -31,45 +31,46 @@ log = logging.getLogger(__name__)
 def _machine_from_matchdict(request, deleted=False):
     """Find machine given either uuid or cloud-id/ext-id in request path"""
     auth_context = auth_context_from_request(request)
-    if 'cloud' in request.matchdict:
+    cloud_id = request.matchdict.get(
+        'cloud', request.matchdict.get('cloud_id', None))
+    machine_id = request.matchdict.get(
+        'machine', request.matchdict.get('machine_id', None))
+    external_id = request.matchdict.get('external_id', machine_id)
+    if cloud_id:
         try:
             if not deleted:
                 cloud = Cloud.objects.get(owner=auth_context.owner,
-                                          id=request.matchdict['cloud'],
+                                          id=cloud_id,
                                           deleted=None)
             else:
                 cloud = Cloud.objects.get(owner=auth_context.owner,
-                                          id=request.matchdict['cloud'])
+                                          id=cloud_id)
         except Cloud.DoesNotExist:
             raise NotFoundError('Cloud does not exist')
         try:
-            if not deleted:
-                machine = Machine.objects.get(
-                    cloud=cloud,
-                    external_id=request.matchdict['machine'],
-                )
-            else:
-                machine = Machine.objects.get(
-                    cloud=cloud,
-                    external_id=request.matchdict['machine'])
+            machine = Machine.objects.get(
+                cloud=cloud,
+                external_id=external_id)
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" %
                                 request.matchdict['machine'])
         # used by logging_view_decorator
-        request.environ['machine_uuid'] = machine.id
     else:
         clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
         try:
             machine = Machine.objects.get(
                 cloud__in=clouds,
-                id=request.matchdict['machine_uuid'],
+                id=machine_id,
             )
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" %
-                                request.matchdict['machine_uuid'])
-        # used by logging_view_decorator
-        request.environ['machine_id'] = machine.external_id
-        request.environ['cloud_id'] = machine.cloud.id
+                                request.matchdict['machine'])
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
+
     auth_context.check_perm('cloud', 'read', machine.cloud.id)
     return machine
 
@@ -467,10 +468,13 @@ def update_metric(request):
       in: path
       type: string
       required: true
-    cloud_id:
+    cloud:
       in: query
       type: string
-    machine_id:
+    machine:
+      in: query
+      type: string
+    extermal_id:
       in: query
       type: string
     name:
@@ -488,23 +492,32 @@ def update_metric(request):
     params = params_from_request(request)
     name = params.get('name')
     unit = params.get('unit')
-    cloud_id = params.get('cloud_id')
-    machine_id = params.get('machine_id')
+    cloud_id = params.get('cloud', params.get('cloud_id'))
+    machine_id = params.get('machine', params.get('machine_id'))
+    external_id = params.get('external_id')
 
     # FIXME This doesn't seem right. Perhaps we should always `update_metric`
     # and optionally `associate_metric` if machine_id and cloud_id have been
     # provided. However, we already have a discrete `associate_metric` API
     # endpoint.
-    if cloud_id and machine_id:
+    if cloud_id or machine_id:
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          external_id=machine_id)
-            machine_uuid = machine.id
+                                          external_id=external_id,
+                                          owner=auth_context.org)
         except Machine.DoesNotExist:
-            machine_uuid = ''
+            machine = Machine.objects.get(id=machine_id,
+                                          owner=auth_context.org)
+
+        # used by logging_view_decorator
+        request.environ['cloud'] = machine.cloud.id
+        request.environ['machine'] = machine.id
+        request.environ['external_id'] = machine.external_id
+
         # Check permissions.
         auth_context.check_perm('cloud', 'read', cloud_id)
-        auth_context.check_perm('machine', 'edit_custom_metrics', machine_uuid)
+        auth_context.check_perm('machine', 'edit_custom_metrics', machine.id)
+
         # Associate metric.
         mist.api.monitoring.methods.associate_metric(
             auth_context.owner, cloud_id, machine_id, metric_id

@@ -1061,7 +1061,7 @@ def run_resource_action(owner_id, action, name, resource_id):
                 time_limit=3_900_000,
                 store_results=True,
                 throws=(me.DoesNotExist,))
-def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
+def group_run_script(auth_context_serialized, script_id, name, machine_ids,
                      params='', owner_id=None):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
@@ -1109,10 +1109,10 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule started: %s', log_dict)
     tasks = []
-    for machine_uuid in machines_uuids:
+    for machine_id in machine_ids:
         try:
             task = run_script.message(auth_context_serialized, script_id,
-                                      machine_uuid, params=params,
+                                      machine_id, params=params,
                                       job_id=job_id, job='schedule',
                                       owner_id=owner.id)
             tasks.append(task)
@@ -1144,7 +1144,7 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
                 time_limit=3_600_000,
                 store_results=True,
                 throws=(me.DoesNotExist,))
-def run_script(auth_context_serialized, script_id, machine_uuid, params='',
+def run_script(auth_context_serialized, script_id, machine_id, params='',
                host='', key_id='', username='', password='', port=22,
                job_id='', job='', action_prefix='', su=False, env="",
                owner_id=None):
@@ -1166,8 +1166,8 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
         'owner_id': owner.id,
         'job_id': job_id or uuid.uuid4().hex,
         'job': job,
-        'script_id': script_id,
-        'machine_id': machine_uuid,
+        'script': script_id,
+        'machine': machine_id,
         'params': params,
         'env': env,
         'su': su,
@@ -1187,10 +1187,10 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
     cloud_id = ''
 
     try:
-        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        machine = Machine.objects.get(id=machine_id, state__ne='terminated')
         cloud_id = machine.cloud.id
         external_id = machine.external_id
-        ret.update({'cloud_id': cloud_id, 'external_id': external_id})
+        ret.update({'cloud': cloud_id, 'external_id': external_id})
         script = Script.objects.get(
             owner=owner, id=script_id, deleted=None)
         from mist.api.machines.methods import find_best_ssh_params
