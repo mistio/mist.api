@@ -11,6 +11,7 @@ from mist.api.tag.models import Tag
 from mist.api.clouds.models import Cloud
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
+from mist.api.common.models import Cost
 
 from mist.api import config as api_config
 
@@ -91,7 +92,7 @@ class Cluster(OwnershipMixin, me.Document):
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
     created = me.DateTimeField()
-
+    cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     meta = {
         'strict': False,
         'allow_inheritance': True,
@@ -162,6 +163,7 @@ class Cluster(OwnershipMixin, me.Document):
             'location': self.location.id if self.location else '',
             'credentials': self.credentials,
             'config': self.config,
+            'cost': self.cost.as_dict(),
             'extra': self.extra,
             'state': self.state,
             'last_seen': self.last_seen,
@@ -202,6 +204,8 @@ class Cluster(OwnershipMixin, me.Document):
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
+        if 'cost' in only or not only:
+            ret['cost'] = self.cost.as_dict()
         return ret
 
     def __str__(self):

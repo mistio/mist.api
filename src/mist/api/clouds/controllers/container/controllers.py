@@ -20,6 +20,8 @@ it is accessed through a cloud model, using the `ctl` abbreviation, like this:
 """
 import logging
 import uuid
+import datetime
+import calendar
 
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
@@ -27,6 +29,12 @@ from libcloud.container.types import Provider as Container_Provider
 from mist.api.clouds.controllers.main.base import BaseContainerController
 
 log = logging.getLogger(__name__)
+
+
+# Control plane cost per hour for eks and gke
+# At the moment this can't be fetched from some official source
+GKE_CONTROL_PLANE_HOURLY = 0.1  # in $
+EKS_CONTROL_PLANE_HOURLY = 0.1  # in $
 
 
 class GoogleContainerController(BaseContainerController):
@@ -49,6 +57,20 @@ class GoogleContainerController(BaseContainerController):
         cluster.total_cpus = cluster_dict['total_cpus']
         cluster.total_memory = cluster_dict['total_memory']
         return updated
+
+    def _list_clusters__cost_cluster(self, cluster, cluster_dict):
+        from mist.api.machines.models import Machine
+        nodes = Machine.objects(cluster=cluster,
+                                missing_since=None,
+                                machine_type='node')
+        nodes_cost = [node.cost for node in nodes]
+        nodes_hourly_cost = sum([cost.hourly for cost in nodes_cost])
+        nodes_monthly_cost = sum([cost.monthly for cost in nodes_cost])
+        cph = GKE_CONTROL_PLANE_HOURLY + nodes_hourly_cost
+        now = datetime.datetime.utcnow()
+        month_days = calendar.monthrange(now.year, now.month)[1]
+        cpm = cph * 24 * month_days
+        return cph, cpm
 
     def _validate_create_cluster_request(self, auth_context,
                                          create_cluster_request):
@@ -138,6 +160,20 @@ class AmazonContainerController(BaseContainerController):
         cluster.total_cpus = cluster_dict['total_cpus']
         cluster.total_memory = cluster_dict['total_memory']
         return updated
+
+    def _list_clusters__cost_cluster(self, cluster, cluster_dict):
+        from mist.api.machines.models import Machine
+        nodes = Machine.objects(cluster=cluster,
+                                missing_since=None,
+                                machine_type='node')
+        nodes_cost = [node.cost for node in nodes]
+        nodes_hourly_cost = sum([cost.hourly for cost in nodes_cost])
+        nodes_monthly_cost = sum([cost.monthly for cost in nodes_cost])
+        cph = EKS_CONTROL_PLANE_HOURLY + nodes_hourly_cost
+        now = datetime.datetime.utcnow()
+        month_days = calendar.monthrange(now.year, now.month)[1]
+        cpm = cph * 24 * month_days
+        return cph, cpm
 
     def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
         return cluster_dict.get('extra', {}).get('createdAt')

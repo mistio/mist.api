@@ -16,6 +16,7 @@ from mist.api.schedules.models import Schedule
 from mist.api.machines.controllers import MachineController
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.containers.models import Cluster
+from mist.api.common.models import Cost
 from mist.api import config
 
 
@@ -133,14 +134,6 @@ class Monitoring(me.EmbeddedDocument):
             'commands': commands,
             'method': self.method,
         }
-
-
-class Cost(me.EmbeddedDocument):
-    hourly = me.FloatField(default=0)
-    monthly = me.FloatField(default=0)
-
-    def as_dict(self):
-        return json.loads(self.to_json())
 
 
 class PingProbe(me.EmbeddedDocument):

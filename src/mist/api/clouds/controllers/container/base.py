@@ -191,6 +191,25 @@ class BaseContainerController(BaseController):
         """
         return cluster_dict['location']
 
+    def _list_clusters__cost_cluster(self, cluster, cluster_dict):
+        """Calculate cost for a cluster
+
+        Any subclass that wishes to handle its cloud's pricing, can implement
+        this internal method.
+
+        cluster: A cluster mongoengine model. The model may not have yet
+            been saved in the database.
+        cluster_dict: A libcloud cluster node converted to dict,
+            using helpers.node_to_dict
+
+       This method is expected to return a tuple of two values:
+            (cost_per_hour, cost_per_month)
+
+        Subclasses MAY override this method.
+
+        """
+        return 0, 0
+
     def _list_clusters__get_cluster_extra(self, cluster, cluster_dict):
         """Return extra dict for libcloud cluster
 
@@ -362,6 +381,16 @@ class BaseContainerController(BaseController):
                 self.cloud,
                 exc,
             )
+        try:
+            cph, cpm = self._list_clusters__cost_cluster(cluster, cluster_dict)
+            if cluster.cost.hourly != cph or cluster.cost.monthly != cpm:
+                cluster.cost.hourly = cph
+                cluster.cost.monthly = cpm
+                updated = True
+        except Exception as exc:
+            log.exception("Error while calculating cost "
+                          "for cluster %s:%s for %s \n%r",
+                          cluster.id, cluster_dict['name'], self.cloud, exc)
         # Save all changes to cluster model on the database.
         if is_new or updated:
             try:
