@@ -121,7 +121,6 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-<<<<<<< HEAD
 # Sentry Settings
 SENTRY_CONFIG = {
     'TRACES_SAMPLE_RATE': 0.2,
@@ -132,10 +131,7 @@ SENTRY_CONFIG = {
     'ENVIRONMENT': '',
 }
 
-DATABASE_VERSION = 20
-=======
-DATABASE_VERSION = 21
->>>>>>> de5e10495 (Rename network_id, subnet_id, zone_id and record_id  to `external_id`)
+DATABASE_VERSION = 22
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
