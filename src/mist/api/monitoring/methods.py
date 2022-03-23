@@ -333,7 +333,7 @@ def check_monitoring(owner):
     )
 
     for machine in machines:
-        monitored_machines.append([machine.cloud.id, machine.machine_id])
+        monitored_machines.append([machine.cloud.id, machine.external_id])
         try:
             commands = machine.monitoring.get_commands()
         except Exception as exc:
@@ -341,7 +341,7 @@ def check_monitoring(owner):
             commands = {}
         monitored_machines_2[machine.id] = {
             "cloud_id": machine.cloud.id,
-            "machine_id": machine.machine_id,
+            "machine_id": machine.external_id,
             "installation_status": (
                 machine.monitoring.installation_status.as_dict()
             ),
@@ -350,7 +350,7 @@ def check_monitoring(owner):
         for metric_id in machine.monitoring.metrics:
             if metric_id in custom_metrics:
                 machines = custom_metrics[metric_id]["machines"]
-                machines.append((machine.cloud.id, machine.machine_id))
+                machines.append((machine.cloud.id, machine.external_id))
 
     ret = {
         "machines": monitored_machines,
@@ -758,7 +758,7 @@ def undeploy_python_plugin(machine, plugin_id):
     # Run the command over SSH.
     shell = mist.api.shell.Shell(machine.ctl.get_host())
     key_id, ssh_user = shell.autoconfigure(
-        machine.owner, machine.cloud.id, machine.machine_id
+        machine.owner, machine.cloud.id, machine.external_id
     )
     retval, stdout = shell.command(script)
     shell.disconnect()

@@ -916,7 +916,7 @@ def run_resource_action(owner_id, action, name, resource_id):
         if resource_type == 'machine':
             machine = resource
             log_dict['cloud_id'] = cloud_id = machine.cloud.id
-            log_dict['external_id'] = external_id = machine.machine_id
+            log_dict['external_id'] = external_id = machine.external_id
             if action in ('start', 'stop', 'reboot', 'destroy', 'notify'):
                 # call list machines here cause we don't have another way
                 # to update machine state if user isn't logged in
@@ -1189,7 +1189,7 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
     try:
         machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
         cloud_id = machine.cloud.id
-        external_id = machine.machine_id
+        external_id = machine.external_id
         ret.update({'cloud_id': cloud_id, 'external_id': external_id})
         script = Script.objects.get(
             owner=owner, id=script_id, deleted=None)

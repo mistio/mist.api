@@ -282,9 +282,7 @@ class Machine(OwnershipMixin, me.Document):
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
-    # Be more specific about what this is.
-    # We should perhaps come up with a better name.
-    machine_id = me.StringField(required=True)
+    external_id = me.StringField(required=True)
     hostname = me.StringField()
     public_ips = me.ListField()
     private_ips = me.ListField()
@@ -334,7 +332,7 @@ class Machine(OwnershipMixin, me.Document):
             {
                 'fields': [
                     'cloud',
-                    'machine_id'
+                    'external_id'
                 ],
                 'sparse': False,
                 'unique': True,
@@ -545,7 +543,7 @@ class Machine(OwnershipMixin, me.Document):
             'ssh_port': self.ssh_port,
             'os_type': self.os_type,
             'rdp_port': self.rdp_port,
-            'machine_id': self.machine_id,
+            'external_id': self.external_id,
             'actions': {action: self.actions[action]
                         for action in self.actions},
             'extra': extra,
