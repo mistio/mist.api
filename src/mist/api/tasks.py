@@ -619,7 +619,8 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
     for i in range(0, 10):
         try:
             cloned_machine = Machine.objects.get(cloud=machine.cloud,
-                                                 external_id=node.get('id', ''))
+                                                 external_id=node.get('id',
+                                                                      ''))
             break
         except me.DoesNotExist:
             if i < 6:

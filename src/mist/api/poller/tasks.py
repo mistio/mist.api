@@ -245,7 +245,9 @@ def list_buckets(schedule_id):
             sched.name, exc)
 
 
-@dramatiq.actor(queue_name='dramatiq_secrets', time_limit=45_000, max_age=30_000)
+@dramatiq.actor(queue_name='dramatiq_secrets',
+                time_limit=45_000,
+                max_age=30_000)
 def list_vault_secrets(schedule_id):
     """Perform list secrets in Vault. For every new secret found,
        a VaultSecret object is stored in MongoDB
