@@ -1,4 +1,5 @@
 import mongoengine as me
+
 from pyramid.response import Response
 
 from mist.api.machines.models import Machine
@@ -351,6 +352,7 @@ def associate_key(request):
       type: string
     """
     key_id = request.matchdict['key']
+    cloud_id = request.matchdict.get('cloud')
 
     params = params_from_request(request)
     ssh_user = params.get('user', None)
@@ -367,18 +369,32 @@ def associate_key(request):
         raise NotFoundError('Key id does not exist')
     auth_context.check_perm('key', 'read_private', key.id)
 
-    machine_uuid = request.matchdict['machine_uuid']
-    try:
-        machine = Machine.objects.get(id=machine_uuid,
-                                      state__ne='terminated')
-        # used by logging_view_decorator
-        request.environ['machine_id'] = machine.external_id
-        request.environ['cloud_id'] = machine.cloud.id
-    except Machine.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+    if cloud_id:
+        external_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          external_id=external_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % external_id)
+    else:
+        machine_id = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
 
-    cloud_id = machine.cloud.id
-    auth_context.check_perm("cloud", "read", cloud_id)
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
 
     auth_context.check_perm("machine", "associate_key", machine.id)
 
@@ -408,22 +424,39 @@ def disassociate_key(request):
       type: string
     """
     key_id = request.matchdict['key']
+    cloud_id = request.matchdict.get('cloud')
     auth_context = auth_context_from_request(request)
 
-    machine_uuid = request.matchdict['machine_uuid']
-    try:
-        machine = Machine.objects.get(id=machine_uuid,
-                                      state__ne='terminated')
-        # used by logging_view_decorator
-        request.environ['machine_id'] = machine.external_id
-        request.environ['cloud_id'] = machine.cloud.id
-    except Machine.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+    if cloud_id:
+        external_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          external_id=external_id,
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % external_id)
+    else:
+        machine_id = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_id,
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
 
-    cloud_id = machine.cloud.id
+        cloud_id = machine.cloud.id
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
+
     auth_context.check_perm("cloud", "read", cloud_id)
-
     auth_context.check_perm("machine", "disassociate_key", machine.id)
 
-    key = Key.objects.get(owner=auth_context.owner, id=key_id, deleted=None)
+    try:
+        key = Key.objects.get(
+            owner=auth_context.owner, id=key_id, deleted=None)
+    except Key.DoesNotExist:
+        raise NotFoundError("Key %s doesn't exist" % key_id)
     return key.ctl.disassociate(machine)
