@@ -382,6 +382,8 @@ class BaseContainerController(BaseController):
                 exc,
             )
         try:
+            #TODO implement a _decide_cluster_cost(cluster, tags, cost) method
+            # as is done for machines in compute base controller
             cph, cpm = self._list_clusters__cost_cluster(cluster, cluster_dict)
             if cluster.cost.hourly != cph or cluster.cost.monthly != cpm:
                 cluster.cost.hourly = cph

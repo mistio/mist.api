@@ -26,15 +26,10 @@ import calendar
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 
+from mist.api.config import PROVIDERS
 from mist.api.clouds.controllers.main.base import BaseContainerController
 
 log = logging.getLogger(__name__)
-
-
-# Control plane cost per hour for eks and gke
-# At the moment this can't be fetched from some official source
-GKE_CONTROL_PLANE_HOURLY = 0.1  # in $
-EKS_CONTROL_PLANE_HOURLY = 0.1  # in $
 
 
 class GoogleContainerController(BaseContainerController):
@@ -65,8 +60,9 @@ class GoogleContainerController(BaseContainerController):
                                 machine_type='node')
         nodes_cost = [node.cost for node in nodes]
         nodes_hourly_cost = sum([cost.hourly for cost in nodes_cost])
-        nodes_monthly_cost = sum([cost.monthly for cost in nodes_cost])
-        cph = GKE_CONTROL_PLANE_HOURLY + nodes_hourly_cost
+        control_plane_cost = PROVIDERS['google'][
+            'features']['container'].get('control-plane-cph', 0)
+        cph = control_plane_cost + nodes_hourly_cost
         now = datetime.datetime.utcnow()
         month_days = calendar.monthrange(now.year, now.month)[1]
         cpm = cph * 24 * month_days
@@ -169,7 +165,9 @@ class AmazonContainerController(BaseContainerController):
         nodes_cost = [node.cost for node in nodes]
         nodes_hourly_cost = sum([cost.hourly for cost in nodes_cost])
         nodes_monthly_cost = sum([cost.monthly for cost in nodes_cost])
-        cph = EKS_CONTROL_PLANE_HOURLY + nodes_hourly_cost
+        control_plane_cost = PROVIDERS['amazon'][
+            'features']['container'].get('control-plane-cph', 0)
+        cph = control_plane_cost + nodes_hourly_cost
         now = datetime.datetime.utcnow()
         month_days = calendar.monthrange(now.year, now.month)[1]
         cpm = cph * 24 * month_days
