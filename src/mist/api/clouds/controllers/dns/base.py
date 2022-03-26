@@ -202,7 +202,7 @@ class BaseDNSController(BaseController):
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
         from mist.api.dns.models import Zone
-        return Zone.objects(cloud=self.cloud, deleted=None)
+        return Zone.objects(cloud=self.cloud, missing_since=None)
 
     def _list_zones__zone_creation_date(self, libcloud_zone):
         return libcloud_zone.extra.get('created_at')
