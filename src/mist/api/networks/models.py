@@ -156,8 +156,8 @@ class Network(OwnershipMixin, me.Document):
             'description': self.description,
             'extra': self.extra,
             'tags': self.tags,
-            'created': self.created,
-            'last_seen': self.last_seen,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'location': self.location.id if self.location else '',
@@ -198,6 +198,10 @@ class Network(OwnershipMixin, me.Document):
                     resource_id=self.id,
                     resource_type='cloud').only('key', 'value')
             }
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
+        if 'created' in ret:
+            ret['created'] = str(ret['created'])
 
         return ret
 
@@ -391,8 +395,8 @@ class Subnet(me.Document):
             'description': self.description,
             'extra': self.extra,
             'tags': self.tags,
-            'created': self.created,
-            'last_seen': self.last_seen,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
         }
         subnet_dict.update(
             {key: getattr(self, key) for key in self._subnet_specific_fields}
