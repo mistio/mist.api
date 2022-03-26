@@ -386,7 +386,10 @@ class CloudLocation(OwnershipMixin, me.Document):
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
-
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
+        if 'created' in ret:
+            ret['created'] = str(ret['created'])
         return ret
 
     def as_dict(self):
@@ -397,10 +400,10 @@ class CloudLocation(OwnershipMixin, me.Document):
             'external_id': self.external_id,
             'name': self.name,
             'country': self.country,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
             'parent': self.parent.id if self.parent else None,
             'location_type': self.location_type,
-            'created': self.created,
-            'last_seen': self.last_seen,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
         }
@@ -483,7 +486,10 @@ class CloudSize(me.Document):
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
-
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
+        if 'created' in ret:
+            ret['created'] = str(ret['created'])
         return ret
 
     def as_dict(self):
@@ -498,8 +504,8 @@ class CloudSize(me.Document):
             'extra': self.extra,
             'disk': self.disk,
             'architecture': self.architecture,
-            'created': self.created,
-            'last_seen': self.last_seen,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
         }

@@ -142,6 +142,8 @@ class Zone(OwnershipMixin, me.Document):
                 tag.key: tag.value for tag in Tag.objects(
                     resource_id=self.id, resource_type='zone').only(
                         'key', 'value')}
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
 
         return ret
 
@@ -155,9 +157,9 @@ class Zone(OwnershipMixin, me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'cloud': self.cloud.id,
-            'created': self.created,
-            'last_seen': self.last_seen,
-            'missing_since': self.missing_since,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
+            'missing_since': str(self.missing_since),
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'records': {r.id: r.as_dict() for r
@@ -292,9 +294,9 @@ class Record(OwnershipMixin, me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'zone': self.zone.id,
-            'created': self.created,
-            'last_seen': self.last_seen,
-            'missing_since': self.missing_since,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
+            'missing_since': str(self.missing_since),
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'tags': self.tags

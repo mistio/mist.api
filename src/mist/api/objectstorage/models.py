@@ -56,8 +56,8 @@ class Bucket(OwnershipMixin, me.Document):
             'provider': self.cloud.provider,
             'region': self.cloud.region,
             'extra': self.extra,
-            'created': self.created,
-            'last_seen': self.last_seen,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
         }
 
     def get_content(self):

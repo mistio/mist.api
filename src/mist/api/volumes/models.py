@@ -98,7 +98,7 @@ class Volume(OwnershipMixin, me.Document):
                         for action in self.actions},
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
-            'created': self.created,
+            'created': str(self.created),
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
             'missing_since': str(self.missing_since.replace(tzinfo=None)
@@ -135,6 +135,13 @@ class Volume(OwnershipMixin, me.Document):
             ret['actions'] = {
                 action: self.actions[action] for action in self.actions
             }
+
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
+        if 'missing_since' in ret:
+            ret['missing_since'] = str(ret['missing_since'])
+        if 'created' in ret:
+            ret['created'] = str(ret['created'])
 
         ret['size'] = "%dGB" % self.size if self.size else self.size
 
