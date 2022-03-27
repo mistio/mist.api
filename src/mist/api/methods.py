@@ -613,7 +613,7 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
 
     if resource_type in {'user', 'users'} and not auth_context.is_owner():
         query = Q(id__in=[auth_context.user.id])
-
+    
     search = search or ''
     sort = sort or ''
     only = only or ''
@@ -736,6 +736,17 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 query &= Q(**{k: v})
         elif k in ['key_associations', ]:  # Looks like a postfilter
             postfilters.append((k, v))
+        elif k == 'tag':
+            from mist.api.tag.models import Tag
+            ids = [
+             tag.resource_id for tag
+             in Tag.objects(
+                            owner=auth_context.owner,
+                            **{i: j for i, j in zip(('key', 'value'),
+                                                    v.split(','))}
+                            ).only('resource_id')
+                  ]
+            query &= Q(id__in=ids)
         elif k == 'id':
             if id_implicit is True:
                 implicit_query = Q(id=v)
