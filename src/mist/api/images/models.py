@@ -105,7 +105,7 @@ class CloudImage(OwnershipMixin, me.Document):
         if 'tags' in only or not only:
             ret['tags'] = {
                 tag.key: tag.value for tag in Tag.objects(
-                    resource_id=self.id, resource_type='machine').only(
+                    resource_id=self.id, resource_type='image').only(
                         'key', 'value')}
         if 'last_seen' in ret:
             ret['last_seen'] = str(ret['last_seen'])
