@@ -26,9 +26,12 @@ class Tag(me.Document):
 
     @property
     def resource(self):
-        resource_type = self.resource_type.capitalize().rstrip('s')
-        from mist.api import models
-        return getattr(models, resource_type).objects.get(id=self.resource_id)
+        try:
+            resource_type = self.resource_type.capitalize().rstrip('s')
+            from mist.api import models
+            return getattr(models, resource_type).objects.get(id=self.resource_id)   # noqa: E501
+        except AttributeError:
+            return None
 
     def validate(self, clean=False):
         if not re.search(r'^[a-zA-Z0-9_]+(?:[ :.-][a-zA-Z0-9_]+)*$',
