@@ -382,12 +382,18 @@ class BaseContainerController(BaseController):
                 exc,
             )
         try:
-            #TODO implement a _decide_cluster_cost(cluster, tags, cost) method
+            # TODO implement a _decide_cluster_cost(cluster, tags, cost) method
             # as is done for machines in compute base controller
-            cph, cpm = self._list_clusters__cost_cluster(cluster, cluster_dict)
-            if cluster.cost.hourly != cph or cluster.cost.monthly != cpm:
+            cph, cpm, control_plane_cph, control_plane_cpm = \
+                self._list_clusters__cost_cluster(cluster, cluster_dict)
+            if(cluster.cost.hourly != cph or
+               cluster.cost.monthly != cpm or
+               cluster.cost.control_plane_hourly != control_plane_cph or
+               cluster.cost.control_plane_monthly != control_plane_cpm):
                 cluster.cost.hourly = cph
                 cluster.cost.monthly = cpm
+                cluster.cost.control_plane_hourly = control_plane_cph
+                cluster.cost.control_plane_monthly = control_plane_cpm
                 updated = True
         except Exception as exc:
             log.exception("Error while calculating cost "
