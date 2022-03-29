@@ -729,6 +729,7 @@ class Organization(Owner):
         if self.name and not self.vault_secret_engine_path:
             secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
                 if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
+            secret_engine_path = secret_engine_path.replace(' ', '-')
             self.vault_secret_engine_path = secret_engine_path
 
         if self.name and not self.vault_address and not self.vault_role_id:
