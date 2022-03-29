@@ -57,7 +57,7 @@ class Zone(OwnershipMixin, me.Document):
         'indexes': [
             'owner', 'last_seen', 'missing_since',
             {
-                'fields': ['cloud', 'external_id', 'last_seen', 'deleted',
+                'fields': ['cloud', 'external_id', 'last_seen',
                            'missing_since'],
                 'sparse': False,
                 'unique': True,
@@ -207,7 +207,7 @@ class Record(OwnershipMixin, me.Document):
         'indexes': [
             'last_seen', 'missing_since',
             {
-                'fields': ['zone', 'external_id', 'last_seen', 'deleted',
+                'fields': ['zone', 'external_id', 'last_seen',
                            'missing_since'],
                 'sparse': False,
                 'unique': True,
