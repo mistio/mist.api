@@ -27,7 +27,7 @@ def main():
     qs = SessionToken.objects
     if not args.user:
         qs = qs.filter(user_id__exists=False)
-    qs = qs.filter(created_at__lt=datetime.datetime.now() - tdelta)
+    qs = qs.filter(created__lt=datetime.datetime.now() - tdelta)
     count = qs.count()
 
     print("Found %d %s sessions older than %s." % (

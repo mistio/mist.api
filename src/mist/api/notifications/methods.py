@@ -94,7 +94,7 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         info['action'] += reminder
 
     if alert.suppressed:
-        log.warning('Alert for %s suppressed since %s', rule, alert.created_at)
+        log.warning('Alert for %s suppressed since %s', rule, alert.created)
         return
 
     # Check whether an alert has to be sent in case of a (re)triggered rule.
