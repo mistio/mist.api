@@ -181,7 +181,7 @@ class KV1VaultSecretController(VaultSecretController):
         except hvac.exceptions.Forbidden:
             raise BadRequestError("Make sure your Vault token has the \
                 permissions to create secret")
-        self.list_secrets(recursive=True)
+        # self.list_secrets(recursive=True)
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
@@ -291,7 +291,7 @@ class KV2VaultSecretController(VaultSecretController):
                 path=self.secret.name,
                 secret=secret
             )
-        self.list_secrets(recursive=True)
+        # self.list_secrets(recursive=True)
 
     def read_secret(self):
         """ Read a Vault KV* Secret """

@@ -15,7 +15,7 @@ def migrate_organizations():
             print('Updating org %s...' % org.id)
             secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[org.name] \
                 if org.name in config.VAULT_SECRET_ENGINE_PATHS else org.name
-            org.vault_secret_engine_path = secret_engine_path
+            org.vault_secret_engine_path = secret_engine_path.replace(' ', '-')
             org.save()
         except Exception:
             print('*** WARNING ** Could not migrate org %s' % org.id)
