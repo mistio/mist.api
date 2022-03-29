@@ -11,10 +11,11 @@ def migrate_organizations():
     print('Will try to update %s organizations' % len(orgs))
 
     for org in orgs:
+        org_name = org.name.replace('@', '-')
         try:
             print('Updating org %s...' % org.id)
-            secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[org.name] \
-                if org.name in config.VAULT_SECRET_ENGINE_PATHS else org.name
+            secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[org_name] \
+                if org_name in config.VAULT_SECRET_ENGINE_PATHS else org_name
             org.vault_secret_engine_path = secret_engine_path
             org.save()
         except Exception:
