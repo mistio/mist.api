@@ -1,4 +1,6 @@
+import re
 import random
+import string
 import traceback
 
 from mist.api.users.models import Organization
@@ -19,8 +21,8 @@ def migrate_organizations():
             secret_engine_path = re.sub(
                 '[^a-zA-Z0-9\.]', '-', secret_engine_path) + '-' + ''.join(
                     random.SystemRandom().choice(
-                        string.ascii_lowercase + string.digits)
-                        for _ in range(6))
+                        string.ascii_lowercase +
+                        string.digits) for _ in range(6))
             org.vault_secret_engine_path = secret_engine_path
             org.save()
         except Exception:
