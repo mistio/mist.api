@@ -1,7 +1,9 @@
 """User entity model."""
 import logging
 import json
+import string
 import uuid
+import random
 import re
 import netaddr
 import datetime
@@ -729,7 +731,12 @@ class Organization(Owner):
         if self.name and not self.vault_secret_engine_path:
             secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
                 if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
-            secret_engine_path = secret_engine_path.replace(' ', '-')
+            secret_engine_path = re.sub(
+                '[^a-zA-Z0-9\.]', '-', secret_engine_path) + '-' + ''.join(
+                    random.SystemRandom().choice(
+                        string.ascii_lowercase + string.digits)
+                        for _ in range(6))
+
             self.vault_secret_engine_path = secret_engine_path
 
         if self.name and not self.vault_address and not self.vault_role_id:
@@ -768,11 +775,14 @@ class Organization(Owner):
                 name=policy_name,
                 policy=policy,
             )
-            client.auth.approle.create_or_update_approle(
-                role_name=role_name,
-                token_policies=[policy_name],
-                token_type='service',
-            )
+            try:
+                client.auth.approle.create_or_update_approle(
+                    role_name=role_name,
+                    token_policies=[policy_name],
+                    token_type='service',
+                )
+            except hvac.exceptions.InvalidPath:
+                raise me.ValidationError('Unsupported path')
             self.vault_role_id = client.auth.approle.read_role_id(
                 role_name=role_name
             )["data"]["role_id"]

@@ -1492,7 +1492,7 @@ def create_organization(request):
     try:
         org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
+        raise BadRequestError(e.errors.get('__all__', str(e)))
     except me.OperationError:
         raise OrganizationOperationError()
 
