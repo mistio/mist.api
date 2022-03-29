@@ -131,7 +131,7 @@ SENTRY_CONFIG = {
     'ENVIRONMENT': '',
 }
 
-DATABASE_VERSION = 19
+DATABASE_VERSION = 28
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -177,6 +177,17 @@ INFLUX = {
 
 TELEGRAF_TARGET = ""
 TRAEFIK_API = "http://traefik:8080"
+
+# Hashicorp Vault Default Vars
+VAULT_TOKEN = ''
+VAULT_ROLE_ID = ''
+VAULT_SECRET_ID = ''
+VAULT_ADDR = 'http://vault:8200'
+# Mappings between organization names and secret engine paths
+VAULT_SECRET_ENGINE_PATHS = {}
+VAULT_KV_VERSION = 2  # 1 or 2
+VAULT_CLOUDS_PATH = 'mist/clouds/'
+VAULT_KEYS_PATH = 'mist/keys/'
 
 # Default, built-in metrics.
 INFLUXDB_BUILTIN_METRICS = {
@@ -2218,10 +2229,10 @@ PROVIDERS['rackspace']['regions'] = [
 
 # Deprecated in Mist v5
 SUPPORTED_PROVIDERS = [
-    # BareMetal
+    # Other
     {
         'title': 'Other Server',
-        'provider': 'bare_metal',
+        'provider': 'other',
         'regions': []
     },
     # Azure
@@ -3107,17 +3118,6 @@ UGLY_RBAC = ""
 
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
-# Get settings from mist.core.
-CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
-                                'src', 'mist', 'core', 'config.py')
-if os.path.exists(CORE_CONFIG_PATH):
-    log.warn("Will load core config from %s" % CORE_CONFIG_PATH)
-    exec(compile(open(CORE_CONFIG_PATH).read(), CORE_CONFIG_PATH, 'exec'))
-    HAS_CORE = True
-else:
-    log.error("Couldn't find core config in %s" % CORE_CONFIG_PATH)
-    HAS_CORE = False
-
 CONFIG_OVERRIDE_FILES = []
 
 # Load defaults file if defined
@@ -3178,7 +3178,7 @@ FROM_ENV_STRINGS = [
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
     'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY', 'AWS_ACCESS_KEY',
-    'AWS_SECRET_KEY', 'AWS_MONGO_BUCKET'
+    'AWS_SECRET_KEY', 'AWS_MONGO_BUCKET', 'VAULT_ADDR', 'VAULT_TOKEN'
 ] + PLUGIN_ENV_STRINGS
 FROM_ENV_INTS = [
     'SHARD_MANAGER_MAX_SHARD_PERIOD', 'SHARD_MANAGER_MAX_SHARD_CLAIMS',
@@ -3369,8 +3369,16 @@ HOMEPAGE_INPUTS = {
 if HAS_BILLING and STRIPE_PUBLIC_APIKEY:
     HOMEPAGE_INPUTS['stripe_public_apikey'] = STRIPE_PUBLIC_APIKEY
 
-# DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
+if not VAULT_ROLE_ID:
+    try:
+        with open('/approle/role_id', 'r') as file:
+            VAULT_ROLE_ID = file.read().replace('\n', '')
+        with open('/approle/secret_id', 'r') as file:
+            VAULT_SECRET_ID = file.read().replace('\n', '')
+    except FileNotFoundError:
+        pass
 
+# DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
 
 # Read version info
 VERSION = {}
