@@ -1370,7 +1370,7 @@ def create_cluster_async(auth_context_serialized, cloud_id,
         raise
 
     try:
-        cloud.ctl.container.create_cluster(auth_context, **kwargs)
+        cluster = cloud.ctl.container.create_cluster(auth_context, **kwargs)
     except Exception as exc:
         log_event(auth_context.owner.id, 'job', 'cluster_creation_finished',
                   user_id=auth_context.user.id, job_id=job_id, job=job,
