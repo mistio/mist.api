@@ -337,6 +337,7 @@ class BaseNetworkController(BaseController):
             except Network.DoesNotExist:
                 network = NETWORKS[self.provider](cloud=self.cloud,
                                                   external_id=net.id)
+                network.first_seen = datetime.datetime.utcnow()
                 new_networks.append(network)
 
             network.name = net.name
@@ -387,11 +388,6 @@ class BaseNetworkController(BaseController):
             cloud=self.cloud, id__nin=[n.id for n in networks],
             missing_since=None
         ).update(missing_since=now)
-        # Set first_seen for networks seen for the first time.
-        Network.objects(
-            cloud=self.cloud, id__in=[n.id for n in networks],
-            first_seen=None
-        ).update(first_seen=now)
         Network.objects(cloud=self.cloud, id__in=[
                         n.id for n in networks]).update(
             last_seen=now, missing_since=None)
@@ -486,6 +482,7 @@ class BaseNetworkController(BaseController):
             except Subnet.DoesNotExist:
                 subnet = SUBNETS[self.provider](network=network,
                                                 external_id=libcloud_subnet.id)
+                subnet.first_seen = datetime.datetime.utcnow()
 
             subnet.name = libcloud_subnet.name
             subnet.extra = copy.copy(libcloud_subnet.extra)
@@ -538,11 +535,6 @@ class BaseNetworkController(BaseController):
             network=network, id__nin=[s.id for s in subnets],
             missing_since=None
         ).update(missing_since=now)
-        # Set first_seen for subnets seen for the first time.
-        Subnet.objects(
-            network=network, id__in=[s.id for s in subnets],
-            first_seen=None
-        ).update(first_seen=now)
         # Set last_seen, unset missing_since for subnets we just saw
         Subnet.objects(cloud=self.cloud, id__in=[
                        s.id for s in subnets]).update(

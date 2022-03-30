@@ -148,6 +148,7 @@ class BaseDNSController(BaseController):
                          pr_zone.id, pr_zone.domain)
                 zone = Zone(cloud=self.cloud, owner=self.cloud.owner,
                             external_id=pr_zone.id)
+                zone.first_seen = datetime.datetime.utcnow()
                 new_zones.append(zone)
             zone.deleted = None
             zone.domain = pr_zone.domain
@@ -181,12 +182,6 @@ class BaseDNSController(BaseController):
             cloud=self.cloud, missing_since=None,
             external_id__nin=[z.id for z in zones]
         ).update(missing_since=now)
-        # Set first_seen on zones seen for the first time
-        Zone.objects(
-            cloud=self.cloud,
-            first_seen=None,
-            external_id__in=[z.id for z in zones]
-        ).update(first_seen=now)
         # Set last_seen, unset missing_since on zones we just saw
         Zone.objects(cloud=self.cloud,
                      external_id__in=[z.id for z in zones]).update(
@@ -259,6 +254,7 @@ class BaseDNSController(BaseController):
                     continue
 
                 record = dns_cls(external_id=pr_record.id, zone=zone)
+                record.first_seen = datetime.datetime.utcnow()
                 new_records.append(record)
                 changed = True
             # We need to check if any of the information returned by the
@@ -320,12 +316,6 @@ class BaseDNSController(BaseController):
             cloud=self.cloud, missing_since=None,
             external_id__nin=[r.id for r in records]
         ).update(missing_since=now)
-        # Set first_seen on records seen for the first time
-        Record.objects(
-            cloud=self.cloud,
-            first_seen=None,
-            external_id__in=[r.id for r in records]
-        ).update(first_seen=now)
         # Set last_seen on records we just saw
         Record.objects(cloud=self.cloud,
                        external_id__in=[r.id for r in records]).update(

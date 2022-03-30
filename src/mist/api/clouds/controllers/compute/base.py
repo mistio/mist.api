@@ -447,10 +447,6 @@ class BaseComputeController(BaseController):
             Machine.objects(cloud=self.cloud,
                             id__nin=[m.id for m in machines],
                             missing_since=None).update(missing_since=now)
-        # Set first_seen on machine models seen for the first time
-        Machine.objects(cloud=self.cloud,
-                        id__in=[m.id for m in machines],
-                        first_seen=None).update(first_seen=now)
         # Set last_seen, unset missing_since on machine models we just saw
         Machine.objects(cloud=self.cloud,
                         id__in=[m.id for m in machines]).update(
@@ -679,7 +675,8 @@ class BaseComputeController(BaseController):
             log.exception("Error while calculating cost "
                           "for machine %s:%s for %s \n%r",
                           machine.id, node['name'], self.cloud, exc)
-
+        if is_new:
+            machine.first_seen = now
         # Save all changes to machine model on the database.
         if is_new or updated:
             try:
@@ -1292,6 +1289,7 @@ class BaseComputeController(BaseController):
                                               external_id=size.id)
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud, external_id=size.id)
+                _size.first_seen = datetime.datetime.utcnow()
 
             _size.name = self._list_sizes__get_name(size)
             # FIXME: Parse unit prefix w/ si-prefix, cast to int e.g 1k to 1000
@@ -1356,12 +1354,6 @@ class BaseComputeController(BaseController):
             cloud=self.cloud, missing_since=None,
             external_id__nin=[s.external_id for s in sizes]
         ).update(missing_since=now)
-        # Update first_seen for sizes seen for the first time
-        CloudSize.objects(
-            cloud=self.cloud,
-            first_seen=None,
-            external_id__in=[s.external_id for s in sizes]
-        ).update(first_seen=now)
         # Update last_seen, missing_since for sizes we just saw
         CloudSize.objects(
             cloud=self.cloud,
