@@ -1567,6 +1567,9 @@ PROVIDERS = {
         'features': {
             'compute': True,
             'console': False,
+            'container': {
+                'control-plane-cph': 0.1  # in $
+            },
             'provision': {
                 'location': True,
                 'cloudinit': True,
@@ -1614,6 +1617,9 @@ PROVIDERS = {
         'features': {
             'compute': True,
             'console': False,
+            'container': {
+                'control-plane-cph': 0.1  # in $
+            },
             'provision': {
                 'location': True,
                 'cloudinit': True,
