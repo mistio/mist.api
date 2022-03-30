@@ -253,6 +253,7 @@ class BaseContainerController(BaseController):
         except Cluster.DoesNotExist:
             cluster = CLUSTERS[self.cloud.provider](
                 cloud=self.cloud, external_id=cluster_dict["id"])
+            cluster.first_seen = now
             try:
                 cluster.save()
             except me.ValidationError as exc:
@@ -623,12 +624,6 @@ class BaseContainerController(BaseController):
             id__nin=[c.id for c in clusters],
             missing_since=None
         ).update(missing_since=now)
-        # Set first_seen on cluster models seen for the first time
-        Cluster.objects(
-            cloud=self.cloud,
-            id__in=[c.id for c in clusters],
-            first_seen=None
-        ).update(first_seen=now)
         # Set last_seen, unset missing_since on cluster models we just saw
         Cluster.objects(
             cloud=self.cloud,
