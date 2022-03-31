@@ -737,15 +737,11 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         elif k in ['key_associations', ]:  # Looks like a postfilter
             postfilters.append((k, v))
         elif k == 'tag':
-            from mist.api.tag.models import Tag
-            ids = [
-                tag.resource_id for tag
-                in Tag.objects(
-                    owner=auth_context.owner,
-                    **{i: j for i, j in zip(('key', 'value'),
-                                            v.split(','))
-                       }).only('resource_id')]
-            query &= Q(id__in=ids)
+            key, *value = v.split(',')
+            if value:
+                query &= Q(**{f'tags__{key}': value[0]})
+            else:
+                query &= Q(**{f'tags__{key}__exists': True})
         elif k == 'id':
             if id_implicit is True:
                 implicit_query = Q(id=v)
