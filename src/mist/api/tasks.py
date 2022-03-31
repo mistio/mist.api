@@ -1355,7 +1355,7 @@ def tmp_log(msg, *args):
                 time_limit=2_400_000,
                 max_retries=0)
 def create_cluster_async(auth_context_serialized, cloud_id,
-                         job_id=None, job=None, **kwargs):
+                         job_id=None, job=None, helm_charts=None, **kwargs):
     auth_context = AuthContext.deserialize(auth_context_serialized)
     job_id = job_id or uuid.uuid4().hex
     log_event(auth_context.owner.id, 'job', 'cluster_creation_started',
@@ -1382,6 +1382,20 @@ def create_cluster_async(auth_context_serialized, cloud_id,
         log_event(auth_context.owner.id, 'job', 'cluster_creation_finished',
                   user_id=auth_context.user.id, job_id=job_id, job=job,
                   cloud_id=cloud.id, **kwargs)
+    try:
+        from mist.orchestration.tasks import cluster_post_deploy_steps
+    except ImportError:
+        log_event(auth_context.owner.id,
+                  "job",
+                  action='cluster_post_deploy_finished',
+                  job_id=job_id,
+                  cluster=cluster.id,
+                  )
+    else:
+        cluster_post_deploy_steps.send(auth_context_serialized,
+                                       cluster.id,
+                                       job_id,
+                                       helm_charts)
 
 
 @dramatiq.actor(queue_name="dramatiq_provisioning",
