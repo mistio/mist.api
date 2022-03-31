@@ -2,6 +2,7 @@ import uuid
 import logging
 import mongoengine as me
 
+from mist.api.tag.mixins import TagMixin
 from mist.api.tag.models import Tag
 
 from mist.api.ownership.mixins import OwnershipMixin
@@ -19,7 +20,7 @@ class VolumeActions(me.EmbeddedDocument):
     tag = me.BooleanField(default=False)
 
 
-class Volume(OwnershipMixin, me.Document):
+class Volume(OwnershipMixin, me.Document, TagMixin):
     """The basic block storage (volume) model"""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
@@ -62,12 +63,12 @@ class Volume(OwnershipMixin, me.Document):
         # Set `ctl` attribute.
         self.ctl = StorageController(self)
 
-    @property
-    def tags(self):
-        """Return the tags of this volume."""
-        return {tag.key: tag.value
-                for tag in Tag.objects(resource_id=self.id,
-                                       resource_type='volume')}
+    # @property
+    # def tags(self):
+    #     """Return the tags of this volume."""
+    #     return {tag.key: tag.value
+    #             for tag in Tag.objects(resource_id=self.id,
+    #                                    resource_type='volume')}
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
@@ -121,15 +122,6 @@ class Volume(OwnershipMixin, me.Document):
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
-
-        if 'tags' in only or not only:
-            ret['tags'] = {
-                tag.key: tag.value
-                for tag in Tag.objects(
-                    owner=self.owner,
-                    resource_id=self.id,
-                    resource_type='volume').only('key', 'value')
-            }
 
         if 'actions' in only or not only:
             ret['actions'] = {

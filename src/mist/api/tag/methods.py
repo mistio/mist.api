@@ -121,21 +121,21 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     # merge all the tags in the list into one dict. this will also make sure
     # that if there are duplicates they will be cleaned up
     tag_dict = dict(tags)
+    tag_dict = {
+        k: v for k, v in tag_dict.items() - {
+            tag.key: tag.value for tag in get_tag_objects_for_resource(
+                owner, resource_obj)}}
 
-    for tag_obj in get_tag_objects_for_resource(owner, resource_obj):
-        # if any of the tag keys is already present check if it's value should
-        # be changed and remove it from the tag_dict
-        if tag_obj.key in tag_dict:
-            if tag_obj.value != tag_dict[tag_obj.key]:
-                tag_obj.value = tag_dict[tag_obj.key]
-                tag_obj.save()
-            del tag_dict[tag_obj.key]
+    # import ipdb; ipdb.set_trace()
 
     # remaining tags in tag_dict have not been found in the db so add them now
     for key, value in tag_dict.items():
         Tag(owner=owner, resource_id=resource_obj.id,
             resource_type=resource_obj.to_dbref().collection.rstrip('s'),
             key=key, value=value).save()
+
+    resource_obj.tags.update(tag_dict)
+    resource_obj.save()
 
     # SEC
     owner.mapper.update(resource_obj)
@@ -170,6 +170,9 @@ def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
                    [Q(key=key) for key in key_list])
 
     get_tag_objects_for_resource(owner, resource_obj).filter(query).delete()
+    for key in key_list:
+        resource_obj.tags.pop(key, None)
+        resource_obj.save()
 
     # SEC
     owner.mapper.update(resource_obj)

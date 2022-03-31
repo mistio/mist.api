@@ -6,10 +6,10 @@ from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.ownership.mixins import OwnershipMixin
 
-from mist.api.tag.models import Tag
+from mist.api.tag.mixins import TagMixin
 
 
-class CloudImage(OwnershipMixin, me.Document):
+class CloudImage(OwnershipMixin, me.Document, TagMixin):
     """A base Cloud Image Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True,
@@ -51,13 +51,6 @@ class CloudImage(OwnershipMixin, me.Document):
             },
         ]
     }
-
-    @property
-    def tags(self):
-        """Return the tags of this image."""
-        return {tag.key: tag.value
-                for tag in Tag.objects(resource_id=self.id,
-                                       resource_type='image')}
 
     def __str__(self):
         # this is for mongo medthod objects.only('id') to work..

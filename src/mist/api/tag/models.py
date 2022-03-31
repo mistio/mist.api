@@ -1,5 +1,6 @@
 import re
 
+
 import mongoengine as me
 
 from mist.api.users.models import Owner
@@ -27,9 +28,9 @@ class Tag(me.Document):
     @property
     def resource(self):
         try:
-            resource_type = self.resource_type.capitalize().rstrip('s')
-            from mist.api import models
-            return getattr(models, resource_type).objects.get(id=self.resource_id)   # noqa: E501
+            resource_type = self.resource_type.rstrip('s')
+            from mist.api.helpers import get_resource_model
+            return get_resource_model(resource_type).objects.get(id=self.resource_id)   # noqa: E501
         except AttributeError:
             return None
 

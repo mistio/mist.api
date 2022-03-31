@@ -11,7 +11,7 @@ from mist.api.scripts.base import BaseScriptController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
 
-from mist.api.tag.models import Tag
+from mist.api.tag.mixins import TagMixin
 
 import mist.api.scripts.controllers as controllers
 
@@ -95,7 +95,7 @@ class UrlLocation(Location):
             return 'Script is in repo {0.repo}'.format(self)
 
 
-class Script(OwnershipMixin, me.Document):
+class Script(OwnershipMixin, me.Document, TagMixin):
     """Abstract base class for every script attr mongoengine model.
 
         This class defines the fields common to all scripts of all types.
@@ -236,7 +236,7 @@ class Script(OwnershipMixin, me.Document):
     def as_dict_v2(self, deref='auto', only=''):
         """Returns the API representation of the `Script` object."""
         from mist.api.helpers import prepare_dereferenced_dict
-        standard_fields = ['id', 'name', 'description', 'exec_type']
+        standard_fields = ['id', 'name', 'description', 'exec_type', 'tags']
         deref_map = {
             'owned_by': 'email',
             'created_by': 'email'
@@ -246,15 +246,6 @@ class Script(OwnershipMixin, me.Document):
 
         if 'location' in only or not only:
             ret['location'] = self.location.as_dict()
-
-        if 'tags' in only or not only:
-            ret['tags'] = {
-                tag.key: tag.value
-                for tag in Tag.objects(
-                    owner=self.owner,
-                    resource_id=self.id,
-                    resource_type='script').only('key', 'value')
-            }
 
         return ret
 

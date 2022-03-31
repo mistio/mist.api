@@ -17,6 +17,7 @@ from mist.api.machines.controllers import MachineController
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.containers.models import Cluster
 from mist.api.common.models import Cost
+from mist.api.tag.mixins import TagMixin
 from mist.api import config
 
 
@@ -249,7 +250,7 @@ class SSHProbe(me.EmbeddedDocument):
         return data
 
 
-class Machine(OwnershipMixin, me.Document):
+class Machine(OwnershipMixin, me.Document, TagMixin):
     """The basic machine model"""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
@@ -405,7 +406,7 @@ class Machine(OwnershipMixin, me.Document):
         standard_fields = [
             'id', 'name', 'hostname', 'state', 'public_ips', 'private_ips',
             'created', 'last_seen', 'missing_since', 'unreachable_since',
-            'os_type', 'cores', 'extra']
+            'os_type', 'cores', 'extra', 'tags']
         deref_map = {
             'cloud': 'name',
             'parent': 'name',
@@ -428,12 +429,6 @@ class Machine(OwnershipMixin, me.Document):
 
         if 'external_id' in only or not only:
             ret['external_id'] = self.external_id
-
-        if 'tags' in only or not only:
-            ret['tags'] = {
-                tag.key: tag.value for tag in Tag.objects(
-                    resource_id=self.id, resource_type='machine').only(
-                        'key', 'value')}
 
         if 'cost' in only or not only:
             ret['cost'] = self.cost.as_dict()
@@ -492,10 +487,6 @@ class Machine(OwnershipMixin, me.Document):
         return ret
 
     def as_dict(self):
-        # Return a dict as it will be returned to the API
-        tags = {tag.key: tag.value for tag in Tag.objects(
-            resource_id=self.id, resource_type='machine'
-        ).only('key', 'value')}
         try:
             if self.expiration:
                 expiration = {
@@ -540,7 +531,7 @@ class Machine(OwnershipMixin, me.Document):
             'extra': extra,
             'cost': self.cost.as_dict(),
             'state': self.state,
-            'tags': tags,
+            'tags': self.tags,
             'monitoring':
                 self.monitoring.as_dict() if self.monitoring and
                 self.monitoring.hasmonitoring else '',

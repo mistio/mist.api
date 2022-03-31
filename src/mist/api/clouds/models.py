@@ -7,6 +7,7 @@ import datetime
 import mongoengine as me
 
 from mist.api.tag.models import Tag
+from mist.api.tag.mixins import TagMixin
 from mist.api.users.models import Organization
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
@@ -84,7 +85,7 @@ def _populate_clouds():
                     CLOUDS[alias] = value
 
 
-class Cloud(OwnershipMixin, me.Document):
+class Cloud(OwnershipMixin, me.Document, TagMixin):
     """Abstract base class for every cloud/provider mongoengine model
 
     This class defines the fields common to all clouds of all types. For each
@@ -266,13 +267,7 @@ class Cloud(OwnershipMixin, me.Document):
             'container_enabled': self.container_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
-            'tags': {
-                tag.key: tag.value
-                for tag in Tag.objects(
-                    owner=self.owner,
-                    resource_id=self.id,
-                    resource_type='cloud').only('key', 'value')
-            },
+            'tags': self.tags,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }
@@ -284,22 +279,13 @@ class Cloud(OwnershipMixin, me.Document):
 
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
-        standard_fields = ['id', 'name', 'provider']
+        standard_fields = ['id', 'name', 'provider', 'tags']
         deref_map = {
             'owned_by': 'email',
             'created_by': 'email'
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
-
-        if 'tags' in only or not only:
-            ret['tags'] = {
-                tag.key: tag.value
-                for tag in Tag.objects(
-                    owner=self.owner,
-                    resource_id=self.id,
-                    resource_type='cloud').only('key', 'value')
-            }
 
         if 'features' in only or not only:
             ret['features'] = {

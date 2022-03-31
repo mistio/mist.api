@@ -14,11 +14,12 @@ from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.secrets.models import SecretValue
+from mist.api.tag.mixins import TagMixin
 
 log = logging.getLogger(__name__)
 
 
-class Key(OwnershipMixin, me.Document):
+class Key(OwnershipMixin, me.Document, TagMixin):
     """Abstract base class for every key/machine attr mongoengine model.
 
     This class defines the fields common to all keys of all types. For each
@@ -155,8 +156,8 @@ class Key(OwnershipMixin, me.Document):
         """Returns the API representation of the `Volume` object."""
         from mist.api.helpers import prepare_dereferenced_dict
         from mist.api.machines.models import KeyMachineAssociation
-        from mist.api.tag.models import Tag
-        standard_fields = ['id', 'name', 'default']
+
+        standard_fields = ['id', 'name', 'default', 'tags']
         deref_map = {
             'owned_by': 'email',
             'created_by': 'email',
