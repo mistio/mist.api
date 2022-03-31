@@ -35,6 +35,7 @@ class Portal(me.Document):
 
     # Metadata about the local mist.io portal
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    created_at = me.DateTimeField(default=datetime.datetime.now)  # Deprecated
     created = me.DateTimeField(default=datetime.datetime.now)
 
     # Newer available mist.io versions
