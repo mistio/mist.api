@@ -795,6 +795,7 @@ class _KubernetesBaseMainController(BaseMainController):
     StorageController = storage_ctls.KubernetesStorageController
 
     def _update__preparse_kwargs(self, kwargs):
+        kwargs.pop('authentication', None)
         host = kwargs.get('host', self.cloud.host)
         if host:
             host = sanitize_host(host)
@@ -809,9 +810,6 @@ class KubernetesMainController(_KubernetesBaseMainController):
 class KubeVirtMainController(_KubernetesBaseMainController):
     provider = 'kubevirt'
     ComputeController = compute_ctls.KubeVirtComputeController
-
-    def _update__preparse_kwargs(self, kwargs):
-        kwargs.pop('authentication', None)
 
 
 class OpenShiftMainController(_KubernetesBaseMainController):
