@@ -11,51 +11,6 @@ could easily use in some other unrelated project.
 
 """
 
-from functools import reduce
-from mist.api import config
-from mist.api.exceptions import WorkflowExecutionError, BadRequestError
-from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
-from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.exceptions import MistError, NotFoundError
-from mist.api.auth.models import ApiToken, datetime_to_str
-import mist.api.users.models
-from libcloud.container.types import Provider as Container_Provider
-from libcloud.container.providers import get_driver as get_container_driver
-from libcloud.container.drivers.docker import DockerException
-from libcloud.container.base import ContainerImage
-from elasticsearch_tornado import EsClient
-from elasticsearch import Elasticsearch
-from distutils.version import LooseVersion
-from amqp.exceptions import NotFound as AmqpNotFound
-import kombu.pools
-import kombu
-from Crypto.Random import get_random_bytes
-from Crypto.Hash.HMAC import HMAC
-from Crypto.Hash.SHA256 import SHA256Hash
-from Crypto.Hash import SHA256
-from Crypto.Cipher import AES
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-import requests
-import netaddr
-import iso8601
-from pyramid.httpexceptions import HTTPError
-from pyramid.view import view_config as pyramid_view_config
-from mongoengine import DoesNotExist, NotRegistered
-from email.utils import formatdate, make_msgid
-from contextlib import contextmanager
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from base64 import urlsafe_b64encode
-import dateparser
-from datetime import timedelta
-from time import time, strftime, sleep
-import subprocess
-import jsonpickle
-import traceback
-import tempfile
-import datetime
-import urllib.parse
 import os
 import re
 import sys
@@ -74,6 +29,69 @@ import operator
 from future.utils import string_types
 from future.standard_library import install_aliases
 install_aliases()
+
+import urllib.parse
+
+import datetime
+import tempfile
+import traceback
+import jsonpickle
+import subprocess
+
+from time import time, strftime, sleep
+from datetime import timedelta
+import dateparser
+
+from base64 import urlsafe_b64encode
+
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+from contextlib import contextmanager
+from email.utils import formatdate, make_msgid
+from mongoengine import DoesNotExist, NotRegistered
+
+from pyramid.view import view_config as pyramid_view_config
+from pyramid.httpexceptions import HTTPError
+
+import iso8601
+import netaddr
+import requests
+
+from requests.packages.urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
+
+from Crypto.Cipher import AES
+from Crypto.Hash import SHA256
+from Crypto.Hash.SHA256 import SHA256Hash
+from Crypto.Hash.HMAC import HMAC
+from Crypto.Random import get_random_bytes
+
+import kombu
+import kombu.pools
+from amqp.exceptions import NotFound as AmqpNotFound
+
+from distutils.version import LooseVersion
+
+from elasticsearch import Elasticsearch
+from elasticsearch_tornado import EsClient
+
+from libcloud.container.base import ContainerImage
+from libcloud.container.drivers.docker import DockerException
+from libcloud.container.providers import get_driver as get_container_driver
+from libcloud.container.types import Provider as Container_Provider
+
+import mist.api.users.models
+from mist.api.auth.models import ApiToken, datetime_to_str
+
+from mist.api.exceptions import MistError, NotFoundError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
+from mist.api.exceptions import WorkflowExecutionError, BadRequestError
+
+from mist.api import config
+
+from functools import reduce
 
 
 if config.HAS_RBAC:
@@ -1965,3 +1983,39 @@ def get_aws_tags(resource_type: str,
                 'Value': value,
             })
     return aws_tags
+
+
+def create_helm_command(repo_url, release_name, chart_name, host, port, token,
+                        ca_cert_path=f"{config.HELM_DOCKER_IMAGE_WORKDIR}/ca_cert",  # noqa
+                        namespace=None,
+                        values_file_path=None,
+                        timeout="10m",
+                        version=None,
+                        ):
+    """Create the helm command that will be passed as CMD/ENTRYPOINT
+    to the container that will install the helm chart.
+    """
+    # The name to use for `helm repo add [NAME] [URL]`
+    repo_name = "misthelm"
+    if not (host.startswith("https://") or host.startswith("http://")):
+        host = f"https://{host}"
+
+    helm_install_command = (f'helm install {release_name} {repo_name}/{chart_name} --atomic'  # noqa
+                            f' --kube-apiserver "{host}:{port}" --kube-token "{token}"'  # noqa
+                            f' --kube-ca-file {ca_cert_path}')
+
+    if namespace:
+        helm_install_command += f" --create-namespace --namespace {namespace}"
+    if values_file_path:
+        helm_install_command += f" -f {values_file_path}"
+    if timeout:
+        helm_install_command += f" --timeout {timeout}"
+    if version:
+        helm_install_command += f' --version "{version}"'
+
+    # The docker image used defines container entrypoint
+    helm_command = (f"helm repo add {repo_name} {repo_url} && "
+                    f"helm repo update && "
+                    f"{helm_install_command}"
+                    )
+    return helm_command
