@@ -205,14 +205,7 @@ class Record(OwnershipMixin, me.Document):
         'collection': 'records',
         'allow_inheritance': True,
         'indexes': [
-            'last_seen', 'missing_since',
-            {
-                'fields': ['zone', 'external_id', 'last_seen',
-                           'missing_since'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            }
+            'owner', 'zone', 'external_id', 'last_seen', 'missing_since',
         ],
     }
     _record_type = None
