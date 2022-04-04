@@ -536,7 +536,7 @@ class BaseNetworkController(BaseController):
             missing_since=None
         ).update(missing_since=now)
         # Set last_seen, unset missing_since for subnets we just saw
-        Subnet.objects(cloud=self.cloud, id__in=[
+        Subnet.objects(network=network, id__in=[
                        s.id for s in subnets]).update(
             last_seen=now, missing_since=None)
         return subnets

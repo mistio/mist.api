@@ -5620,7 +5620,7 @@ class _KubernetesBaseComputeController(BaseComputeController):
     def _connect(self, provider, use_container_driver=True, **kwargs):
         host, port = dnat(self.cloud.owner,
                           self.cloud.host, self.cloud.port)
-        url = f'https://{sanitize_host(host)}'
+        url = f'https://{sanitize_host(host)}:{port}'
 
         try:
             requests.get(url, verify=False, timeout=15)
