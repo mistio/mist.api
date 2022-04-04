@@ -33,8 +33,9 @@ def migrate_clouds():
                         fields[field].document_type is SecretValue):
                     continue
 
-                if isinstance(cloud[field], dict) and cloud[field].get(
-                        'secret'):
+                if cloud.get(field) is None or (
+                        isinstance(cloud[field], dict) and
+                        cloud[field].get('secret')):
                     continue
                 else:
                     skipped_all = False
