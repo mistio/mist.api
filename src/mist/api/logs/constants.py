@@ -42,7 +42,7 @@ JOBS = {
         'post_deploy_finished',
     ),
     'create_cluster': (
-        'cluster_creation_finished',
+        'cluster_post_deploy_finished',
     ),
     'enable_monitoring': (
         'telegraf_deployment_finished',

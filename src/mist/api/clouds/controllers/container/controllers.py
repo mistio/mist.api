@@ -18,11 +18,14 @@ it is accessed through a cloud model, using the `ctl` abbreviation, like this:
     print(cloud.ctl.container.list_clusters())
 
 """
+import time
 import logging
 import uuid
 
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
+from libcloud.common.exceptions import BaseHTTPError
+from libcloud.common.google import ResourceNotFoundError
 
 from mist.api.config import PROVIDERS
 from mist.api.clouds.controllers.main.base import BaseContainerController
@@ -130,9 +133,18 @@ class GoogleContainerController(BaseContainerController):
         return kwargs
 
     def _create_cluster(self, auth_context, name, location, nodepools):
-        return self.connection.create_cluster(name=name,
-                                              zone=location,
-                                              nodepools=nodepools)
+        self.connection.create_cluster(name=name,
+                                       zone=location,
+                                       nodepools=nodepools)
+        cluster = None
+        for _ in range(120):
+            try:
+                cluster = self.connection.ex_get_cluster(name=name,
+                                                         zone=location)
+                break
+            except ResourceNotFoundError:
+                time.sleep(5)
+        return cluster
 
     def _destroy_cluster(self, name, zone):
         return self.connection.destroy_cluster(name=name, zone=zone)
@@ -293,6 +305,15 @@ class AmazonContainerController(BaseContainerController):
 
         for stack_id in stack_ids:
             waiter.wait(StackName=stack_id)
+
+        cluster = None
+        for _ in range(120):
+            try:
+                cluster = self.connection.get_cluster(name=name)
+                break
+            except BaseHTTPError:
+                time.sleep(5)
+        return cluster
 
     def _destroy_cluster(self, name):
         from mist.api.helpers import get_boto_driver, get_aws_tags

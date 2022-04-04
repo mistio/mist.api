@@ -67,9 +67,9 @@ class BaseContainerController(BaseController):
             schedule = ListClustersPollingSchedule.objects.get(
                 cloud=self.cloud)
         except ListClustersPollingSchedule.DoesNotExist:
-            log.warning(f'Schedule does not exist for cloud: {self.cloud}')
+            log.error('Schedule does not exist for cloud: %s', self.cloud)
         else:
-            schedule.add_interval(10, ttl=600)
+            schedule.add_interval(30, ttl=1200)
             schedule.save()
 
     def _create_cluster(self, auth_context, *args, **kwargs):
