@@ -1687,18 +1687,25 @@ def docker_connect():
     return conn
 
 
-def docker_run(name, image_id, env=None, command=None):
+def docker_run(name, image_id, env=None, command=None,
+               entrypoint=None):
     conn = docker_connect()
     image = ContainerImage(id=image_id, name=image_id,
                            extra={}, driver=conn, path=None,
                            version=None)
     try:
-        container = conn.deploy_container(name, image, environment=env,
-                                          command=command, tty=True)
+        container = conn.deploy_container(name, image,
+                                          environment=env,
+                                          command=command,
+                                          tty=True,
+                                          entrypoint=entrypoint,)
     except DockerException:
         conn.install_image(image_id)
-        container = conn.deploy_container(name, image, environment=env,
-                                          command=command, tty=True)
+        container = conn.deploy_container(name, image,
+                                          environment=env,
+                                          command=command,
+                                          tty=True,
+                                          entrypoint=entrypoint,)
     return container
 
 
@@ -1983,3 +1990,39 @@ def get_aws_tags(resource_type: str,
                 'Value': value,
             })
     return aws_tags
+
+
+def create_helm_command(repo_url, release_name, chart_name, host, port, token,
+                        ca_cert_path=f"{config.HELM_DOCKER_IMAGE_WORKDIR}/ca_cert",  # noqa
+                        namespace=None,
+                        values_file_path=None,
+                        timeout="10m",
+                        version=None,
+                        ):
+    """Create the helm command that will be passed as CMD/ENTRYPOINT
+    to the container that will install the helm chart.
+    """
+    # The name to use for `helm repo add [NAME] [URL]`
+    repo_name = "misthelm"
+    if not (host.startswith("https://") or host.startswith("http://")):
+        host = f"https://{host}"
+
+    helm_install_command = (f'helm install {release_name} {repo_name}/{chart_name} --atomic'  # noqa
+                            f' --kube-apiserver "{host}:{port}" --kube-token "{token}"'  # noqa
+                            f' --kube-ca-file {ca_cert_path}')
+
+    if namespace:
+        helm_install_command += f" --create-namespace --namespace {namespace}"
+    if values_file_path:
+        helm_install_command += f" -f {values_file_path}"
+    if timeout:
+        helm_install_command += f" --timeout {timeout}"
+    if version:
+        helm_install_command += f' --version "{version}"'
+
+    # The docker image used defines container entrypoint
+    helm_command = (f"helm repo add {repo_name} {repo_url} && "
+                    f"helm repo update && "
+                    f"{helm_install_command}"
+                    )
+    return helm_command

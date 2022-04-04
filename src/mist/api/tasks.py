@@ -50,7 +50,7 @@ from mist.api.poller.models import ListBucketsPollingSchedule
 
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import trigger_session_update
-
+from mist.api.helpers import docker_run, docker_connect, create_helm_command
 from mist.api.auth.methods import AuthContext
 
 from mist.api.logs.methods import log_event
@@ -1356,7 +1356,7 @@ def tmp_log(msg, *args):
                 time_limit=2_400_000,
                 max_retries=0)
 def create_cluster_async(auth_context_serialized, cloud_id,
-                         job_id=None, job=None, **kwargs):
+                         job_id=None, job=None, helm_charts=None, **kwargs):
     auth_context = AuthContext.deserialize(auth_context_serialized)
     job_id = job_id or uuid.uuid4().hex
     log_event(auth_context.owner.id, 'job', 'cluster_creation_started',
@@ -1371,7 +1371,7 @@ def create_cluster_async(auth_context_serialized, cloud_id,
         raise
 
     try:
-        cloud.ctl.container.create_cluster(auth_context, **kwargs)
+        cluster = cloud.ctl.container.create_cluster(auth_context, **kwargs)
     except Exception as exc:
         log_event(auth_context.owner.id, 'job', 'cluster_creation_finished',
                   user_id=auth_context.user.id, job_id=job_id, job=job,
@@ -1383,6 +1383,10 @@ def create_cluster_async(auth_context_serialized, cloud_id,
         log_event(auth_context.owner.id, 'job', 'cluster_creation_finished',
                   user_id=auth_context.user.id, job_id=job_id, job=job,
                   cloud_id=cloud.id, **kwargs)
+        cluster_post_deploy_steps.send(auth_context_serialized,
+                                       cluster.id,
+                                       job_id,
+                                       helm_charts)
 
 
 @dramatiq.actor(queue_name="dramatiq_provisioning",
@@ -1695,6 +1699,253 @@ def add_expiration_for_machine(auth_context, expiration, machine):
             f'-{secrets.token_hex(3)}')
     machine.expiration = Schedule.add(auth_context, name, **params)
     machine.save()
+
+
+@dramatiq.actor(
+    queue_name="dramatiq_provisioning",
+    time_limit=7_200_000,  # 2 hours
+)
+def cluster_post_deploy_steps(
+    auth_context_serialized,
+    cluster_external_id,
+    job_id,
+    helm_charts,
+):
+    """Wrapper task for Helm Chart installations that makes sure
+    the cluster is running and the Kubernetes API is up before the
+    Helm Chart installations.
+    """
+    try:
+        auth_context = AuthContext.deserialize(auth_context_serialized)
+    except TypeError:
+        cluster_post_deploy_steps.logger.error(
+            "Invalid serialized AuthContext type, exiting"
+        )
+        log_event(
+            auth_context.owner.id,
+            "job",
+            action="cluster_post_deploy_finished",
+            job_id=job_id,
+            cluster_external_id=cluster_external_id,
+            error="Failed to deserialize auth_context",
+        )
+    from mist.api.containers.models import Cluster
+    try:
+        cluster = Cluster.objects.get(
+            external_id=cluster_external_id,
+            owner=auth_context.owner,
+            missing_since=None,
+        )
+    except me.DoesNotExist:
+        message = "Poller has not yet found the cluster"
+        cluster_post_deploy_steps.logger.info(message)
+        raise Retry(message=message, delay=60_000) from None
+
+    if cluster.state != "running":
+        message = "Cluster is not in running state"
+        cluster_post_deploy_steps.logger.info(message)
+        raise Retry(message=message, delay=60_000)
+
+    for helm_chart in helm_charts:
+        try:
+            helm_install(
+                auth_context_serialized=auth_context_serialized,
+                cluster_id=cluster.id,
+                repo_url=helm_chart["repo_url"],
+                chart_name=helm_chart["chart_name"],
+                release_name=helm_chart["release_name"],
+                namespace=helm_chart.get("namespace"),
+                values=helm_chart.get("values"),
+                version=helm_chart.get("version"),
+                job_id=job_id,
+            )
+        except Exception as exc:
+            cluster_post_deploy_steps.logger.error(
+                "Failed to install helm chart %s on cluster: %s with exception %s",  # noqa
+                helm_chart["chart_name"],
+                cluster.id,
+                repr(exc),
+            )
+
+    log_event(
+        auth_context.owner.id,
+        "job",
+        action="cluster_post_deploy_finished",
+        job_id=job_id,
+        cluster=cluster.id,
+    )
+
+
+@dramatiq.actor(
+    queue_name="dramatiq_provisioning",
+    time_limit=3_600_000,  # 1 hour
+    throws=(me.DoesNotExist,),
+)
+def helm_install(
+    auth_context_serialized,
+    cluster_id,
+    repo_url,
+    chart_name,
+    release_name,
+    namespace=None,
+    values=None,
+    timeout="10m",
+    version=None,
+    job_id=None,
+):
+    """Install a Helm chart on the given Kubernetes cluster.
+
+    The equivalent commands with Helm CLI:
+        - helm repo add <random_repo_name> `repo_url`
+        - helm repo update
+        - helm install `release_name` <random_repo_name>/`chart_name` ...
+
+    Parameters:
+        auth_context_serialized(Dict): The serialized AuthContext of the user
+                                       that made the request.
+        cluster_id(str): The cluster ID to install the chart on.
+        repo_url(str): The chart repository that contains the chart that will
+                       be installed.
+        chart_name(str): The name of the chart that will be installed.
+        release_name(str): The name that will be given to Helm release.
+        namespace(str): The Kubernetes namespace to install the release.
+        values(str): A string containing values in YAML. Equivalent to
+                     `-f values.yaml` in Helm.
+        timeout(str): The timeout of the Helm install command.
+                      A Golang duration string is expected.
+                      https://pkg.go.dev/time#ParseDuration
+        version(str): A version or a version constraint for the chart.
+        job_id(str): The job UUID
+    """
+    try:
+        auth_context = AuthContext.deserialize(auth_context_serialized)
+    except TypeError:
+        helm_install.logger.error(
+            "Invalid serialized AuthContext type, exiting"
+        )
+        return
+    from mist.api.containers.models import Cluster
+    job_id = job_id or uuid.uuid4().hex
+    log_event(
+        auth_context.owner.id,
+        "job",
+        "helm_installation_started",
+        user_id=auth_context.user.id,
+        job_id=job_id,
+        cluster=cluster_id,
+        repo_url=repo_url,
+        chart=chart_name,
+        release=release_name,
+    )
+
+    cluster = Cluster.objects.get(id=cluster_id)
+    try:
+        host = cluster.credentials["host"]
+        port = cluster.credentials["port"]
+        token = cluster.credentials["token"]
+        ca_cert = cluster.credentials["ca_cert"]
+    except KeyError as exc:
+        helm_install.logger.error(
+            "Failed to get credentials for cluster %s with exception %r",
+            cluster.id,
+            exc,
+        )
+        error = (
+            f"Failed to get required cluster "
+            f"credentials with exc: {repr(exc)}"
+        )
+        log_event(
+            auth_context.owner.id,
+            "job",
+            "helm_installation_finished",
+            user_id=auth_context.user.id,
+            job_id=job_id,
+            cluster=cluster_id,
+            repo_url=repo_url,
+            chart=chart_name,
+            release=release_name,
+            error=error,
+        )
+        return
+
+    # Since we can't mount a local volume to the Docker API, we have to pass
+    # the CA cert & values.yaml file with env variables
+    env = [f"CA_CERT={ca_cert}"]
+    ca_cert_path = f"{config.HELM_DOCKER_IMAGE_WORKDIR}/ca_cert"
+    if values:
+        values_file_path = f"{config.HELM_DOCKER_IMAGE_WORKDIR}/values.yaml"
+        env.append(f"VALUES={values}")
+    else:
+        values_file_path = None
+
+    command = create_helm_command(
+        repo_url=repo_url,
+        release_name=release_name,
+        chart_name=chart_name,
+        host=host,
+        port=port,
+        token=token,
+        ca_cert_path=ca_cert_path,
+        namespace=namespace,
+        values_file_path=values_file_path,
+        timeout=timeout,
+        version=version,
+    )
+
+    # NOTE the double quotes around variables are necessary
+    # to preserve newline chars
+    if values:
+        command = f'echo "$VALUES" > {values_file_path} && {command}'
+    command = f'echo "$CA_CERT" > {ca_cert_path} && {command}'
+    entrypoint = ["/bin/sh", "-c", command]
+    exit_code = True
+    container_logs = None
+    try:
+        container = docker_run(
+            name=f"helm_runner-{job_id}",
+            image_id=config.HELM_DOCKER_IMAGE,
+            command="",
+            entrypoint=entrypoint,
+            env=env,
+        )
+        connection = docker_connect()
+        # Sleep to make sure container has started
+        time.sleep(3)
+        container = connection.get_container(container.id)
+        while container.state != "stopped":
+            container = connection.get_container(container.id)
+            time.sleep(3)
+        exit_code = container.extra["state"]["ExitCode"]
+        container_logs = connection.ex_get_logs(container)
+        helm_install.logger.info("Container logs: %s", container_logs)
+    except Exception as exc:
+        helm_install.logger.error(
+            "Failed to run Helm container with exception %r", exc
+        )
+    finally:
+        try:
+            connection.destroy_container(container)
+        except Exception as exc:
+            helm_install.logger.error(
+                "Failed to destroy Helm container with exception %r", exc
+            )
+        if exit_code is True or exit_code != 0:
+            error = True
+        else:
+            error = False
+        log_event(
+            auth_context.owner.id,
+            "job",
+            "helm_installation_finished",
+            user_id=auth_context.user.id,
+            job_id=job_id,
+            cluster=cluster_id,
+            repo_url=repo_url,
+            chart=chart_name,
+            release=release_name,
+            error=error,
+            helm_output=container_logs,
+        )
 
 
 def add_schedules(auth_context, machine, log_dict, schedules):
