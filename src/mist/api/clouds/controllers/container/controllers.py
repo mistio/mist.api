@@ -85,7 +85,8 @@ class GoogleContainerController(BaseContainerController):
                 cloud=self.cloud.id,
                 limit=1)
         except ValueError:
-            raise Exception(f'Location {location} not found')
+            raise Exception(
+                f'Location {create_cluster_request.location} not found')
 
         kwargs['location'] = location.name
         kwargs['nodepools'] = []
