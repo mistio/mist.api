@@ -47,6 +47,8 @@ __all__ = [
     "KubeVirtCloud",
     "KubernetesCloud",
     "OpenShiftCloud",
+    "CloudSigmaCloud",
+    "_KubernetesBaseCloud",
 ]
 # This is a map from provider name to provider class, eg:
 # 'linode': LinodeCloud
