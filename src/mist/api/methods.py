@@ -747,10 +747,14 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 implicit_query = Q(id=v)
                 implicit_search_fields = {
                     'name', 'domain', 'title',
-                    'email', 'first_name', 'last_name'}
+                    'email', 'first_name', 'last_name', 'tags'}
                 for field in implicit_search_fields:
                     if getattr(resource_model, field, None) and \
                             not isinstance(getattr(resource_model, field), property):  # noqa
+                        if field == 'tags': 
+                            import ipdb; ipdb.set_trace()
+                            mongo_operator = f'__{v}__exists'
+                            v = True
                         implicit_query |= Q(**{
                             f'{field}{mongo_operator}': v})
                 # id will always be exact match
