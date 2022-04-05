@@ -35,7 +35,7 @@ class Portal(me.Document):
 
     # Metadata about the local mist.io portal
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    created_at = me.DateTimeField(default=datetime.datetime.now)
+    created = me.DateTimeField(default=datetime.datetime.now)
 
     # Newer available mist.io versions
     available_upgrades = me.EmbeddedDocumentListField(AvailableUpgrade)
@@ -114,7 +114,7 @@ class Portal(me.Document):
     def as_dict(self):
         return {
             'portal_id': self.id,
-            'created_at': str(self.created_at),
+            'created': str(self.created),
             'version': config.VERSION,
             'available_upgrades': self.get_available_upgrades(),
         }
