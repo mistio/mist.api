@@ -62,8 +62,6 @@ def _update_cluster_from_dict_in_process_pool(params):
 # clusters cost is control plane cost + node costs
 # the latter is obtained from each node machine cost
 def _decide_cluster_control_plane_cost(cluster):
-    # Tags were not taken into consideration as the price catalog function
-    # will return the defaults from config.PROVIDERS
 
     # cp = control plane
     try:
@@ -72,12 +70,11 @@ def _decide_cluster_control_plane_cost(cluster):
         if catalog_cp_cph and catalog_cp_cpm:
             return (catalog_cp_cph, catalog_cp_cpm)
 
-        # providers name in config differ
-        providers_map = {'gce': 'google', 'aws': 'amazon'}
-
-        provider = providers_map.get(cluster.cloud.ctl.provider)
-        cph = config.PROVIDERS[provider][
-            'features']['container'].get('control-plane-cph', 0)
+        container_feature = cluster.cloud.ctl.has_feature('container')
+        if isinstance(container_feature, dict):
+            cph = container_feature.get('control-plane-cph', 0)
+        else:
+            cph = 0
         cpm = cph * 24 * 30
         return (cph, cpm)
 
