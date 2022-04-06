@@ -27,7 +27,6 @@ from libcloud.container.types import Provider as Container_Provider
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.google import ResourceNotFoundError
 
-from mist.api.config import PROVIDERS
 from mist.api.clouds.controllers.main.base import BaseContainerController
 
 log = logging.getLogger(__name__)
@@ -54,19 +53,16 @@ class GoogleContainerController(BaseContainerController):
         cluster.total_memory = cluster_dict['total_memory']
         return updated
 
-    def _list_clusters__cost_cluster(self, cluster, cluster_dict):
+    def _list_clusters__cost_nodes(self, cluster, cluster_dict):
         from mist.api.machines.models import Machine
         nodes = Machine.objects(cluster=cluster,
                                 missing_since=None,
                                 machine_type='node')
         nodes_cost = [node.cost for node in nodes]
         nodes_hourly_cost = sum([cost.hourly for cost in nodes_cost])
-        control_plane_cph = PROVIDERS['google'][
-            'features']['container'].get('control-plane-cph', 0)
-        control_plane_cpm = round(control_plane_cph * 24 * 30, 2)
-        cph = round(control_plane_cph + nodes_hourly_cost, 2)
-        cpm = round(cph * 24 * 30, 2)
-        return cph, cpm, control_plane_cph, control_plane_cpm
+        nodes_monthly_cost = sum([cost.monthly for cost in nodes_cost])
+
+        return nodes_hourly_cost, nodes_monthly_cost
 
     def _validate_create_cluster_request(self, auth_context,
                                          create_cluster_request):
@@ -167,7 +163,7 @@ class AmazonContainerController(BaseContainerController):
         cluster.total_memory = cluster_dict['total_memory']
         return updated
 
-    def _list_clusters__cost_cluster(self, cluster, cluster_dict):
+    def _list_clusters__cost_nodes(self, cluster, cluster_dict):
         from mist.api.machines.models import Machine
         nodes = Machine.objects(cluster=cluster,
                                 missing_since=None,
@@ -175,12 +171,8 @@ class AmazonContainerController(BaseContainerController):
         nodes_cost = [node.cost for node in nodes]
         nodes_hourly_cost = sum([cost.hourly for cost in nodes_cost])
         nodes_monthly_cost = sum([cost.monthly for cost in nodes_cost])
-        control_plane_cph = PROVIDERS['amazon'][
-            'features']['container'].get('control-plane-cph', 0)
-        control_plane_cpm = round(control_plane_cph * 24 * 30, 2)
-        cph = round(control_plane_cph + nodes_hourly_cost, 2)
-        cpm = round(cph * 24 * 30, 2)
-        return cph, cpm, control_plane_cph, control_plane_cpm
+
+        return nodes_hourly_cost, nodes_monthly_cost
 
     def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
         return cluster_dict.get('extra', {}).get('createdAt')
