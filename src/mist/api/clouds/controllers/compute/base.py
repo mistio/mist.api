@@ -3453,7 +3453,7 @@ class BaseComputeController(BaseController):
 
         Subclasses MAY override this method.
         """
-        if self.cloud.ctl.has_feature('container'):
+        if self.cloud.ctl.has_feature('container') is True:
             node = self.connection.deploy_container(**kwargs)
         else:
             node = self.connection.create_node(**kwargs)
