@@ -16,6 +16,8 @@ import jsonpatch
 
 import mongoengine as me
 
+from mist.api import config
+
 from libcloud.common.types import InvalidCredsError
 
 from mist.api.exceptions import ConflictError
@@ -34,6 +36,11 @@ from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
 from mist.api.clouds.controllers.base import BaseController
 
+if config.HAS_PRICING:
+    from mist.pricing.methods import get_cost_from_price_catalog
+else:
+    from mist.api.dummy.methods import get_cost_from_price_catalog
+
 log = logging.getLogger(__name__)
 
 __all__ = ["BaseContainerController"]
@@ -50,6 +57,29 @@ def _update_cluster_from_dict_in_process_pool(params):
     return cloud.ctl.container._update_cluster_from_dict(
         cluster_dict, locations_map, now
     )
+
+
+# clusters cost is control plane cost + node costs
+# the latter is obtained from each node machine cost
+def _decide_cluster_control_plane_cost(cluster):
+
+    # cp = control plane
+    try:
+        catalog_cp_cph, catalog_cp_cpm, percentage = \
+            get_cost_from_price_catalog(cluster)
+        if catalog_cp_cph and catalog_cp_cpm:
+            return (catalog_cp_cph, catalog_cp_cpm)
+
+        container_feature = cluster.cloud.ctl.has_feature('container')
+        if isinstance(container_feature, dict):
+            cph = container_feature.get('control-plane-cph', 0)
+        else:
+            cph = 0
+        cpm = cph * 24 * 30
+        return (cph, cpm)
+
+    except Exception:
+        log.exception(f"Error while deciding cost for cluster {cluster.id}")
 
 
 class BaseContainerController(BaseController):
@@ -191,7 +221,7 @@ class BaseContainerController(BaseController):
         """
         return cluster_dict['location']
 
-    def _list_clusters__cost_cluster(self, cluster, cluster_dict):
+    def _list_clusters__cost_nodes(self, cluster, cluster_dict):
         """Calculate cost for a cluster
 
         Any subclass that wishes to handle its cloud's pricing, can implement
@@ -383,18 +413,21 @@ class BaseContainerController(BaseController):
                 exc,
             )
         try:
-            # TODO implement a _decide_cluster_cost(cluster, tags, cost) method
-            # as is done for machines in compute base controller
-            cph, cpm, control_plane_cph, control_plane_cpm = \
-                self._list_clusters__cost_cluster(cluster, cluster_dict)
+            control_plane_cph, control_plane_cpm = \
+                _decide_cluster_control_plane_cost(cluster)
+            nodes_cph, nodes_cpm = \
+                self._list_clusters__cost_nodes(cluster, cluster_dict)
+            cph = nodes_cph + control_plane_cph
+            cpm = nodes_cpm + control_plane_cpm
             if(cluster.cost.hourly != cph or
                cluster.cost.monthly != cpm or
                cluster.cost.control_plane_hourly != control_plane_cph or
                cluster.cost.control_plane_monthly != control_plane_cpm):
-                cluster.cost.hourly = cph
-                cluster.cost.monthly = cpm
-                cluster.cost.control_plane_hourly = control_plane_cph
-                cluster.cost.control_plane_monthly = control_plane_cpm
+                cluster.cost.hourly = round(cph, 2)
+                cluster.cost.monthly = round(cpm, 2)
+                cluster.cost.control_plane_hourly = round(control_plane_cph, 2)
+                cluster.cost.control_plane_monthly = round(
+                    control_plane_cpm, 2)
                 updated = True
         except Exception as exc:
             log.exception("Error while calculating cost "

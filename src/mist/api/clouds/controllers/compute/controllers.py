@@ -3080,11 +3080,16 @@ class VultrComputeController(BaseComputeController):
 
     def _list_sizes__get_name(self, size):
         # Vultr doesn't have names on sizes.
-        # We name them after their 4 different size types & their specs.
+        # We name them after their 9 different size types & their specs.
         # - High Frequency
         # - Cloud Compute
         # - Bare Metal
         # - Dedicated Cloud
+        # - High Performance
+        # - General Purpose Optimized Cloud
+        # - CPU Optimized Cloud
+        # - Memory Optimized Cloud
+        # - Storage Optimized Cloud
         if size.name.startswith('vc2'):
             type_ = 'Cloud Compute'
         elif size.name.startswith('vdc'):
@@ -3093,6 +3098,16 @@ class VultrComputeController(BaseComputeController):
             type_ = 'High Frequency'
         elif size.name.startswith('vbm'):
             type_ = 'Bare Metal'
+        elif size.name.startswith('vhp'):
+            type_ = 'High Performance'
+        elif size.name.startswith('voc-g'):
+            type_ = 'General Purpose Optimized Cloud'
+        elif size.name.startswith('voc-c'):
+            type_ = 'CPU Optimized Cloud'
+        elif size.name.startswith('voc-m'):
+            type_ = 'Memory Optimized Cloud'
+        elif size.name.startswith('voc-s'):
+            type_ = 'Storage Optimized Cloud'
         else:
             log.warning('Unknown Vultr size id: %s', size.id)
             type_ = 'Unknown'
