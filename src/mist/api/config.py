@@ -1599,7 +1599,7 @@ PROVIDERS = {
             'objectstorage': True
         },
         'cost': {
-            'kubernetes-control-plane': 0.1, # cost per hour in $
+            'kubernetes-control-plane': 0.1,  # cost per hour in $
         },
     },
     'azure': {
@@ -1651,7 +1651,7 @@ PROVIDERS = {
             'networks': True
         },
         'cost': {
-            'kubernetes-control-plane': 0.1, # cost per hour in $
+            'kubernetes-control-plane': 0.1,  # cost per hour in $
         },
     },
     'alibaba': {

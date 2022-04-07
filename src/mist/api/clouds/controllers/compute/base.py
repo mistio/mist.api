@@ -2542,7 +2542,7 @@ class BaseComputeController(BaseController):
 
         # Container based providers use size parameter to define
         # requests & limits
-        if self.cloud.ctl.has_feature('container') is False:
+        if self.cloud.ctl.has_feature('container-service') is False:
             size_constraint = constraints.get('size', {})
             sizes = check_size_constraint(self.cloud.id,
                                           size_constraint,
@@ -3477,7 +3477,7 @@ class BaseComputeController(BaseController):
             'name': plan['machine_name']
         }
 
-        if self.cloud.ctl.has_feature('container') is False:
+        if self.cloud.ctl.has_feature('container-service') is False:
             if plan['size'].get('id'):
                 size = plan['size']['id']
             else:
@@ -3517,7 +3517,7 @@ class BaseComputeController(BaseController):
 
         Subclasses MAY override this method.
         """
-        if self.cloud.ctl.has_feature('container') is True:
+        if self.cloud.ctl.has_feature('container-service') is True:
             node = self.connection.deploy_container(**kwargs)
         else:
             node = self.connection.create_node(**kwargs)
