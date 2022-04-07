@@ -70,10 +70,7 @@ def _decide_cluster_control_plane_cost(cluster):
         if catalog_cp_cph and catalog_cp_cpm:
             return (catalog_cp_cph, catalog_cp_cpm)
 
-        cph = cluster.cloud.ctl.get_resource_cost('kubernetes-control-plane')
-        cpm = cph * 24 * 30
-        return (cph, cpm)
-
+        return cluster.cloud.ctl.get_resource_cost('kubernetes-control-plane')
     except Exception:
         log.exception(f"Error while deciding cost for cluster {cluster.id}")
 

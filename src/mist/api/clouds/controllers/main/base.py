@@ -677,17 +677,28 @@ class BaseMainController(object):
         return has_feature
 
     def get_resource_cost(self, resource):
-        """Return cost for the given resource.
+        """Get cost for the given resource.
 
         Supported resources:
             kubernetes-control-plane
+
+        Returns:
+            Tuple of cost per hour and cost per month
         """
         provider_dict = self._get_provider_dict()
         if resource == 'kubernetes-control-plane':
             try:
-                cost = provider_dict['cost'][resource]
-                return cost
+                hourly = provider_dict['cost'][resource]['cph']
             except (KeyError, TypeError):
-                return 0
+                hourly = 0
+            try:
+                monthly = provider_dict['cost'][resource]['cpm']
+            except (KeyError, TypeError):
+                monthly = 0
 
-        return 0
+            if hourly and not monthly:
+                monthly = hourly * 24 * 30
+            if monthly and not hourly:
+                hourly = monthly / 24 / 30
+
+        return hourly, monthly
