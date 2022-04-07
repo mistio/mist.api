@@ -70,14 +70,7 @@ def _decide_cluster_control_plane_cost(cluster):
         if catalog_cp_cph and catalog_cp_cpm:
             return (catalog_cp_cph, catalog_cp_cpm)
 
-        container_feature = cluster.cloud.ctl.has_feature('container')
-        if isinstance(container_feature, dict):
-            cph = container_feature.get('control-plane-cph', 0)
-        else:
-            cph = 0
-        cpm = cph * 24 * 30
-        return (cph, cpm)
-
+        return cluster.cloud.ctl.get_resource_cost('kubernetes-control-plane')
     except Exception:
         log.exception(f"Error while deciding cost for cluster {cluster.id}")
 

@@ -1571,7 +1571,7 @@ PROVIDERS = {
             'compute': True,
             'console': False,
             'container': {
-                'control-plane-cph': 0.1  # in $
+                'kubernetes': True,
             },
             'provision': {
                 'location': True,
@@ -1586,7 +1586,13 @@ PROVIDERS = {
             'storage': True,
             'networks': True,
             'objectstorage': True
-        }
+        },
+        'cost': {
+            'kubernetes-control-plane': {
+                'cph': 0.1,
+                'cpm': 0,
+            },
+        },
     },
     'azure': {
         'name': 'Microsoft Azure',
@@ -1621,7 +1627,7 @@ PROVIDERS = {
             'compute': True,
             'console': False,
             'container': {
-                'control-plane-cph': 0.1  # in $
+                'kubernetes': True,
             },
             'provision': {
                 'location': True,
@@ -1635,7 +1641,13 @@ PROVIDERS = {
             'dns': True,
             'storage': True,
             'networks': True
-        }
+        },
+        'cost': {
+            'kubernetes-control-plane': {
+                'cph': 0.1,
+                'cpm': 0,
+            },
+        },
     },
     'alibaba': {
         'name': 'Alibaba Cloud',
@@ -1940,7 +1952,9 @@ PROVIDERS = {
         'category': 'container host',
         'features': {
             'compute': True,
-            'container': True,
+            'container': {
+                'container-service': True,
+            },
             'provision': {
                 'custom_size': True,
                 'location': False,
@@ -1962,7 +1976,9 @@ PROVIDERS = {
         'features': {
             'compute': True,
             'console': False,
-            'container': True,
+            'container': {
+                'container-service': True,
+            },
             'provision': {
                 'location': False,
                 'key': {
@@ -1986,7 +2002,9 @@ PROVIDERS = {
         'features': {
             'compute': True,
             'console': False,
-            'container': True,
+            'container': {
+                'container-service': True,
+            },
             'provision': {
                 'location': True,
                 'custom_size': True,
