@@ -535,8 +535,22 @@ class BaseMainController(object):
         raise BadRequestError("Adding machines is only supported in Bare"
                               "Metal and KVM/Libvirt clouds.")
 
+    def _get_provider_dict(self):
+        provider_dict = None
+        try:
+            provider_dict = config.PROVIDERS[self.provider]
+        except KeyError:
+            for value in config.PROVIDERS.values():
+                if self.provider == value['driver']:
+                    provider_dict = value
+                    break
+            if not provider_dict:
+                raise KeyError('Provider does not exist') from None
+        return provider_dict
+
     def has_feature(self, feature):
         """Check whether a certain feature is supported by cloud
+
         List of features:
             dns
             networks
@@ -550,22 +564,12 @@ class BaseMainController(object):
             size-image-restriction
             location-size-restriction
             location-image-restriction
+            container-service
+            kubernetes
         """
-        from mist.api.config import PROVIDERS
-        from mist.api.exceptions import NotFoundError
-        provider_dict = None
-        try:
-            provider_dict = PROVIDERS[self.provider]
-        except KeyError:
-            for value in PROVIDERS.values():
-                if self.provider == value['driver']:
-                    provider_dict = value
-                    break
-            if not provider_dict:
-                raise NotFoundError('Provider does not exist')
-
+        provider_dict = self._get_provider_dict()
         has_feature = False
-        if feature in ['dns', 'networks', 'storage', 'container', 'console']:
+        if feature in ['dns', 'networks', 'storage', 'console']:
             has_feature = provider_dict['features'].get(feature, False)
         elif feature == 'key' and provider_dict['features']['provision']:
             has_feature = provider_dict['features']['provision'].get(feature, True)  # noqa
@@ -575,8 +579,29 @@ class BaseMainController(object):
                 has_feature = provider_dict['features']['provision']['restrictions'].get(feature, False)  # noqa
             except (KeyError, TypeError):
                 return False
+        elif feature in ['container-service', 'kubernetes']:
+            try:
+                has_feature = provider_dict['features']['container'][feature]
+            except (KeyError, TypeError):
+                return False
         else:
             if provider_dict['features']['provision']:
                 has_feature = provider_dict['features']['provision'].get(feature, False)  # noqa
 
         return has_feature
+
+    def get_resource_cost(self, resource):
+        """Return cost for the given resource.
+
+        Supported resources:
+            kubernetes-control-plane
+        """
+        provider_dict = self._get_provider_dict()
+        if resource == 'kubernetes-control-plane':
+            try:
+                cost = provider_dict['cost'][resource]
+                return cost
+            except (KeyError, TypeError):
+                return 0
+
+        return 0
