@@ -37,7 +37,7 @@ class GoogleContainerController(BaseContainerController):
     def _connect(self, **kwargs):
         return get_container_driver(Container_Provider.GKE)(
             self.cloud.email,
-            self.cloud.private_key,
+            self.cloud.private_key.value,
             project=self.cloud.project_id)
 
     def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
@@ -151,7 +151,7 @@ class AmazonContainerController(BaseContainerController):
     def _connect(self, **kwargs):
         return get_container_driver(Container_Provider.EKS)(
             self.cloud.apikey,
-            self.cloud.apisecret,
+            self.cloud.apisecret.value,
             self.cloud.region)
 
     def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
