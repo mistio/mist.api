@@ -180,11 +180,12 @@ class BaseDNSController(BaseController):
         # Set missing_since on zones not returned by libcloud
         Zone.objects(
             cloud=self.cloud, missing_since=None,
-            external_id__nin=[z.id for z in zones]
+            external_id__nin=[z.external_id for z in zones]
         ).update(missing_since=now)
         # Set last_seen, unset missing_since on zones we just saw
         Zone.objects(cloud=self.cloud,
-                     external_id__in=[z.id for z in zones]).update(
+                     external_id__in=[
+                         z.external_id for z in zones]).update(
             last_seen=now, missing_since=None)
 
         # Format zone information.
@@ -314,11 +315,12 @@ class BaseDNSController(BaseController):
         # Set missing_since on records not returned by libcloud
         Record.objects(
             owner=self.cloud.org, zone=zone, missing_since=None,
-            external_id__nin=[r.id for r in records]
+            external_id__nin=[r.external_id for r in records]
         ).update(missing_since=now)
         # Set last_seen on records we just saw
         Record.objects(owner=self.cloud.org, zone=zone,
-                       external_id__in=[r.id for r in records]).update(
+                       external_id__in=[
+                           r.external_id for r in records]).update(
             last_seen=now, missing_since=None)
 
         # Format zone information.
