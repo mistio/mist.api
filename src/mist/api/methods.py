@@ -854,7 +854,7 @@ def get_console_proxy_uri(machine):
         return proxy_uri
     elif machine.cloud.ctl.provider == 'vsphere':
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-            machine.machine_id
+            machine.external_id
         )
         protocol, host = config.CORE_URI.split('://')
         protocol = protocol.replace('http', 'ws')

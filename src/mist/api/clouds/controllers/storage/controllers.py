@@ -720,7 +720,7 @@ class VultStorageController(BaseStorageController):
         volume.attached_to = Machine.objects(
             cloud=self.cloud,
             missing_since=None,
-            machine_id=libcloud_volume.extra.get('attached_to_instance'))
+            external_id=libcloud_volume.extra.get('attached_to_instance'))
 
     def _create_volume__prepare_args(self, kwargs):
         """Parses keyword arguments on behalf of `self.create_volume`.

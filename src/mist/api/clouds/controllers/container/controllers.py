@@ -191,7 +191,7 @@ class AmazonContainerController(BaseContainerController):
         # provider_id is returned as: 'aws:///<availability-zone>/<external_id>'  # noqa
         provider_id = provider_id.split('/')[-1]
         try:
-            node = Machine.objects.get(machine_id=provider_id,
+            node = Machine.objects.get(external_id=provider_id,
                                        cloud=self.cloud,
                                        cluster=cluster)
             return node

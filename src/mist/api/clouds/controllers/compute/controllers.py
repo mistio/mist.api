@@ -5352,7 +5352,7 @@ class LibvirtComputeController(BaseComputeController):
         location_id = kwargs.pop('location')
         try:
             host = Machine.objects.get(
-                cloud=self.cloud, machine_id=location_id)
+                cloud=self.cloud, external_id=location_id)
         except me.DoesNotExist:
             raise MachineCreationError("The host specified does not exist")
         driver = self._get_host_driver(host)
@@ -5875,7 +5875,7 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
             from mist.api.machines.models import Machine
             try:
                 machine_parent = Machine.objects.get(
-                    cloud=machine.cloud, machine_id=node_parent_id)
+                    cloud=machine.cloud, external_id=node_parent_id)
             except Machine.DoesNotExist:
                 pass
             else:
@@ -5973,10 +5973,10 @@ class KubernetesComputeController(_KubernetesBaseComputeController):
             self.connection.ex_list_pods() + \
             self.connection.list_containers()
         for node in nodes:
-            if node.id == machine.machine_id:
+            if node.id == machine.external_id:
                 return node
         raise MachineNotFoundError(
-            "Machine with machine_id '%s'." % machine.machine_id
+            "Machine with external_id '%s'." % machine.external_id
         )
 
     def _destroy_machine(self, machine, node):

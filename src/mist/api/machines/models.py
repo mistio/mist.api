@@ -427,9 +427,7 @@ class Machine(OwnershipMixin, me.Document):
                 ret['type'] = self.machine_type
 
         if 'external_id' in only or not only:
-            ret['external_id'] = None
-            if self.machine_id:
-                ret['external_id'] = self.machine_id
+            ret['external_id'] = self.external_id
 
         if 'tags' in only or not only:
             ret['tags'] = {
