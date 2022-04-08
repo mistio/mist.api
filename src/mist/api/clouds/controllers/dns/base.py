@@ -490,7 +490,9 @@ class BaseDNSController(BaseController):
         # Invoke `zone.ctl.list_records` to update the UI and return the Record
         # object at the API. Try 3 times before failing
         for _ in range(3):
-            record.zone.ctl.list_records()
+            # FIXME: Replace with record.zone.ctl.list_records()
+            # we run list_zones instead because it also emits patches to the UI
+            self.list_zones()
             try:
                 return Record.objects.get(
                     owner=self.cloud.owner, zone=record.zone,
