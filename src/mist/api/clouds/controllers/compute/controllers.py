@@ -3532,7 +3532,7 @@ class VSphereComputeController(BaseComputeController):
                                            ex_datastore=datastore)
 
     def _get_libcloud_node(self, machine):
-        vm = self.connection.find_by_uuid(machine.machine_id)
+        vm = self.connection.find_by_uuid(machine.external_id)
         return self.connection._to_node_recursive(vm)
 
     def _generate_plan__parse_networks(self, auth_context, networks_dict,
