@@ -1909,11 +1909,11 @@ def helm_install(
         )
         connection = docker_connect()
         # Sleep to make sure container has started
-        time.sleep(3)
+        sleep(3)
         container = connection.get_container(container.id)
         while container.state != "stopped":
             container = connection.get_container(container.id)
-            time.sleep(3)
+            sleep(3)
         exit_code = container.extra["state"]["ExitCode"]
         container_logs = connection.ex_get_logs(container)
         helm_install.logger.info("Container logs: %s", container_logs)
