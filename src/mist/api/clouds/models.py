@@ -2,6 +2,7 @@
 
 import uuid
 import logging
+import datetime
 
 import mongoengine as me
 
@@ -9,6 +10,7 @@ from mist.api.tag.models import Tag
 from mist.api.users.models import Organization
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
+from mist.api.secrets.models import SecretValue
 
 from mist.api.clouds.controllers.main import controllers
 
@@ -38,12 +40,15 @@ __all__ = [
     "VSphereCloud",
     "OpenStackCloud",
     "DockerCloud",
+    "LXDCloud",
     "LibvirtCloud",
     "OnAppCloud",
     "OtherCloud",
     "KubeVirtCloud",
     "KubernetesCloud",
     "OpenShiftCloud",
+    "CloudSigmaCloud",
+    "_KubernetesBaseCloud",
 ]
 # This is a map from provider name to provider class, eg:
 # 'linode': LinodeCloud
@@ -124,7 +129,7 @@ class Cloud(OwnershipMixin, me.Document):
     owner = me.ReferenceField(Organization, required=True,
                               reverse_delete_rule=me.CASCADE)
 
-    title = me.StringField(required=True)
+    name = me.StringField(required=True)
     enabled = me.BooleanField(default=True)
 
     machine_count = me.IntField(default=0)
@@ -141,7 +146,7 @@ class Cloud(OwnershipMixin, me.Document):
 
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)
-
+    created = me.DateTimeField(default=datetime.datetime.now)
     deleted = me.DateTimeField()
 
     meta = {
@@ -150,9 +155,9 @@ class Cloud(OwnershipMixin, me.Document):
         'collection': 'clouds',  # collection 'cloud' is used by core's model
         'indexes': [
             'owner',
-            # Following index ensures owner with title combos are unique
+            # Following index ensures owner with name combos are unique
             {
-                'fields': ['owner', 'title', 'deleted'],
+                'fields': ['owner', 'name', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -188,10 +193,6 @@ class Cloud(OwnershipMixin, me.Document):
                                        if field not in Cloud._fields]
 
     @property
-    def name(self):
-        return self.title
-
-    @property
     def org(self):
         return self.owner
 
@@ -200,7 +201,7 @@ class Cloud(OwnershipMixin, me.Document):
         return self.ctl.provider
 
     @classmethod
-    def add(cls, owner, title, id='', **kwargs):
+    def add(cls, owner, name, user, id='', **kwargs):
         """Add cloud
 
         This is a class method, meaning that it is meant to be called on the
@@ -209,26 +210,28 @@ class Cloud(OwnershipMixin, me.Document):
         You're not meant to be calling this directly, but on a cloud subclass
         instead like this:
 
-            cloud = AmazonCloud.add(owner=org, title='EC2',
+            cloud = AmazonCloud.add(owner=org, name='EC2',
                                     apikey=apikey, apisecret=apisecret)
 
         Params:
-        - owner and title are common and required params
+        - owner and name are common and required params
         - only provide a custom cloud id if you're migrating something
         - kwargs will be passed to appropriate controller, in most cases these
           should match the extra fields of the particular cloud type.
 
         """
-        if not title:
-            raise RequiredParameterMissingError('title')
+        if not name:
+            raise RequiredParameterMissingError('name')
         if not owner or not isinstance(owner, Organization):
             raise BadRequestError('owner')
-        if Cloud.objects(owner=owner, title=title, deleted=None):
+        if Cloud.objects(owner=owner, name=name, deleted=None):
             raise CloudExistsError()
-        cloud = cls(owner=owner, title=title)
+        cloud = cls(owner=owner, name=name)
         if id:
             cloud.id = id
-        cloud.ctl.add(**kwargs)
+        fail_on_error = kwargs.pop('fail_on_error', True)
+        fail_on_invalid_params = kwargs.pop('fail_on_invalid_params', False)
+        cloud.ctl.add(user, **kwargs)
         return cloud
 
     def delete(self):
@@ -254,7 +257,7 @@ class Cloud(OwnershipMixin, me.Document):
     def as_dict(self):
         cdict = {
             'id': self.id,
-            'title': self.title,
+            'name': self.name,
             'provider': self.ctl.provider,
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
@@ -275,7 +278,8 @@ class Cloud(OwnershipMixin, me.Document):
         }
         cdict.update({key: getattr(self, key)
                       for key in self._cloud_specific_fields
-                      if key not in self._private_fields})
+                      if (key not in self._private_fields and getattr(self,
+                                                                      key))})
         return cdict
 
     def as_dict_v2(self, deref='auto', only=''):
@@ -317,7 +321,7 @@ class Cloud(OwnershipMixin, me.Document):
         return ret
 
     def __str__(self):
-        return '%s cloud %s (%s) of %s' % (type(self), self.title,
+        return '%s cloud %s (%s) of %s' % (type(self), self.name,
                                            self.id, self.owner)
 
 
@@ -331,7 +335,10 @@ class CloudLocation(OwnershipMixin, me.Document):
     external_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
+    created = me.DateTimeField()
+    last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
     extra = MistDictField()
     parent = me.ReferenceField('CloudLocation',
                                required=False,
@@ -344,12 +351,11 @@ class CloudLocation(OwnershipMixin, me.Document):
     available_images = me.ListField(
         me.ReferenceField('CloudImage')
     )
-
     meta = {
         'collection': 'locations',
         'indexes': [
             'cloud', 'external_id', 'name', 'missing_since',
-            'location_type', 'parent',
+            'last_seen', 'location_type', 'parent',
             {
                 'fields': ['cloud', 'external_id'],
                 'sparse': False,
@@ -370,7 +376,8 @@ class CloudLocation(OwnershipMixin, me.Document):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
-            'id', 'name', 'external_id', 'country', 'extra', 'location_type']
+            'id', 'name', 'external_id', 'country', 'extra', 'last_seen',
+            'location_type', 'created']
         deref_map = {
             'cloud': 'title',
             'owned_by': 'email',
@@ -381,7 +388,10 @@ class CloudLocation(OwnershipMixin, me.Document):
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
-
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
+        if 'created' in ret:
+            ret['created'] = str(ret['created'])
         return ret
 
     def as_dict(self):
@@ -392,6 +402,8 @@ class CloudLocation(OwnershipMixin, me.Document):
             'external_id': self.external_id,
             'name': self.name,
             'country': self.country,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
             'parent': self.parent.id if self.parent else None,
             'location_type': self.location_type,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
@@ -431,7 +443,10 @@ class CloudSize(me.Document):
     ram = me.IntField()
     disk = me.IntField()
     bandwidth = me.IntField()
+    created = me.DateTimeField()
+    last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
     extra = MistDictField()  # price info  is included here
     architecture = me.StringField(default='x86', choices=('x86', 'arm'))
     allowed_images = me.ListField(
@@ -443,6 +458,7 @@ class CloudSize(me.Document):
         'indexes': [
             'cloud',
             'external_id',
+            'last_seen',
             'missing_since',
             {
                 'fields': ['cloud', 'external_id'],
@@ -465,14 +481,17 @@ class CloudSize(me.Document):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
             'id', 'name', 'external_id', 'cpus', 'ram', 'bandwidth', 'disk',
-            'architecture', 'extra']
+            'architecture', 'extra', 'last_seen', 'created']
         deref_map = {
             'cloud': 'title',
             'allowed_images': 'name',
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
-
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
+        if 'created' in ret:
+            ret['created'] = str(ret['created'])
         return ret
 
     def as_dict(self):
@@ -487,6 +506,8 @@ class CloudSize(me.Document):
             'extra': self.extra,
             'disk': self.disk,
             'architecture': self.architecture,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
         }
@@ -501,7 +522,7 @@ class CloudSize(me.Document):
 class AmazonCloud(Cloud):
 
     apikey = me.StringField(required=True)
-    apisecret = me.StringField(required=True)
+    apisecret = me.EmbeddedDocumentField(SecretValue, required=True)
     region = me.StringField(required=True)
 
     _private_fields = ('apisecret', )
@@ -515,7 +536,7 @@ class AlibabaCloud(AmazonCloud):
 
 class DigitalOceanCloud(Cloud):
 
-    token = me.StringField(required=True)
+    token = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('token', )
     _controller_cls = controllers.DigitalOceanMainController
@@ -523,15 +544,14 @@ class DigitalOceanCloud(Cloud):
 
 class MaxihostCloud(Cloud):
 
-    token = me.StringField(required=True)
+    token = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('token', )
     _controller_cls = controllers.MaxihostMainController
 
 
 class LinodeCloud(Cloud):
-
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
     apiversion = me.StringField(null=True, default=None)
     _private_fields = ('apikey', )
     _controller_cls = controllers.LinodeMainController
@@ -540,7 +560,7 @@ class LinodeCloud(Cloud):
 class RackSpaceCloud(Cloud):
 
     username = me.StringField(required=True)
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
     region = me.StringField(required=True)
 
     _private_fields = ('apikey', )
@@ -550,7 +570,7 @@ class RackSpaceCloud(Cloud):
 class SoftLayerCloud(Cloud):
 
     username = me.StringField(required=True)
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.SoftLayerMainController
@@ -558,10 +578,10 @@ class SoftLayerCloud(Cloud):
 
 class AzureCloud(Cloud):
 
-    subscription_id = me.StringField(required=True)
-    certificate = me.StringField(required=True)
+    subscription_id = me.EmbeddedDocumentField(SecretValue, required=True)
+    certificate = me.EmbeddedDocumentField(SecretValue, required=True)
 
-    _private_fields = ('certificate', )
+    _private_fields = ('subscription_id', 'certificate', )
     _controller_cls = controllers.AzureMainController
 
 
@@ -570,7 +590,7 @@ class AzureArmCloud(Cloud):
     tenant_id = me.StringField(required=True)
     subscription_id = me.StringField(required=True)
     key = me.StringField(required=True)
-    secret = me.StringField(required=True)
+    secret = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('secret', )
     _controller_cls = controllers.AzureArmMainController
@@ -579,7 +599,7 @@ class AzureArmCloud(Cloud):
 class GoogleCloud(Cloud):
 
     email = me.StringField(required=True)
-    private_key = me.StringField(required=True)
+    private_key = me.EmbeddedDocumentField(SecretValue, required=True)
     project_id = me.StringField(required=True)
 
     _private_fields = ('private_key', )
@@ -588,7 +608,7 @@ class GoogleCloud(Cloud):
 
 class HostVirtualCloud(Cloud):
 
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.HostVirtualMainController
@@ -596,19 +616,7 @@ class HostVirtualCloud(Cloud):
 
 class EquinixMetalCloud(Cloud):
 
-    apikey = me.StringField(required=True)
-    project_id = me.StringField(required=False)
-
-    _private_fields = ('apikey', )
-    _controller_cls = controllers.EquinixMetalMainController
-
-
-class PacketCloud(Cloud):
-    """
-        For backwards compatibility, to prevent poller crashes
-        TODO: Remove in v5
-    """
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
     project_id = me.StringField(required=False)
 
     _private_fields = ('apikey', )
@@ -617,7 +625,7 @@ class PacketCloud(Cloud):
 
 class VultrCloud(Cloud):
 
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.VultrMainController
@@ -627,8 +635,8 @@ class VSphereCloud(Cloud):
 
     host = me.StringField(required=True)
     username = me.StringField(required=True)
-    password = me.StringField(required=True)
-    ca_cert_file = me.StringField(required=False)
+    password = me.EmbeddedDocumentField(SecretValue, required=True)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
     # Some vSphere clouds will timeout when calling list_nodes, unless we
     # perform the requests in batches, fetching a few properties each time.
     # The following property should be set to something like 4 when that
@@ -638,22 +646,20 @@ class VSphereCloud(Cloud):
 
     max_properties_per_request = me.IntField(default=20)
 
-    _private_fields = ('password', )
+    _private_fields = ('password', 'ca_cert_file')
     _controller_cls = controllers.VSphereMainController
 
 
 class OpenStackCloud(Cloud):
 
     username = me.StringField(required=True)
-    password = me.StringField(required=True)
+    password = me.EmbeddedDocumentField(SecretValue, required=True)
     url = me.StringField(required=True)
     tenant = me.StringField(required=True)
+    tenant_id = me.StringField(required=False)
     domain = me.StringField(required=False)
     region = me.StringField(required=False)
     compute_endpoint = me.StringField(required=False)
-    # tenant_id will be lazily populated when
-    # a request to get security_groups is made
-    tenant_id = me.StringField(required=False)
 
     _private_fields = ('password', )
     _controller_cls = controllers.OpenStackMainController
@@ -669,17 +675,18 @@ class DockerCloud(Cloud):
     port = me.IntField(required=True, default=4243)
 
     # User/Password Authentication (optional)
-    username = me.StringField(required=False)
-    password = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=False)
+    password = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # TLS Authentication (optional)
-    key_file = me.StringField(required=False)
-    cert_file = me.StringField(required=False)
-    ca_cert_file = me.StringField(required=False)
+    key_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
     # Show running and stopped containers
     show_all = me.BooleanField(default=False)
 
-    _private_fields = ('password', 'key_file')
+    _private_fields = (
+        'username', 'password', 'key_file', 'cert_file', 'ca_cert_file')
     _controller_cls = controllers.DockerMainController
 
 
@@ -692,18 +699,19 @@ class LXDCloud(Cloud):
     port = me.IntField(required=True, default=8443)
 
     # User/Password Authentication (optional)
-    username = me.StringField(required=False)
-    password = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=False)
+    password = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # TLS Authentication (optional)
-    key_file = me.StringField(required=False)
-    cert_file = me.StringField(required=False)
-    ca_cert_file = me.StringField(required=False)
+    key_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # Show running and stopped containers
     show_all = me.BooleanField(default=False)
 
-    _private_fields = ('password', 'key_file')
+    _private_fields = (
+        'username', 'password', 'key_file', 'cert_file', 'ca_cert_file')
     _controller_cls = controllers.LXDMainController
 
 
@@ -716,7 +724,7 @@ class LibvirtCloud(Cloud):
 class OnAppCloud(Cloud):
 
     username = me.StringField(required=True)
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
     host = me.StringField(required=True)
     verify = me.BooleanField(default=True)
 
@@ -732,19 +740,27 @@ class OtherCloud(Cloud):
 class _KubernetesBaseCloud(Cloud):
     host = me.StringField(required=True)
     port = me.IntField(required=True, default=6443)
+
     # USER / PASS authentication optional
-    username = me.StringField(required=False)
-    password = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=False)
+    password = me.EmbeddedDocumentField(SecretValue, required=False)
+
     # Bearer Token authentication optional
-    token = me.StringField(required=False)
+    token = me.EmbeddedDocumentField(SecretValue, required=False)
+
     # TLS Authentication
-    key_file = me.StringField(required=False)
-    cert_file = me.StringField(required=False)
+    key_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+
     # certificate authority
-    ca_cert_file = me.StringField(required=False)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+
     # certificate verification
     verify = me.BooleanField(required=False)
-    _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
+
+    _private_fields = (
+        'username', 'password', 'token',
+        'key_file', 'cert_file', 'ca_cert_file')
 
 
 class KubeVirtCloud(_KubernetesBaseCloud):
@@ -772,7 +788,7 @@ class OpenShiftCloud(_KubernetesProxyCloud):
 class CloudSigmaCloud(Cloud):
 
     username = me.StringField(required=True)
-    password = me.StringField(required=True)
+    password = me.EmbeddedDocumentField(SecretValue, required=True)
     region = me.StringField(required=True)
 
     _private_fields = ('password', )

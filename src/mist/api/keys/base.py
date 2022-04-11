@@ -7,6 +7,11 @@ from mist.api.exceptions import KeyExistsError
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import rename_kwargs
 from mist.api.helpers import trigger_session_update
+from mist.api.secrets.models import VaultSecret, SecretValue
+
+from mist.api.secrets.methods import maybe_get_secret_from_arg
+
+from mist.api import config
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +28,7 @@ class BaseKeyController(object):
         """
         self.key = key
 
-    def add(self, fail_on_invalid_params=True, **kwargs):
+    def add(self, user=None, fail_on_invalid_params=True, **kwargs):
         """Add an entry to the database
 
         This is only to be called by `Key.add` classmethod to create
@@ -52,18 +57,72 @@ class BaseKeyController(object):
             })
 
         for key, value in kwargs.items():
-            setattr(self.key, key, value)
+            if key == 'private':
+                secret, _key, arg_from_vault = maybe_get_secret_from_arg(value,
+                                                                         self.
+                                                                         key.
+                                                                         owner)
+                if secret:
+                    data = secret.ctl.read_secret()
+                    if _key not in data.keys():
+                        raise BadRequestError('The key specified (%s) does not exist in \
+                            secret `%s`' % (_key, secret.name))
+
+                    secret_value = SecretValue(secret=secret,
+                                               key=_key)
+                else:
+                    secret = VaultSecret(name='%s%s' % (config.VAULT_KEYS_PATH,
+                                                        self.key.name),
+                                         owner=self.key.owner)
+                    # first store key in Vault
+                    secret.ctl.create_or_update_secret({key: value})
+                    # save the VaultSecret object and assign owner
+                    try:
+                        secret.save()
+                        if user:
+                            secret.assign_to(user)
+                    except me.NotUniqueError:
+                        raise KeyExistsError("The path `%s%s` exists on Vault. \
+                            Try changing the name of the key" %
+                                             (config.VAULT_KEYS_PATH,
+                                              self.key.name))
+                    try:
+                        secret.ctl.create_or_update_secret({key: value})
+                    except Exception as exc:
+                        # in case secret is not successfully stored in Vault,
+                        # delete it from database as well
+                        if not arg_from_vault:
+                            secret.delete()
+                        raise exc
+                    secret_value = SecretValue(secret=secret, key='private')
+            else:
+                setattr(self.key, key, value)
+
+        self.key.private = secret_value
 
         if not Key.objects(owner=self.key.owner, default=True):
             self.key.default = True
 
         try:
             self.key.save()
+            # store public key as well if key is new
+            if not arg_from_vault:
+                secret.ctl.create_or_update_secret({'public': self.key.public})
         except me.ValidationError as exc:
             log.error("Error adding %s: %s", self.key.name, exc.to_dict())
+            # delete VaultSecret object and secret
+            # if it was just added to Vault
+            if not arg_from_vault:
+                secret.delete()
+                secret.ctl.delete_secret()
             raise BadRequestError("%s" % str(exc.to_dict()['__all__']))
         except me.NotUniqueError as exc:
             log.error("Key %s not unique error: %s", self.key.name, exc)
+            # delete VaultSecret object and secret
+            # if it was just added to Vault
+            if not arg_from_vault:
+                secret.delete()
+                secret.ctl.delete_secret()
             raise KeyExistsError()
 
         # SEC
@@ -84,7 +143,7 @@ class BaseKeyController(object):
             return
         self.key.name = name
         self.key.save()
-        log.info("Renamed key '%s' to '%s'.", self.key.name, name)
+        log.info("Renamed key %s to '%s'.", self.key.id, name)
         trigger_session_update(self.key.owner, ['keys'])
 
     def set_default(self):
@@ -106,7 +165,7 @@ class BaseKeyController(object):
         from mist.api.machines.models import KeyMachineAssociation
 
         log.info("Associating key %s to machine %s", self.key.id,
-                 machine.machine_id)
+                 machine.external_id)
 
         if isinstance(port, string_types):
             if port.isdigit():
@@ -131,7 +190,7 @@ class BaseKeyController(object):
         if key_assoc:
             log.warning("Key '%s' already associated with machine '%s' "
                         "in cloud '%s'", self.key.id,
-                        machine.cloud.id, machine.machine_id)
+                        machine.cloud.id, machine.external_id)
 
             return key_assoc[0]
 
@@ -148,7 +207,7 @@ class BaseKeyController(object):
 
         from mist.api.machines.models import KeyMachineAssociation
 
-        log.info("Disassociating key of machine '%s' " % machine.machine_id)
+        log.info("Disassociating key of machine '%s' " % machine.external_id)
 
         # removing key association
         KeyMachineAssociation.objects(key=self.key,

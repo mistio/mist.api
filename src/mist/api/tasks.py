@@ -104,7 +104,7 @@ def ssh_command(owner_id, cloud_id, machine_id, host, command,
 
 
 @dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
-def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
+def post_deploy_steps(auth_context_serialized, cloud_id, external_id,
                       monitoring, key_id=None, username=None, password=None,
                       port=22, script_id='', script_params='', job_id=None,
                       job=None, hostname='', plugins=None, script='',
@@ -122,7 +122,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
     def tmp_log(msg, *args):
         log.error('Post deploy: %s' % msg, *args)
     tmp_log('Entering post deploy steps for %s %s %s',
-            owner.id, cloud_id, machine_id)
+            owner.id, cloud_id, external_id)
 
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
@@ -131,7 +131,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
         raise e
 
     try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
+        machine = Machine.objects.get(cloud=cloud, external_id=external_id,
                                       state__ne='terminated')
     except Machine.DoesNotExist:
         raise Retry(delay=10_000)
@@ -155,9 +155,9 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
     log_dict = {
         'owner_id': owner.id,
         'event_type': 'job',
-        'cloud_id': cloud_id,
-        'machine_id': machine.id,
-        'external_id': machine_id,
+        'cloud': cloud_id,
+        'machine': machine.id,
+        'external_id': external_id,
         'job_id': job_id,
         'job': job,
         'host': host,
@@ -167,7 +167,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
     if schedule and schedule.get('name'):  # ugly hack to prevent dupes
         try:
             name = (schedule.get('action') + '-' + schedule.pop('name') +
-                    '-' + machine_id[:4])
+                    '-' + external_id[:4])
 
             auth_context = AuthContext.deserialize(
                 schedule.pop('auth_context'))
@@ -184,7 +184,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
             print(repr(e))
             error = repr(e)
             notify_user(owner, "add scheduler entry failed for "
-                               "machine %s" % machine_id, repr(e),
+                               "machine %s" % external_id, repr(e),
                         error=error)
             log_event(action='Add scheduler entry failed',
                       error=error, **log_dict)
@@ -256,13 +256,13 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
             log_dict = {
                 'owner_id': owner.id,
                 'event_type': 'job',
-                'cloud_id': cloud_id,
-                'machine_id': machine.id,
-                'external_id': machine_id,
+                'cloud': cloud_id,
+                'machine': machine.id,
+                'external_id': external_id,
                 'job_id': job_id,
                 'job': job,
                 'host': host,
-                'key_id': key_id,
+                'key': key_id,
                 'ssh_user': ssh_user,
             }
             log_event(action='probe', result=result, **log_dict)
@@ -289,7 +289,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
             error = retval > 0
             notify_user(owner, title,
                         cloud_id=cloud_id,
-                        machine_id=machine_id,
+                        external_id=external_id,
                         machine_name=machine.name,
                         command=script,
                         output=output,
@@ -317,12 +317,12 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
                 error = True
                 notify_user(
                     owner,
-                    "Enable monitoring failed for machine %s" % machine_id,
+                    "Enable monitoring failed for machine %s" % external_id,
                     repr(e)
                 )
                 notify_admin('Enable monitoring on creation failed for '
                              'user %s machine %s: %r' % (
-                                 str(owner), machine_id, e))
+                                 str(owner), external_id, e))
                 log_event(action='enable_monitoring_failed', error=repr(e),
                           **log_dict)
 
@@ -344,15 +344,15 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
     except Exception as exc:
         tmp_log(repr(exc))
         notify_admin("Deployment script failed for machine %s (%s) in cloud %s"
-                     " (%s) by user %s" % (machine.name, machine_id,
-                                           cloud.title, cloud_id, str(owner)),
+                     " (%s) by user %s" % (machine.name, external_id,
+                                           cloud.name, cloud_id, str(owner)),
                      repr(exc))
         log_event(
             owner.id,
             event_type='job',
             action='post_deploy_finished',
             cloud_id=cloud_id,
-            machine_id=machine_id,
+            external_id=external_id,
             enable_monitoring=bool(monitoring),
             command=script,
             error="Couldn't connect to run post deploy steps.",
@@ -362,7 +362,7 @@ def post_deploy_steps(auth_context_serialized, cloud_id, machine_id,
 
 
 @dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
-def openstack_post_create_steps(auth_context_serialized, cloud_id, machine_id,
+def openstack_post_create_steps(auth_context_serialized, cloud_id, external_id,
                                 monitoring, key_id, username, password,
                                 public_key, script='',
                                 script_id='', script_params='', job_id=None,
@@ -380,13 +380,13 @@ def openstack_post_create_steps(auth_context_serialized, cloud_id, machine_id,
         node = None
 
         for n in nodes:
-            if n.id == machine_id:
+            if n.id == external_id:
                 node = n
                 break
 
         if node and node.state == 0 and len(node.public_ips):
             post_deploy_steps.send(
-                auth_context_serialized, cloud_id, machine_id, monitoring,
+                auth_context_serialized, cloud_id, external_id, monitoring,
                 key_id, script=script, script_id=script_id,
                 script_params=script_params, job_id=job_id, job=job,
                 hostname=hostname, plugins=plugins,
@@ -429,7 +429,7 @@ def openstack_post_create_steps(auth_context_serialized, cloud_id, machine_id,
                     conn.ex_create_floating_ip(ext_net_id, machine_port_id)
 
                 post_deploy_steps.send(
-                    auth_context_serialized, cloud_id, machine_id, monitoring,
+                    auth_context_serialized, cloud_id, external_id, monitoring,
                     key_id, script=script,
                     script_id=script_id, script_params=script_params,
                     job_id=job_id, job=job, hostname=hostname, plugins=plugins,
@@ -445,7 +445,7 @@ def openstack_post_create_steps(auth_context_serialized, cloud_id, machine_id,
 
 
 @dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
-def azure_post_create_steps(auth_context_serialized, cloud_id, machine_id,
+def azure_post_create_steps(auth_context_serialized, cloud_id, external_id,
                             monitoring, key_id, username, password,
                             public_key, script='',
                             script_id='', script_params='', job_id=None,
@@ -462,7 +462,7 @@ def azure_post_create_steps(auth_context_serialized, cloud_id, machine_id,
         nodes = conn.list_nodes()
         node = None
         for n in nodes:
-            if n.id == machine_id:
+            if n.id == external_id:
                 node = n
                 break
         if node and node.state == NodeState.RUNNING and len(node.public_ips):
@@ -510,7 +510,7 @@ def azure_post_create_steps(auth_context_serialized, cloud_id, machine_id,
             ssh.close()
 
             post_deploy_steps.send(
-                auth_context_serialized, cloud_id, machine_id, monitoring,
+                auth_context_serialized, cloud_id, external_id, monitoring,
                 key_id, script=script,
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
@@ -527,7 +527,7 @@ def azure_post_create_steps(auth_context_serialized, cloud_id, machine_id,
 
 @dramatiq.actor(queue_name='dramatiq_provisioning', store_results=True)
 def rackspace_first_gen_post_create_steps(
-        auth_context_serialized, cloud_id, machine_id, monitoring, key_id,
+        auth_context_serialized, cloud_id, external_id, monitoring, key_id,
         password, public_key, username='root', script='', script_id='',
         script_params='', job_id=None, job=None, hostname='', plugins=None,
         post_script_id='', post_script_params='', schedule={}):
@@ -541,7 +541,7 @@ def rackspace_first_gen_post_create_steps(
         nodes = conn.list_nodes()
         node = None
         for n in nodes:
-            if n.id == machine_id:
+            if n.id == external_id:
                 node = n
                 break
 
@@ -574,7 +574,7 @@ def rackspace_first_gen_post_create_steps(
             ssh.close()
 
             post_deploy_steps.send(
-                auth_context_serialized, cloud_id, machine_id, monitoring,
+                auth_context_serialized, cloud_id, external_id, monitoring,
                 key_id, script=script,
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
@@ -619,7 +619,8 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
     for i in range(0, 10):
         try:
             cloned_machine = Machine.objects.get(cloud=machine.cloud,
-                                                 machine_id=node.get('id', ''))
+                                                 external_id=node.get('id',
+                                                                      ''))
             break
         except me.DoesNotExist:
             if i < 6:
@@ -916,7 +917,7 @@ def run_resource_action(owner_id, action, name, resource_id):
         if resource_type == 'machine':
             machine = resource
             log_dict['cloud_id'] = cloud_id = machine.cloud.id
-            log_dict['external_id'] = external_id = machine.machine_id
+            log_dict['external_id'] = external_id = machine.external_id
             if action in ('start', 'stop', 'reboot', 'destroy', 'notify'):
                 # call list machines here cause we don't have another way
                 # to update machine state if user isn't logged in
@@ -1051,7 +1052,7 @@ def run_resource_action(owner_id, action, name, resource_id):
         notify_user(
             owner, title,
             cloud_id=cloud_id,
-            machine_id=external_id,
+            external_id=external_id,
             duration=log_dict['finished_at'] - log_dict['started_at'],
             error=log_dict.get('error'),
         )
@@ -1061,7 +1062,7 @@ def run_resource_action(owner_id, action, name, resource_id):
                 time_limit=3_900_000,
                 store_results=True,
                 throws=(me.DoesNotExist,))
-def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
+def group_run_script(auth_context_serialized, script_id, name, machine_ids,
                      params='', owner_id=None):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
@@ -1109,10 +1110,10 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule started: %s', log_dict)
     tasks = []
-    for machine_uuid in machines_uuids:
+    for machine_id in machine_ids:
         try:
             task = run_script.message(auth_context_serialized, script_id,
-                                      machine_uuid, params=params,
+                                      machine_id, params=params,
                                       job_id=job_id, job='schedule',
                                       owner_id=owner.id)
             tasks.append(task)
@@ -1144,7 +1145,7 @@ def group_run_script(auth_context_serialized, script_id, name, machines_uuids,
                 time_limit=3_600_000,
                 store_results=True,
                 throws=(me.DoesNotExist,))
-def run_script(auth_context_serialized, script_id, machine_uuid, params='',
+def run_script(auth_context_serialized, script_id, machine_id, params='',
                host='', key_id='', username='', password='', port=22,
                job_id='', job='', action_prefix='', su=False, env="",
                owner_id=None):
@@ -1166,8 +1167,8 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
         'owner_id': owner.id,
         'job_id': job_id or uuid.uuid4().hex,
         'job': job,
-        'script_id': script_id,
-        'machine_id': machine_uuid,
+        'script': script_id,
+        'machine': machine_id,
         'params': params,
         'env': env,
         'su': su,
@@ -1187,10 +1188,10 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
     cloud_id = ''
 
     try:
-        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        machine = Machine.objects.get(id=machine_id, state__ne='terminated')
         cloud_id = machine.cloud.id
-        external_id = machine.machine_id
-        ret.update({'cloud_id': cloud_id, 'external_id': external_id})
+        external_id = machine.external_id
+        ret.update({'cloud': cloud_id, 'external_id': external_id})
         script = Script.objects.get(
             owner=owner, id=script_id, deleted=None)
         from mist.api.machines.methods import find_best_ssh_params
@@ -1234,7 +1235,7 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
             owner,
             title,
             cloud_id=cloud_id,
-            machine_id=external_id,
+            external_id=external_id,
             machine_name=machine_name,
             output=ret['stdout'],
             duration=ret['finished_at'] - ret['started_at'],
@@ -1453,7 +1454,7 @@ def create_machine_async_v2(
 
     for i in range(1, 11):
         try:
-            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+            machine = Machine.objects.get(cloud=cloud, external_id=node.id)
             break
         except me.DoesNotExist:
             sleep(i * 10)
@@ -1496,7 +1497,7 @@ def create_machine_async_v2(
         resolve_id_and_set_tags(auth_context.owner, 'machine', node.id,
                                 plan['tags'], cloud_id=cloud.id)
 
-    machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+    machine = Machine.objects.get(cloud=cloud, external_id=node.id)
 
     # first_run is set to True because poller has already
     # logged an observation event for this machine
@@ -1537,12 +1538,12 @@ def post_deploy_v2(auth_context_serialized, cloud_id, machine_id, external_id,
         raise me.DoesNotExist from None
 
     try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=external_id)
+        machine = Machine.objects.get(cloud=cloud, external_id=external_id)
     except Machine.DoesNotExist:
         tmp_log_error("Machine %s not found.Exiting", machine_id)
         raise me.DoesNotExist from None
 
-    msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
+    msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.name, cloud_id)
     msg += "Machine:\n  Name: %s\n  Id: %s\n" % (machine.name, machine.id)
     tmp_log("Machine found, proceeding to post deploy steps\n%s" % msg)
 
@@ -1694,7 +1695,7 @@ def add_expiration_for_machine(auth_context, expiration, machine):
         "notify": expiration.get("notify", ""),
         "notify_msg": expiration.get("notify_msg", ""),
     }
-    name = (f'{machine.name}-expiration-{machine.machine_id[:4]}'
+    name = (f'{machine.name}-expiration-{machine.external_id[:4]}'
             f'-{secrets.token_hex(3)}')
     machine.expiration = Schedule.add(auth_context, name, **params)
     machine.save()
@@ -1954,7 +1955,7 @@ def add_schedules(auth_context, machine, log_dict, schedules):
         type_ = schedule.get('action') or 'script'
         try:
             name = (f'{machine.name}-{type_}-'
-                    f'{machine.machine_id[:4]}-{secrets.token_hex(3)}')
+                    f'{machine.external_id[:4]}-{secrets.token_hex(3)}')
             tmp_log("Add scheduler entry %s", name)
             schedule["selectors"] = [{"type": "machines",
                                       "ids": [machine.id]}]
@@ -1971,7 +1972,7 @@ def add_schedules(auth_context, machine, log_dict, schedules):
             notify_user(
                 auth_context.owner,
                 "Add scheduler entry failed for machine %s"
-                % machine.machine_id,
+                % machine.external_id,
                 repr(e),
                 error=error,
             )

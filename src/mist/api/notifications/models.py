@@ -175,7 +175,7 @@ class Notification(me.Document):
     reminder_enabled = me.BooleanField()
     reminder_schedule = me.ListField(default=DEFAULT_REMINDER_SCHEDULE)
 
-    created_at = me.DateTimeField(default=lambda: datetime.datetime.utcnow())
+    created = me.DateTimeField(default=lambda: datetime.datetime.utcnow())
 
     suppressed = me.BooleanField()
 
@@ -183,7 +183,7 @@ class Notification(me.Document):
         'strict': False,
         'allow_inheritance': True,
         'collection': 'notifications',
-        'indexes': ['owner', 'created_at'],
+        'indexes': ['owner', 'created'],
     }
 
     _notification_channel_cls = None
@@ -199,7 +199,7 @@ class Notification(me.Document):
 
     @property
     def remind_in(self):
-        """Return a timedelta until the next reminder since `created_at`."""
+        """Return a timedelta until the next reminder since `created`."""
         try:
             remind_in = self.reminder_schedule[self.reminder_count]
         except IndexError:
@@ -208,7 +208,7 @@ class Notification(me.Document):
 
     def due_in(self):
         """Return a countdown until the next alert (reminder) is due."""
-        return self.created_at + self.remind_in - datetime.datetime.utcnow()
+        return self.created + self.remind_in - datetime.datetime.utcnow()
 
     def is_due(self):
         """Return True if self is due."""
@@ -233,7 +233,7 @@ class Notification(me.Document):
         schedule_size = len(self.reminder_schedule)
         for c in range(schedule_size - 1, self.reminder_count, -1):
             timedelta = datetime.timedelta(seconds=self.reminder_schedule[c])
-            if self.created_at + timedelta < datetime.datetime.utcnow():
+            if self.created + timedelta < datetime.datetime.utcnow():
                 self.reminder_count = c
                 break
 
@@ -253,8 +253,8 @@ class Notification(me.Document):
         return self.channel.ctype
 
     @property
-    def created_at_int(self):
-        return int(self.created_at.strftime('%s')) * 1000
+    def created_int(self):
+        return int(self.created.strftime('%s')) * 1000
 
     def as_dict(self):
         ret = {
@@ -264,7 +264,7 @@ class Notification(me.Document):
             'subject': self.subject,
             'body': self.text_body,
             'html_body': self.html_body,
-            'created_date': {"$date": self.created_at_int},
+            'created_date': {"$date": self.created_int},
         }
         if self.machine:
             ret.update({

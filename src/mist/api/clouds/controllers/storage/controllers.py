@@ -84,16 +84,17 @@ class AmazonStorageController(BaseStorageController):
         # Find the machine to which the volume is attached. NOTE that a just
         # a single instance is always returned.
         volume.attached_to = []
-        machine_id = libcloud_volume.extra.get('instance_id', '')
-        if machine_id:
+        external_id = libcloud_volume.extra.get('instance_id', '')
+        if external_id:
             try:
                 machine = Machine.objects.get(
-                    machine_id=machine_id, cloud=self.cloud, missing_since=None
+                    external_id=external_id, cloud=self.cloud,
+                    missing_since=None
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
                 log.warning('%s attached to unknown machine "%s"', volume,
-                            machine_id)
+                            external_id)
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -146,16 +147,16 @@ class DigitalOceanStorageController(BaseStorageController):
 
         # Find the machines to which the volume is attached.
         volume.attached_to = []
-        for machine_id in libcloud_volume.extra.get('droplet_ids', []):
+        for external_id in libcloud_volume.extra.get('droplet_ids', []):
             try:
                 machine = Machine.objects.get(
-                    machine_id=str(machine_id), cloud=self.cloud,
+                    external_id=str(external_id), cloud=self.cloud,
                     missing_since=None
                 )
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
                 log.warning('%s attached to unknown machine "%s"', volume,
-                            machine_id)
+                            external_id)
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -195,14 +196,14 @@ class OpenstackStorageController(BaseStorageController):
         # Find the machines to which the volume is attached.
         volume.attached_to = []
         for attachment in libcloud_volume.extra.get('attachments', []):
-            machine_id = attachment.get('server_id')
+            external_id = attachment.get('server_id')
             try:
-                machine = Machine.objects.get(machine_id=machine_id,
+                machine = Machine.objects.get(external_id=external_id,
                                               cloud=self.cloud)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
                 log.warning('%s attached to unknown machine "%s"', volume,
-                            machine_id)
+                            external_id)
 
     def _create_volume__prepare_args(self, kwargs):
         kwargs['ex_volume_type'] = kwargs.pop('storage_class_name', None)
@@ -375,16 +376,17 @@ class AlibabaStorageController(BaseStorageController):
         # Find the machine to which the volume is attached. NOTE that a just
         # a single instance is always returned.
         volume.attached_to = []
-        machine_id = libcloud_volume.extra.get('instance_id', '')
-        if machine_id:
+        external_id = libcloud_volume.extra.get('instance_id', '')
+        if external_id:
             try:
                 machine = Machine.objects.get(
-                    machine_id=machine_id, cloud=self.cloud, missing_since=None
+                    external_id=external_id, cloud=self.cloud,
+                    missing_since=None
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
                 log.warning('%s attached to unknown machine "%s"', volume,
-                            machine_id)
+                            external_id)
 
     def _list_volumes__volume_actions(self, volume, libcloud_volume):
         super(AlibabaStorageController, self)._list_volumes__volume_actions(
@@ -394,6 +396,55 @@ class AlibabaStorageController(BaseStorageController):
             volume.actions.delete = False
             if libcloud_volume.extra.get('type') == 'system':
                 volume.actions.detach = False
+
+
+class EquinixMetalStorageController(BaseStorageController):
+
+    def _create_volume__prepare_args(self, kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.clouds.models import CloudLocation
+
+        if not kwargs.get('location'):
+            raise RequiredParameterMissingError('location')
+        try:
+            location = CloudLocation.objects.get(id=kwargs['location'])
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError("Location with id '%s'." % kwargs['location'])
+        kwargs['location'] = location.external_id
+
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+
+        # Find the volume's location.
+        try:
+            external_location_id = volume.extra['facility']['href'].split(
+                '/')[-1]
+            volume.location = CloudLocation.objects.get(
+                cloud=volume.cloud,
+                external_id=external_location_id)
+        except CloudLocation.DoesNotExist:
+            volume.location = None
+
+        # Find the machines to which the volume is attached.
+        volume.attached_to = []
+        libcloud_connection = volume.cloud.ctl.compute.connection
+        for attachment in libcloud_volume.extra.get('attachments', []):
+            attachment_id = attachment.get('href').split('/')[-1]
+            attachment_data = libcloud_connection.ex_describe_attachment(
+                attachment_id)
+            external_volume_id = attachment_data['volume']['href'].split(
+                '/')[-1]
+            assert external_volume_id == volume.external_id
+            external_id = attachment_data['device']['href'].split('/')[-1]
+            try:
+                machine = Machine.objects.get(external_id=external_id,
+                                              cloud=self.cloud)
+                volume.attached_to.append(machine)
+            except Machine.DoesNotExist:
+                log.error('%s attached to unknown machine "%s"', volume,
+                          external_id)
 
 
 class KubernetesStorageController(BaseStorageController):
@@ -487,15 +538,15 @@ class LXDStorageController(BaseStorageController):
 
         for attachment in libcloud_volume.extra.get('used_by', []):
 
-            machine_id = attachment.split('/')[-1]
+            machine_name = attachment.split('/')[-1]
 
             try:
-                machine = Machine.objects.get(name=machine_id,
+                machine = Machine.objects.get(name=machine_name,
                                               cloud=self.cloud)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
                 log.warning('%s attached to unknown machine "%s"', volume,
-                            machine_id)
+                            machine_name)
 
     def _create_volume__prepare_args(self, kwargs):
         """
@@ -600,18 +651,17 @@ class LinodeStorageController(BaseStorageController):
 
         # Find the machine to which the volume is attached.
         volume.attached_to = []
-        machine_id = libcloud_volume.extra.get('linode_id', None)
-        if machine_id:
+        external_id = libcloud_volume.extra.get('linode_id', None)
+        if external_id:
             try:
                 machine = Machine.objects.get(
-                    machine_id=str(machine_id),
-                    cloud=self.cloud,
+                    external_id=str(external_id), cloud=self.cloud,
                     missing_since=None
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
                 log.warning('%s attached to unknown machine "%s"', volume,
-                            machine_id)
+                            external_id)
 
 
 class CloudSigmaStorageController(BaseStorageController):
@@ -629,12 +679,12 @@ class CloudSigmaStorageController(BaseStorageController):
             volume.location = None
 
         # Find the machines to which the volume is attached.
-        machine_ids = [item['uuid'] for item in
-                       libcloud_volume.extra['mounted_on']]
+        external_ids = [item['uuid'] for item in
+                        libcloud_volume.extra['mounted_on']]
 
         volume.attached_to = Machine.objects(cloud=self.cloud,
                                              missing_since=None,
-                                             machine_id__in=machine_ids)
+                                             external_id__in=external_ids)
 
     def _create_volume__prepare_args(self, kwargs):
         for param in ('name', 'size'):
@@ -670,7 +720,7 @@ class VultStorageController(BaseStorageController):
         volume.attached_to = Machine.objects(
             cloud=self.cloud,
             missing_since=None,
-            machine_id=libcloud_volume.extra.get('attached_to_instance'))
+            external_id=libcloud_volume.extra.get('attached_to_instance'))
 
     def _create_volume__prepare_args(self, kwargs):
         """Parses keyword arguments on behalf of `self.create_volume`.

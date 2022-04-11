@@ -15,7 +15,7 @@ class Tag(me.Document):
         choices=['cloud', 'machine', 'volume', 'buckets', 'image',
                  'network', 'subnet', 'zone', 'record',
                  'key', 'script', 'template', 'stack',
-                 'schedule', 'tunnel', 'rule', 'team'])
+                 'schedule', 'tunnel', 'rule', 'team', 'secret'])
 
     value = me.StringField()
     resource_id = me.StringField()

@@ -10,6 +10,7 @@ from libcloud.common.types import LibcloudError
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.concurrency.models import PeriodicTaskInfo
 
+from mist.api.helpers import get_datetime
 from mist.api.helpers import bucket_to_dict
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
@@ -107,10 +108,20 @@ class BaseObjectStorageController(BaseController):
                 bucket = Bucket(
                     cloud=self.cloud,
                     name=libcloud_bucket.name)
+                bucket.first_seen = datetime.datetime.utcnow()
                 new_buckets.append(bucket)
 
             bucket.extra = copy.copy(libcloud_bucket.extra)
-
+            try:
+                created = self._list_buckets__bucket_creation_date(
+                    libcloud_bucket)
+                if created:
+                    created = get_datetime(created)
+                    if bucket.created != created:
+                        bucket.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, bucket, exc)
             # Attach bucket content
             try:
                 """
@@ -153,15 +164,15 @@ class BaseObjectStorageController(BaseController):
                 raise mist.api.exceptions.BucketExistsError()
 
             buckets.append(bucket)
-
+        now = datetime.datetime.utcnow()
         # Set missing_since for buckets returned by libcloud.
         Bucket.objects(
             cloud=self.cloud, name__nin=[b.name for b in buckets],
             missing_since=None
-        ).update(missing_since=datetime.datetime.utcnow())
+        ).update(missing_since=now)
         Bucket.objects(
             cloud=self.cloud, name__in=[b.name for b in buckets]
-        ).update(missing_since=None)
+        ).update(last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of new storage.
         self.cloud.owner.mapper.update(new_buckets, asynchronous=False)
@@ -225,3 +236,6 @@ class BaseObjectStorageController(BaseController):
         from mist.api.objectstorage.models import BucketItem
 
         bucket.content = [BucketItem(**item) for item in content]
+
+    def _list_buckets__bucket_creation_date(self, libcloud_bucket):
+        return libcloud_bucket.extra.get('created_at')

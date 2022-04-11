@@ -33,7 +33,7 @@ def get_version_params(portal=None):
         portal = Portal.get_singleton()
     params = {
         'portal_id': portal.id,
-        'created_at': str(portal.created_at),
+        'created': str(portal.created),
         'license_key': config.LICENSE_KEY,
     }
     for key, value in config.VERSION.items():
@@ -76,13 +76,13 @@ def gc_sessions():
     """
     tdelta = datetime.timedelta(days=7)
     expired_sessions = SessionToken.objects(
-        created_at__lt=datetime.datetime.now() - tdelta)
+        created__lt=datetime.datetime.now() - tdelta)
     expired_session_count = expired_sessions.count()
     if expired_session_count:
         print(f"Removing {expired_session_count} expired sessions.")
         expired_sessions.delete()
     aged_tokens = ApiToken.objects(
-        created_at__lt=datetime.datetime.now() - tdelta)
+        created__lt=datetime.datetime.now() - tdelta)
     expired_tokens = [t.id for t in aged_tokens if not t.is_valid()]
     expired_token_count = len(expired_tokens)
     if expired_token_count:

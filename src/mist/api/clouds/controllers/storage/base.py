@@ -20,6 +20,7 @@ from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 
+from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import requests_retry_session
@@ -163,6 +164,7 @@ class BaseStorageController(BaseController):
             except Volume.DoesNotExist:
                 volume = Volume(cloud=self.cloud,
                                 external_id=libcloud_volume.id)
+                volume.first_seen = datetime.datetime.utcnow()
                 new_volumes.append(volume)
 
             volume.name = libcloud_volume.name
@@ -172,8 +174,16 @@ class BaseStorageController(BaseController):
                 volume.size = None
             volume.extra = copy.copy(libcloud_volume.extra)
             volume.missing_since = None
-            volume.last_seen = now
-
+            try:
+                created = self._list_volumes__volume_creation_date(
+                    libcloud_volume)
+                if created:
+                    created = get_datetime(created)
+                    if volume.created != created:
+                        volume.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, volume, exc)
             # Apply cloud-specific processing.
             try:
                 self._list_volumes__postparse_volume(volume, libcloud_volume)
@@ -335,6 +345,9 @@ class BaseStorageController(BaseController):
             volume.actions.attach = True
             volume.actions.delete = True
             volume.actions.detach = False
+
+    def _list_volumes__volume_creation_date(self, libcloud_volume):
+        return libcloud_volume.extra.get('created_at')
 
     def rename_volume(self, volume, name):
         """Renames a volume.

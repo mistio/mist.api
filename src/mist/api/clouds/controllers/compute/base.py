@@ -272,9 +272,9 @@ class BaseComputeController(BaseController):
 
     def produce_and_publish_patch(self, cached_machines, fresh_machines,
                                   first_run=False):
-        old_machines = {'%s-%s' % (m['id'], m['machine_id']): copy.copy(m)
+        old_machines = {'%s-%s' % (m['id'], m['external_id']): copy.copy(m)
                         for m in cached_machines}
-        new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+        new_machines = {'%s-%s' % (m.id, m.external_id): m.as_dict()
                         for m in fresh_machines}
         # Exclude last seen and probe fields from patch.
         for md in old_machines, new_machines:
@@ -447,7 +447,6 @@ class BaseComputeController(BaseController):
             Machine.objects(cloud=self.cloud,
                             id__nin=[m.id for m in machines],
                             missing_since=None).update(missing_since=now)
-
         # Set last_seen, unset missing_since on machine models we just saw
         Machine.objects(cloud=self.cloud,
                         id__in=[m.id for m in machines]).update(
@@ -507,11 +506,11 @@ class BaseComputeController(BaseController):
         from mist.api.machines.models import Machine
         try:
             machine = Machine.objects.get(cloud=self.cloud,
-                                          machine_id=node['id'])
+                                          external_id=node['id'])
         except Machine.DoesNotExist:
             try:
                 machine = Machine(
-                    cloud=self.cloud, machine_id=node['id']).save()
+                    cloud=self.cloud, external_id=node['id']).save()
                 is_new = True
             except me.ValidationError as exc:
                 log.warn("Validation error when saving new machine: %r" %
@@ -676,7 +675,8 @@ class BaseComputeController(BaseController):
             log.exception("Error while calculating cost "
                           "for machine %s:%s for %s \n%r",
                           machine.id, node['name'], self.cloud, exc)
-
+        if is_new:
+            machine.first_seen = now
         # Save all changes to machine model on the database.
         if is_new or updated:
             try:
@@ -1004,7 +1004,15 @@ class BaseComputeController(BaseController):
             _image.min_memory_size = self._list_images__get_min_memory_size(img)  # noqa
             _image.architecture = self._list_images__get_architecture(img)
             _image.origin = self._list_images__get_origin(img)
-
+            try:
+                created = self._list_images__image_creation_date(img)
+                if created:
+                    created = get_datetime(created)
+                    if _image.created != created:
+                        _image.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, _image, exc)
             try:
                 self._list_images__postparse_image(_image, img)
             except Exception as exc:
@@ -1032,15 +1040,27 @@ class BaseComputeController(BaseController):
 
             images.append(_image)
 
-        # update missing_since for images not returned by libcloud
         if not search:
+            now = datetime.datetime.utcnow()
+            # update missing_since for images not returned by libcloud
             CloudImage.objects(cloud=self.cloud,
                                missing_since=None,
                                stored_after_search=False,
                                external_id__nin=[i.external_id
                                                  for i in images]).update(
-                                                     missing_since=datetime.
-                                                     datetime.utcnow())
+                                                     missing_since=now)
+            # update first_seen for images seen for the first time
+            CloudImage.objects(cloud=self.cloud,
+                               first_seen=None,
+                               stored_after_search=False,
+                               external_id__in=[i.external_id
+                                                for i in images]).update(
+                                                    first_seen=now)
+            # update last_seen, missing_since for images we just saw
+            CloudImage.objects(
+                cloud=self.cloud,
+                external_id__in=[i.external_id for i in images]
+            ).update(last_seen=now, missing_since=None)
         if not search:
             # return images stored in database, because there are also
             # images stored after search, or imported from external repo
@@ -1180,6 +1200,9 @@ class BaseComputeController(BaseController):
         """
         return 'system'
 
+    def _list_images__image_creation_date(self, libcloud_image):
+        return libcloud_image.extra.get('created_at')
+
     def image_is_default(self, image_id):
         return True
 
@@ -1266,6 +1289,7 @@ class BaseComputeController(BaseController):
                                               external_id=size.id)
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud, external_id=size.id)
+                _size.first_seen = datetime.datetime.utcnow()
 
             _size.name = self._list_sizes__get_name(size)
             # FIXME: Parse unit prefix w/ si-prefix, cast to int e.g 1k to 1000
@@ -1276,6 +1300,15 @@ class BaseComputeController(BaseController):
             _size.missing_since = None
             _size.extra = self._list_sizes__get_extra(size)
             _size.architecture = self._list_sizes__get_architecture(size)
+            try:
+                created = self._list_sizes__size_creation_date(size)
+                if created:
+                    created = get_datetime(created)
+                    if _size.created != created:
+                        _size.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, _size, exc)
             try:
                 _size.bandwidth = int(size.bandwidth)
             except (TypeError, ValueError):
@@ -1315,12 +1348,17 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.error("Error adding size-location constraint: %s"
                           % repr(exc))
+        now = datetime.datetime.utcnow()
         # Update missing_since for sizes not returned by libcloud
         CloudSize.objects(
             cloud=self.cloud, missing_since=None,
             external_id__nin=[s.external_id for s in sizes]
-        ).update(missing_since=datetime.datetime.utcnow())
-
+        ).update(missing_since=now)
+        # Update last_seen, missing_since for sizes we just saw
+        CloudSize.objects(
+            cloud=self.cloud,
+            external_id__in=[s.external_id for s in sizes]
+        ).update(last_seen=now, missing_since=None)
         return sizes
 
     def _list_sizes__fetch_sizes(self):
@@ -1383,6 +1421,9 @@ class BaseComputeController(BaseController):
         if 'arm' in size.name.lower():
             return 'arm'
         return 'x86'
+
+    def _list_sizes__size_creation_date(self, libcloud_size):
+        return libcloud_size.extra.get('created_at')
 
     def list_cached_sizes(self):
         """Return list of sizes from database for a specific cloud"""
@@ -1497,6 +1538,15 @@ class BaseComputeController(BaseController):
             _location.location_type = self._list_locations__get_type(
                 _location, loc)
             try:
+                created = self._list_locations__location_creation_date(loc)
+                if created:
+                    created = get_datetime(created)
+                    if _location.created != created:
+                        _location.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, _location, exc)
+            try:
                 available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
                 log.error('Error adding location-size constraint: %s'
@@ -1521,14 +1571,25 @@ class BaseComputeController(BaseController):
                 raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
             locations.append(_location)
-
+        now = datetime.datetime.utcnow()
         # update missing_since for locations not returned by libcloud
         CloudLocation.objects(cloud=self.cloud,
                               missing_since=None,
                               external_id__nin=[l.external_id
                                                 for l in locations]).update(
-                                                    missing_since=datetime.
-                                                    datetime.utcnow())
+                                                    missing_since=now)
+        # update locations for locations seen for the first time
+        CloudLocation.objects(cloud=self.cloud,
+                              first_seen=None,
+                              external_id__in=[l.external_id
+                                               for l in locations]).update(
+                                                   first_seen=now)
+        # update last_seen, unset missing_since for locations we just saw
+        CloudLocation.objects(cloud=self.cloud,
+                              external_id__in=[l.external_id
+                                               for l in locations]).update(
+                                                   last_seen=now,
+                                                   missing_since=None)
         return locations
 
     def _list_locations__fetch_locations(self):
@@ -1591,6 +1652,9 @@ class BaseComputeController(BaseController):
         """
         return
 
+    def _list_locations__location_creation_date(self, libcloud_location):
+        return libcloud_location.extra.get('created_at')
+
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""
         from mist.api.clouds.models import CloudLocation
@@ -1625,14 +1689,14 @@ class BaseComputeController(BaseController):
         # assert isinstance(machine.cloud, Machine)
         assert self.cloud == machine.cloud
         for node in self.connection.list_nodes():
-            if node.id == machine.machine_id:
+            if node.id == machine.external_id:
                 return node
         if no_fail:
-            return Node(machine.machine_id, name=machine.machine_id,
+            return Node(machine.external_id, name=machine.external_id,
                         state=0, public_ips=[], private_ips=[],
                         driver=self.connection)
         raise MachineNotFoundError(
-            "Machine with machine_id '%s'." % machine.machine_id
+            "Machine with external_id '%s'." % machine.external_id
         )
 
     def start_machine(self, machine):
@@ -3467,7 +3531,7 @@ class BaseComputeController(BaseController):
         Subclasses that require special handling SHOULD override this method.
         """
         raise MachineCreationError("%s, got exception %s"
-                                   % (self.cloud.title, exc), exc)
+                                   % (self.cloud.name, exc), exc)
 
     def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
         """Post create machine actions.

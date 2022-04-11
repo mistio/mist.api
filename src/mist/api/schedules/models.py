@@ -245,6 +245,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
     reminder = me.ReferenceField('Schedule', required=False,
                                  reverse_delete_rule=me.NULLIFY)
 
+    created = me.DateTimeField(default=datetime.datetime.now)
+
     no_changes = False
 
     def __init__(self, *args, **kwargs):

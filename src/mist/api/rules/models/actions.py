@@ -142,7 +142,7 @@ class NoDataAction(NotificationAction):
             log_event(
                 machine.owner.id, 'incident', 'disable_monitoring',
                 cloud_id=machine.cloud.id, machine_id=machine.id,
-                external_id=machine.machine_id, incident_id=incident_id
+                external_id=machine.external_id, incident_id=incident_id
             )
             action = 'Disable Monitoring'
         else:
@@ -163,7 +163,8 @@ class CommandAction(BaseAlertAction):
         from mist.api.methods import ssh_command
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
-        return ssh_command(machine.owner, machine.cloud.id, machine.machine_id,
+        return ssh_command(machine.owner, machine.cloud.id,
+                           machine.external_id,
                            machine.hostname, self.command)
 
     def as_dict(self):

@@ -1,4 +1,5 @@
 import mongoengine as me
+
 from pyramid.response import Response
 
 from mist.api.machines.models import Machine
@@ -13,7 +14,6 @@ from mist.api.logs.methods import log_event
 from mist.api.keys.methods import filter_list_keys
 from mist.api.keys.methods import delete_key as m_delete_key
 
-from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import BadRequestError, KeyParameterMissingError
 from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 
@@ -68,9 +68,11 @@ def add_key(request):
         raise RequiredParameterMissingError("Private key is not provided")
 
     if certificate:
-        key = SignedSSHKey.add(auth_context.owner, key_name, **params)
+        key = SignedSSHKey.add(auth_context.owner, key_name,
+                               user=auth_context.user, **params)
     else:
-        key = SSHKey.add(auth_context.owner, key_name, **params)
+        key = SSHKey.add(auth_context.owner, key_name,
+                         user=auth_context.user, **params)
 
     # Set ownership.
     key.assign_to(auth_context.user)
@@ -103,6 +105,8 @@ def delete_key(request):
       type: string
     """
     auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+    delete_from_vault = params.get('delete_from_vault', False)
     key_id = request.matchdict.get('key')
     if not key_id:
         raise KeyParameterMissingError()
@@ -114,64 +118,8 @@ def delete_key(request):
         raise NotFoundError('Key id does not exist')
 
     auth_context.check_perm('key', 'remove', key.id)
-    m_delete_key(auth_context.owner, key_id)
+    m_delete_key(auth_context.owner, key_id, delete_from_vault)
     return OK
-
-
-@view_config(route_name='api_v1_keys',
-             request_method='DELETE', renderer='json')
-def delete_keys(request):
-    """
-    Tags: keys
-    ---
-    Deletes multiple keys.
-    Provide a list of key ids to be deleted. The method will try to delete
-    all of them and then return a json that describes for each key id
-    whether or not it was deleted or not_found if the key id could not
-    be located. If no key id was found then a 404(Not Found) response will
-    be returned.
-    REMOVE permission required on each key.
-    ---
-    key_ids:
-      required: true
-      type: array
-      items:
-        type: string
-    """
-    auth_context = auth_context_from_request(request)
-
-    params = params_from_request(request)
-    key_ids = params.get('key_ids', [])
-    if type(key_ids) != list or len(key_ids) == 0:
-        raise RequiredParameterMissingError('No key ids provided')
-    # remove duplicate ids if there are any
-    key_ids = set(key_ids)
-
-    report = {}
-    for key_id in key_ids:
-        try:
-            key = Key.objects.get(owner=auth_context.owner,
-                                  id=key_id, deleted=None)
-        except me.DoesNotExist:
-            report[key_id] = 'not_found'
-            continue
-        try:
-            auth_context.check_perm('key', 'remove', key.id)
-        except PolicyUnauthorizedError:
-            report[key_id] = 'unauthorized'
-        else:
-            delete_key(auth_context.owner, key_id)
-            report[key_id] = 'deleted'
-
-    # if no key id was valid raise exception
-    if len([key_id for key_id in report
-            if report[key_id] == 'not_found']) == len(key_ids):
-        raise NotFoundError('No valid key id provided')
-    # if user was unauthorized for all keys
-    if len([key_id for key_id in report
-            if report[key_id] == 'unauthorized']) == len(key_ids):
-        raise NotFoundError('Unauthorized to modify any of the keys')
-    return report
 
 
 @view_config(route_name='api_v1_key_action', request_method='PUT',
@@ -257,7 +205,6 @@ def get_private_key(request):
       required: true
       type: string
     """
-
     key_id = request.matchdict['key']
     if not key_id:
         raise RequiredParameterMissingError("key_id")
@@ -274,7 +221,7 @@ def get_private_key(request):
         auth_context.owner.id, 'request', 'read_private',
         key_id=key.id, user_id=auth_context.user.id,
     )
-    return key.private
+    return key.private.value
 
 
 @view_config(route_name='api_v1_key_public', request_method='GET',
@@ -351,6 +298,7 @@ def associate_key(request):
       type: string
     """
     key_id = request.matchdict['key']
+    cloud_id = request.matchdict.get('cloud')
 
     params = params_from_request(request)
     ssh_user = params.get('user', None)
@@ -367,18 +315,32 @@ def associate_key(request):
         raise NotFoundError('Key id does not exist')
     auth_context.check_perm('key', 'read_private', key.id)
 
-    machine_uuid = request.matchdict['machine_uuid']
-    try:
-        machine = Machine.objects.get(id=machine_uuid,
-                                      state__ne='terminated')
-        # used by logging_view_decorator
-        request.environ['machine_id'] = machine.machine_id
-        request.environ['cloud_id'] = machine.cloud.id
-    except Machine.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+    if cloud_id:
+        external_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          external_id=external_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % external_id)
+    else:
+        machine_id = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_id,
+                                          state__ne='terminated',
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
 
-    cloud_id = machine.cloud.id
-    auth_context.check_perm("cloud", "read", cloud_id)
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
 
     auth_context.check_perm("machine", "associate_key", machine.id)
 
@@ -408,22 +370,39 @@ def disassociate_key(request):
       type: string
     """
     key_id = request.matchdict['key']
+    cloud_id = request.matchdict.get('cloud')
     auth_context = auth_context_from_request(request)
 
-    machine_uuid = request.matchdict['machine_uuid']
-    try:
-        machine = Machine.objects.get(id=machine_uuid,
-                                      state__ne='terminated')
-        # used by logging_view_decorator
-        request.environ['machine_id'] = machine.machine_id
-        request.environ['cloud_id'] = machine.cloud.id
-    except Machine.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+    if cloud_id:
+        external_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          external_id=external_id,
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % external_id)
+    else:
+        machine_id = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_id,
+                                          owner=auth_context.org)
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
 
-    cloud_id = machine.cloud.id
+        cloud_id = machine.cloud.id
+
+    # used by logging_view_decorator
+    request.environ['cloud'] = machine.cloud.id
+    request.environ['machine'] = machine.id
+    request.environ['external_id'] = machine.external_id
+
     auth_context.check_perm("cloud", "read", cloud_id)
-
     auth_context.check_perm("machine", "disassociate_key", machine.id)
 
-    key = Key.objects.get(owner=auth_context.owner, id=key_id, deleted=None)
+    try:
+        key = Key.objects.get(
+            owner=auth_context.owner, id=key_id, deleted=None)
+    except Key.DoesNotExist:
+        raise NotFoundError("Key %s doesn't exist" % key_id)
     return key.ctl.disassociate(machine)

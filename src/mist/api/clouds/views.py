@@ -128,6 +128,10 @@ def add_cloud(request):
     machine_user:
       type: string
       description: Required for KVM
+    name:
+      description: The name of the cloud.
+      type: string
+      required: True
     object_storage_enabled:
       type: boolean
     organization:
@@ -150,7 +154,7 @@ def add_cloud(request):
       required: True
       enum:
       - vcloud
-      - bare_metal
+      - other
       - docker
       - libvirt
       - openstack
@@ -194,10 +198,6 @@ def add_cloud(request):
     tenant_name:
       type: string
       description: Required for OpenStack
-    title:
-      description: The human readable title of the cloud.
-      type: string
-      required: True
     token:
       type: string
       description: Required for Digitalocean
@@ -209,6 +209,7 @@ def add_cloud(request):
     auth_context = auth_context_from_request(request)
     cloud_tags, _ = auth_context.check_perm("cloud", "add", None)
     owner = auth_context.owner
+    user = auth_context.user
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
     # when pasting keys, preventing thus successful connection with the
@@ -218,14 +219,14 @@ def add_cloud(request):
             params[key] = params[key].rstrip().lstrip()
 
     # api_version = request.headers.get('Api-Version', 1)
-    title = params.get('title', params.get('name', ''))
+    name = params.get('name', params.get('title', ''))
     provider = params.get('provider', '')
 
     if not provider:
         raise RequiredParameterMissingError('provider')
 
     monitoring = None
-    result = add_cloud_v_2(owner, title, provider, params)
+    result = add_cloud_v_2(owner, name, provider, user, params)
     cloud_id = result['cloud_id']
     monitoring = result.get('monitoring')
     errors = result.get('errors')
@@ -281,7 +282,9 @@ def remove_cloud(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
     auth_context.check_perm('cloud', 'remove', cloud_id)
-    m_remove_cloud(auth_context.owner, cloud_id)
+    params = params_from_request(request)
+    delete_from_vault = params.get('delete_from_vault', False)
+    m_remove_cloud(auth_context.owner, cloud_id, delete_from_vault)
     return OK
 
 

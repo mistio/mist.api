@@ -157,7 +157,7 @@ def add_routes(configurator):
                        'templates', 'stacks', 'teams', 'networks', 'volumes',
                        'tunnels', 'members', 'insights', 'my-account',
                        'schedules', 'zones', 'rules', 'incidents',
-                       'buckets']
+                       'buckets', 'secrets']
         landing_sections = ['sign-up', 'sign-in', 'forgot-password', 'about',
                             'product', 'buy-license', 'request-pricing',
                             'get-started', 'privacy-policy', 'pledge', 'tos',
@@ -178,7 +178,7 @@ def add_routes(configurator):
                            custom_predicates=[valid_ui_section])
     configurator.add_route('home', '/')
     configurator.add_route('switch_context', '/switch_context')
-    configurator.add_route('switch_context_org', '/switch_context/{org_id}')
+    configurator.add_route('switch_context_org', '/switch_context/{org}')
     configurator.add_route('login', '/login')
     configurator.add_route('login_service', 'login/{service}')
     configurator.add_route('logout', '/logout')
@@ -220,22 +220,22 @@ def add_routes(configurator):
     configurator.add_route('api_v1_cloud_machine',
                            '/api/v1/clouds/{cloud}/machines/{machine}')
     configurator.add_route('api_v1_machine',
-                           '/api/v1/machines/{machine_uuid}')
+                           '/api/v1/machines/{machine}')
 
     configurator.add_route('api_v1_cloud_machine_rdp',
                            '/api/v1/clouds/{cloud}/machines/{machine}/rdp')
     configurator.add_route('api_v1_machine_rdp',
-                           '/api/v1/machines/{machine_uuid}/rdp')
+                           '/api/v1/machines/{machine}/rdp')
 
     configurator.add_route(
         'api_v1_cloud_machine_console',
         '/api/v1/clouds/{cloud}/machines/{machine}/console'
     )
     configurator.add_route('api_v1_machine_console',
-                           '/api/v1/machines/{machine_uuid}/console')
+                           '/api/v1/machines/{machine}/console')
 
     configurator.add_route('api_v1_machine_ssh',
-                           '/api/v1/machines/{machine_uuid}/ssh')
+                           '/api/v1/machines/{machine}/ssh')
 
     configurator.add_route('api_v1_machine_tags',
                            '/api/v1/clouds/{cloud}/machines/{machine}/tags')
@@ -244,30 +244,30 @@ def add_routes(configurator):
         '/api/v1/clouds/{cloud}/machines/{machine}/tags/{tag}'
     )
     configurator.add_route('api_v1_tags', '/api/v1/tags')
-    configurator.add_route('cloud_tags', '/clouds/{cloud_id}/tags')
-    configurator.add_route('key_tags', '/keys/{key_id}/tags')
+    configurator.add_route('cloud_tags', '/clouds/{cloud}/tags')
+    configurator.add_route('key_tags', '/keys/{key}/tags')
 
-    configurator.add_route('script_tags', '/scripts/{script_id}/tags')
-    configurator.add_route('schedule_tags', '/schedules/{schedule_id}/tags')
+    configurator.add_route('script_tags', '/scripts/{script}/tags')
+    configurator.add_route('schedule_tags', '/schedules/{schedule}/tags')
     configurator.add_route('network_tags',
-                           '/clouds/{cloud_id}/networks/{network_id}/tags')
+                           '/clouds/{cloud}/networks/{network}/tags')
 
-    configurator.add_route('script_tag', '/scripts/{script_id}/tag')
-    configurator.add_route('schedule_tag', '/schedules/{schedule_id}/tag')
+    configurator.add_route('script_tag', '/scripts/{script}/tag')
+    configurator.add_route('schedule_tag', '/schedules/{schedule}/tag')
     configurator.add_route(
         'network_tag',
-        '/clouds/{cloud}/networks/{network_id}/tag/{tag_key}'
+        '/clouds/{cloud}/networks/{network}/tag/{tag_key}'
     )
-    configurator.add_route('key_tag', '/keys/{key_id}/tag')
-    configurator.add_route('cloud_tag', '/clouds/{cloud_id}/tag')
+    configurator.add_route('key_tag', '/keys/{key}/tag')
+    configurator.add_route('cloud_tag', '/clouds/{cloud}/tag')
 
     configurator.add_route('machine_tag',
-                           '/clouds/{cloud_id}/machines/{machine_id}/tag')
+                           '/clouds/{cloud}/machines/{machine}/tag')
 
     configurator.add_route('api_v1_cloud_probe',
                            '/api/v1/clouds/{cloud}/machines/{machine}/probe')
     configurator.add_route('api_v1_probe',
-                           '/api/v1/machines/{machine_uuid}/probe')
+                           '/api/v1/machines/{machine}/probe')
 
     configurator.add_route('api_v1_ping', '/api/v1/ping')
 
@@ -340,7 +340,7 @@ def add_routes(configurator):
         '/api/v1/clouds/{cloud}/machines/{machine}/keys/{key}'
     )
     configurator.add_route('api_v1_key_association',
-                           '/api/v1/machines/{machine_uuid}/keys/{key}')
+                           '/api/v1/machines/{machine}/keys/{key}')
 
     # Rules
     configurator.add_route('api_v1_rules', '/api/v1/rules')
@@ -385,17 +385,21 @@ def add_routes(configurator):
 
     # Scripts
     configurator.add_route('api_v1_scripts', '/api/v1/scripts')
-    configurator.add_route('api_v1_script', '/api/v1/scripts/{script_id}')
+    configurator.add_route('api_v1_script', '/api/v1/scripts/{script}')
     configurator.add_route('api_v1_script_file',
-                           '/api/v1/scripts/{script_id}/file')
+                           '/api/v1/scripts/{script}/file')
     configurator.add_route('api_v1_script_url',
-                           '/api/v1/scripts/{script_id}/url')
+                           '/api/v1/scripts/{script}/url')
     configurator.add_route('api_v1_fetch', '/api/v1/fetch')
 
     # Schedules
     configurator.add_route('api_v1_schedules', '/api/v1/schedules')
     configurator.add_route('api_v1_schedule',
-                           '/api/v1/schedules/{schedule_id}')
+                           '/api/v1/schedules/{schedule}')
+
+    # Secrets
+    configurator.add_route('api_v1_secrets', '/api/v1/secrets')
+    configurator.add_route('api_v1_secret', '/api/v1/secrets/{secret}')
 
     # Tokens & sessions
     configurator.add_route('api_v1_tokens', '/api/v1/tokens')
@@ -404,19 +408,19 @@ def add_routes(configurator):
     # Orgs
     configurator.add_route('api_v1_orgs', '/api/v1/orgs')
     configurator.add_route('api_v1_org', '/api/v1/org')
-    configurator.add_route('api_v1_org_info', '/api/v1/org/{org_id}')
+    configurator.add_route('api_v1_org_info', '/api/v1/org/{org}')
 
     # Teams
-    configurator.add_route('api_v1_teams', '/api/v1/org/{org_id}/teams')
+    configurator.add_route('api_v1_teams', '/api/v1/org/{org}/teams')
     configurator.add_route('api_v1_team',
-                           '/api/v1/org/{org_id}/teams/{team_id}')
+                           '/api/v1/org/{org}/teams/{team}')
 
     configurator.add_route('api_v1_team_members',
-                           '/api/v1/org/{org_id}/teams/{team_id}/members')
+                           '/api/v1/org/{org}/teams/{team}/members')
 
     configurator.add_route(
         'api_v1_team_member',
-        '/api/v1/org/{org_id}/teams/{team_id}/members/{user_id}'
+        '/api/v1/org/{org}/teams/{team}/members/{user}'
     )
 
     configurator.add_route('delete_account', '/delete_account/{email}')
@@ -429,8 +433,8 @@ def add_routes(configurator):
 
     # Logs & stories.
     configurator.add_route('api_v1_logs', '/api/v1/logs')
-    configurator.add_route('api_v1_job', '/api/v1/jobs/{job_id}')
-    configurator.add_route('api_v1_story', '/api/v1/stories/{story_id}')
+    configurator.add_route('api_v1_job', '/api/v1/jobs/{job}')
+    configurator.add_route('api_v1_story', '/api/v1/stories/{story}')
 
     # Monitoring API endpoints.
     configurator.add_route('api_v1_home_dashboard', '/api/v1/dashboard')
@@ -438,42 +442,42 @@ def add_routes(configurator):
         'api_v1_cloud_machine_dashboard',
         '/api/v1/clouds/{cloud}/machines/{machine}/dashboard')
     configurator.add_route('api_v1_machine_dashboard',
-                           '/api/v1/machines/{machine_uuid}/dashboard')
+                           '/api/v1/machines/{machine}/dashboard')
     configurator.add_route('api_v1_monitoring', '/api/v1/monitoring')
     configurator.add_route(
         'api_v1_cloud_machine_monitoring',
         '/api/v1/clouds/{cloud}/machines/{machine}/monitoring')
     configurator.add_route('api_v1_machine_monitoring',
-                           '/api/v1/machines/{machine_uuid}/monitoring')
+                           '/api/v1/machines/{machine}/monitoring')
     configurator.add_route(
         'api_v1_cloud_metrics',
         '/api/v1/clouds/{cloud}/machines/{machine}/metrics')
     configurator.add_route('api_v1_metrics',
                            '/api/v1/metrics')
     configurator.add_route('api_v1_machine_metrics',
-                           '/api/v1/machines/{machine_uuid}/metrics')
+                           '/api/v1/machines/{machine}/metrics')
     configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
     configurator.add_route(
         'api_v1_cloud_deploy_plugin',
         '/api/v1/clouds/{cloud}/machines/{machine}/plugins/{plugin}')
     configurator.add_route(
         'api_v1_deploy_plugin',
-        '/api/v1/machines/{machine_uuid}/plugins/{plugin}')
+        '/api/v1/machines/{machine}/plugins/{plugin}')
     configurator.add_route(
         'api_v1_cloud_stats',
         '/api/v1/clouds/{cloud}/machines/{machine}/stats')
     configurator.add_route(
         'api_v1_stats',
-        '/api/v1/machines/{machine_uuid}/stats')
+        '/api/v1/machines/{machine}/stats')
     configurator.add_route('api_v1_load', '/api/v1/machines/stats/load')
 
     # Notifications
     configurator.add_route(
         'api_v1_dismiss_notification',
-        '/api/v1/notifications/{notification_id}')
+        '/api/v1/notifications/{notification}')
     configurator.add_route(
         'api_v1_notification_override',
-        '/api/v1/notification-overrides/{override_id}')
+        '/api/v1/notification-overrides/{override}')
     configurator.add_route(
         'api_v1_notification_overrides',
         '/api/v1/notification-overrides')
@@ -492,5 +496,5 @@ def add_routes(configurator):
     # DEV ENDPOINT
     configurator.add_route('api_v1_dev_register', '/api/v1/dev/register')
     configurator.add_route('api_v1_dev_add_user_to_team',
-                           '/api/v1/dev/orgs/{org_id}/teams/{team_id}')
+                           '/api/v1/dev/orgs/{org}/teams/{team}')
     configurator.add_route('api_v1_dev_users', '/api/v1/dev/users')

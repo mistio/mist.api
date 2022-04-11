@@ -18,7 +18,10 @@ class CloudImage(OwnershipMixin, me.Document):
     name = me.StringField()
     starred = me.BooleanField(default=False)
     stored_after_search = me.BooleanField(default=False)
+    created = me.DateTimeField()
+    last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
     extra = MistDictField()
     os_type = me.StringField(default='linux')
     os_distro = me.StringField(default='other', null=False)
@@ -37,6 +40,7 @@ class CloudImage(OwnershipMixin, me.Document):
         'indexes': [
             'cloud',
             'external_id',
+            'last_seen',
             'missing_since',
             'stored_after_search',
             {
@@ -78,6 +82,8 @@ class CloudImage(OwnershipMixin, me.Document):
             'min_memory_size': self.min_memory_size,
             'tags': self.tags,
             'origin': self.origin,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
@@ -86,7 +92,8 @@ class CloudImage(OwnershipMixin, me.Document):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
             'id', 'name', 'external_id', 'starred', 'os_type', 'os_distro',
-            'architecture', 'min_disk_size', 'min_memory_size', 'extra']
+            'architecture', 'min_disk_size', 'min_memory_size', 'extra',
+            'last_seen', 'created']
         deref_map = {
             'cloud': 'title',
             'owned_by': 'email',
@@ -100,5 +107,9 @@ class CloudImage(OwnershipMixin, me.Document):
                 tag.key: tag.value for tag in Tag.objects(
                     resource_id=self.id, resource_type='machine').only(
                         'key', 'value')}
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
+        if 'created' in ret:
+            ret['created'] = str(ret['created'])
 
         return ret

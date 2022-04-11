@@ -80,11 +80,13 @@ class AmazonMainController(BaseMainController):
         apikey = kwargs.get('apikey')
         apisecret = kwargs.get('apisecret')
         if apikey and apisecret == 'getsecretfromdb':
-            cloud = type(self.cloud).objects(owner=self.cloud.owner,
-                                             apikey=apikey,
-                                             deleted=None).first()
-            if cloud is not None:
-                kwargs['apisecret'] = cloud.apisecret
+            amazon_clouds = type(self.cloud).objects(owner=self.cloud.owner,
+                                                     deleted=None)
+            if amazon_clouds:
+                for amazon_cloud in amazon_clouds:
+                    if amazon_cloud.apikey == apikey:
+                        kwargs['apisecret'] = amazon_cloud.apisecret.value
+                        break
 
 
 class AlibabaMainController(AmazonMainController):
@@ -145,7 +147,7 @@ class RackSpaceMainController(BaseMainController):
                                              username=username,
                                              deleted=None).first()
             if cloud is not None:
-                kwargs['apikey'] = cloud.apikey
+                kwargs['apikey'] = cloud.apikey.value
 
 
 class SoftLayerMainController(BaseMainController):
@@ -330,7 +332,7 @@ class LibvirtMainController(BaseMainController):
                                    'errors': exc.to_dict()})
         except me.NotUniqueError:
             raise CloudExistsError("Cloud with name %s already exists"
-                                   % self.cloud.title)
+                                   % self.cloud.name)
         total_errors = {}
 
         for _host in kwargs['hosts']:
@@ -374,7 +376,7 @@ class LibvirtMainController(BaseMainController):
                 # Create and save machine entry to database.
                 machine = Machine(
                     cloud=self.cloud,
-                    machine_id=_host.get('host').replace('.', '-'),
+                    external_id=_host.get('host').replace('.', '-'),
                     name=_host.get('alias') or _host.get('host'),
                     ssh_port=ssh_port,
                     last_seen=datetime.datetime.utcnow(),
@@ -487,7 +489,7 @@ class LibvirtMainController(BaseMainController):
         # first check if the host has already been added to the cloud
         try:
             machine = Machine.objects.get(cloud=self.cloud,
-                                          machine_id=host.replace('.', '-'))
+                                          external_id=host.replace('.', '-'))
             machine.name = kwargs.get('name') or host
             machine.ssh_port = ssh_port
             machine.extra = extra
@@ -498,7 +500,7 @@ class LibvirtMainController(BaseMainController):
                 cloud=self.cloud,
                 name=kwargs.get('name') or host,
                 hostname=host,
-                machine_id=host.replace('.', '-'),
+                external_id=host.replace('.', '-'),
                 ssh_port=ssh_port,
                 extra=extra,
                 state=NodeState.RUNNING.value,
@@ -564,7 +566,7 @@ class LibvirtMainController(BaseMainController):
 
 class OtherMainController(BaseMainController):
 
-    provider = 'bare_metal'
+    provider = 'other'
     ComputeController = compute_ctls.OtherComputeController
 
     def disable(self):
@@ -589,7 +591,7 @@ class OtherMainController(BaseMainController):
         method of `BaseMainController`.
 
         This is only expected to be called by `Cloud.add` classmethod to create
-        a cloud. Fields `owner` and `title` are already populated in
+        a cloud. Fields `owner` and `name` are already populated in
         `self.cloud`. The `self.cloud` model is not yet saved.
 
         If appropriate kwargs are passed, this can currently also act as a
@@ -604,7 +606,7 @@ class OtherMainController(BaseMainController):
                                    'errors': exc.to_dict()})
         except me.NotUniqueError:
             raise CloudExistsError("Cloud with name %s already exists"
-                                   % self.cloud.title)
+                                   % self.cloud.name)
 
         if kwargs:
             errors = []
@@ -622,7 +624,7 @@ class OtherMainController(BaseMainController):
             else:  # old api, single machine
                 try:
                     self.add_machine_wrapper(
-                        self.cloud.title, fail_on_error=fail_on_error,
+                        self.cloud.name, fail_on_error=fail_on_error,
                         fail_on_invalid_params=fail_on_invalid_params, **kwargs
                     )
                 except Exception as exc:
@@ -636,7 +638,7 @@ class OtherMainController(BaseMainController):
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                **kwargs):
         raise BadRequestError("OtherServer clouds don't support `update`. "
-                              "Only title can be changed, using `rename`. "
+                              "Only name can be changed, using `rename`. "
                               "To change machine details, one must edit the "
                               "machines themselves, not the cloud.")
 
@@ -732,7 +734,7 @@ class OtherMainController(BaseMainController):
         machine = Machine(
             cloud=self.cloud,
             name=name or host,
-            machine_id=uuid.uuid4().hex,
+            external_id=uuid.uuid4().hex,
             os_type=os_type,
             ssh_port=ssh_port,
             rdp_port=rdp_port,
@@ -793,6 +795,7 @@ class _KubernetesBaseMainController(BaseMainController):
     StorageController = storage_ctls.KubernetesStorageController
 
     def _update__preparse_kwargs(self, kwargs):
+        kwargs.pop('authentication', None)
         host = kwargs.get('host', self.cloud.host)
         if host:
             host = sanitize_host(host)

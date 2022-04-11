@@ -269,9 +269,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     """
     # script: a command that is given once
-    # script_id: id of a script that exists - for mist.core
+    # script_id: id of a script that exists
     # script_params: extra params, for script_id
-    # post_script_id: id of a script that exists - for mist.core. If script_id
+    # post_script_id: id of a script that exists. If script_id
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
@@ -301,7 +301,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 pass
             key_id = key.name
     if key:
-        private_key = key.private
+        private_key = key.private.value
         public_key = key.public.replace('\n', '')
     else:
         public_key = None
@@ -588,7 +588,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     for i in range(0, 10):
         try:
-            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+            machine = Machine.objects.get(cloud=cloud, external_id=node.id)
             break
         except me.DoesNotExist:
             if i < 6:
@@ -781,7 +781,7 @@ def _create_machine_openstack(conn, public_key, key_name,
     if not isinstance(networks, list):
         networks = [networks]
     chosen_networks = []
-    cached_network_ids = [n.network_id for
+    cached_network_ids = [n.external_id for
                           n in Network.objects(id__in=networks)]
     try:
         for network in conn.ex_list_networks():
@@ -1037,7 +1037,7 @@ def _create_machine_ec2(conn, key_name, public_key,
             subnet_id = subnet.subnet_id
         except Subnet.DoesNotExist:
             try:
-                subnet = Subnet.objects.get(subnet_id=subnet_id)
+                subnet = Subnet.objects.get(external_id=subnet_id)
                 log.info('Got providers id instead of mist id, not \
                 doing nothing.')
             except Subnet.DoesNotExist:
@@ -1586,7 +1586,7 @@ def _create_machine_libvirt(cloud, machine_name, disk_size, ram, cpu,
     """
     try:
         host = Machine.objects.get(
-            cloud=cloud, machine_id=location.id)
+            cloud=cloud, external_id=location.id)
     except me.DoesNotExist:
         raise MachineCreationError("The host specified does not exist")
 
@@ -1846,7 +1846,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
         libcloud_networks = conn.ex_list_networks()
         ex_network = None
         for libcloud_net in libcloud_networks:
-            if mist_net.network_id == libcloud_net.id:
+            if mist_net.external_id == libcloud_net.id:
                 ex_network = libcloud_net
                 break
     elif network.get('name'):   # create network
@@ -2048,7 +2048,7 @@ def _create_machine_vsphere(conn, machine_name, image,
         try:
             from mist.api.networks.models import VSphereNetwork
             network = VSphereNetwork.objects.get(id=networks[0])
-            network_id = network.network_id
+            network_id = network.external_id
         except me.DoesNotExist:
             network_id = networks[0]
     else:
@@ -2281,7 +2281,7 @@ def destroy_machine(user, cloud_id, machine_id):
     """
     log.info('Destroying machine %s in cloud %s' % (machine_id, cloud_id))
 
-    machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+    machine = Machine.objects.get(cloud=cloud_id, external_id=machine_id)
 
     # if machine has monitoring, disable it.
     if machine.monitoring.hasmonitoring:
@@ -2371,14 +2371,14 @@ def run_action_hooks(action_hooks, machine, user):
         if hook_type == 'webhook':
             url = hook.get('url').replace(
                 '{cloud_id}', cloud_id).replace(
-                    '{machine_id}', machine.machine_id).replace(
+                    '{machine_id}', machine.external_id).replace(
                         '{machine_name}', machine.name).replace(
                             '{user_email}', user.email)
             payload = hook.get('payload')
             for k in payload:
                 payload[k] = payload[k].replace(
                     '{cloud_id}', cloud_id).replace(
-                        '{machine_id}', machine.machine_id).replace(
+                        '{machine_id}', machine.external_id).replace(
                             '{machine_name}', machine.name).replace(
                                 '{user_email}', user.email)
             ret = requests.request(

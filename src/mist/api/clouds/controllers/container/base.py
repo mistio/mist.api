@@ -295,6 +295,7 @@ class BaseContainerController(BaseController):
         except Cluster.DoesNotExist:
             cluster = CLUSTERS[self.cloud.provider](
                 cloud=self.cloud, external_id=cluster_dict["id"])
+            cluster.first_seen = now
             try:
                 cluster.save()
             except me.ValidationError as exc:
@@ -478,9 +479,9 @@ class BaseContainerController(BaseController):
 
     def produce_and_publish_pod_patch(self, cached_pods, fresh_pods,
                                       first_run=False):
-        old_machines = {'%s-%s' % (m['id'], m['machine_id']): copy.copy(m)
+        old_machines = {'%s-%s' % (m['id'], m['external_id']): copy.copy(m)
                         for m in cached_pods}
-        new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+        new_machines = {'%s-%s' % (m.id, m.external_id): m.as_dict()
                         for m in fresh_pods}
         # Exclude last seen and probe fields from patch.
         for md in old_machines, new_machines:
@@ -581,13 +582,13 @@ class BaseContainerController(BaseController):
                 updated = False
                 new_pod = False
                 try:
-                    machine = Machine.objects.get(machine_id=libcloud_pod.id,
+                    machine = Machine.objects.get(external_id=libcloud_pod.id,
                                                   cloud=self.cloud,
                                                   cluster=cluster,
                                                   machine_type='pod')
                 except Machine.DoesNotExist:
                     machine = Machine(cloud=self.cloud,
-                                      machine_id=libcloud_pod.id,
+                                      external_id=libcloud_pod.id,
                                       cluster=cluster,
                                       machine_type='pod'
                                       ).save()

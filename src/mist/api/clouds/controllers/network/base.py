@@ -26,6 +26,7 @@ from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 
+from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
@@ -130,7 +131,7 @@ class BaseNetworkController(BaseController):
         # object at the API. Try 3 times before failing
         for _ in range(5):
             for net in self.list_networks():
-                if net.network_id == libcloud_net.id:
+                if net.external_id == libcloud_net.id:
                     return net
             time.sleep(1)
         raise mist.api.exceptions.NetworkListingError()
@@ -200,9 +201,9 @@ class BaseNetworkController(BaseController):
         from mist.api.networks.models import Subnet
         for _ in range(3):
             for n in self.list_networks():
-                if n.network_id == subnet.network.network_id:
+                if n.external_id == subnet.network.external_id:
                     for s in Subnet.objects(network=n, missing_since=None):
-                        if s.subnet_id == libcloud_subnet.id:
+                        if s.external_id == libcloud_subnet.id:
                             return s
             time.sleep(1)
         raise mist.api.exceptions.SubnetListingError()
@@ -259,7 +260,7 @@ class BaseNetworkController(BaseController):
 
         with task.task_runner(persist=persist):
             # Get cached networks as dict
-            cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
+            cached_networks = {'%s-%s' % (n.id, n.external_id): n.as_dict()
                                for n in self.list_cached_networks()}
             networks = self._list_networks()
             try:
@@ -272,7 +273,7 @@ class BaseNetworkController(BaseController):
             loop.run_until_complete(_list_subnets_async(networks))
 
         # Publish patches to rabbitmq.
-        new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
+        new_networks = {'%s-%s' % (n.id, n.external_id): n.as_dict()
                         for n in networks}
         # Exclude last seen and probe field
         if cached_networks or new_networks:
@@ -332,16 +333,25 @@ class BaseNetworkController(BaseController):
         for net in libcloud_nets:
             try:
                 network = Network.objects.get(cloud=self.cloud,
-                                              network_id=net.id)
+                                              external_id=net.id)
             except Network.DoesNotExist:
                 network = NETWORKS[self.provider](cloud=self.cloud,
-                                                  network_id=net.id)
+                                                  external_id=net.id)
+                network.first_seen = datetime.datetime.utcnow()
                 new_networks.append(network)
 
             network.name = net.name
             network.extra = copy.copy(net.extra)
             network.missing_since = None
-
+            try:
+                created = self._list_networks__network_creation_date(net)
+                if created:
+                    created = get_datetime(created)
+                    if network.created != created:
+                        network.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, network, exc)
             # Get the Network's CIDR.
             try:
                 network.cidr = self._list_networks__cidr_range(network, net)
@@ -372,15 +382,15 @@ class BaseNetworkController(BaseController):
                 log.error("Network %s is not unique: %s", network.name, exc)
                 raise mist.api.exceptions.NetworkExistsError()
             networks.append(network)
-
+        now = datetime.datetime.utcnow()
         # Set missing_since for networks not returned by libcloud.
         Network.objects(
             cloud=self.cloud, id__nin=[n.id for n in networks],
             missing_since=None
-        ).update(missing_since=datetime.datetime.utcnow())
-        Network.objects(
-            cloud=self.cloud, id__in=[n.id for n in networks],
-        ).update(missing_since=None)
+        ).update(missing_since=now)
+        Network.objects(cloud=self.cloud, id__in=[
+                        n.id for n in networks]).update(
+            last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of new networks.
         self.cloud.owner.mapper.update(new_networks, asynchronous=False)
@@ -430,6 +440,9 @@ class BaseNetworkController(BaseController):
         """
         return
 
+    def _list_networks__network_creation_date(self, libcloud_network):
+        return libcloud_network.extra.get('created_at')
+
     @LibcloudExceptionHandler(mist.api.exceptions.SubnetListingError)
     def list_subnets(self, network, **kwargs):
         """Lists all Subnets attached to a Network present on the Cloud.
@@ -465,15 +478,25 @@ class BaseNetworkController(BaseController):
         for libcloud_subnet in libcloud_subnets:
             try:
                 subnet = Subnet.objects.get(network=network,
-                                            subnet_id=libcloud_subnet.id)
+                                            external_id=libcloud_subnet.id)
             except Subnet.DoesNotExist:
                 subnet = SUBNETS[self.provider](network=network,
-                                                subnet_id=libcloud_subnet.id)
+                                                external_id=libcloud_subnet.id)
+                subnet.first_seen = datetime.datetime.utcnow()
 
             subnet.name = libcloud_subnet.name
             subnet.extra = copy.copy(libcloud_subnet.extra)
             subnet.missing_since = None
-
+            try:
+                created = self._list_subnets__subnet_creation_date(
+                    libcloud_subnet)
+                if created:
+                    created = get_datetime(created)
+                    if subnet.created != created:
+                        subnet.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, subnet, exc)
             # Get the Subnet's CIDR.
             try:
                 subnet.cidr = self._list_subnets__cidr_range(subnet,
@@ -506,13 +529,16 @@ class BaseNetworkController(BaseController):
                 raise mist.api.exceptions.SubnetExistsError()
 
             subnets.append(subnet)
-
+        now = datetime.datetime.utcnow()
         # Set missing_since for subnets not returned by libcloud.
         Subnet.objects(
             network=network, id__nin=[s.id for s in subnets],
             missing_since=None
-        ).update(missing_since=datetime.datetime.utcnow())
-
+        ).update(missing_since=now)
+        # Set last_seen, unset missing_since for subnets we just saw
+        Subnet.objects(network=network, id__in=[
+                       s.id for s in subnets]).update(
+            last_seen=now, missing_since=None)
         return subnets
 
     def list_cached_subnets(self, network):
@@ -571,6 +597,9 @@ class BaseNetworkController(BaseController):
         :param libcloud_subnet: A libcloud subnet object.
         """
         return
+
+    def _list_subnets__subnet_creation_date(self, libcloud_subnet):
+        return libcloud_subnet.extra.get('created_at')
 
     def rename_network(self, network, name):
         """Renames a network.
@@ -689,11 +718,11 @@ class BaseNetworkController(BaseController):
         """
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         for net in networks:
-            if net.id == network.network_id:
+            if net.id == network.external_id:
                 return net
         raise mist.api.exceptions.NetworkNotFoundError(
-            'Network %s with network_id %s' %
-            (network.name, network.network_id))
+            'Network %s with external_id %s' %
+            (network.name, network.external_id))
 
     def _get_libcloud_subnet(self, subnet):
         """Returns an instance of a libcloud subnet.
@@ -705,10 +734,11 @@ class BaseNetworkController(BaseController):
         """
         subnets = self.cloud.ctl.compute.connection.ex_list_subnets()
         for sub in subnets:
-            if sub.id == subnet.subnet_id:
+            if sub.id == subnet.external_id:
                 return sub
         raise mist.api.exceptions.SubnetNotFoundError(
-            'Subnet %s with subnet_id %s' % (subnet.name, subnet.subnet_id))
+            'Subnet %s with external_id %s' % (subnet.name,
+                                               subnet.external_id))
 
     def list_vnfs(self, host=None):
         """Available only for Libvirt/KVM clouds

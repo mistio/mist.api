@@ -1,4 +1,5 @@
 import uuid
+import datetime
 import mongoengine as me
 
 from mist.api import config
@@ -110,6 +111,8 @@ class Rule(me.Document):
 
     # Field updated by dramatiq workers. This is where workers keep state.
     states = me.MapField(field=me.EmbeddedDocumentField(RuleState))
+    created = me.DateTimeField(default=datetime.datetime.now)
+    deleted = me.DateTimeField()
 
     meta = {
         'strict': False,

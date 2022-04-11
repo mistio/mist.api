@@ -1,6 +1,7 @@
 """Key entity model"""
 import io
 import logging
+import datetime
 from uuid import uuid4
 import mongoengine as me
 from paramiko.rsakey import RSAKey
@@ -12,6 +13,7 @@ from mist.api.keys import controllers
 from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.secrets.models import SecretValue
 
 log = logging.getLogger(__name__)
 
@@ -74,6 +76,7 @@ class Key(OwnershipMixin, me.Document):
     name = me.StringField(required=True)
     owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
     default = me.BooleanField(default=False)
+    created = me.DateTimeField(default=datetime.datetime.now)
     deleted = me.DateTimeField()
 
     _private_fields = ()
@@ -103,7 +106,7 @@ class Key(OwnershipMixin, me.Document):
                                      if field not in Key._fields]
 
     @classmethod
-    def add(cls, owner, name, id='', **kwargs):
+    def add(cls, owner, name, id='', user=None, **kwargs):
         """Add key
 
         This is a class method, meaning that it is meant to be called on the
@@ -115,13 +118,13 @@ class Key(OwnershipMixin, me.Document):
             key = SSHKey.add(owner=org, name='unicorn', **kwargs)
         """
         if not name:
-            raise RequiredParameterMissingError('title')
+            raise RequiredParameterMissingError('name')
         if not owner or not isinstance(owner, Owner):
             raise BadRequestError('owner')
         key = cls(owner=owner, name=name)
         if id:
             key.id = id
-        key.ctl.add(**kwargs)
+        key.ctl.add(user=user, **kwargs)
         return key
 
     def delete(self):
@@ -184,7 +187,7 @@ class SSHKey(Key):
     """An ssh key."""
 
     public = me.StringField(required=True)
-    private = me.StringField(required=True)
+    private = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _controller_cls = controllers.SSHKeyController
     _private_fields = ('private',)
@@ -197,7 +200,7 @@ class SSHKey(Key):
 
         # Generate public key from private key file.
         try:
-            key = RSAKey.from_private_key(io.StringIO(self.private))
+            key = RSAKey.from_private_key(io.StringIO(self.private.value))
             self.public = 'ssh-rsa ' + key.get_base64()
         except Exception:
             log.exception("Error while constructing public key "
@@ -206,7 +209,8 @@ class SSHKey(Key):
 
 
 class SignedSSHKey(SSHKey):
-    """An signed ssh key"""
+    """An signed ssh key."""
+
     certificate = me.StringField(required=True)
 
     _controller_cls = controllers.BaseKeyController

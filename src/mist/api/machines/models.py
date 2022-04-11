@@ -50,7 +50,6 @@ class InstallationStatus(me.EmbeddedDocument):
     #               returned command for manual install
     # - succeeded: Set when activated_at is set (see below)
     state = me.StringField()
-    # True only for mist.core automatic installations
     manual = me.BooleanField()
 
     activated_at = me.IntField()  # Data for period after started_at received
@@ -275,9 +274,8 @@ class Machine(OwnershipMixin, me.Document):
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
-    # Be more specific about what this is.
-    # We should perhaps come up with a better name.
-    machine_id = me.StringField(required=True)
+    external_id = me.StringField(required=True)
+    machine_id = me.StringField()  # Deprecated
     hostname = me.StringField()
     public_ips = me.ListField()
     private_ips = me.ListField()
@@ -305,7 +303,7 @@ class Machine(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     unreachable_since = me.DateTimeField()
     created = me.DateTimeField()
-
+    first_seen = me.DateTimeField()
     monitoring = me.EmbeddedDocumentField(Monitoring,
                                           default=lambda: Monitoring())
 
@@ -327,7 +325,7 @@ class Machine(OwnershipMixin, me.Document):
             {
                 'fields': [
                     'cloud',
-                    'machine_id'
+                    'external_id'
                 ],
                 'sparse': False,
                 'unique': True,
@@ -429,9 +427,7 @@ class Machine(OwnershipMixin, me.Document):
                 ret['type'] = self.machine_type
 
         if 'external_id' in only or not only:
-            ret['external_id'] = None
-            if self.machine_id:
-                ret['external_id'] = self.machine_id
+            ret['external_id'] = self.external_id
 
         if 'tags' in only or not only:
             ret['tags'] = {
@@ -538,7 +534,7 @@ class Machine(OwnershipMixin, me.Document):
             'ssh_port': self.ssh_port,
             'os_type': self.os_type,
             'rdp_port': self.rdp_port,
-            'machine_id': self.machine_id,
+            'external_id': self.external_id,
             'actions': {action: self.actions[action]
                         for action in self.actions},
             'extra': extra,
@@ -555,7 +551,7 @@ class Machine(OwnershipMixin, me.Document):
             'location': self.location.id if self.location else '',
             'size': self.size.name if self.size else '',
             'image': self.image.id if self.image else '',
-            'cloud_title': self.cloud.title,
+            'cloud_title': self.cloud.name,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
             'missing_since': str(self.missing_since.replace(tzinfo=None)

@@ -29,9 +29,9 @@ def autodisable_cloud(cloud):
     """Disable cloud after multiple failures and notify user"""
     log.warning("Autodisabling %s", cloud)
     cloud.ctl.disable()
-    title = "Cloud %s has been automatically disabled" % cloud.title
+    title = "Cloud %s has been automatically disabled" % cloud.name
     message = "%s after multiple failures to connect to it." % title
-    notify_user(cloud.owner, title=cloud, message=message, email_notify=True)
+    notify_user(cloud.owner, title=title, message=message, email_notify=True)
 
 
 @dramatiq.actor
@@ -243,6 +243,21 @@ def list_buckets(schedule_id):
         list_buckets.logger.error(
             '%s failed with %r',
             sched.name, exc)
+
+
+@dramatiq.actor(queue_name='dramatiq_secrets',
+                time_limit=45_000,
+                max_age=30_000)
+def list_vault_secrets(schedule_id):
+    """Perform list secrets in Vault. For every new secret found,
+       a VaultSecret object is stored in MongoDB
+    """
+    from mist.api.poller.models import ListVaultSecretsPollingSchedule
+    sched = ListVaultSecretsPollingSchedule.objects.get(id=schedule_id)
+    from mist.api.secrets.models import VaultSecret
+    # TODO: Is there a better way?
+    secret = VaultSecret(owner=sched.owner)
+    secret.ctl.list_secrets(recursive=True)
 
 
 @dramatiq.actor(queue_name='dramatiq_ping_probe',

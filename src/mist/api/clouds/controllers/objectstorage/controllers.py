@@ -29,7 +29,7 @@ class OpenstackObjectStorageController(BaseObjectStorageController):
 
         return get_driver(Provider.OPENSTACK_SWIFT)(
             self.cloud.username,
-            self.cloud.password,
+            self.cloud.password.value,
             ex_force_auth_version='3.x_password',
             ex_tenant_name=self.cloud.tenant,
             ex_auth_url=url,
@@ -44,6 +44,6 @@ class AmazonS3ObjectStorageController(BaseObjectStorageController):
     def _connect(self, **kwargs):
         return get_driver(Provider.S3)(
             self.cloud.apikey,
-            self.cloud.apisecret,
+            self.cloud.apisecret.value,
             region=self.cloud.region
         )

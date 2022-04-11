@@ -385,28 +385,28 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
         body += "Cloud:\n"
         try:
             cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-            cloud_title = cloud.title
+            cloud_name = cloud.name
         except DoesNotExist:
-            cloud_title = ''
+            cloud_name = ''
             cloud = ''
-        if cloud_title:
-            body += "  Name: %s\n" % cloud_title
+        if cloud_name:
+            body += "  Name: %s\n" % cloud_name
         body += "  Id: %s\n" % cloud_id
-        if 'machine_id' in kwargs:
-            machine_id = kwargs['machine_id']
+        if 'external_id' in kwargs:
+            external_id = kwargs['external_id']
             body += "Machine:\n"
             if kwargs.get('machine_name'):
                 name = kwargs['machine_name']
             else:
                 try:
                     name = Machine.objects.get(cloud=cloud,
-                                               machine_id=machine_id).name
+                                               external_id=external_id).name
                 except DoesNotExist:
                     name = ''
             if name:
                 body += "  Name: %s\n" % name
-            title += " for machine %s" % (name or machine_id)
-            body += "  Id: %s\n" % machine_id
+            title += " for machine %s" % (name or external_id)
+            body += "  Id: %s\n" % external_id
     if 'error' in kwargs:
         error = kwargs['error']
         body += "Result: %s\n" % ('Success' if not error else 'Error')
@@ -626,7 +626,20 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
     for term in terms:
         if ':' in term:
             k, v = term.split(':')
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+            if startsandendswith(v, '"'):
+                mongo_operator = ''
+            elif v.startswith('^'):
+                mongo_operator = '__startswith'
+                v = v[1:]
+            elif v.endswith('$'):
+                mongo_operator = '__endswith'
+                v = v[:-1]
+            elif v.startswith('r') and (startsandendswith(v[1:], '"') or
+                                        startsandendswith(v[1:], "'")):
+                v = re.compile(v[2:-1])
+                mongo_operator = ''
+            else:
+                mongo_operator = '__contains'
         elif '!=' in term:
             k, v = term.split('!=')
             mongo_operator = '__ne'
@@ -644,7 +657,20 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             mongo_operator = '__lt'
         elif '=' in term:
             k, v = term.split('=')
-            mongo_operator = '' if startsandendswith(v, '"') else '__contains'
+            if startsandendswith(v, '"'):
+                mongo_operator = ''
+            elif v.startswith('^'):
+                mongo_operator = '__startswith'
+                v = v[1:]
+            elif v.endswith('$'):
+                mongo_operator = '__endswith'
+                v = v[:-1]
+            elif v.startswith('r') and (startsandendswith(v[1:], '"') or
+                                        startsandendswith(v[1:], "'")):
+                v = re.compile(v[2:-1])
+                mongo_operator = ''
+            else:
+                mongo_operator = '__contains'
         # TODO: support OR keyword
         elif term.lower() in ['and', 'or'] or not term:
             continue
@@ -653,7 +679,9 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             k, v = 'id', term
             mongo_operator = '' if startsandendswith(v, '"') else '__icontains'
 
-        v = v.strip('"')
+        if getattr(v, 'strip', None):
+            v = v.strip('"')
+
         attr = getattr(resource_model, k, None)
         if isinstance(attr, BooleanField):
             try:
@@ -671,7 +699,7 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         # TODO: support additional operators: >, <, !=, ~
         elif k == 'cloud':
             # exact match
-            if not mongo_operator:
+            if not mongo_operator and not isinstance(v, re.Pattern):
                 resources, _ = list_resources(auth_context, k,
                                               search=f'"{v}"',
                                               only='id')
@@ -826,7 +854,7 @@ def get_console_proxy_uri(machine):
         return proxy_uri
     elif machine.cloud.ctl.provider == 'vsphere':
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-            machine.machine_id
+            machine.external_id
         )
         protocol, host = config.CORE_URI.split('://')
         protocol = protocol.replace('http', 'ws')

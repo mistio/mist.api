@@ -40,22 +40,25 @@ class Zone(OwnershipMixin, me.Document):
     owner = me.ReferenceField('Organization', required=True,
                               reverse_delete_rule=me.CASCADE)
 
-    zone_id = me.StringField(required=True)
+    external_id = me.StringField(required=True)
     domain = me.StringField(required=True)
     type = me.StringField(required=True)  # TODO: Rename
     ttl = me.IntField(required=True, default=0)
     extra = MistDictField()
     cloud = me.ReferenceField(Cloud, required=True,
                               reverse_delete_rule=me.CASCADE)
-
-    deleted = me.DateTimeField()
+    last_seen = me.DateTimeField()
+    created = me.DateTimeField()
+    missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
 
     meta = {
         'collection': 'zones',
         'indexes': [
-            'owner',
+            'owner', 'last_seen', 'missing_since',
             {
-                'fields': ['cloud', 'zone_id', 'deleted'],
+                'fields': ['cloud', 'external_id', 'last_seen',
+                           'missing_since'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -114,7 +117,7 @@ class Zone(OwnershipMixin, me.Document):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
-            'id', 'domain', 'type', 'ttl', 'extra']
+            'id', 'domain', 'type', 'ttl', 'extra', 'last_seen', ]
         deref_map = {
             'cloud': 'title',
             'owned_by': 'email',
@@ -128,18 +131,19 @@ class Zone(OwnershipMixin, me.Document):
 
         if 'external_id' in only or not only:
             ret['external_id'] = None
-            if self.zone_id:
-                ret['external_id'] = self.zone_id
+            if self.external_id:
+                ret['external_id'] = self.external_id
 
         if 'records' in only or not only:
             ret['records'] = {r.id: r.as_dict() for r
-                              in Record.objects(zone=self, deleted=None)}
-
+                              in Record.objects(zone=self, missing_since=None)}
         if 'tags' in only or not only:
             ret['tags'] = {
                 tag.key: tag.value for tag in Tag.objects(
                     resource_id=self.id, resource_type='zone').only(
                         'key', 'value')}
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
 
         return ret
 
@@ -147,16 +151,19 @@ class Zone(OwnershipMixin, me.Document):
         """Return a dict with the model values."""
         return {
             'id': self.id,
-            'zone_id': self.zone_id,
+            'external_id': self.external_id,
             'domain': self.domain,
             'type': self.type,
             'ttl': self.ttl,
             'extra': self.extra,
             'cloud': self.cloud.id,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
+            'missing_since': str(self.missing_since),
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'records': {r.id: r.as_dict() for r
-                        in Record.objects(zone=self, deleted=None)},
+                        in Record.objects(zone=self, missing_since=None)},
             'tags': self.tags
         }
 
@@ -166,8 +173,8 @@ class Zone(OwnershipMixin, me.Document):
             self.domain += "."
 
     def __str__(self):
-        return 'Zone %s (%s/%s) of %s' % (self.id, self.zone_id, self.domain,
-                                          self.owner)
+        return 'Zone %s (%s/%s) of %s' % (self.id, self.external_id,
+                                          self.domain, self.owner)
 
 
 class Record(OwnershipMixin, me.Document):
@@ -177,7 +184,7 @@ class Record(OwnershipMixin, me.Document):
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
-    record_id = me.StringField(required=True)
+    external_id = me.StringField(required=True)
     name = me.StringField(required=True)
     type = me.StringField(required=True)
     rdata = me.ListField(required=True)
@@ -189,19 +196,16 @@ class Record(OwnershipMixin, me.Document):
                              reverse_delete_rule=me.CASCADE)
     owner = me.ReferenceField('Organization', required=True,
                               reverse_delete_rule=me.CASCADE)
-
-    deleted = me.DateTimeField()
+    created = me.DateTimeField()
+    last_seen = me.DateTimeField()
+    missing_since = me.DateTimeField()
+    first_seen = me.DateTimeField()
 
     meta = {
         'collection': 'records',
         'allow_inheritance': True,
         'indexes': [
-            {
-                'fields': ['zone', 'record_id', 'deleted'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            }
+            'owner', 'zone', 'external_id', 'last_seen', 'missing_since',
         ],
     }
     _record_type = None
@@ -276,13 +280,16 @@ class Record(OwnershipMixin, me.Document):
         """ Return a dict with the model values."""
         return {
             'id': self.id,
-            'record_id': self.record_id,
+            'external_id': self.external_id,
             'name': self.name,
             'type': self.type,
             'rdata': self.rdata,
             'ttl': self.ttl,
             'extra': self.extra,
             'zone': self.zone.id,
+            'created': str(self.created),
+            'last_seen': str(self.last_seen),
+            'missing_since': str(self.missing_since),
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'tags': self.tags

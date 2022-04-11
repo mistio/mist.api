@@ -43,7 +43,7 @@ class AmazonDNSController(BaseDNSController):
 
     def _connect(self):
         return get_driver(Provider.ROUTE53)(self.cloud.apikey,
-                                            self.cloud.apisecret)
+                                            self.cloud.apisecret.value)
 
     def _create_record__prepare_args(self, zone, kwargs):
         """
@@ -65,7 +65,7 @@ class GoogleDNSController(BaseDNSController):
 
     def _connect(self):
         return get_driver(Provider.GOOGLE)(self.cloud.email,
-                                           self.cloud.private_key,
+                                           self.cloud.private_key.value,
                                            project=self.cloud.project_id)
 
     def _create_record__prepare_args(self, zone, kwargs):
@@ -98,10 +98,10 @@ class LinodeDNSController(BaseDNSController):
 
     def _connect(self):
         if self.cloud.apiversion is None:
-            return get_driver(Provider.LINODE)(self.cloud.apikey)
+            return get_driver(Provider.LINODE)(self.cloud.apikey.value)
         else:
             return get_driver(Provider.LINODE)(
-                self.cloud.apikey,
+                self.cloud.apikey.value,
                 api_version=self.cloud.apiversion)
 
     def _create_zone__prepare_args(self, kwargs):
@@ -194,7 +194,8 @@ class RackSpaceDNSController(BaseDNSController):
             elif self.cloud.region == 'lon':
                 region = 'uk'
             driver = get_driver(Provider.RACKSPACE)
-        return driver(self.cloud.username, self.cloud.apikey, region=region)
+        return driver(self.cloud.username, self.cloud.apikey.value,
+                      region=region)
 
     def _create_zone__prepare_args(self, kwargs):
         kwargs['extra'] = {'email': kwargs.pop('email', "")}
@@ -219,7 +220,7 @@ class DigitalOceanDNSController(RackSpaceDNSController):
     """
 
     def _connect(self):
-        return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
+        return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token.value)
 
     def _create_record__prepare_args(self, zone, kwargs):
         """
@@ -243,7 +244,7 @@ class SoftLayerDNSController(BaseDNSController):
 
     def _connect(self):
         return get_driver(Provider.SOFTLAYER)(self.cloud.username,
-                                              self.cloud.apikey)
+                                              self.cloud.apikey.value)
 
     def _create_zone__prepare_args(self, kwargs):
         kwargs.pop('type')
@@ -255,7 +256,7 @@ class VultrDNSController(BaseDNSController):
     """
 
     def _connect(self):
-        return get_driver(Provider.VULTR)(self.cloud.apikey)
+        return get_driver(Provider.VULTR)(self.cloud.apikey.value)
 
     def _create_zone__prepare_args(self, kwargs):
         if not kwargs.get('ip'):

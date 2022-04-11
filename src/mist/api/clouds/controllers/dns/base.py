@@ -20,6 +20,7 @@ from mist.api.concurrency.models import PeriodicTaskInfo
 
 from mist.api.clouds.controllers.base import BaseController
 
+from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
@@ -98,7 +99,7 @@ class BaseDNSController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         first_run = False if task.last_success else True
         with task.task_runner(persist=persist):
-            cached_zones = {'%s-%s' % (z.id, z.zone_id): z.as_dict()
+            cached_zones = {'%s-%s' % (z.id, z.external_id): z.as_dict()
                             for z in self.list_cached_zones()}
 
             zones = self._list_zones()
@@ -110,7 +111,7 @@ class BaseDNSController(BaseController):
             zones_dict = [z.as_dict() for z in zones]
             if cached_zones or zones_dict:
                 # Publish patches to rabbitmq.
-                new_zones = {'%s-%s' % (z['id'], z['zone_id']): z
+                new_zones = {'%s-%s' % (z['id'], z['external_id']): z
                              for z in zones_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_zones,
                                                       new_zones).patch
@@ -141,18 +142,29 @@ class BaseDNSController(BaseController):
         for pr_zone in pr_zones:
             try:
                 zone = Zone.objects.get(cloud=self.cloud,
-                                        zone_id=pr_zone.id)
+                                        external_id=pr_zone.id)
             except Zone.DoesNotExist:
                 log.info("Zone: %s/domain: %s not in the database, creating.",
                          pr_zone.id, pr_zone.domain)
                 zone = Zone(cloud=self.cloud, owner=self.cloud.owner,
-                            zone_id=pr_zone.id)
+                            external_id=pr_zone.id)
+                zone.first_seen = datetime.datetime.utcnow()
                 new_zones.append(zone)
             zone.deleted = None
             zone.domain = pr_zone.domain
             zone.type = pr_zone.type
             zone.ttl = pr_zone.ttl
             zone.extra = pr_zone.extra
+            # Get zone creation date.
+            try:
+                created = self._list_zones__zone_creation_date(pr_zone)
+                if created:
+                    created = get_datetime(created)
+                    if zone.created != created:
+                        zone.created = created
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, zone, exc)
             try:
                 zone.save()
             except me.ValidationError as exc:
@@ -164,12 +176,17 @@ class BaseDNSController(BaseController):
                 raise ZoneExistsError()
             zones.append(zone)
         self.cloud.owner.mapper.update(new_zones)
-
-        # Delete any zones in the DB that were not returned by the provider
-        # meaning they were deleted otherwise.
-        Zone.objects(cloud=self.cloud, id__nin=[z.id for z in zones],
-                     deleted=None).update(
-                         set__deleted=datetime.datetime.utcnow())
+        now = datetime.datetime.utcnow()
+        # Set missing_since on zones not returned by libcloud
+        Zone.objects(
+            cloud=self.cloud, missing_since=None,
+            external_id__nin=[z.external_id for z in zones]
+        ).update(missing_since=now)
+        # Set last_seen, unset missing_since on zones we just saw
+        Zone.objects(cloud=self.cloud,
+                     external_id__in=[
+                         z.external_id for z in zones]).update(
+            last_seen=now, missing_since=None)
 
         # Format zone information.
         return zones
@@ -181,7 +198,10 @@ class BaseDNSController(BaseController):
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
         from mist.api.dns.models import Zone
-        return Zone.objects(cloud=self.cloud, deleted=None)
+        return Zone.objects(cloud=self.cloud, missing_since=None)
+
+    def _list_zones__zone_creation_date(self, libcloud_zone):
+        return libcloud_zone.extra.get('created_at')
 
     def _list_zones__fetch_zones(self):
         """
@@ -213,7 +233,7 @@ class BaseDNSController(BaseController):
         Public method to return a list of  records under a specific zone.
         """
         # Fetch records from libcloud connection.
-        pr_records = self._list_records__fetch_records(zone.zone_id)
+        pr_records = self._list_records__fetch_records(zone.external_id)
 
         # TODO: Adding here for circular dependency issue. Need to fix this.
         from mist.api.dns.models import Record, RECORDS
@@ -223,8 +243,9 @@ class BaseDNSController(BaseController):
         for pr_record in pr_records:
             dns_cls = RECORDS[pr_record.type]
             try:
-                record = Record.objects.get(zone=zone, record_id=pr_record.id,
-                                            deleted=None)
+                record = Record.objects.get(zone=zone,
+                                            external_id=pr_record.id,
+                                            missing_since=None)
                 changed = False
             except Record.DoesNotExist:
                 log.info("Record: %s not in the database, creating.",
@@ -233,7 +254,8 @@ class BaseDNSController(BaseController):
                     log.error("Unsupported record type '%s'", pr_record.type)
                     continue
 
-                record = dns_cls(record_id=pr_record.id, zone=zone)
+                record = dns_cls(external_id=pr_record.id, zone=zone)
+                record.first_seen = datetime.datetime.utcnow()
                 new_records.append(record)
                 changed = True
             # We need to check if any of the information returned by the
@@ -250,6 +272,17 @@ class BaseDNSController(BaseController):
             if record.extra != pr_record.extra:
                 record.extra = pr_record.extra
                 changed = True
+            # Get record creation date.
+            try:
+                created = self._list_records__record_creation_date(pr_record)
+                if created:
+                    created = get_datetime(created)
+                    if record.created != created:
+                        record.created = created
+                        changed = True
+            except Exception as exc:
+                log.exception("Error finding creation date for %s in %s.\n%r",
+                              self.cloud, record, exc)
 
             self._list_records__postparse_data(pr_record, record)
             try:
@@ -260,7 +293,7 @@ class BaseDNSController(BaseController):
                         log.exception("Could not save %s record %s for cloud "
                                       "%s (%s): %r" % (
                                           record.type, record.name,
-                                          self.cloud.title, self.cloud.id, exc
+                                          self.cloud.name, self.cloud.id, exc
                                       ))
             except me.ValidationError as exc:
                 log.error("Error updating %s: %s", record, exc.to_dict())
@@ -273,19 +306,22 @@ class BaseDNSController(BaseController):
             # example for Route NS records, so skip adding it to the list if we
             # already have it
             for rec in records:
-                if rec.record_id == record.record_id:
+                if rec.external_id == record.external_id:
                     records.remove(rec)
                     break
             records.append(record)
         self.cloud.owner.mapper.update(new_records)
-
-        # Then delete any records that are in the DB for this zone but were not
-        # returned by the list_records() method meaning the were deleted in the
-        # DNS provider.
-        Record.objects(zone=zone,
-                       id__nin=[r.id for r in records],
-                       deleted=None).update(
-                           set__deleted=datetime.datetime.utcnow())
+        now = datetime.datetime.utcnow()
+        # Set missing_since on records not returned by libcloud
+        Record.objects(
+            owner=self.cloud.org, zone=zone, missing_since=None,
+            external_id__nin=[r.external_id for r in records]
+        ).update(missing_since=now)
+        # Set last_seen on records we just saw
+        Record.objects(owner=self.cloud.org, zone=zone,
+                       external_id__in=[
+                           r.external_id for r in records]).update(
+            last_seen=now, missing_since=None)
 
         # Format zone information.
         return records
@@ -326,12 +362,16 @@ class BaseDNSController(BaseController):
         if data not in record.rdata:
             record.rdata.append(data)
 
+    def _list_records__record_creation_date(self, libcloud_record):
+        return libcloud_record.extra.get('created_at')
+
     def delete_record(self, record, expire=False):
         """
         Public method to be called with a zone and record ids to delete the
         specific record under the specified zone.
         """
-        self._delete_record__from_id(record.zone.zone_id, record.record_id)
+        self._delete_record__from_id(record.zone.external_id,
+                                     record.external_id)
         self.list_zones()
         from mist.api.poller.models import ListZonesPollingSchedule
         ListZonesPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
@@ -359,18 +399,19 @@ class BaseDNSController(BaseController):
         """
         Public method called to delete the specific zone for the provided id.
         """
-        self._delete_zone__for_cloud(zone.zone_id)
+        self._delete_zone__for_cloud(zone.external_id)
         from mist.api.poller.models import ListZonesPollingSchedule
         ListZonesPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
-    def _delete_zone__for_cloud(self, zone_id):
+    def _delete_zone__for_cloud(self, external_id):
         """
         We use the zone id to retrieve and delete it for this cloud.
         """
         try:
-            self.connection.get_zone(zone_id).delete()
+            self.connection.get_zone(external_id).delete()
         except ZoneDoesNotExistError as exc:
-            log.warning("No zone found for %s in: %s ", zone_id, self.cloud)
+            log.warning(
+                "No zone found for %s in: %s ", external_id, self.cloud)
             raise ZoneNotFoundError(exc=exc)
         except Exception as exc:
             log.exception("Error while running delete_zone on %s", self.cloud)
@@ -387,7 +428,7 @@ class BaseDNSController(BaseController):
         # object at the API. Try 3 times before failing
         for _ in range(3):
             for z in self.list_zones():
-                if z.zone_id == libcloud_zone.id:
+                if z.external_id == libcloud_zone.id:
                     return z
             time.sleep(1)
         raise mist.api.exceptions.ZoneListingError()
@@ -428,6 +469,7 @@ class BaseDNSController(BaseController):
         This is the public method that is called to create a new DNS record
         under a specific zone.
         """
+        from mist.api.dns.models import Record
         record.name = kwargs['name']
         record.type = kwargs['type']
         if isinstance(kwargs['data'], list):
@@ -445,17 +487,18 @@ class BaseDNSController(BaseController):
 
         self._create_record__prepare_args(record.zone, kwargs)
         libcloud_record = self._create_record__for_zone(record.zone, **kwargs)
-        # Invoke `self.list_zones` to update the UI and return the Record
+        # Invoke `zone.ctl.list_records` to update the UI and return the Record
         # object at the API. Try 3 times before failing
         for _ in range(3):
-            for z in self.list_zones():
-                if z.id == record.zone.id:
-                    records = z.as_dict()['records']
-                    for r in records:
-                        if records[r]['record_id'] == libcloud_record.id:
-                            from mist.api.dns.models import Record
-                            return Record.objects.get(id=r)
-            time.sleep(1)
+            # FIXME: Replace with record.zone.ctl.list_records()
+            # we run list_zones instead because it also emits patches to the UI
+            self.list_zones()
+            try:
+                return Record.objects.get(
+                    owner=self.cloud.owner, zone=record.zone,
+                    external_id=libcloud_record.id)
+            except Record.DoesNotExist:
+                time.sleep(1)
         raise mist.api.exceptions.RecordListingError()
 
     def _create_record__for_zone(self, zone, **kwargs):
@@ -467,7 +510,7 @@ class BaseDNSController(BaseController):
         ----
         """
         try:
-            zone = self.connection.get_zone(zone.zone_id)
+            zone = self.connection.get_zone(zone.external_id)
             record = zone.create_record(**kwargs)
             log.info("Type %s record created successfully for %s.",
                      record.type, self.cloud)
@@ -481,7 +524,7 @@ class BaseDNSController(BaseController):
                       self.cloud, exc)
             raise CloudUnavailableError(exc=exc)
         except ZoneDoesNotExistError as exc:
-            log.warning("No zone found for %s in: %s ", zone.zone_id,
+            log.warning("No zone found for %s in: %s ", zone.external_id,
                         self.cloud)
             raise ZoneNotFoundError(exc=exc)
         except Exception as exc:

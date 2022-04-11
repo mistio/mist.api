@@ -39,10 +39,10 @@ def add_schedule_entry(request):
       type: string
     action:
       type: string
-    machines_uuids:
+    machine_ids:
       required: true
       type: array
-      description: list of machines_uuids
+      description: list of machine_id's
     machines_tags:
       required: true
       type: array
@@ -117,11 +117,11 @@ def show_schedule_entry(request):
     Show details of schedule.
     READ permission required on schedule
     ---
-    schedule_id:
+    schedule:
       type: string
       required: true
     """
-    schedule_id = request.matchdict['schedule_id']
+    schedule_id = request.matchdict['schedule']
     auth_context = auth_context_from_request(request)
 
     if not schedule_id:
@@ -148,11 +148,11 @@ def delete_schedule(request):
     Deletes a schedule entry of a user.
     REMOVE permission required on schedule
     ---
-    schedule_id:
+    schedule:
       type: string
       required: true
     """
-    schedule_id = request.matchdict['schedule_id']
+    schedule_id = request.matchdict['schedule']
     auth_context = auth_context_from_request(request)
 
     if not schedule_id:
@@ -192,10 +192,10 @@ def edit_schedule_entry(request):
       type: string
     action:
       type: string
-    machines_uuids:
+    machine_ids:
       required: true
       type: array
-      description: list of machines_uuids
+      description: list of machine_id's
     machines_tags:
       required: true
       type: array
@@ -222,7 +222,7 @@ def edit_schedule_entry(request):
     schedule_entry:
       type: object
       description: period of time
-    schedule_id:
+    schedule:
       type: string
     params:
       type: string
@@ -230,7 +230,7 @@ def edit_schedule_entry(request):
 
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    schedule_id = request.matchdict['schedule_id']
+    schedule_id = request.matchdict['schedule']
 
     if not schedule_id:
         raise RequiredParameterMissingError('No schedule id provided')

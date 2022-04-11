@@ -1,7 +1,9 @@
 """User entity model."""
 import logging
 import json
+import string
 import uuid
+import random
 import re
 import netaddr
 import datetime
@@ -13,7 +15,9 @@ from uuid import uuid4
 
 from passlib.context import CryptContext
 
-from mist.api.exceptions import TeamNotFound
+from mist.api.exceptions import TeamNotFound, BadRequestError
+from mist.api.exceptions import UnauthorizedError, ServiceUnavailableError
+
 
 from mist.api import config
 
@@ -182,8 +186,9 @@ class Owner(me.Document):
     alerts_email = me.ListField(me.StringField(), default=[])
 
     avatar = me.StringField(default='')
-
+    created = me.DateTimeField(default=datetime.datetime.now)
     last_active = me.DateTimeField()
+    deleted = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,
@@ -476,17 +481,21 @@ class Organization(Owner):
     insights_enabled = me.BooleanField(default=config.HAS_INSIGHTS)
     ownership_enabled = me.BooleanField(default=True)
 
-    created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
 
     # used to allow creation of sub-org
     super_org = me.BooleanField(default=False)
     parent = me.ReferenceField('Organization', required=False,
                                reverse_delete_rule=me.DENY)
+    vault_address = me.StringField()
+    vault_token = me.StringField()
+    vault_role_id = me.StringField()
+    vault_secret_id = me.StringField()
+    vault_secret_engine_path = me.StringField()
 
     poller_updated = me.DateTimeField()
 
-    meta = {'indexes': ['name']}
+    meta = {'indexes': ['name', 'vault_secret_engine_path']}
 
     @property
     def mapper(self):
@@ -561,6 +570,15 @@ class Organization(Owner):
         view_id = view["_id"]
         del view["_id"]
         del view["_cls"]
+        # Strip vault credentials
+        try:
+            del view["vault_token"]
+        except KeyError:
+            pass
+        try:
+            del view["vault_secret_id"]
+        except KeyError:
+            pass
         view["id"] = view_id
         view["members"] = []
         for member in self.members:
@@ -694,7 +712,9 @@ class Organization(Owner):
         # make sure org name is unique - we can't use the unique keyword on the
         # field definition because both User and Organization subclass Owner
         # but only Organization has a name
-        if self.name and Organization.objects(name=self.name, id__ne=self.id):
+        if self.name and Organization.objects(name=self.name, id__ne=self.id) \
+                or Organization.objects(vault_secret_engine_path=self.name,
+                                        id__ne=self.id):
             raise me.ValidationError("Organization with name '%s' "
                                      "already exists." % self.name)
 
@@ -707,6 +727,68 @@ class Organization(Owner):
             MeteringPollingSchedule.add(self, run_immediately=False)
         except Exception as exc:
             log.error('Error adding metering schedule for %s: %r', self, exc)
+
+        if self.name and not self.vault_secret_engine_path:
+            secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
+                if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
+            secret_engine_path = re.sub(
+                '[^a-zA-Z0-9\.]', '-', secret_engine_path) + '-' + ''.join(
+                    random.SystemRandom().choice(
+                        string.ascii_lowercase +
+                        string.digits) for _ in range(6))
+
+            self.vault_secret_engine_path = secret_engine_path
+
+        if self.name and not self.vault_address and not self.vault_role_id:
+            import hvac
+            if config.VAULT_ROLE_ID:
+                client = hvac.Client(url=config.VAULT_ADDR)
+                try:
+                    result = client.auth.approle.login(
+                        role_id=config.VAULT_ROLE_ID,
+                        secret_id=config.VAULT_SECRET_ID,
+                    )
+                except hvac.exceptions.InvalidRequest:
+                    raise BadRequestError(
+                        "Vault approle authentication failed.")
+            elif config.VAULT_TOKEN:
+                client = hvac.Client(
+                    url=config.VAULT_ADDR, token=config.VAULT_TOKEN)
+            try:
+                is_authenticated = client.is_authenticated()
+            except hvac.exceptions.VaultDown:
+                raise ServiceUnavailableError("Vault is sealed.")
+            if not is_authenticated:
+                raise UnauthorizedError("Vault Authentication Failed")
+            policy = '''
+                path "sys" {
+                    capabilities = ["deny"]
+                }
+                path "%s" {
+                    capabilities = [
+                        "create", "read", "update", "delete", "list"]
+                }
+            ''' % self.vault_secret_engine_path
+            policy_name = '%s-policy' % self.vault_secret_engine_path
+            role_name = '%s-role' % self.vault_secret_engine_path
+            client.sys.create_or_update_policy(
+                name=policy_name,
+                policy=policy,
+            )
+            try:
+                client.auth.approle.create_or_update_approle(
+                    role_name=role_name,
+                    token_policies=[policy_name],
+                    token_type='service',
+                )
+            except hvac.exceptions.InvalidPath:
+                raise me.ValidationError('Unsupported path')
+            self.vault_role_id = client.auth.approle.read_role_id(
+                role_name=role_name
+            )["data"]["role_id"]
+            self.vault_secret_id = client.auth.approle.generate_secret_id(
+                role_name=role_name,
+            )["data"]["secret_id"]
 
         super(Organization, self).clean()
 
