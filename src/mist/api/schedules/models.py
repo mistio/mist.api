@@ -285,8 +285,46 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
             raise RequiredParameterMissingError('name')
         if not owner or not isinstance(owner, Organization):
             raise BadRequestError('owner')
+        # Deprecated Resource_Type
         resource_type = kwargs.pop('resource_type', 'machine').rstrip('s')
         if resource_type not in rtype_to_classpath:
+            raise BadRequestError('resource_type')
+        if Schedule.objects(owner=owner, name=name, deleted=None):
+            raise ScheduleNameExistsError()
+        schedule = cls(owner=owner, name=name,
+                       resource_model_name=resource_type)
+        schedule.ctl.set_auth_context(auth_context)
+        schedule.ctl.add(**kwargs)
+        schedule.assign_to(auth_context.user)
+        return schedule
+
+    @classmethod
+    def add_v2(cls, auth_context, name, **kwargs):
+        """Add schedule v2
+
+        This is a class method, meaning that it is meant to be called on the
+        class itself and not on an instance of the class.
+
+        You're not meant to be calling this directly, but on a schedule class
+        instead like this:
+
+            schedule = Schedule.add_v2(owner=owner, **kwargs)
+        """
+        owner = auth_context.owner
+
+        if not name:
+            raise RequiredParameterMissingError('name')
+        if not owner or not isinstance(owner, Organization):
+            raise BadRequestError('owner')
+        selectors = kwargs.get('selectors')
+        error_count = 0
+        resource_type = None
+        for selector in selectors:
+            if selector['type'] not in rtype_to_classpath:
+                error_count += 1
+            if selector['ids'] is not None:
+                resource_type = selector['type'].rstrip('s')
+        if error_count == len(selectors):
             raise BadRequestError('resource_type')
         if Schedule.objects(owner=owner, name=name, deleted=None):
             raise ScheduleNameExistsError()
@@ -421,7 +459,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
     def as_dict_v2(self, deref='auto', only=''):
         """Returns the API representation of the `Schedule` object."""
         from mist.api.helpers import prepare_dereferenced_dict
-        standard_fields = ['id', 'name', 'description', 'task_enabled',
+        standard_fields = ['id', 'name', 'description', 'enabled',
                            'start_after', 'run_immediately']
         deref_map = {
             'owned_by': 'email',
@@ -439,8 +477,6 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
         ret['action'] = self.task_type.action
 
         selectors = [selector.as_dict() for selector in self.selectors]
-
-        ret['resource_type'] = selectors[0]['type']
 
         ret['selectors'] = selectors
 
