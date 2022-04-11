@@ -122,20 +122,18 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     # that if there are duplicates they will be cleaned up
     tag_dict = dict(tags)
     tag_dict = {
-        k: v for k, v in tag_dict.items() - {
+        k: v for k, v
+        in tag_dict.items() - {
             tag.key: tag.value for tag in get_tag_objects_for_resource(
-                owner, resource_obj)}}
+                owner, resource_obj)}.items()
+    }
 
-    # import ipdb; ipdb.set_trace()
-
-    # remaining tags in tag_dict have not been found in the db so add them now
     for key, value in tag_dict.items():
         Tag(owner=owner, resource_id=resource_obj.id,
             resource_type=resource_obj.to_dbref().collection.rstrip('s'),
             key=key, value=value).save()
 
-    resource_obj.tags.update(tag_dict)
-    resource_obj.save()
+    resource_obj.update_tags(tag_dict)
 
     # SEC
     owner.mapper.update(resource_obj)
@@ -170,9 +168,7 @@ def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
                    [Q(key=key) for key in key_list])
 
     get_tag_objects_for_resource(owner, resource_obj).filter(query).delete()
-    for key in key_list:
-        resource_obj.tags.pop(key, None)
-        resource_obj.save()
+    resource_obj.delete_tags(key_list)
 
     # SEC
     owner.mapper.update(resource_obj)
