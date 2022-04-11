@@ -15,6 +15,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.secrets.models import SecretValue
 from mist.api.tag.mixins import TagMixin
+from mist.api.tag.models import Tag
 
 log = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ import mongoengine as me
 from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.ownership.mixins import OwnershipMixin
-
+from mist.api.tag.models import Tag
 from mist.api.tag.mixins import TagMixin
 
 
@@ -73,7 +73,12 @@ class CloudImage(OwnershipMixin, me.Document, TagMixin):
             'architecture': self.architecture,
             'min_disk_size': self.min_disk_size,
             'min_memory_size': self.min_memory_size,
-            'tags': self.tags,
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id,
+                    resource_type='image').only('key', 'value')
+            },
             'origin': self.origin,
             'created': str(self.created),
             'last_seen': str(self.last_seen),

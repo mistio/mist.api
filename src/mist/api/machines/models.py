@@ -406,7 +406,7 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
         standard_fields = [
             'id', 'name', 'hostname', 'state', 'public_ips', 'private_ips',
             'created', 'last_seen', 'missing_since', 'unreachable_since',
-            'os_type', 'cores', 'extra', 'tags']
+            'os_type', 'cores', 'extra']
         deref_map = {
             'cloud': 'name',
             'parent': 'name',
@@ -429,6 +429,12 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
 
         if 'external_id' in only or not only:
             ret['external_id'] = self.external_id
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value for tag in Tag.objects(
+                    resource_id=self.id, resource_type='machine').only(
+                        'key', 'value')}
 
         if 'cost' in only or not only:
             ret['cost'] = self.cost.as_dict()
@@ -531,7 +537,13 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
             'extra': extra,
             'cost': self.cost.as_dict(),
             'state': self.state,
-            'tags': self.tags,
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='machine').only('key', 'value')
+            },
             'monitoring':
                 self.monitoring.as_dict() if self.monitoring and
                 self.monitoring.hasmonitoring else '',

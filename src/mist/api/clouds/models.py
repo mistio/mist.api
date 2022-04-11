@@ -267,7 +267,13 @@ class Cloud(OwnershipMixin, me.Document, TagMixin):
             'container_enabled': self.container_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
-            'tags': self.tags,
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
+            },
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }
@@ -279,13 +285,22 @@ class Cloud(OwnershipMixin, me.Document, TagMixin):
 
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
-        standard_fields = ['id', 'name', 'provider', 'tags']
+        standard_fields = ['id', 'name', 'provider']
         deref_map = {
             'owned_by': 'email',
             'created_by': 'email'
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
+            }
 
         if 'features' in only or not only:
             ret['features'] = {
