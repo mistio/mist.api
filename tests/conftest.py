@@ -175,7 +175,7 @@ def key(request, org):
 @pytest.fixture
 def docker_cloud(request, org):
     """Fixture to create a docker cloud and proper cleanup"""
-    cloud = models.DockerCloud(owner=org, title='DockerTest', port='2379',
+    cloud = models.DockerCloud(owner=org, name='DockerTest', port='2379',
                                host='172.17.0.1')
     cloud.save()
 

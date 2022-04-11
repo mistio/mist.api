@@ -91,7 +91,7 @@ def main():
         cloud = None
         print("Adding/Updating docker host cloud")
         try:
-            cloud = DockerCloud.objects.get(owner=org, title='Mist Docker')
+            cloud = DockerCloud.objects.get(owner=org, name='Mist Docker')
             try:
                 if cloud.host != 'socat' or cloud.port != 2375:
                     cloud.ctl.update(host='socat', port=2375)
@@ -99,7 +99,7 @@ def main():
                 print("Error updating docker cloud: %r" % exc)
         except DockerCloud.DoesNotExist:
             try:
-                cloud = DockerCloud.add(owner=org, title='Mist Docker',
+                cloud = DockerCloud.add(owner=org, name='Mist Docker',
                                         host='socat', port=2375)
             except Exception as exc:
                 print("Error adding docker cloud: %r" % exc)
