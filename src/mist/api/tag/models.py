@@ -2,7 +2,7 @@ import re
 
 
 import mongoengine as me
-
+from mist.api.config import TAGS_RESOURCE_TYPES
 from mist.api.users.models import Owner
 
 
@@ -12,11 +12,7 @@ class Tag(me.Document):
                               reverse_delete_rule=me.CASCADE)
     key = me.StringField(required=True)
 
-    resource_type = me.StringField(
-        choices=['cloud', 'machine', 'volume', 'buckets', 'image',
-                 'network', 'subnet', 'zone', 'record',
-                 'key', 'script', 'template', 'stack',
-                 'schedule', 'tunnel', 'rule', 'team', 'secret'])
+    resource_type = me.StringField(choices=TAGS_RESOURCE_TYPES)
 
     value = me.StringField()
     resource_id = me.StringField()

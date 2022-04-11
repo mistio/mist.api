@@ -1456,9 +1456,10 @@ LANDING_FORMS = [
 # App constants
 ###############################################################################
 TAGS_RESOURCE_TYPES = (
-    'cloud', 'machine', 'volume', 'bucket', 'image',
-    'network', 'subnet', 'zone', 'record', 'key', 'script',
-    'template', 'stack', 'schedule', 'tunnel', 'rule', 'team'
+    'bucket', 'cloud', 'cluster', 'image',  'key',
+    'machine', 'network', 'record', 'rule', 'schedule',
+    'script', 'stack', 'subnet', 'team', 'template',
+    'tunnel', 'volume', 'zone'
 )
 STATES = {
     NodeState.RUNNING.value: 'running',
