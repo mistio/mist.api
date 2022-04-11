@@ -2608,6 +2608,7 @@ def find_best_ssh_params(machine, auth_context=None):
                 if trigger_session_update_flag:
                     trigger_session_update(machine.owner.id, ['keys'])
                 return key_association.id, host, ssh_user, port
+    raise MachineUnauthorizedError
 
 
 # SEC
