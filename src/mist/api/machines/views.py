@@ -1168,12 +1168,15 @@ def machine_ssh(request):
         machine_id = request.matchdict['machine']
         log.info("machine_id: %s" % machine_id)
         cluster = machine.cloud.name
+        host = machine.cloud.host
+        port = machine.cloud.port
         user = "test"
+        log.info("port: %s" % port)
         vault_token = machine.owner.vault_token
         vault_secret_engine_path = machine.owner.vault_secret_engine_path
         key_name = machine.cloud.name 
         base_ws_uri = config.CORE_URI.replace('http', 'ws')
-        ssh_uri = '%s/docker-exec/%s/%s/%s/%s/%s/%s/%s' % (base_ws_uri,machine_id, name,cluster,user,vault_token,vault_secret_engine_path,key_name)
+        ssh_uri = '%s/docker-exec/%s/%s/%s/%s/%s/%s/%s/%s/%s' % (base_ws_uri,str(host),str(port),machine_id, name,cluster,user,vault_token,vault_secret_engine_path,key_name)
         log.info(ssh_uri)
     else:
         ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
