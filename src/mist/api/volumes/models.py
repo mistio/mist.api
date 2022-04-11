@@ -63,13 +63,6 @@ class Volume(OwnershipMixin, me.Document, TagMixin):
         # Set `ctl` attribute.
         self.ctl = StorageController(self)
 
-    # @property
-    # def tags(self):
-    #     """Return the tags of this volume."""
-    #     return {tag.key: tag.value
-    #             for tag in Tag.objects(resource_id=self.id,
-    #                                    resource_type='volume')}
-
     def clean(self):
         self.owner = self.owner or self.cloud.owner
 
@@ -136,6 +129,15 @@ class Volume(OwnershipMixin, me.Document, TagMixin):
             ret['created'] = str(ret['created'])
 
         ret['size'] = "%dGB" % self.size if self.size else self.size
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='volume').only('key', 'value')
+            }
 
         return ret
 
