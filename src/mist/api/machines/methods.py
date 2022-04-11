@@ -2613,18 +2613,26 @@ def find_best_ssh_params(machine, auth_context=None):
 
 # SEC
 def prepare_ssh_uri(auth_context, machine):
+   
     key_association_id, hostname, user, port = find_best_ssh_params(
         machine, auth_context=auth_context)
     expiry = int(datetime.now().timestamp()) + 100
-    msg = '%s,%s,%s,%s,%s' % (user,
+    vault_token = machine.owner.vault_token
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    key = Key.objects(owner=machine.owner, deleted=None)[0]
+    key_name = key.name
+    msg = '%s,%s,%s,%s,%s,%s,%s' % (user,
                               hostname,
-                              port, key_association_id, expiry)
+                              port,expiry,vault_token,vault_secret_engine_path,key_name)
     mac = hmac.new(
         config.SECRET.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
-    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
+    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s/%s/%s' % (
         base_ws_uri, user,
-        hostname, port, key_association_id, expiry, mac)
+        hostname, port,expiry,vault_token,vault_secret_engine_path,key_name, mac)
     return ssh_uri
+
+
+    

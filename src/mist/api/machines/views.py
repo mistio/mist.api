@@ -1,6 +1,7 @@
 import os
 import uuid
 import logging
+from mist.api.keys.models import Key
 
 from pyramid.response import Response, FileResponse
 from pyramid.renderers import render_to_response
@@ -1149,10 +1150,33 @@ def machine_ssh(request):
     request.environ['cloud'] = machine.cloud.id
     request.environ['machine'] = machine.id
     request.environ['external_id'] = machine.external_id
-
     auth_context.check_perm("machine", "read", machine.id)
 
-    ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
+    if machine.machine_type == 'container' and machine.cloud.provider == 'kubernetes':
+        name = machine.name
+        cluster = machine.cloud.name
+        user = "kubernetes-admin"
+        vault_token = machine.owner.vault_token
+        vault_secret_engine_path = machine.owner.vault_secret_engine_path
+        key_name = machine.cloud.name 
+        base_ws_uri = config.CORE_URI.replace('http', 'ws')
+        ssh_uri = '%s/k8s-exec/%s/%s/%s/%s/%s/%s' % (base_ws_uri,name,cluster,user,vault_token,vault_secret_engine_path,key_name)
+
+    elif machine.machine_type == 'container' and machine.cloud.provider == 'docker':
+        
+        name = machine.name
+        machine_id = request.matchdict['machine']
+        log.info("machine_id: %s" % machine_id)
+        cluster = machine.cloud.name
+        user = "test"
+        vault_token = machine.owner.vault_token
+        vault_secret_engine_path = machine.owner.vault_secret_engine_path
+        key_name = machine.cloud.name 
+        base_ws_uri = config.CORE_URI.replace('http', 'ws')
+        ssh_uri = '%s/docker-exec/%s/%s/%s/%s/%s/%s/%s' % (base_ws_uri,machine_id, name,cluster,user,vault_token,vault_secret_engine_path,key_name)
+        log.info(ssh_uri)
+    else:
+        ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
     return {"location": ssh_uri}
 
 
