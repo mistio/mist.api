@@ -1456,7 +1456,7 @@ LANDING_FORMS = [
 # App constants
 ###############################################################################
 TAGS_RESOURCE_TYPES = (
-    'bucket', 'cloud', 'cluster', 'image',  'key',
+    'bucket', 'cloud', 'cluster', 'image', 'key',
     'machine', 'network', 'record', 'rule', 'schedule',
     'script', 'stack', 'subnet', 'team', 'template',
     'tunnel', 'volume', 'zone'
