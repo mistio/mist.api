@@ -9,7 +9,7 @@ from mist.api.mongoengine_extras import MistDictField
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.tag.models import Tag
-
+from mist.api.tag.mixins import TagMixin
 from mist.api.clouds.models import Cloud
 from mist.api.clouds.models import CLOUDS
 
@@ -32,7 +32,7 @@ def _populate_class_mapping(mapping, class_suffix, base_class):
                         mapping[provider] = value
 
 
-class Network(OwnershipMixin, me.Document):
+class Network(OwnershipMixin, me.Document, TagMixin):
     """The basic Network model.
 
     This class is only meant to be used as a basic class for cloud-specific
@@ -155,9 +155,14 @@ class Network(OwnershipMixin, me.Document):
             'cidr': self.cidr,
             'description': self.description,
             'extra': self.extra,
-            'tags': self.tags,
             'created': str(self.created),
             'last_seen': str(self.last_seen),
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id,
+                    resource_type='network').only('key', 'value')
+            },
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'location': self.location.id if self.location else '',
@@ -196,7 +201,7 @@ class Network(OwnershipMixin, me.Document):
                 for tag in Tag.objects(
                     owner=self.owner,
                     resource_id=self.id,
-                    resource_type='cloud').only('key', 'value')
+                    resource_type='network').only('key', 'value')
             }
         if 'last_seen' in ret:
             ret['last_seen'] = str(ret['last_seen'])
