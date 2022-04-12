@@ -257,7 +257,7 @@ class AmazonContainerController(BaseContainerController):
                                               cluster_version=version)
         cfn_driver = get_boto_driver(service="cloudformation",
                                      key=self.cloud.apikey,
-                                     secret=self.cloud.apisecret,
+                                     secret=self.cloud.apisecret.value,
                                      region=self.cloud.region,
                                      )
         stack_name = f"mist-{name}-cluster"
@@ -312,7 +312,7 @@ class AmazonContainerController(BaseContainerController):
         from mist.api.helpers import get_boto_driver, get_aws_tags
         tag_driver = get_boto_driver(service='resourcegroupstaggingapi',
                                      key=self.cloud.apikey,
-                                     secret=self.cloud.apisecret,
+                                     secret=self.cloud.apisecret.value,
                                      region=self.cloud.region,
                                      )
         cluster_stacks = tag_driver.get_resources(
@@ -342,13 +342,13 @@ class AmazonContainerController(BaseContainerController):
             tag_driver = get_boto_driver(
                 service='resourcegroupstaggingapi',
                 key=self.cloud.apikey,
-                secret=self.cloud.apisecret,
+                secret=self.cloud.apisecret.value,
                 region=self.cloud.region,
             )
         cfn_driver = get_boto_driver(
             service='cloudformation',
             key=self.cloud.apikey,
-            secret=self.cloud.apisecret,
+            secret=self.cloud.apisecret.value,
             region=self.cloud.region,
         )
         # Find all CloudFormation stacks describing deployed nodegroups
