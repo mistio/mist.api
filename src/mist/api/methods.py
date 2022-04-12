@@ -751,9 +751,9 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 for field in implicit_search_fields:
                     if getattr(resource_model, field, None) and \
                             not isinstance(getattr(resource_model, field), property):  # noqa
-                        if field == 'tags':
-                            mongo_operator = f'__{v}__exists'
-                            v = True
+                        # if field == 'tags':
+                        #     mongo_operator = f'__{v}__exists'
+                        #     v = True
                         implicit_query |= Q(**{
                             f'{field}{mongo_operator}': v})
                 # id will always be exact match
