@@ -162,6 +162,11 @@ class Cloud(OwnershipMixin, me.Document, TagMixin):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
             }
         ],
     }

@@ -14,6 +14,7 @@ from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.selectors.models import SelectorClassMixin
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.tag.mixins import TagMixin
 
 log = logging.getLogger(__name__)
 
@@ -188,7 +189,7 @@ class ScriptTask(BaseTaskType):
         }
 
 
-class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
+class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -213,7 +214,12 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
         ],
     }
 

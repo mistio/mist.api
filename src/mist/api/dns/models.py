@@ -62,6 +62,11 @@ class Zone(OwnershipMixin, me.Document, TagMixin):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
             }
         ],
     }
@@ -204,6 +209,17 @@ class Record(OwnershipMixin, me.Document, TagMixin):
         'allow_inheritance': True,
         'indexes': [
             'owner', 'zone', 'external_id', 'last_seen', 'missing_since',
+            {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
         ],
     }
     _record_type = None

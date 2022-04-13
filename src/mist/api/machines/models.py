@@ -337,6 +337,11 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
                 ],
                 'sparse': True,
                 'unique': False
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
             }
         ],
         'strict': False,

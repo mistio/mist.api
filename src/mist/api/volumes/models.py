@@ -54,7 +54,12 @@ class Volume(OwnershipMixin, me.Document, TagMixin):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
         ],
     }
 
@@ -84,7 +89,13 @@ class Volume(OwnershipMixin, me.Document, TagMixin):
             'external_id': self.external_id,
             'name': self.name,
             'extra': self.extra,
-            'tags': self.tags,
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='volume').only('key', 'value')
+            },
             'size': self.size,
             'location': self.location.id if self.location else None,
             'attached_to': [m.id for m in self.attached_to],

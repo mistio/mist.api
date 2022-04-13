@@ -69,7 +69,12 @@ class Network(OwnershipMixin, me.Document, TagMixin):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
         ],
     }
 
@@ -119,13 +124,6 @@ class Network(OwnershipMixin, me.Document, TagMixin):
                     location = None
             network.location = location
         return network.ctl.create(**kwargs)
-
-    @property
-    def tags(self):
-        """Return the tags of this network."""
-        return {tag.key: tag.value
-                for tag in Tag.objects(resource_id=self.id,
-                                       resource_type='network')}
 
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
@@ -291,7 +289,7 @@ class VultrNetwork(Network):
     pass
 
 
-class Subnet(me.Document):
+class Subnet(me.Document, TagMixin):
     """The basic Subnet model.
 
     This class is only meant to be used as a basic class for cloud-specific
@@ -326,7 +324,12 @@ class Subnet(me.Document):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
         ],
     }
 
@@ -369,13 +372,6 @@ class Subnet(me.Document):
             subnet.id = id
         return subnet.ctl.create(**kwargs)
 
-    @property
-    def tags(self):
-        """Return the tags of this subnet."""
-        return {tag.key: tag.value
-                for tag in Tag.objects(resource_id=self.id,
-                                       resource_type='subnet')}
-
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
         self.owner = self.owner or self.network.cloud.owner
@@ -399,7 +395,12 @@ class Subnet(me.Document):
             'cidr': self.cidr,
             'description': self.description,
             'extra': self.extra,
-            'tags': self.tags,
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id,
+                    resource_type='subnet')
+            },
             'created': str(self.created),
             'last_seen': str(self.last_seen),
         }
