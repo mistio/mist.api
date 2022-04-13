@@ -737,11 +737,18 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         elif k in ['key_associations', ]:  # Looks like a postfilter
             postfilters.append((k, v))
         elif k == 'tag':
-            key, *value = v.split(',')
-            if value:
-                query &= Q(**{f'tags__{key}': value[0]})
-            else:
-                query &= Q(**{f'tags__{key}__exists': True})
+            # import ipdb; ipdb.set_trace()
+            try:
+                key, val = v.split(',')
+            except ValueError:
+                key = v
+                val = ''
+            if key and val:
+                query &= Q(__raw__={'$text': {'$search': f"\"{key}:{val}\""}})
+            elif key:
+                query &= Q(__raw__={'$text': {'$search': f"\"{key}:\""}})
+            elif val:
+                query &= Q(__raw__={'$text': {'$search': f"\":{val}\""}})
         elif k == 'id':
             if id_implicit is True:
                 implicit_query = Q(id=v)
@@ -751,9 +758,6 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 for field in implicit_search_fields:
                     if getattr(resource_model, field, None) and \
                             not isinstance(getattr(resource_model, field), property):  # noqa
-                        # if field == 'tags':
-                        #     mongo_operator = f'__{v}__exists'
-                        #     v = True
                         implicit_query |= Q(**{
                             f'{field}{mongo_operator}': v})
                 # id will always be exact match
