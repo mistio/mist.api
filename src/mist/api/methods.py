@@ -737,7 +737,6 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         elif k in ['key_associations', ]:  # Looks like a postfilter
             postfilters.append((k, v))
         elif k == 'tag':
-            # import ipdb; ipdb.set_trace()
             try:
                 key, val = v.split(',')
             except ValueError:

@@ -61,6 +61,10 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
                             attr = getattr(
                                 resource_obj.objects.get(id=rid),
                                 deref)
+                        except AttributeError:
+                            attr = getattr(
+                                resource_obj.objects.get(id=rid),
+                                'domain')
                         except me.DoesNotExist:
                             log.error('%s with id %s does not exist',
                                       resource_type, tag.resource_id)
