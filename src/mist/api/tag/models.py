@@ -4,6 +4,7 @@ import re
 import mongoengine as me
 from mist.api.config import TAGS_RESOURCE_TYPES
 from mist.api.users.models import Owner
+from mist.api.tag.tasks import update_tags, delete_tags
 
 
 class Tag(me.Document):
@@ -49,8 +50,8 @@ class Tag(me.Document):
 
     def save(self):
         super(Tag, self).save()
-        self.resource.update_tags({self.key: self.value})
+        update_tags(self.resource, {self.key: self.value})
 
     def delete(self):
         super(Tag, self).delete()
-        self.resource.delete_tags([self.key])
+        delete_tags(self.resource, [self.key])
