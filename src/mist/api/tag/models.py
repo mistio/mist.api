@@ -50,8 +50,12 @@ class Tag(me.Document):
 
     def save(self):
         super(Tag, self).save()
-        update_tags(self.resource, {self.key: self.value})
+        update_tags.send(self.resource_type,
+                         self.resource_id,
+                         {self.key: self.value})
 
     def delete(self):
         super(Tag, self).delete()
-        delete_tags(self.resource, [self.key])
+        delete_tags.send(self.resource_type,
+                         self.resource_id,
+                         [self.key])

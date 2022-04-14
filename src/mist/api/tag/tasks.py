@@ -1,22 +1,25 @@
-import logging
 from mist.api.dramatiq_app import dramatiq
+from mist.api.helpers import get_resource_model
+from mongoengine import ValidationError, DoesNotExist
 
-log = logging.getLogger(__name__)
 
-
-@dramatiq.actor(queue_name='dramatiq_tags', store_results=True)
-def update_tags(resource, tag_dict):
+@dramatiq.actor(queue_name='dramatiq_tags',  max_retries=0)
+def update_tags(resource_type, resource_id, tag_dict):
     try:
-        resource.update_tags(tag_dict)
-    except Exception as e:
-        log.error('%r' % e)
-        raise e
+        get_resource_model(resource_type).objects.get(
+            id=resource_id).update_tags(tag_dict)
+    except (DoesNotExist, ValidationError) as exc:
+        update_tags.logger.error(
+            'Saving tag  on %s (id%s)failed with %r',
+            tag_dict, resource_type, resource_id, exc)
 
 
-@dramatiq.actor(queue_name='dramatiq_tags', store_results=True)
-def delete_tags(resource, key_list):
+@dramatiq.actor(queue_name='dramatiq_tags', max_retries=0)
+def delete_tags(resource_type, resource_id, key_list):
     try:
-        resource.delete_tags(key_list)
-    except Exception as e:
-        log.error('%r' % e)
-        raise e
+        get_resource_model(resource_type).objects.get(
+            id=resource_id).delete_tags(key_list)
+    except (DoesNotExist, ValidationError) as exc:
+        update_tags.logger.error(
+            'Deleting tag %s on %s (id%s)failed with %r',
+            key_list, resource_type, resource_id, exc)

@@ -8,12 +8,13 @@ class TagMixin(object):
     This mixin can be used with any taggable mist.io resource.
 
     """
-    tags = me.StringField(default=',')
+    tags = me.StringField(default='')
 
     def update_tags(self, tag_dict):
+        # import ipdb; ipdb.set_trace()
         for k, v in tag_dict.items():
             if f',{k}:' not in self.tags:
-                self.tags += f'{k}:{v},'
+                self.tags = self.tags.rstrip(',') + f',{k}:{v},'
             elif f',{k}:{v},' not in self.tags:
                 self.tags = re.sub(f',{k}:.*?,', f',{k}:{v},', self.tags)
         self.save()
