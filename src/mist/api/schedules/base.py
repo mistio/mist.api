@@ -325,7 +325,7 @@ class BaseController(object):
             raise ScheduleNameExistsError()
         except me.OperationError:
             raise ScheduleOperationError()
-    
+
     def update_v2(self, **kwargs):
         """Edit an existing Schedule"""
 
@@ -344,9 +344,9 @@ class BaseController(object):
                 resource_type = selector['type'].rstrip('s')
         if error_count == len(selectors):
             raise BadRequestError('resource_type')
-        
+
         action = kwargs.get('action')
-        if action:  
+        if action:
             # resource_type = self.schedule.resource_model_name
             if action not in SUPPORTED_ACTIONS[resource_type]:
                 raise BadRequestError("Action is not correct")
@@ -581,8 +581,6 @@ class BaseController(object):
 
         # check permissions
         check = False
-        import ipdb; ipdb.set_trace()
-        owner = auth_context.owner
         error_count = 0
         selectors = kwargs.get('selectors')
         for selector in selectors:
