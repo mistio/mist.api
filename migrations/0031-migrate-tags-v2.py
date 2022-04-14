@@ -1,8 +1,6 @@
 import mongoengine as me
 from mist.api.models import *  # noqa
 from mist.api.tag.models import Tag
-from pymongo import MongoClient
-from mist.api.config import MONGO_URI, MONGO_DB
 
 
 def migrate_tags_v2():
