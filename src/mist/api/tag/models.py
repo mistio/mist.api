@@ -46,3 +46,11 @@ class Tag(me.Document):
             'resource_type': self.resource_type,
             'resource_id': self.resource_id,
         }
+
+    def save(self):
+        super(Tag, self).save()
+        self.resource.update_tags({self.key: self.value})
+
+    def delete(self):
+        super(Tag, self).delete()
+        self.resource.delete_tags([self.key])
