@@ -145,7 +145,6 @@ class Volume(OwnershipMixin, me.Document, TagMixin):
             ret['tags'] = {
                 tag.key: tag.value
                 for tag in Tag.objects(
-                    owner=self.owner,
                     resource_id=self.id,
                     resource_type='volume').only('key', 'value')
             }
