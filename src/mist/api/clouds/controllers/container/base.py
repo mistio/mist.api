@@ -19,7 +19,6 @@ import mongoengine as me
 from mist.api import config
 
 from libcloud.common.types import InvalidCredsError
-from libcloud.container.base import ContainerCluster
 
 from mist.api.exceptions import ConflictError
 from mist.api.exceptions import BadRequestError
