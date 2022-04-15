@@ -30,7 +30,6 @@ from mist.api.exceptions import MistNotImplementedError
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
-from mist.api.helpers import node_to_dict
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
@@ -45,19 +44,6 @@ else:
 log = logging.getLogger(__name__)
 
 __all__ = ["BaseContainerController"]
-
-
-def _update_cluster_from_dict_in_process_pool(params):
-    from mist.api.clouds.models import Cloud
-
-    cloud_id = params["cloud_id"]
-    now = params["now"]
-    locations_map = params["locations_map"]
-    cluster_dict = params["cluster_dict"]
-    cloud = Cloud.objects.get(id=cloud_id)
-    return cloud.ctl.container._update_cluster_from_dict(
-        cluster_dict, locations_map, now
-    )
 
 
 # clusters cost is control plane cost + node costs
@@ -206,16 +192,19 @@ class BaseContainerController(BaseController):
         """Perform the actual libcloud call to get list of clusters"""
         return self.connection.list_clusters()
 
-    def _list_clusters__get_location(self, cluster_dict):
+    def _list_clusters__get_location(self, libcloud_cluster):
         """Find location code name/identifier from libcloud data
 
         This is to be called exclusively by `self._list_clusters`.
 
         Subclasses MAY override this method.
         """
-        return cluster_dict['location']
+        try:
+            return libcloud_cluster.location
+        except AttributeError:
+            return None
 
-    def _list_clusters__cost_nodes(self, cluster, cluster_dict):
+    def _list_clusters__cost_nodes(self, cluster, libcloud_cluster):
         """Calculate cost for a cluster
 
         Any subclass that wishes to handle its cloud's pricing, can implement
@@ -223,8 +212,7 @@ class BaseContainerController(BaseController):
 
         cluster: A cluster mongoengine model. The model may not have yet
             been saved in the database.
-        cluster_dict: A libcloud cluster node converted to dict,
-            using helpers.node_to_dict
+        libcloud_cluster: A libcloud cluster
 
        This method is expected to return a tuple of two values:
             (cost_per_hour, cost_per_month)
@@ -234,18 +222,21 @@ class BaseContainerController(BaseController):
         """
         return 0, 0
 
-    def _list_clusters__get_cluster_extra(self, cluster, cluster_dict):
+    def _list_clusters__get_cluster_extra(self, cluster, libcloud_cluster):
         """Return extra dict for libcloud cluster
 
         Subclasses can override/extend this method if they wish to filter or
         inject extra metadata.
         """
-        return copy.copy(cluster_dict["extra"])
+        return copy.copy(libcloud_cluster.extra)
 
-    def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
-        return cluster_dict.get("created_at")
+    def _list_clusters__cluster_creation_date(self, cluster, libcloud_cluster):
+        try:
+            return libcloud_cluster.created_at
+        except AttributeError:
+            return None
 
-    def _list_clusters__cluster_actions(self, cluster, cluster_dict):
+    def _list_clusters__cluster_actions(self, cluster, libcloud_cluster):
         """Add metadata on the cluster dict on the allowed actions
 
         Any subclass that wishes to specially handle its allowed actions, can
@@ -253,7 +244,7 @@ class BaseContainerController(BaseController):
 
         cluster: A cluster mongoengine model. The model may not have yet
             been saved in the database.
-        cluster_dict: An instance of a libcloud container driver cluster dict
+        libcloud_cluster: An instance of a libcloud container driver cluster
 
         This method is expected to edit `cluster` in place and not return
         anything.
@@ -264,7 +255,7 @@ class BaseContainerController(BaseController):
         cluster.actions.create = True
         cluster.actions.destroy = True
 
-    def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
+    def _list_clusters__postparse_cluster(self, cluster, libcloud_cluster):
         """Post parse a cluster before returning it in list_clusters
 
         Any subclass that wishes to specially handle its cloud's tags and
@@ -272,7 +263,7 @@ class BaseContainerController(BaseController):
 
         cluster: A cluster mongoengine model. The model may not have yet
             been saved in the database.
-        cluster_dict: A libcloud container driver cluster dict
+        libcloud_cluster: A libcloud container driver cluster
 
         This method is expected to edit its arguments in place and return
         True if any updates have been made.
@@ -283,7 +274,7 @@ class BaseContainerController(BaseController):
         updated = False
         return updated
 
-    def _update_cluster_from_dict(self, cluster_dict, locations_map, now):
+    def _update_from_libcloud_cluster(self, libcloud_cluster, locations_map, now):
         is_new = False
         updated = False
         # Fetch cluster mongoengine model from db, or initialize one.
@@ -291,11 +282,11 @@ class BaseContainerController(BaseController):
         from mist.api.containers.models import CLUSTERS
         try:
             cluster = Cluster.objects.get(
-                cloud=self.cloud, external_id=cluster_dict["id"]
+                cloud=self.cloud, external_id=libcloud_cluster.id
             )
         except Cluster.DoesNotExist:
             cluster = CLUSTERS[self.cloud.provider](
-                cloud=self.cloud, external_id=cluster_dict["id"])
+                cloud=self.cloud, external_id=libcloud_cluster.id)
             cluster.first_seen = now
             try:
                 cluster.save()
@@ -305,7 +296,7 @@ class BaseContainerController(BaseController):
             is_new = True
         # Discover location of cluster.
         try:
-            location_id = self._list_clusters__get_location(cluster_dict)
+            location_id = self._list_clusters__get_location(libcloud_cluster)
         except Exception as exc:
             log.error("Error getting location of %s: %r", cluster, exc)
         else:
@@ -325,18 +316,30 @@ class BaseContainerController(BaseController):
             if cluster.location != location:
                 cluster.location = location
                 updated = True
-        if cluster.name != cluster_dict['name']:
-            cluster.name = cluster_dict['name']
+        if cluster.name != libcloud_cluster.name:
+            cluster.name = libcloud_cluster.name
             updated = True
-        cluster_state = cluster_dict.get(
-            'status') or cluster_dict.get('extra', {}).get('status')
-        if cluster_state and cluster_state != cluster.state:
-            cluster.state = str(cluster_state)
+
+        if libcloud_cluster.status != cluster.state:
+            cluster.state = str(libcloud_cluster.status)
             updated = True
+
+        try:
+            libcloud_nodepools = self._list_clusters__fetch_nodepools(
+                libcloud_cluster)
+        except Exception as exc:
+            log.error(
+                'Failed to get nodepools for cluster %s with exception %r',
+                cluster.id, exc)
+        else:
+            updated = self._list_clusters__update_nodepools(
+                cluster, libcloud_nodepools) or updated
+
         # Set cluster extra dict.
         # Make sure we don't meet any surprises when we try to json encode
         # later on in the HTTP response.
-        extra = self._list_clusters__get_cluster_extra(cluster, cluster_dict)
+        extra = self._list_clusters__get_cluster_extra(
+            cluster, libcloud_cluster)
         for key, val in list(extra.items()):
             try:
                 json.dumps(val)
@@ -361,7 +364,7 @@ class BaseContainerController(BaseController):
         # Get cluster creation date.
         try:
             created = self._list_clusters__cluster_creation_date(
-                cluster, cluster_dict)
+                cluster, libcloud_cluster)
             if created:
                 created = get_datetime(created)
                 if cluster.created != created:
@@ -375,34 +378,16 @@ class BaseContainerController(BaseController):
                 exc,
             )
 
-        # Update with available cluster actions.
-        # try:
-        #     from copy import deepcopy
-
-        #     actions_backup = deepcopy(cluster.actions)
-        #     self._list_clusters__cluster_actions(cluster, cluster_dict)
-        #     if actions_backup != cluster.actions:
-        #         updated = True
-        # except Exception as exc:
-        #     log.exception(
-        #         "Error while finding cluster actions "
-        #         "for cluster %s:%s for %s \n %r",
-        #         cluster.id,
-        #         cluster_dict["name"],
-        #         self.cloud,
-        #         exc,
-        #     )
-        # Apply any cloud/provider specific post processing.
         try:
             updated = (
                 self._list_clusters__postparse_cluster(
-                    cluster, cluster_dict) or updated
+                    cluster, libcloud_cluster) or updated
             )
         except Exception as exc:
             log.exception(
                 "Error while post parsing cluster %s:%s for %s\n%r",
                 cluster.id,
-                cluster_dict["name"],
+                libcloud_cluster.name,
                 self.cloud,
                 exc,
             )
@@ -410,7 +395,7 @@ class BaseContainerController(BaseController):
             control_plane_cph, control_plane_cpm = \
                 _decide_cluster_control_plane_cost(cluster)
             nodes_cph, nodes_cpm = \
-                self._list_clusters__cost_nodes(cluster, cluster_dict)
+                self._list_clusters__cost_nodes(cluster, libcloud_cluster)
             cph = nodes_cph + control_plane_cph
             cpm = nodes_cpm + control_plane_cpm
             if(cluster.cost.hourly != cph or
@@ -426,7 +411,7 @@ class BaseContainerController(BaseController):
         except Exception as exc:
             log.exception("Error while calculating cost "
                           "for cluster %s:%s for %s \n%r",
-                          cluster.id, cluster_dict['name'], self.cloud, exc)
+                          cluster.id, libcloud_cluster.name, self.cloud, exc)
         # Save all changes to cluster model on the database.
         if is_new or updated:
             try:
@@ -444,6 +429,138 @@ class BaseContainerController(BaseController):
                     cluster.name, cluster.id, is_new)
             )
         return cluster, is_new
+
+    def _list_clusters__fetch_nodepools(self, libcloud_cluster):
+        """Fetch the cluster's nodepools from the provider API.
+
+       This is to be called exclusively by `_list_clusters`.
+
+        Parameters:
+            libcloud_cluster: The libcloud cluster instance
+
+        Returns:
+            A list of libcloud nodepools
+        """
+        return []
+
+    def _list_clusters__update_nodepools(self, cluster, libcloud_nodepools):
+        """Update/Create/Delete cluster nodepools.
+
+        Parameters:
+            cluster: The Mist Cluster instance
+            libcloud_nodepools: A list containing the libcloud cluster
+                                nodepools
+
+        Returns:
+            bool: A boolean indicating whether the nodepools were updated
+        """
+
+        updated = self._remove_deleted_nodepools(
+            cluster,
+            libcloud_nodepools)
+
+        for libcloud_nodepool in libcloud_nodepools:
+            try:
+                nodepool = cluster.nodepools.get(name=libcloud_nodepool.name)
+            except me.DoesNotExist:
+                # New Nodepool
+                updated = True
+                log.info("Found new nodepools %s for cluster %s",
+                         libcloud_nodepool.name, cluster)
+                try:
+                    sizes = libcloud_nodepool.sizes
+                except AttributeError:
+                    sizes = [libcloud_nodepool.size]
+                values = {
+                    'name': libcloud_nodepool.name,
+                    'node_count': libcloud_nodepool.node_count,
+                    'state': libcloud_nodepool.state,
+                    'locations': getattr(libcloud_nodepool, 'locations', []),
+                    'sizes': sizes,
+                }
+                cluster.nodepools.create(**values)
+            except me.MultipleObjectsReturned as exc:
+                log.error(
+                    "Failed to get nodepool %s for cluster %s with exc %r",
+                    libcloud_nodepool.name, cluster.id, exc)
+            else:
+                # Update Nodepool
+                updated = self._update_nodepool(
+                    nodepool, libcloud_nodepool) or updated
+
+        return updated
+
+    def _update_nodepool(self, nodepool, libcloud_nodepool):
+        """Update the Mist Nodepool from libcloud Nodepool.
+
+        This is to be called exclusively by `_list_clusters__get_nodepools`.
+
+        Parameters:
+            cluster: The Mist Cluster instance
+            libcloud_nodepools: A list containing the libcloud cluster
+                                nodepools
+
+        Returns:
+            bool: A boolean indicating whether the nodepools were updated
+        """
+        updated = False
+        if nodepool.node_count != libcloud_nodepool.node_count:
+            nodepool.node_count = libcloud_nodepool.node_count
+            updated = True
+
+        if nodepool.state != libcloud_nodepool.state:
+            nodepool.state = libcloud_nodepool.state
+            updated = True
+
+        try:
+            locations = libcloud_nodepool.locations
+        except AttributeError:
+            locations = []
+        if sorted(nodepool.locations) != sorted(locations):
+            nodepool.locations = locations
+            updated = True
+
+        try:
+            sizes = libcloud_nodepool.sizes
+        except AttributeError:
+            sizes = [libcloud_nodepool.size]
+        if sorted(nodepool.sizes) != sorted(sizes):
+            nodepool.sizes = sizes
+            updated = True
+        return updated
+
+    def _remove_deleted_nodepools(self, cluster, libcloud_nodepools):
+        """Remove nodepools that were not returned by libcloud.
+
+        This is to be called exclusively by `_list_clusters__get_nodepools`.
+
+        Parameters:
+            cluster: The Mist Cluster instance
+            libcloud_nodepools: A list containing the libcloud cluster
+                                nodepools
+
+        Returns:
+            bool: A boolean indicating whether the nodepools were updated
+        """
+        updated = False
+        existing_names = {nodepool.name for nodepool in cluster.nodepools}
+        libcloud_names = {
+            nodepool.name for nodepool in libcloud_nodepools}
+        deleted = existing_names.difference(libcloud_names)
+        if deleted:
+            updated = True
+
+        for nodepool_name in deleted:
+            try:
+                nodepool = cluster.nodepools.get(name=nodepool_name)
+            except (me.DoesNotExist, me.MultipleObjectsReturned) as exc:
+                log.error(
+                    "Failed to delete nodepool %s for cluster %s with exc %r",
+                    nodepool_name, cluster.id, exc)
+            else:
+                cluster.nodepools.remove(nodepool)
+
+        return updated
 
     def _list_clusters__get_pod_node(self, pod, cluster, libcloud_cluster):
         """Get the node the pod is running on.
@@ -562,8 +679,8 @@ class BaseContainerController(BaseController):
         cached_pods = [m.as_dict()
                        for m in self.list_cached_pods()]
         for libcloud_cluster in libcloud_clusters:
-            cluster, is_new = self._update_cluster_from_dict(
-                node_to_dict(libcloud_cluster), locations_map, now
+            cluster, is_new = self._update_from_libcloud_cluster(
+                libcloud_cluster, locations_map, now
             )
             if not cluster:
                 continue

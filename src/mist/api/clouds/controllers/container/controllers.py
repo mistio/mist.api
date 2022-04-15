@@ -23,6 +23,7 @@ import logging
 import uuid
 
 from libcloud.container.base import ContainerCluster
+import mongoengine as me
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.common.exceptions import BaseHTTPError
@@ -41,20 +42,20 @@ class GoogleContainerController(BaseContainerController):
             self.cloud.private_key.value,
             project=self.cloud.project_id)
 
-    def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
-        return cluster_dict.get('extra', {}).get('createTime')
+    def _list_clusters__cluster_creation_date(self, cluster, libcloud_cluster):
+        return libcloud_cluster.extra.get('createTime')
 
-    def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
+    def _list_clusters__postparse_cluster(self, cluster, libcloud_cluster):
         updated = False
-        cluster.total_nodes = cluster_dict['node_count']
+        cluster.total_nodes = libcloud_cluster.node_count
         updated = True
-        cluster.config = cluster_dict['config']
-        cluster.credentials = cluster_dict['credentials']
-        cluster.total_cpus = cluster_dict['total_cpus']
-        cluster.total_memory = cluster_dict['total_memory']
+        cluster.config = libcloud_cluster.config
+        cluster.credentials = libcloud_cluster.credentials
+        cluster.total_cpus = libcloud_cluster.total_cpus
+        cluster.total_memory = libcloud_cluster.total_memory
         return updated
 
-    def _list_clusters__cost_nodes(self, cluster, cluster_dict):
+    def _list_clusters__cost_nodes(self, cluster, libcloud_cluster):
         from mist.api.machines.models import Machine
         nodes = Machine.objects(cluster=cluster,
                                 missing_since=None,
@@ -158,6 +159,9 @@ class GoogleContainerController(BaseContainerController):
                                     name=cluster.external_id,
                                     state=0, driver=self.connection)
 
+    def _list_clusters__fetch_nodepools(self, libcloud_cluster):
+        return libcloud_cluster.nodepools
+
 
 class AmazonContainerController(BaseContainerController):
     def _connect(self, **kwargs):
@@ -166,16 +170,16 @@ class AmazonContainerController(BaseContainerController):
             self.cloud.apisecret.value,
             self.cloud.region)
 
-    def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
+    def _list_clusters__postparse_cluster(self, cluster, libcloud_cluster):
         updated = False
-        cluster.config = cluster_dict['config']
+        cluster.config = libcloud_cluster.config
         updated = True
-        cluster.credentials = cluster_dict['credentials']
-        cluster.total_cpus = cluster_dict['total_cpus']
-        cluster.total_memory = cluster_dict['total_memory']
+        cluster.credentials = libcloud_cluster.credentials
+        cluster.total_cpus = libcloud_cluster.total_cpus
+        cluster.total_memory = libcloud_cluster.total_memory
         return updated
 
-    def _list_clusters__cost_nodes(self, cluster, cluster_dict):
+    def _list_clusters__cost_nodes(self, cluster, libcloud_cluster):
         from mist.api.machines.models import Machine
         nodes = Machine.objects(cluster=cluster,
                                 missing_since=None,
@@ -186,8 +190,8 @@ class AmazonContainerController(BaseContainerController):
 
         return nodes_hourly_cost, nodes_monthly_cost
 
-    def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
-        return cluster_dict.get('extra', {}).get('createdAt')
+    def _list_clusters__cluster_creation_date(self, cluster, libcloud_cluster):
+        return libcloud_cluster.extra.get('createdAt')
 
     def _list_clusters__get_pod_node(self, pod, cluster, libcloud_cluster):
         from mist.api.machines.models import Machine
@@ -398,3 +402,11 @@ class AmazonContainerController(BaseContainerController):
             return ContainerCluster(cluster.external_id,
                                     name=cluster.external_id,
                                     state=0, driver=self.connection)
+
+    def _list_clusters__fetch_nodepools(self, libcloud_cluster):
+        nodepools = []
+        nodepool_names = self.connection.ex_list_nodegroups(libcloud_cluster)
+        for name in nodepool_names:
+            nodepool = self.connection.ex_get_nodegroup(libcloud_cluster, name)
+            nodepools.append(nodepool)
+        return nodepools
