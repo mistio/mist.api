@@ -11,7 +11,6 @@ class TagMixin(object):
     tags = me.StringField(default='')
 
     def update_tags(self, tag_dict):
-        # import ipdb; ipdb.set_trace()
         for k, v in tag_dict.items():
             if f',{k}:' not in self.tags:
                 self.tags = self.tags.rstrip(',') + f',{k}:{v},'

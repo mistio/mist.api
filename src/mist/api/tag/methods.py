@@ -137,8 +137,6 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
             resource_type=resource_obj.to_dbref().collection.rstrip('s'),
             key=key, value=value).save()
 
-    # resource_obj.update_tags(tag_dict)
-
     # SEC
     owner.mapper.update(resource_obj)
 
@@ -172,7 +170,6 @@ def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
                    [Q(key=key) for key in key_list])
 
     get_tag_objects_for_resource(owner, resource_obj).filter(query).delete()
-    # resource_obj.delete_tags(key_list)
 
     # SEC
     owner.mapper.update(resource_obj)
