@@ -3,7 +3,7 @@ from mist.api.helpers import get_resource_model
 from mongoengine import ValidationError, DoesNotExist
 
 
-@dramatiq.actor(queue_name='dramatiq_tags',  max_retries=0)
+@dramatiq.actor(queue_name='dramatiq_tags', max_retries=0)
 def update_tags(resource_type, resource_id, tag_dict):
     try:
         get_resource_model(resource_type).objects.get(
