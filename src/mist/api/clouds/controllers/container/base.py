@@ -941,6 +941,25 @@ class BaseContainerController(BaseController):
         """
         raise MistNotImplementedError()
 
+    def _libcloud_ingress_to_ingress(self, libcloud_ingress):
+        load_balancer_ingresses = libcloud_ingress.load_balancer_ingresses
+        ips = [
+            load_balancer_ingress.ip
+            for load_balancer_ingress in load_balancer_ingresses
+            if load_balancer_ingress.ip
+        ]
+        hostnames = [
+            load_balancer_ingress.hostname
+            for load_balancer_ingress in load_balancer_ingresses
+            if load_balancer_ingress.hostname
+        ]
+        return {
+            "name": libcloud_ingress.name,
+            "namespace": libcloud_ingress.namespace,
+            "ips": ips,
+            "hostnames": hostnames,
+        }
+
     def get_ingress(self, cluster, name, namespace):
         try:
             libcloud_cluster = self._get_libcloud_cluster(cluster)
@@ -953,21 +972,7 @@ class BaseContainerController(BaseController):
                 name, namespace, cluster, exc)
             raise CloudUnavailableError(msg=str(exc)) from exc
 
-        load_balancer_ingresses = libcloud_ingress.load_balancer_ingresses
-        ips = [
-            load_balancer_ingress.ip
-            for load_balancer_ingress in load_balancer_ingresses
-            if load_balancer_ingress.ip]
-        hostnames = [
-            load_balancer_ingress.hostname
-            for load_balancer_ingress in load_balancer_ingresses
-            if load_balancer_ingress.hostname]
-        return {
-            "name": libcloud_ingress.name,
-            "namespace": libcloud_ingress.namespace,
-            "ips": ips,
-            "hostnames": hostnames,
-        }
+        return self._libcloud_ingress_to_ingress(libcloud_ingress)
 
     def list_ingresses(self, cluster, namespace=None):
         try:
@@ -978,22 +983,7 @@ class BaseContainerController(BaseController):
             log.error('Failed to fetch ingresses for cluster: %s, %r',
                       cluster, exc)
             raise CloudUnavailableError(msg=str(exc)) from exc
-        ingresses = []
-        for libcloud_ingress in libcloud_ingresses:
-            load_balancer_ingresses = libcloud_ingress.load_balancer_ingresses
-            ips = [
-                load_balancer_ingress.ip
-                for load_balancer_ingress in load_balancer_ingresses
-                if load_balancer_ingress.ip]
-            hostnames = [
-                load_balancer_ingress.hostname
-                for load_balancer_ingress in load_balancer_ingresses
-                if load_balancer_ingress.hostname]
-            ingress = {
-                "name": libcloud_ingress.name,
-                "namespace": libcloud_ingress.namespace,
-                "ips": ips,
-                "hostnames": hostnames,
-            }
-            ingresses.append(ingress)
-        return ingresses
+        return [
+            self._libcloud_ingress_to_ingress(libcloud_ingress)
+            for libcloud_ingress in libcloud_ingresses
+        ]
