@@ -46,6 +46,19 @@ class NodePool(me.EmbeddedDocument):
     sizes = me.ListField(me.StringField())
     locations = me.ListField(me.StringField())
 
+    def __repr__(self):
+        return "%s Nodepool: %s State: %s Nodes: %s" % (
+            type(self), self.name, self.state, self.node_count)
+
+    def as_dict(self):
+        return {
+            "name": self.name,
+            "node_count": self.node_count,
+            "state": self.state,
+            "sizes": self.sizes,
+            "locations": self.locations,
+        }
+
 
 class Cluster(OwnershipMixin, me.Document):
     """Abstract base class for every cluster mongoengine model
@@ -183,6 +196,8 @@ class Cluster(OwnershipMixin, me.Document):
             "tags": self.tags,
             "owned_by": self.owned_by.email if self.owned_by else "",
             "created_by": self.created_by.email if self.created_by else "",
+            "nodepools": [nodepool.as_dict()
+                          for nodepool in self.nodepools],
         }
         return cdict
 
@@ -218,6 +233,9 @@ class Cluster(OwnershipMixin, me.Document):
             standard_fields, deref_map, self, deref, only)
         if "cost" in only or not only:
             ret["cost"] = self.cost.as_dict()
+        if "nodepools" in only or not only:
+            ret["nodepools"] = [nodepool.as_dict()
+                                for nodepool in self.nodepools]
         if "last_seen" in ret:
             ret["last_seen"] = str(ret["last_seen"])
         if "missing_since" in ret:
