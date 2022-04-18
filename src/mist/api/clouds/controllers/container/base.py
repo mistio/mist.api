@@ -25,6 +25,7 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
@@ -713,3 +714,59 @@ class BaseContainerController(BaseController):
         except Exception as exc:
             log.warning("Error while closing connection: %r", exc)
         return clusters
+
+    def _get_libcloud_cluster(self, cluster, no_fail=False):
+        """Return an instance of a libcloud cluster
+
+        This is a private method.
+
+        Subclasses should override or extend this method.
+        """
+        raise MistNotImplementedError()
+
+    def _libcloud_ingress_to_ingress(self, libcloud_ingress):
+        load_balancer_ingresses = libcloud_ingress.load_balancer_ingresses
+        ips = [
+            load_balancer_ingress.ip
+            for load_balancer_ingress in load_balancer_ingresses
+            if load_balancer_ingress.ip
+        ]
+        hostnames = [
+            load_balancer_ingress.hostname
+            for load_balancer_ingress in load_balancer_ingresses
+            if load_balancer_ingress.hostname
+        ]
+        return {
+            "name": libcloud_ingress.name,
+            "namespace": libcloud_ingress.namespace,
+            "ips": ips,
+            "hostnames": hostnames,
+        }
+
+    def get_ingress(self, cluster, name, namespace):
+        try:
+            libcloud_cluster = self._get_libcloud_cluster(cluster)
+            libcloud_ingress = libcloud_cluster.driver.ex_get_ingress(
+                name, namespace)
+        except Exception as exc:
+            log.error(
+                'Failed to fetch ingress: %s on' +
+                ' namespace: %s for cluster: %s, %r',
+                name, namespace, cluster, exc)
+            raise CloudUnavailableError(msg=str(exc)) from exc
+
+        return self._libcloud_ingress_to_ingress(libcloud_ingress)
+
+    def list_ingresses(self, cluster, namespace=None):
+        try:
+            libcloud_cluster = self._get_libcloud_cluster(cluster)
+            libcloud_ingresses = libcloud_cluster.driver.ex_list_ingresses(
+                namespace)
+        except Exception as exc:
+            log.error('Failed to fetch ingresses for cluster: %s, %r',
+                      cluster, exc)
+            raise CloudUnavailableError(msg=str(exc)) from exc
+        return [
+            self._libcloud_ingress_to_ingress(libcloud_ingress)
+            for libcloud_ingress in libcloud_ingresses
+        ]

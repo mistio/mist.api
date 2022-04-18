@@ -14,6 +14,14 @@ class ClusterController(object):
         return self.cluster.cloud.ctl.container.destroy_cluster(
             name=self.cluster.name, **kwargs)
 
+    def get_ingress(self, **kwargs):
+        return self.cluster.cloud.ctl.container.get_ingress(
+            cluster=self.cluster, **kwargs)
+
+    def list_ingresses(self, **kwargs):
+        return self.cluster.cloud.ctl.container.list_ingresses(
+            cluster=self.cluster, **kwargs)
+
 
 class GoogleClusterController(ClusterController):
     def destroy(self):

@@ -22,6 +22,7 @@ import time
 import logging
 import uuid
 
+from libcloud.container.base import ContainerCluster
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.common.exceptions import BaseHTTPError
@@ -145,6 +146,17 @@ class GoogleContainerController(BaseContainerController):
 
     def _destroy_cluster(self, name, zone):
         return self.connection.destroy_cluster(name=name, zone=zone)
+
+    def _get_libcloud_cluster(self, cluster, no_fail=False):
+        try:
+            zone = cluster.location.name or cluster.extra.get('location')
+            return self.connection.ex_get_cluster(name=cluster.name, zone=zone)
+        except Exception as exc:
+            if not no_fail:
+                raise exc
+            return ContainerCluster(cluster.external_id,
+                                    name=cluster.external_id,
+                                    state=0, driver=self.connection)
 
 
 class AmazonContainerController(BaseContainerController):
@@ -376,3 +388,13 @@ class AmazonContainerController(BaseContainerController):
                  self.cloud, name)
         cfn_driver.delete_stack(StackName=cluster_stack)
         waiter.wait(StackName=cluster_stack)
+
+    def _get_libcloud_cluster(self, cluster, no_fail=False):
+        try:
+            return self.connection.get_cluster(cluster.name, fetch_nodes=True)
+        except Exception as exc:
+            if not no_fail:
+                raise exc
+            return ContainerCluster(cluster.external_id,
+                                    name=cluster.external_id,
+                                    state=0, driver=self.connection)
