@@ -21,9 +21,9 @@ it is accessed through a cloud model, using the `ctl` abbreviation, like this:
 import time
 import logging
 import uuid
+import mongoengine as me
 
 from libcloud.container.base import ContainerCluster
-import mongoengine as me
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.common.exceptions import BaseHTTPError
