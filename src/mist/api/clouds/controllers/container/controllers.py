@@ -30,6 +30,7 @@ from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.google import ResourceNotFoundError
 
 from mist.api.clouds.controllers.main.base import BaseContainerController
+from mist.api.exceptions import BadRequestError
 
 log = logging.getLogger(__name__)
 
@@ -410,3 +411,37 @@ class AmazonContainerController(BaseContainerController):
             nodepool = self.connection.ex_get_nodegroup(libcloud_cluster, name)
             nodepools.append(nodepool)
         return nodepools
+
+    def _validate_scale_nodepool_request(self,
+                                         auth_context,
+                                         cluster,
+                                         nodepool,
+                                         desired_nodes,
+                                         min_nodes,
+                                         max_nodes):
+        super()._validate_scale_nodepool_request(
+            auth_context,
+            cluster,
+            nodepool,
+            desired_nodes,
+            min_nodes,
+            max_nodes)
+
+        if max_nodes is not None and max_nodes < 1:
+            raise BadRequestError(
+                "Max nodes should be at least 1")
+
+    def _scale_nodepool(self,
+                        auth_context,
+                        cluster,
+                        nodepool,
+                        desired_nodes,
+                        min_nodes,
+                        max_nodes):
+        operation_id = self.connection.ex_scale_nodegroup(
+            cluster=cluster.name,
+            nodegroup=nodepool.name,
+            desired_nodes=desired_nodes,
+            min_nodes=min_nodes,
+            max_nodes=max_nodes)
+        return operation_id
