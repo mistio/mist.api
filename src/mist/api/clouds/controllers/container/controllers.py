@@ -163,6 +163,67 @@ class GoogleContainerController(BaseContainerController):
     def _list_clusters__fetch_nodepools(self, libcloud_cluster):
         return libcloud_cluster.nodepools
 
+    def _nodepool_has_autoscaling(self, nodepool):
+        """Helper method to determine if the nodepool has autoscaler
+        """
+        return (nodepool.min_nodes is not None and
+                nodepool.max_nodes is not None)
+
+    def _validate_scale_nodepool_request(self,
+                                         auth_context,
+                                         cluster,
+                                         nodepool,
+                                         desired_nodes,
+                                         min_nodes,
+                                         max_nodes) -> None:
+        super()._validate_scale_nodepool_request(
+            auth_context,
+            cluster,
+            nodepool,
+            desired_nodes,
+            min_nodes,
+            max_nodes)
+
+        if max_nodes is not None and max_nodes < 1:
+            raise BadRequestError(
+                'Max nodes must be greater than 0')
+
+        autoscaling = self._nodepool_has_autoscaling(nodepool)
+        if autoscaling is False:
+            if min_nodes is not None or max_nodes is not None:
+                raise BadRequestError(
+                    'Cannot set min/max nodes on a nodepool without autoscaling')  # noqa
+        else:
+            if desired_nodes is not None:
+                raise BadRequestError(
+                    'Cannot set desired nodes on a nodepool with autoscaling')
+
+    def _scale_nodepool(self,
+                        auth_context,
+                        cluster,
+                        nodepool,
+                        desired_nodes,
+                        min_nodes,
+                        max_nodes):
+        autoscaling = self._nodepool_has_autoscaling(nodepool)
+        if autoscaling is False:
+            operation = self.connection.ex_scale_nodepool(
+                cluster=cluster.name,
+                nodepool=nodepool.name,
+                zone=cluster.location.name,
+                desired_nodes=desired_nodes,
+            )
+        else:
+            operation = self.connection.ex_set_nodepool_autoscaling(
+                cluster=cluster.name,
+                nodepool=nodepool.name,
+                zone=cluster.location.name,
+                min_nodes=min_nodes,
+                max_nodes=max_nodes,
+            )
+
+        return operation.name
+
 
 class AmazonContainerController(BaseContainerController):
     def _connect(self, **kwargs):
