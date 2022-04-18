@@ -471,7 +471,9 @@ class BaseContainerController(BaseController):
                     sizes = [libcloud_nodepool.size]
                 values = {
                     'name': libcloud_nodepool.name,
-                    'node_count': libcloud_nodepool.node_count,
+                    'node_count': libcloud_nodepool.nodes,
+                    'min_nodes': libcloud_nodepool.min_nodes,
+                    'max_nodes': libcloud_nodepool.max_nodes,
                     'state': libcloud_nodepool.state,
                     'locations': getattr(libcloud_nodepool, 'locations', []),
                     'sizes': sizes,
@@ -502,12 +504,20 @@ class BaseContainerController(BaseController):
             bool: A boolean indicating whether the nodepools were updated
         """
         updated = False
-        if nodepool.node_count != libcloud_nodepool.node_count:
-            nodepool.node_count = libcloud_nodepool.node_count
+        if nodepool.node_count != libcloud_nodepool.nodes:
+            nodepool.node_count = libcloud_nodepool.nodes
             updated = True
 
         if nodepool.state != libcloud_nodepool.state:
             nodepool.state = libcloud_nodepool.state
+            updated = True
+
+        if nodepool.min_nodes != libcloud_nodepool.min_nodes:
+            nodepool.min_nodes = libcloud_nodepool.min_nodes
+            updated = True
+
+        if nodepool.max_nodes != libcloud_nodepool.max_nodes:
+            nodepool.max_nodes = libcloud_nodepool.max_nodes
             updated = True
 
         try:
