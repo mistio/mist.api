@@ -104,6 +104,89 @@ class BaseContainerController(BaseController):
                                          create_cluster_request):
         raise NotImplementedError()
 
+    def validate_scale_nodepool_request(self,
+                                        auth_context,
+                                        cluster,
+                                        nodepool,
+                                        desired_nodes,
+                                        min_nodes,
+                                        max_nodes) -> None:
+        """Make sure the request parameters are valid to scale this nodepool.
+
+        Raises:
+            BadRequestError if the parameters given are invalid
+
+        Returns:
+            None
+        """
+        self._assert_container_feature_enabled()
+        return self._validate_scale_nodepool_request(auth_context,
+                                                     cluster,
+                                                     nodepool,
+                                                     desired_nodes,
+                                                     min_nodes,
+                                                     max_nodes)
+
+    def _validate_scale_nodepool_request(self,
+                                         auth_context,
+                                         cluster,
+                                         nodepool,
+                                         desired_nodes,
+                                         min_nodes,
+                                         max_nodes) -> None:
+        """
+        Raises:
+            BadRequestError if the parameters given are invalid
+
+        Returns:
+            None
+        """
+        if min_nodes is None and max_nodes is None and desired_nodes is None:
+            raise BadRequestError("Required parameter missing")
+
+        if (min_nodes is not None and
+            desired_nodes is not None and
+                (min_nodes > desired_nodes)):
+            raise BadRequestError(
+                "Min nodes should be less or equal to desired nodes")
+
+        if (max_nodes is not None and
+            desired_nodes is not None and
+                (desired_nodes > max_nodes)):
+            raise BadRequestError(
+                "Desired nodes should be less or equal to max nodes")
+
+        if (min_nodes is not None and
+            max_nodes is not None and
+                (min_nodes > max_nodes)):
+            raise BadRequestError(
+                "Min nodes should be less or equal to max nodes")
+
+    def scale_nodepool(self,
+                       auth_context,
+                       cluster,
+                       nodepool,
+                       desired_nodes,
+                       min_nodes,
+                       max_nodes):
+        """Scale the specified nodepool's nodes
+        """
+        return self._scale_nodepool(auth_context,
+                                    cluster,
+                                    nodepool,
+                                    desired_nodes,
+                                    min_nodes,
+                                    max_nodes)
+
+    def _scale_nodepool(self,
+                        auth_context,
+                        cluster,
+                        nodepool,
+                        desired_nodes,
+                        min_nodes,
+                        max_nodes):
+        raise NotImplementedError()
+
     def _destroy_cluster(self, *args, **kwargs):
         return self.connection.destroy_cluster(*args, **kwargs)
 
