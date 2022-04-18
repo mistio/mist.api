@@ -273,7 +273,10 @@ class BaseContainerController(BaseController):
         updated = False
         return updated
 
-    def _update_from_libcloud_cluster(self, libcloud_cluster, locations_map, now):
+    def _update_from_libcloud_cluster(self,
+                                      libcloud_cluster,
+                                      locations_map,
+                                      now):
         is_new = False
         updated = False
         # Fetch cluster mongoengine model from db, or initialize one.
