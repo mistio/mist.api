@@ -42,6 +42,8 @@ def _populate_clusters():
 class NodePool(me.EmbeddedDocument):
     name = me.StringField(required=True)
     node_count = me.IntField(required=True, min_value=0)
+    min_nodes = me.IntField()
+    max_nodes = me.IntField()
     state = me.StringField()
     sizes = me.ListField(me.StringField())
     locations = me.ListField(me.StringField())
@@ -54,6 +56,8 @@ class NodePool(me.EmbeddedDocument):
         return {
             "name": self.name,
             "node_count": self.node_count,
+            "min_nodes": self.min_nodes,
+            "max_nodes": self.max_nodes,
             "state": self.state,
             "sizes": self.sizes,
             "locations": self.locations,
