@@ -22,12 +22,14 @@ import time
 import logging
 import uuid
 
+from libcloud.container.base import ContainerCluster
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.common.google import ResourceNotFoundError
 
 from mist.api.clouds.controllers.main.base import BaseContainerController
+from mist.api.exceptions import BadRequestError
 
 log = logging.getLogger(__name__)
 
@@ -40,20 +42,20 @@ class GoogleContainerController(BaseContainerController):
             self.cloud.private_key,
             project=self.cloud.project_id)
 
-    def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
-        return cluster_dict.get('extra', {}).get('createTime')
+    def _list_clusters__cluster_creation_date(self, cluster, libcloud_cluster):
+        return libcloud_cluster.extra.get('createTime')
 
-    def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
+    def _list_clusters__postparse_cluster(self, cluster, libcloud_cluster):
         updated = False
-        cluster.total_nodes = cluster_dict['node_count']
+        cluster.total_nodes = libcloud_cluster.node_count
         updated = True
-        cluster.config = cluster_dict['config']
-        cluster.credentials = cluster_dict['credentials']
-        cluster.total_cpus = cluster_dict['total_cpus']
-        cluster.total_memory = cluster_dict['total_memory']
+        cluster.config = libcloud_cluster.config
+        cluster.credentials = libcloud_cluster.credentials
+        cluster.total_cpus = libcloud_cluster.total_cpus
+        cluster.total_memory = libcloud_cluster.total_memory
         return updated
 
-    def _list_clusters__cost_nodes(self, cluster, cluster_dict):
+    def _list_clusters__cost_nodes(self, cluster, libcloud_cluster):
         from mist.api.machines.models import Machine
         nodes = Machine.objects(cluster=cluster,
                                 missing_since=None,
@@ -146,6 +148,81 @@ class GoogleContainerController(BaseContainerController):
     def _destroy_cluster(self, name, zone):
         return self.connection.destroy_cluster(name=name, zone=zone)
 
+    def _get_libcloud_cluster(self, cluster, no_fail=False):
+        try:
+            zone = cluster.location.name or cluster.extra.get('location')
+            return self.connection.ex_get_cluster(name=cluster.name, zone=zone)
+        except Exception as exc:
+            if not no_fail:
+                raise exc
+            return ContainerCluster(cluster.external_id,
+                                    name=cluster.external_id,
+                                    state=0, driver=self.connection)
+
+    def _list_clusters__fetch_nodepools(self, libcloud_cluster):
+        return libcloud_cluster.nodepools
+
+    def _nodepool_has_autoscaling(self, nodepool):
+        """Helper method to determine if the nodepool has autoscaler
+        """
+        return (nodepool.min_nodes is not None and
+                nodepool.max_nodes is not None)
+
+    def _validate_scale_nodepool_request(self,
+                                         auth_context,
+                                         cluster,
+                                         nodepool,
+                                         desired_nodes,
+                                         min_nodes,
+                                         max_nodes) -> None:
+        super()._validate_scale_nodepool_request(
+            auth_context,
+            cluster,
+            nodepool,
+            desired_nodes,
+            min_nodes,
+            max_nodes)
+
+        if max_nodes is not None and max_nodes < 1:
+            raise BadRequestError(
+                'Max nodes must be greater than 0')
+
+        autoscaling = self._nodepool_has_autoscaling(nodepool)
+        if autoscaling is False:
+            if min_nodes is not None or max_nodes is not None:
+                raise BadRequestError(
+                    'Cannot set min/max nodes on a nodepool without autoscaling')  # noqa
+        else:
+            if desired_nodes is not None:
+                raise BadRequestError(
+                    'Cannot set desired nodes on a nodepool with autoscaling')
+
+    def _scale_nodepool(self,
+                        auth_context,
+                        cluster,
+                        nodepool,
+                        desired_nodes,
+                        min_nodes,
+                        max_nodes):
+        autoscaling = self._nodepool_has_autoscaling(nodepool)
+        if autoscaling is False:
+            operation = self.connection.ex_scale_nodepool(
+                cluster=cluster.name,
+                nodepool=nodepool.name,
+                zone=cluster.location.name,
+                desired_nodes=desired_nodes,
+            )
+        else:
+            operation = self.connection.ex_set_nodepool_autoscaling(
+                cluster=cluster.name,
+                nodepool=nodepool.name,
+                zone=cluster.location.name,
+                min_nodes=min_nodes,
+                max_nodes=max_nodes,
+            )
+
+        return operation.name
+
 
 class AmazonContainerController(BaseContainerController):
     def _connect(self, **kwargs):
@@ -154,16 +231,16 @@ class AmazonContainerController(BaseContainerController):
             self.cloud.apisecret,
             self.cloud.region)
 
-    def _list_clusters__postparse_cluster(self, cluster, cluster_dict):
+    def _list_clusters__postparse_cluster(self, cluster, libcloud_cluster):
         updated = False
-        cluster.config = cluster_dict['config']
+        cluster.config = libcloud_cluster.config
         updated = True
-        cluster.credentials = cluster_dict['credentials']
-        cluster.total_cpus = cluster_dict['total_cpus']
-        cluster.total_memory = cluster_dict['total_memory']
+        cluster.credentials = libcloud_cluster.credentials
+        cluster.total_cpus = libcloud_cluster.total_cpus
+        cluster.total_memory = libcloud_cluster.total_memory
         return updated
 
-    def _list_clusters__cost_nodes(self, cluster, cluster_dict):
+    def _list_clusters__cost_nodes(self, cluster, libcloud_cluster):
         from mist.api.machines.models import Machine
         nodes = Machine.objects(cluster=cluster,
                                 missing_since=None,
@@ -174,8 +251,8 @@ class AmazonContainerController(BaseContainerController):
 
         return nodes_hourly_cost, nodes_monthly_cost
 
-    def _list_clusters__cluster_creation_date(self, cluster, cluster_dict):
-        return cluster_dict.get('extra', {}).get('createdAt')
+    def _list_clusters__cluster_creation_date(self, cluster, libcloud_cluster):
+        return libcloud_cluster.extra.get('createdAt')
 
     def _list_clusters__get_pod_node(self, pod, cluster, libcloud_cluster):
         from mist.api.machines.models import Machine
@@ -376,3 +453,55 @@ class AmazonContainerController(BaseContainerController):
                  self.cloud, name)
         cfn_driver.delete_stack(StackName=cluster_stack)
         waiter.wait(StackName=cluster_stack)
+
+    def _get_libcloud_cluster(self, cluster, no_fail=False):
+        try:
+            return self.connection.get_cluster(cluster.name, fetch_nodes=True)
+        except Exception as exc:
+            if not no_fail:
+                raise exc
+            return ContainerCluster(cluster.external_id,
+                                    name=cluster.external_id,
+                                    state=0, driver=self.connection)
+
+    def _list_clusters__fetch_nodepools(self, libcloud_cluster):
+        nodepools = []
+        nodepool_names = self.connection.ex_list_nodegroups(libcloud_cluster)
+        for name in nodepool_names:
+            nodepool = self.connection.ex_get_nodegroup(libcloud_cluster, name)
+            nodepools.append(nodepool)
+        return nodepools
+
+    def _validate_scale_nodepool_request(self,
+                                         auth_context,
+                                         cluster,
+                                         nodepool,
+                                         desired_nodes,
+                                         min_nodes,
+                                         max_nodes):
+        super()._validate_scale_nodepool_request(
+            auth_context,
+            cluster,
+            nodepool,
+            desired_nodes,
+            min_nodes,
+            max_nodes)
+
+        if max_nodes is not None and max_nodes < 1:
+            raise BadRequestError(
+                "Max nodes should be at least 1")
+
+    def _scale_nodepool(self,
+                        auth_context,
+                        cluster,
+                        nodepool,
+                        desired_nodes,
+                        min_nodes,
+                        max_nodes):
+        operation_id = self.connection.ex_scale_nodegroup(
+            cluster=cluster.name,
+            nodegroup=nodepool.name,
+            desired_nodes=desired_nodes,
+            min_nodes=min_nodes,
+            max_nodes=max_nodes)
+        return operation_id

@@ -41,6 +41,31 @@ def _populate_clusters():
                     CLUSTERS[provider_alias] = value
 
 
+class NodePool(me.EmbeddedDocument):
+    name = me.StringField(required=True)
+    node_count = me.IntField(required=True, min_value=0)
+    min_nodes = me.IntField()
+    max_nodes = me.IntField()
+    state = me.StringField()
+    sizes = me.ListField(me.StringField())
+    locations = me.ListField(me.StringField())
+
+    def __repr__(self):
+        return "%s Nodepool: %s State: %s Nodes: %s" % (
+            type(self), self.name, self.state, self.node_count)
+
+    def as_dict(self):
+        return {
+            "name": self.name,
+            "node_count": self.node_count,
+            "min_nodes": self.min_nodes,
+            "max_nodes": self.max_nodes,
+            "state": self.state,
+            "sizes": self.sizes,
+            "locations": self.locations,
+        }
+
+
 class Cluster(OwnershipMixin, me.Document):
     """Abstract base class for every cluster mongoengine model
 
@@ -81,6 +106,7 @@ class Cluster(OwnershipMixin, me.Document):
     name = me.StringField(required=True)
     external_id = me.StringField(required=True)
     name = me.StringField()
+    nodepools = me.EmbeddedDocumentListField(NodePool, default=list)
     total_nodes = me.IntField()
     total_cpus = me.IntField()
     total_memory = me.IntField()
@@ -166,12 +192,14 @@ class Cluster(OwnershipMixin, me.Document):
             'cost': self.cost.as_dict(),
             'extra': self.extra,
             'state': self.state,
-            'last_seen': self.last_seen,
-            'missing_since': self.missing_since,
-            'created': self.created,
+            'last_seen': str(self.last_seen),
+            'missing_since': str(self.missing_since),
+            'created': str(self.created),
             'tags': self.tags,
             'owned_by': self.owned_by.email if self.owned_by else '',
             'created_by': self.created_by.email if self.created_by else '',
+            'nodepools': [nodepool.as_dict()
+                          for nodepool in self.nodepools],
         }
         return cdict
 
@@ -206,6 +234,15 @@ class Cluster(OwnershipMixin, me.Document):
                                         deref, only)
         if 'cost' in only or not only:
             ret['cost'] = self.cost.as_dict()
+        if "nodepools" in only or not only:
+            ret["nodepools"] = [nodepool.as_dict()
+                                for nodepool in self.nodepools]
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
+        if 'missing_since' in ret:
+            ret['missing_since'] = str(ret['missing_since'])
+        if 'created' in ret:
+            ret['created'] = str(ret['created'])
         return ret
 
     def __str__(self):
