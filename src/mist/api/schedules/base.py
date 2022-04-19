@@ -68,6 +68,18 @@ def check_perm(auth_context, resource_type, action, resource=None):
     else:
         raise NotImplementedError(resource_type)
 
+def extract_schedule_selector_type_v2(**kwargs):
+    error_count = 0
+    selectors = kwargs.get('selectors')
+    for selector in selectors:
+        if selector['type'] not in rtype_to_classpath:
+            error_count += 1
+        if selector['ids'] is not None:
+            selector_type = selector['type'].rstrip('s')
+    if error_count == len(selectors):
+        raise BadRequestError('selector_type')
+    return selector_type
+
 
 class BaseController(object):
 
@@ -335,15 +347,10 @@ class BaseController(object):
             raise MistError("You are not authorized to update schedule")
 
         owner = auth_context.owner
-        error_count = 0
-        selectors = kwargs.get('selectors')
-        for selector in selectors:
-            if selector['type'] not in rtype_to_classpath:
-                error_count += 1
-            if selector['ids'] is not None:
-                resource_type = selector['type'].rstrip('s')
-        if error_count == len(selectors):
-            raise BadRequestError('resource_type')
+        if kwargs.get('selectors'):
+            selector_type = extract_schedule_selector_type_v2(**kwargs)
+            self.schedule.resource_model_name = selector_type
+            self.schedule.save()
 
         action = kwargs.get('action')
         if action:
@@ -404,16 +411,17 @@ class BaseController(object):
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
         # Schedule selectors pre-parsing.
-        try:
-            self._update__preparse_resources(auth_context, kwargs)
-        except MistError as exc:
-            log.error("Error while updating schedule %s: %r",
-                      self.schedule.id, exc)
-            raise
-        except Exception as exc:
-            log.exception("Error while preparsing kwargs on update %s",
-                          self.schedule.id)
-            raise InternalServerError(exc=exc)
+        if kwargs.get('selectors'):
+            try:
+                self._update__preparse_resources(auth_context, kwargs)
+            except MistError as exc:
+                log.error("Error while updating schedule %s: %r",
+                        self.schedule.id, exc)
+                raise
+            except Exception as exc:
+                log.exception("Error while preparsing kwargs on update %s",
+                            self.schedule.id)
+                raise InternalServerError(exc=exc)
 
         action = kwargs.pop('action', '')
         if action:
@@ -497,7 +505,7 @@ class BaseController(object):
                         'action': 'notify',
                         'schedule_type': 'reminder',
                         'description': 'Schedule expiration reminder',
-                        'task_enabled': True,
+                        'enabled': True,
                         'schedule_entry': notify_at,
                         'selectors': kwargs.get('selectors'),
                         'notify_msg': notify_msg
@@ -581,19 +589,8 @@ class BaseController(object):
 
         # check permissions
         check = False
-        error_count = 0
-        selectors = kwargs.get('selectors')
-        for selector in selectors:
-            if selector['type'] not in rtype_to_classpath:
-                error_count += 1
-            if selector['ids'] is not None:
-                resource_type = selector['type'].rstrip('s')
-        if error_count == len(selectors):
-            raise BadRequestError('resource_type')
-
-        self.schedule.resource_model_name = resource_type
-        self.schedule.save()
         resource_cls = self.schedule.selector_resource_cls
+        resource_type = self.schedule.resource_model_name.rstrip('s')
         for selector in self.schedule.selectors:
             if isinstance(selector, ResourceSelector):
                 if resource_type == 'machine':
