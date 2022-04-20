@@ -236,10 +236,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
     # celerybeat-mongo specific fields
     expires = me.DateTimeField()
     start_after = me.DateTimeField()
-    # DEPRECATED
     task_enabled = me.BooleanField(default=False)
-    # DEPRECATED
-    enabled = me.BooleanField(default=False)
     run_immediately = me.BooleanField()
     last_run_at = me.DateTimeField()
     total_run_count = me.IntField(min_value=0, default=0)
@@ -385,7 +382,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
         ):
             return False
         else:
-            return self.enabled
+            return self.task_enabled
 
     def __unicode__(self):
         fmt = '{0.name}: {{no schedule}}'
