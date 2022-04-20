@@ -7,6 +7,7 @@ Cloud specific controllers are in `mist.api.schedules.controllers`.
 import re
 import logging
 import datetime
+import json
 import mongoengine as me
 
 from mist.api.helpers import rtype_to_classpath
@@ -236,6 +237,7 @@ class BaseController(object):
         if (schedule_type == 'crontab' or isinstance(
                 self.schedule.schedule_type, schedules.Crontab)):
             schedule_entry = kwargs.pop('schedule_entry', {})
+            import ipdb; ipdb.set_trace()
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -249,6 +251,7 @@ class BaseController(object):
         elif (schedule_type == 'interval' or type(
                 self.schedule.schedule_type) == schedules.Interval):
             schedule_entry = kwargs.pop('schedule_entry', {})
+            import ipdb; ipdb.set_trace()
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -438,6 +441,7 @@ class BaseController(object):
             schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
+                schedule_entry = json.loads(schedule_entry)
                 for k in schedule_entry:
                     if k not in ['minute', 'hour', 'day_of_week',
                                  'day_of_month', 'month_of_year']:
@@ -451,6 +455,7 @@ class BaseController(object):
             schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
+                schedule_entry = json.loads(schedule_entry)
                 for k in schedule_entry:
                     if k not in ['period', 'every']:
                         raise BadRequestError("Invalid key given: %s" % k)
