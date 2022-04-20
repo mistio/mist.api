@@ -1,3 +1,4 @@
+import traceback
 from pymongo import MongoClient
 from mist.api.config import MONGO_URI
 
@@ -19,7 +20,7 @@ def rename_schedule_task_enabled_field():
         except Exception:
             print('*** WARNING ** Could not rename schedule task_enabled '
                   'field for %s' % schedule['_id'])
-            # traceback.print_exc()
+            traceback.print_exc()
             failed += 1
             continue
         else:
