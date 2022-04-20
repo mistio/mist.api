@@ -13,12 +13,13 @@ def rename_schedule_task_enabled_field():
             update_result = db_schedules.update_many(
                 {}, {'$rename': {'task_enabled': 'enabled'}})
             if update_result.modified_count > 0:
-                print(f'Successfully renamed schedule field: '
-                    '`task_enabled` -> `enabled`')
+                print('Successfully renamed schedule field: '
+                      '`task_enabled` -> `enabled`')
                 skipped_all = False
         except Exception:
-            print('*** WARNING ** Could not rename schedule task_enabled field for %s' % schedule['_id'])
-            traceback.print_exc()
+            print('*** WARNING ** Could not rename schedule task_enabled '
+                  'field for %s' % schedule['_id'])
+            # traceback.print_exc()
             failed += 1
             continue
         else:
@@ -27,10 +28,11 @@ def rename_schedule_task_enabled_field():
                 print('Skipped')
             else:
                 renamed += 1
-    
+
     print('Schedules renamed: ' + str(renamed))
     print('Schedules skipped: ' + str(skipped))
     print('Failed to rename: ' + str(failed))
+
 
 if __name__ == '__main__':
     rename_schedule_task_enabled_field()

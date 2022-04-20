@@ -236,9 +236,9 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
     # celerybeat-mongo specific fields
     expires = me.DateTimeField()
     start_after = me.DateTimeField()
-    ### DEPRECATED ####
+    # DEPRECATED
     task_enabled = me.BooleanField(default=False)
-    ### DEPRECATED ####
+    # DEPRECATED
     enabled = me.BooleanField(default=False)
     run_immediately = me.BooleanField()
     last_run_at = me.DateTimeField()

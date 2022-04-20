@@ -68,6 +68,7 @@ def check_perm(auth_context, resource_type, action, resource=None):
     else:
         raise NotImplementedError(resource_type)
 
+
 def extract_schedule_selector_type_v2(**kwargs):
     error_count = 0
     selectors = kwargs.get('selectors')
@@ -354,8 +355,8 @@ class BaseController(object):
 
         action = kwargs.get('action')
         if action:
-            # resource_type = self.schedule.resource_model_name
-            if action not in SUPPORTED_ACTIONS[resource_type]:
+            selector_type = self.schedule.resource_model_name
+            if action not in SUPPORTED_ACTIONS[selector_type]:
                 raise BadRequestError("Action is not correct")
 
         script_id = kwargs.pop('script_id', '')
@@ -416,11 +417,11 @@ class BaseController(object):
                 self._update__preparse_resources(auth_context, kwargs)
             except MistError as exc:
                 log.error("Error while updating schedule %s: %r",
-                        self.schedule.id, exc)
+                          self.schedule.id, exc)
                 raise
             except Exception as exc:
                 log.exception("Error while preparsing kwargs on update %s",
-                            self.schedule.id)
+                              self.schedule.id)
                 raise InternalServerError(exc=exc)
 
         action = kwargs.pop('action', '')
