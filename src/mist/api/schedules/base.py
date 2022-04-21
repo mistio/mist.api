@@ -237,7 +237,6 @@ class BaseController(object):
         if (schedule_type == 'crontab' or isinstance(
                 self.schedule.schedule_type, schedules.Crontab)):
             schedule_entry = kwargs.pop('schedule_entry', {})
-            import ipdb; ipdb.set_trace()
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -251,7 +250,6 @@ class BaseController(object):
         elif (schedule_type == 'interval' or type(
                 self.schedule.schedule_type) == schedules.Interval):
             schedule_entry = kwargs.pop('schedule_entry', {})
-            import ipdb; ipdb.set_trace()
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -436,8 +434,7 @@ class BaseController(object):
 
         schedule_type = kwargs.pop('schedule_type', '')
 
-        if (schedule_type == 'crontab' or isinstance(
-                self.schedule.schedule_type, schedules.Crontab)):
+        if schedule_type == 'crontab':
             schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
@@ -450,8 +447,7 @@ class BaseController(object):
                 self.schedule.schedule_type = schedules.Crontab(
                     **schedule_entry)
 
-        elif (schedule_type == 'interval' or type(
-                self.schedule.schedule_type) == schedules.Interval):
+        elif schedule_type == 'interval':
             schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
@@ -463,8 +459,7 @@ class BaseController(object):
                 self.schedule.schedule_type = schedules.Interval(
                     **schedule_entry)
 
-        elif (schedule_type in ['one_off', 'reminder'] or type(
-                self.schedule.schedule_type) == schedules.OneOff):
+        elif schedule_type in ['one_off', 'reminder']:
             # implements Interval under the hood
             future_date = kwargs.pop('schedule_entry', '')
 
@@ -511,7 +506,7 @@ class BaseController(object):
                         'action': 'notify',
                         'schedule_type': 'reminder',
                         'description': 'Schedule expiration reminder',
-                        'enabled': True,
+                        'task_enabled': True,
                         'schedule_entry': notify_at,
                         'selectors': kwargs.get('selectors'),
                         'notify_msg': notify_msg
