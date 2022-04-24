@@ -12,6 +12,7 @@ could easily use in some other unrelated project.
 """
 
 import os
+from pydoc import plain
 import re
 import sys
 import json
@@ -24,6 +25,7 @@ import logging
 import codecs
 import secrets
 import operator
+import base64
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -853,7 +855,7 @@ def iso_to_seconds(iso):
     return get_datetime(iso).strftime('%s')
 
 
-def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
+def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False,segment_size=8):
     """Encrypt shit the right way"""
 
     # sanitize inputs
@@ -862,7 +864,6 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
         raise Exception()
     if isinstance(plaintext, string_types):
         plaintext = plaintext.encode('utf-8')
-
     # pad plaintext using PKCS7 padding scheme
     padlen = AES.block_size - len(plaintext) % AES.block_size
     plaintext += (chr(padlen) * padlen).encode('utf-8')
@@ -872,23 +873,23 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
         iv = ('\0' * AES.block_size).encode()
     else:
         iv = get_random_bytes(AES.block_size)
-
     # encrypt using AES in CFB mode
-    ciphertext = AES.new(key, AES.MODE_CFB, iv).encrypt(plaintext)
-
+    ciphertext = AES.new(key, AES.MODE_CFB, iv,segment_size=segment_size).encrypt(plaintext)
     # prepend iv to ciphertext
     if not no_iv:
         ciphertext = iv + ciphertext
-
     # return ciphertext in hex encoding
+    
     return ciphertext.hex()
 
 
-def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False):
+def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False,segment_size=8):
     """Decrypt shit the right way"""
 
     # sanitize inputs
     key = SHA256.new((key + key_salt).encode()).digest()
+    log.info(ciphertext)
+
     if len(key) not in AES.key_size:
         raise Exception()
     if len(ciphertext) % AES.block_size:
@@ -897,16 +898,14 @@ def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False):
         ciphertext = codecs.decode(ciphertext, 'hex')
     except TypeError:
         log.warning("Ciphertext wasn't given as a hexadecimal string.")
-
     # split initialization vector and ciphertext
     if no_iv:
         iv = '\0' * AES.block_size
     else:
         iv = ciphertext[:AES.block_size]
         ciphertext = ciphertext[AES.block_size:]
-
     # decrypt ciphertext using AES in CFB mode
-    plaintext = AES.new(key, AES.MODE_CFB, iv).decrypt(ciphertext).decode()
+    plaintext = AES.new(key, AES.MODE_CFB, iv,segment_size=segment_size).decrypt(ciphertext).decode()
 
     # validate padding using PKCS7 padding scheme
     padlen = ord(plaintext[-1])
@@ -915,7 +914,7 @@ def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False):
     if plaintext[-padlen:] != chr(padlen) * padlen:
         raise Exception()
     plaintext = plaintext[:-padlen]
-
+    
     return plaintext
 
 

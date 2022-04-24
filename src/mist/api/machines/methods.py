@@ -8,7 +8,6 @@ import json
 import hmac
 import hashlib
 import ipaddress
-
 from random import randrange
 from datetime import datetime
 
@@ -49,6 +48,7 @@ from mist.api.exceptions import MachineUnauthorizedError
 
 from mist.api.helpers import check_host
 from mist.api.helpers import trigger_session_update
+from mist.api.helpers import encrypt, decrypt
 
 from mist.api.methods import connect_provider
 from mist.api.methods import notify_admin
@@ -2621,18 +2621,54 @@ def prepare_ssh_uri(auth_context, machine):
     vault_secret_engine_path = machine.owner.vault_secret_engine_path
     key = Key.objects(owner=machine.owner, deleted=None)[0]
     key_name = key.name
-    msg = '%s,%s,%s,%s,%s,%s,%s' % (user,
-                              hostname,
-                              port,expiry,vault_token,vault_secret_engine_path,key_name)
+    
+    msg_to_encrypt = '%s,%s,%s' % (vault_token,vault_secret_engine_path,key_name)
+    # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
+    encrypted_msg = encrypt(msg_to_encrypt,segment_size=128)
+    msg = '%s,%s,%s,%s,%s' % (user,
+                            hostname,
+                            port,expiry,encrypted_msg)
+    
     mac = hmac.new(
         config.SECRET.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
+    
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
-    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s/%s/%s' % (
+    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
         base_ws_uri, user,
-        hostname, port,expiry,vault_token,vault_secret_engine_path,key_name, mac)
+        hostname, port,expiry,encrypted_msg,mac)
     return ssh_uri
 
 
+def prepare_kubernetes_uri(auth_context, machine):
+    name = machine.name
+    cluster = machine.cloud.name
+    user = "kubernetes-admin"
+    vault_token = machine.owner.vault_token
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    key_name = machine.cloud.name
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    ssh_uri = '%s/k8s-exec/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri, name, cluster, user, vault_token,
+        vault_secret_engine_path, key_name)
+    return ssh_uri
     
+
+def prepare_docker_uri(auth_context, machine):
+    name = machine.name
+    machine_id = machine.external_id
+    cluster = machine.cloud.name
+    host = machine.cloud.host
+    port = machine.cloud.port
+    user = "test"
+    vault_token = machine.owner.vault_token
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    key_name = machine.cloud.name
+    base_ws_uri = config.CORE_URI.replace('http', 'wss')
+    ssh_uri = '%s/docker-exec/%s/%s/%s/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri, str(host),
+        str(port),
+        machine_id, name, cluster, user, vault_token, vault_secret_engine_path,
+        key_name)
+    return ssh_uri
