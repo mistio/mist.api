@@ -12,7 +12,6 @@ could easily use in some other unrelated project.
 """
 
 import os
-from pydoc import plain
 import re
 import sys
 import json
@@ -25,7 +24,6 @@ import logging
 import codecs
 import secrets
 import operator
-import base64
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -855,7 +853,8 @@ def iso_to_seconds(iso):
     return get_datetime(iso).strftime('%s')
 
 
-def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False,segment_size=8):
+def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False,
+            segment_size=8):
     """Encrypt shit the right way"""
 
     # sanitize inputs
@@ -874,16 +873,17 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False,segment_size=
     else:
         iv = get_random_bytes(AES.block_size)
     # encrypt using AES in CFB mode
-    ciphertext = AES.new(key, AES.MODE_CFB, iv,segment_size=segment_size).encrypt(plaintext)
+    ciphertext = AES.new(key, AES.MODE_CFB, iv,
+                         segment_size=segment_size).encrypt(plaintext)
     # prepend iv to ciphertext
     if not no_iv:
         ciphertext = iv + ciphertext
     # return ciphertext in hex encoding
-    
     return ciphertext.hex()
 
 
-def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False,segment_size=8):
+def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False,
+            segment_size=8):
     """Decrypt shit the right way"""
 
     # sanitize inputs
@@ -905,7 +905,8 @@ def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False,segment_size
         iv = ciphertext[:AES.block_size]
         ciphertext = ciphertext[AES.block_size:]
     # decrypt ciphertext using AES in CFB mode
-    plaintext = AES.new(key, AES.MODE_CFB, iv,segment_size=segment_size).decrypt(ciphertext).decode()
+    plaintext = AES.new(key, AES.MODE_CFB, iv,
+                        segment_size=segment_size).decrypt(ciphertext).decode()
 
     # validate padding using PKCS7 padding scheme
     padlen = ord(plaintext[-1])
@@ -914,7 +915,6 @@ def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False,segment_size
     if plaintext[-padlen:] != chr(padlen) * padlen:
         raise Exception()
     plaintext = plaintext[:-padlen]
-    
     return plaintext
 
 
