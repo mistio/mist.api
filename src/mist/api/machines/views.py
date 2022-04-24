@@ -1,7 +1,6 @@
 import os
 import uuid
 import logging
-from mist.api.keys.models import Key
 
 from pyramid.response import Response, FileResponse
 from pyramid.renderers import render_to_response
@@ -1153,11 +1152,11 @@ def machine_ssh(request):
     auth_context.check_perm("machine", "read", machine.id)
 
     if machine.machine_type == 'container' and \
-        machine.cloud.provider == 'kubernetes':
+            machine.cloud.provider == 'kubernetes':
         ssh_uri = methods.prepare_kubernetes_uri(auth_context, machine)
 
     elif machine.machine_type == 'container' and \
-        machine.cloud.provider == 'docker':
+            machine.cloud.provider == 'docker':
         ssh_uri = methods.prepare_docker_uri(auth_context, machine)
     else:
         ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
