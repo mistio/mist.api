@@ -95,7 +95,7 @@ class CloudImage(OwnershipMixin, me.Document):
             'architecture', 'min_disk_size', 'min_memory_size', 'extra',
             'last_seen', 'created']
         deref_map = {
-            'cloud': 'title',
+            'cloud': 'name',
             'owned_by': 'email',
             'created_by': 'email'
         }
