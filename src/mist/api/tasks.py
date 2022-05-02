@@ -1356,7 +1356,8 @@ def tmp_log(msg, *args):
                 time_limit=2_400_000,
                 max_retries=0)
 def create_cluster_async(auth_context_serialized, cloud_id,
-                         job_id=None, job=None, helm_charts=None, **kwargs):
+                         job_id=None, job=None, helm_charts=None,
+                         waiters=None, **kwargs):
     auth_context = AuthContext.deserialize(auth_context_serialized)
     job_id = job_id or uuid.uuid4().hex
     log_event(auth_context.owner.id, 'job', 'cluster_creation_started',
@@ -1386,7 +1387,8 @@ def create_cluster_async(auth_context_serialized, cloud_id,
         cluster_post_deploy_steps.send(auth_context_serialized,
                                        cluster.id,
                                        job_id,
-                                       helm_charts)
+                                       helm_charts,
+                                       waiters)
 
 
 @dramatiq.actor(queue_name="dramatiq_provisioning",
@@ -1701,6 +1703,52 @@ def add_expiration_for_machine(auth_context, expiration, machine):
     machine.save()
 
 
+def wait_on_cluster_conditions(cluster, waiters):
+    """Waits on conditions for the given Kubernetes cluster after its
+    initialization and helm charts installation. Returns logging information.
+
+    Parameters:
+        cluster(Object): The cluster to wait on conditions.
+        waiters(List(Dict)): List of conditions to wait on.
+
+    Returns:
+        result(List): List of logging info.
+        error(string): Returns the error.
+    """
+    results = []
+    start = datetime.datetime.now()
+    while waiters:
+        new_waiters = []
+        for waiter in waiters:
+            type = waiter.get("type")
+            name = waiter.get("name")
+            timeout = waiter.get("timeout", 1800)  # 30 minutes
+            expiry = waiter.get("expiry")
+            namespace = waiter.get("namespace", "default")
+            if timeout:
+                if not expiry:
+                    waiter["expiry"] = start + \
+                        datetime.timedelta(seconds=timeout)
+                if datetime.datetime.now() > waiter["expiry"]:
+                    waiters = []
+                    waiter.pop('expiry')
+                    return None, f"Waiter: {waiter} expired on cluster: {cluster.id}"  # noqa
+            if type == "ingress":
+                ingress = cluster.ctl.get_ingress(
+                    name=name, namespace=namespace)
+                ips = ingress.get("ips")
+                hostnames = ingress.get("hostnames")
+                if ips or hostnames:
+                    waiter.update({"result": ingress})
+                    waiter.pop("expiry", None)
+                    results.append(waiter)
+                else:
+                    new_waiters.append(waiter)
+        waiters = new_waiters
+        sleep(5)
+    return results, None
+
+
 @dramatiq.actor(
     queue_name="dramatiq_provisioning",
     time_limit=7_200_000,  # 2 hours
@@ -1710,6 +1758,7 @@ def cluster_post_deploy_steps(
     cluster_external_id,
     job_id,
     helm_charts,
+    waiters
 ):
     """Wrapper task for Helm Chart installations that makes sure
     the cluster is running and the Kubernetes API is up before the
@@ -1766,6 +1815,18 @@ def cluster_post_deploy_steps(
                 cluster.id,
                 repr(exc),
             )
+
+    if waiters:
+        results, error = wait_on_cluster_conditions(cluster, waiters)
+        log_event(
+            auth_context.owner.id,
+            "job",
+            action="cluster_waiters_finished",
+            job_id=job_id,
+            cluster=cluster.id,
+            results=results,
+            error=error
+        )
 
     log_event(
         auth_context.owner.id,
