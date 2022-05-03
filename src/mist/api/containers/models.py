@@ -74,7 +74,6 @@ class NodePool(me.EmbeddedDocument):
                 self.max_nodes is not None)
 
 
-class Cluster(OwnershipMixin, me.Document):
 class Cluster(OwnershipMixin, me.Document, TagMixin):
     """Abstract base class for every cluster mongoengine model
 
