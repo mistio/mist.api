@@ -174,14 +174,16 @@ class GoogleContainerController(BaseContainerController):
                                          nodepool,
                                          desired_nodes,
                                          min_nodes,
-                                         max_nodes) -> None:
+                                         max_nodes,
+                                         enable_autoscaling) -> None:
         super()._validate_scale_nodepool_request(
             auth_context,
             cluster,
             nodepool,
             desired_nodes,
             min_nodes,
-            max_nodes)
+            max_nodes,
+            enable_autoscaling)
 
         if max_nodes is not None and max_nodes < 1:
             raise BadRequestError(
@@ -203,7 +205,8 @@ class GoogleContainerController(BaseContainerController):
                         nodepool,
                         desired_nodes,
                         min_nodes,
-                        max_nodes):
+                        max_nodes,
+                        enable_autoscaling):
         autoscaling = self._nodepool_has_autoscaling(nodepool)
         if autoscaling is False:
             operation = self.connection.ex_scale_nodepool(
@@ -478,14 +481,16 @@ class AmazonContainerController(BaseContainerController):
                                          nodepool,
                                          desired_nodes,
                                          min_nodes,
-                                         max_nodes):
+                                         max_nodes,
+                                         enable_autoscaling):
         super()._validate_scale_nodepool_request(
             auth_context,
             cluster,
             nodepool,
             desired_nodes,
             min_nodes,
-            max_nodes)
+            max_nodes,
+            enable_autoscaling,)
 
         if max_nodes is not None and max_nodes < 1:
             raise BadRequestError(
@@ -497,7 +502,8 @@ class AmazonContainerController(BaseContainerController):
                         nodepool,
                         desired_nodes,
                         min_nodes,
-                        max_nodes):
+                        max_nodes,
+                        enable_autoscaling,):
         operation_id = self.connection.ex_scale_nodegroup(
             cluster=cluster.name,
             nodegroup=nodepool.name,

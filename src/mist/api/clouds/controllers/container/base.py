@@ -110,7 +110,8 @@ class BaseContainerController(BaseController):
                                         nodepool,
                                         desired_nodes,
                                         min_nodes,
-                                        max_nodes) -> None:
+                                        max_nodes,
+                                        enable_autoscaling) -> None:
         """Make sure the request parameters are valid to scale this nodepool.
 
         Raises:
@@ -125,7 +126,8 @@ class BaseContainerController(BaseController):
                                                      nodepool,
                                                      desired_nodes,
                                                      min_nodes,
-                                                     max_nodes)
+                                                     max_nodes,
+                                                     enable_autoscaling)
 
     def _validate_scale_nodepool_request(self,
                                          auth_context,
@@ -133,7 +135,8 @@ class BaseContainerController(BaseController):
                                          nodepool,
                                          desired_nodes,
                                          min_nodes,
-                                         max_nodes) -> None:
+                                         max_nodes,
+                                         enable_autoscaling) -> None:
         """
         Raises:
             BadRequestError if the parameters given are invalid
@@ -168,7 +171,8 @@ class BaseContainerController(BaseController):
                        nodepool,
                        desired_nodes,
                        min_nodes,
-                       max_nodes):
+                       max_nodes,
+                       enable_autoscaling):
         """Scale the specified nodepool's nodes
         """
         return self._scale_nodepool(auth_context,
@@ -184,7 +188,9 @@ class BaseContainerController(BaseController):
                         nodepool,
                         desired_nodes,
                         min_nodes,
-                        max_nodes):
+                        max_nodes,
+                        enable_autoscaling):
+
         raise NotImplementedError()
 
     def _destroy_cluster(self, *args, **kwargs):
