@@ -162,40 +162,66 @@ class GoogleContainerController(BaseContainerController):
     def _list_clusters__fetch_nodepools(self, libcloud_cluster):
         return libcloud_cluster.nodepools
 
-    def _nodepool_has_autoscaling(self, nodepool):
-        """Helper method to determine if the nodepool has autoscaler
-        """
-        return (nodepool.min_nodes is not None and
-                nodepool.max_nodes is not None)
-
     def _validate_scale_nodepool_request(self,
                                          auth_context,
                                          cluster,
                                          nodepool,
                                          desired_nodes,
                                          min_nodes,
-                                         max_nodes) -> None:
+                                         max_nodes,
+                                         autoscaling) -> None:
         super()._validate_scale_nodepool_request(
             auth_context,
             cluster,
             nodepool,
             desired_nodes,
             min_nodes,
-            max_nodes)
+            max_nodes,
+            autoscaling)
 
-        if max_nodes is not None and max_nodes < 1:
-            raise BadRequestError(
-                'Max nodes must be greater than 0')
+        # Handle the different cases of GKE nodepools.
+        # If the nodepool already has autoscaling the options are:
+        #   - Change the min & max nodes
+        #   - Disable autoscaling by setting autoscaling=False
+        #
+        # If the nodepool does not have autoscaling enabled:
+        #   - Enable autoscaling by setting autoscaling=True and also
+        #     set min_nodes, max_nodes
+        #   - Change the number of nodes by setting desired_nodes
+        has_autoscaling = nodepool.autoscaling
 
-        autoscaling = self._nodepool_has_autoscaling(nodepool)
-        if autoscaling is False:
-            if min_nodes is not None or max_nodes is not None:
-                raise BadRequestError(
-                    'Cannot set min/max nodes on a nodepool without autoscaling')  # noqa
+        if has_autoscaling:
+            if autoscaling is True or autoscaling is None:
+                if min_nodes is None or max_nodes is None:
+                    raise BadRequestError(
+                        "Required parameter missing: min_nodes, max_nodes"
+                    )
+                if max_nodes < 1:
+                    raise BadRequestError('Max nodes must be greater than 0')
+            else:
+                # Disable autoscaling does not accept any other parameter
+                if (min_nodes is not None or
+                    max_nodes is not None or
+                        desired_nodes is not None):
+                    raise BadRequestError(
+                        'Invalid parameter, to disable autoscaling only'
+                        '"autoscaling: False" must be set')
         else:
-            if desired_nodes is not None:
-                raise BadRequestError(
-                    'Cannot set desired nodes on a nodepool with autoscaling')
+            # GKE Nodepools without autoscaling can only set the desired_nodes
+            if not autoscaling:
+                if desired_nodes is None:
+                    raise BadRequestError(
+                        'desired_nodes is required to scale a nodepool'
+                        'without autoscaling'
+                    )
+            else:
+                if min_nodes is None or max_nodes is None:
+                    raise BadRequestError(
+                        "Required parameter missing: min_nodes, max_nodes"
+                    )
+                if max_nodes < 1:
+                    raise BadRequestError(
+                        'Max nodes must be greater than 0')
 
     def _scale_nodepool(self,
                         auth_context,
@@ -203,9 +229,10 @@ class GoogleContainerController(BaseContainerController):
                         nodepool,
                         desired_nodes,
                         min_nodes,
-                        max_nodes):
-        autoscaling = self._nodepool_has_autoscaling(nodepool)
-        if autoscaling is False:
+                        max_nodes,
+                        autoscaling):
+        has_autoscaling = self._nodepool_has_autoscaling(nodepool)
+        if not has_autoscaling and not autoscaling:
             operation = self.connection.ex_scale_nodepool(
                 cluster=cluster.name,
                 nodepool=nodepool.name,
@@ -213,10 +240,12 @@ class GoogleContainerController(BaseContainerController):
                 desired_nodes=desired_nodes,
             )
         else:
+            enabled = False if autoscaling is False else True
             operation = self.connection.ex_set_nodepool_autoscaling(
                 cluster=cluster.name,
                 nodepool=nodepool.name,
                 zone=cluster.location.name,
+                enabled=enabled,
                 min_nodes=min_nodes,
                 max_nodes=max_nodes,
             )
@@ -478,14 +507,19 @@ class AmazonContainerController(BaseContainerController):
                                          nodepool,
                                          desired_nodes,
                                          min_nodes,
-                                         max_nodes):
+                                         max_nodes,
+                                         autoscaling):
         super()._validate_scale_nodepool_request(
             auth_context,
             cluster,
             nodepool,
             desired_nodes,
             min_nodes,
-            max_nodes)
+            max_nodes,
+            autoscaling,)
+
+        if min_nodes is None and max_nodes is None and desired_nodes is None:
+            raise BadRequestError("Required parameter missing")
 
         if max_nodes is not None and max_nodes < 1:
             raise BadRequestError(
@@ -497,7 +531,8 @@ class AmazonContainerController(BaseContainerController):
                         nodepool,
                         desired_nodes,
                         min_nodes,
-                        max_nodes):
+                        max_nodes,
+                        autoscaling,):
         operation_id = self.connection.ex_scale_nodegroup(
             cluster=cluster.name,
             nodegroup=nodepool.name,
