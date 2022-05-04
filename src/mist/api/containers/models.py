@@ -63,7 +63,15 @@ class NodePool(me.EmbeddedDocument):
             "state": self.state,
             "sizes": self.sizes,
             "locations": self.locations,
+            "autoscaling": self.autoscaling,
         }
+
+    @property
+    def autoscaling(self):
+        """Determine if the nodepool has autoscaling enabled
+        """
+        return (self.min_nodes is not None and
+                self.max_nodes is not None)
 
 
 class Cluster(OwnershipMixin, me.Document):
