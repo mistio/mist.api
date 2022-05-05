@@ -100,7 +100,7 @@ class GoogleContainerController(BaseContainerController):
                             limit=1
                         )
                     except ValueError:
-                        raise Exception(
+                        raise BadRequestError(
                             f'Size {nodepool.size} does not exist')
 
                     # We use "<size-name> (<size-description>)" for size names
@@ -109,12 +109,36 @@ class GoogleContainerController(BaseContainerController):
                 else:
                     size = 'e2-medium'
                 disk_size = nodepool.disk_size or 20
-                nodes = nodepool.nodes or 2
                 preemptible = nodepool.preemptible or False
                 disk_type = nodepool.disk_type or 'pd-standard'
 
+                nodes = nodepool.nodes
+                min_nodes = nodepool.min_nodes
+                max_nodes = nodepool.max_nodes
+                if nodes < 1:
+                    raise BadRequestError(
+                        'Nodepool nodes must be at least 1')
+
+                if nodepool.autoscaling:
+                    if not (min_nodes and max_nodes):
+                        raise BadRequestError(
+                            'min_nodes,max_nodes are required '
+                            'to enable autoscaling')
+                    if (min_nodes < 0 or
+                        nodes < min_nodes or
+                            max_nodes < nodes):
+                        raise BadRequestError(
+                            'Invalid valued for nodes, min_nodes, max_nodes')
+                else:
+                    if min_nodes is not None or max_nodes is not None:
+                        raise BadRequestError(
+                            'Cannot set min_nodes, max_nodes with '
+                            'autoscaling false')
+
                 kwargs['nodepools'].append({
                     'node_count': nodes,
+                    'min_nodes': min_nodes,
+                    'max_nodes': max_nodes,
                     'size': size,
                     'disk_size': disk_size,
                     'disk_type': disk_type,
@@ -162,40 +186,66 @@ class GoogleContainerController(BaseContainerController):
     def _list_clusters__fetch_nodepools(self, libcloud_cluster):
         return libcloud_cluster.nodepools
 
-    def _nodepool_has_autoscaling(self, nodepool):
-        """Helper method to determine if the nodepool has autoscaler
-        """
-        return (nodepool.min_nodes is not None and
-                nodepool.max_nodes is not None)
-
     def _validate_scale_nodepool_request(self,
                                          auth_context,
                                          cluster,
                                          nodepool,
                                          desired_nodes,
                                          min_nodes,
-                                         max_nodes) -> None:
+                                         max_nodes,
+                                         autoscaling) -> None:
         super()._validate_scale_nodepool_request(
             auth_context,
             cluster,
             nodepool,
             desired_nodes,
             min_nodes,
-            max_nodes)
+            max_nodes,
+            autoscaling)
 
-        if max_nodes is not None and max_nodes < 1:
-            raise BadRequestError(
-                'Max nodes must be greater than 0')
+        # Handle the different cases of GKE nodepools.
+        # If the nodepool already has autoscaling the options are:
+        #   - Change the min & max nodes
+        #   - Disable autoscaling by setting autoscaling=False
+        #
+        # If the nodepool does not have autoscaling enabled:
+        #   - Enable autoscaling by setting autoscaling=True and also
+        #     set min_nodes, max_nodes
+        #   - Change the number of nodes by setting desired_nodes
+        has_autoscaling = nodepool.autoscaling
 
-        autoscaling = self._nodepool_has_autoscaling(nodepool)
-        if autoscaling is False:
-            if min_nodes is not None or max_nodes is not None:
-                raise BadRequestError(
-                    'Cannot set min/max nodes on a nodepool without autoscaling')  # noqa
+        if has_autoscaling:
+            if autoscaling is True or autoscaling is None:
+                if min_nodes is None or max_nodes is None:
+                    raise BadRequestError(
+                        "Required parameter missing: min_nodes, max_nodes"
+                    )
+                if max_nodes < 1:
+                    raise BadRequestError('Max nodes must be greater than 0')
+            else:
+                # Disable autoscaling does not accept any other parameter
+                if (min_nodes is not None or
+                    max_nodes is not None or
+                        desired_nodes is not None):
+                    raise BadRequestError(
+                        'Invalid parameter, to disable autoscaling only'
+                        '"autoscaling: False" must be set')
         else:
-            if desired_nodes is not None:
-                raise BadRequestError(
-                    'Cannot set desired nodes on a nodepool with autoscaling')
+            # GKE Nodepools without autoscaling can only set the desired_nodes
+            if not autoscaling:
+                if desired_nodes is None:
+                    raise BadRequestError(
+                        'desired_nodes is required to scale a nodepool'
+                        'without autoscaling'
+                    )
+            else:
+                if min_nodes is None or max_nodes is None:
+                    raise BadRequestError(
+                        "Required parameter missing: min_nodes, max_nodes"
+                    )
+                if max_nodes < 1:
+                    raise BadRequestError(
+                        'Max nodes must be greater than 0')
 
     def _scale_nodepool(self,
                         auth_context,
@@ -203,9 +253,10 @@ class GoogleContainerController(BaseContainerController):
                         nodepool,
                         desired_nodes,
                         min_nodes,
-                        max_nodes):
-        autoscaling = self._nodepool_has_autoscaling(nodepool)
-        if autoscaling is False:
+                        max_nodes,
+                        autoscaling):
+        has_autoscaling = nodepool.autoscaling
+        if not has_autoscaling and not autoscaling:
             operation = self.connection.ex_scale_nodepool(
                 cluster=cluster.name,
                 nodepool=nodepool.name,
@@ -213,10 +264,12 @@ class GoogleContainerController(BaseContainerController):
                 desired_nodes=desired_nodes,
             )
         else:
+            enabled = False if autoscaling is False else True
             operation = self.connection.ex_set_nodepool_autoscaling(
                 cluster=cluster.name,
                 nodepool=nodepool.name,
                 zone=cluster.location.name,
+                autoscaling=enabled,
                 min_nodes=min_nodes,
                 max_nodes=max_nodes,
             )
@@ -296,15 +349,28 @@ class AmazonContainerController(BaseContainerController):
                             limit=1
                         )
                     except ValueError:
-                        raise Exception(f'Size {nodepool.size} does not exist')
+                        raise BadRequestError(
+                            f'Size {nodepool.size} does not exist')
 
                     nodepool_dict['size'] = size.external_id
                 else:
                     nodepool_dict['size'] = ' t3.medium'
 
                 nodepool_dict['disk_size'] = nodepool.disk_size or 20
-                nodepool_dict['nodes'] = nodepool.nodes or 2
                 nodepool_dict['disk_type'] = nodepool.disk_type or 'gp3'
+                nodes = nodepool.nodes
+                min_nodes = nodepool.min_nodes or nodes
+                max_nodes = nodepool.max_nodes or nodes
+                if (min_nodes > nodes or
+                    max_nodes < nodes or
+                    min_nodes < 0 or
+                        max_nodes < 1):
+                    raise BadRequestError(
+                        'Invalid values for nodes,min_nodes,max_nodes')
+
+                nodepool_dict['nodes'] = nodes
+                nodepool_dict['min_nodes'] = min_nodes
+                nodepool_dict['max_nodes'] = max_nodes
                 nodepools.append(nodepool_dict)
             kwargs['nodepools'] = nodepools
         else:
@@ -312,6 +378,8 @@ class AmazonContainerController(BaseContainerController):
             kwargs['nodepools'] = [{
                 'size': 't3.medium',
                 'nodes': 2,
+                'min_nodes': 2,
+                'max_nodes': 2,
                 'disk_size': 20,
                 'disk_type': 'gp3'
             }]
@@ -357,8 +425,8 @@ class AmazonContainerController(BaseContainerController):
                 cluster_name=name,
                 size=nodepool['size'],
                 nodes=nodepool['nodes'],
-                min_nodes=nodepool['nodes'],
-                max_nodes=nodepool['nodes'],
+                min_nodes=nodepool['min_nodes'],
+                max_nodes=nodepool['max_nodes'],
                 volume_size=nodepool['disk_size'],
                 volume_type=nodepool['disk_type'],
             )
@@ -478,14 +546,19 @@ class AmazonContainerController(BaseContainerController):
                                          nodepool,
                                          desired_nodes,
                                          min_nodes,
-                                         max_nodes):
+                                         max_nodes,
+                                         autoscaling):
         super()._validate_scale_nodepool_request(
             auth_context,
             cluster,
             nodepool,
             desired_nodes,
             min_nodes,
-            max_nodes)
+            max_nodes,
+            autoscaling,)
+
+        if min_nodes is None and max_nodes is None and desired_nodes is None:
+            raise BadRequestError("Required parameter missing")
 
         if max_nodes is not None and max_nodes < 1:
             raise BadRequestError(
@@ -497,7 +570,8 @@ class AmazonContainerController(BaseContainerController):
                         nodepool,
                         desired_nodes,
                         min_nodes,
-                        max_nodes):
+                        max_nodes,
+                        autoscaling,):
         operation_id = self.connection.ex_scale_nodegroup(
             cluster=cluster.name,
             nodegroup=nodepool.name,
