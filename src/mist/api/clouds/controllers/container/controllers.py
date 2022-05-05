@@ -100,7 +100,7 @@ class GoogleContainerController(BaseContainerController):
                             limit=1
                         )
                     except ValueError:
-                        raise Exception(
+                        raise BadRequestError(
                             f'Size {nodepool.size} does not exist')
 
                     # We use "<size-name> (<size-description>)" for size names
@@ -109,12 +109,36 @@ class GoogleContainerController(BaseContainerController):
                 else:
                     size = 'e2-medium'
                 disk_size = nodepool.disk_size or 20
-                nodes = nodepool.nodes or 2
                 preemptible = nodepool.preemptible or False
                 disk_type = nodepool.disk_type or 'pd-standard'
 
+                nodes = nodepool.nodes
+                min_nodes = nodepool.min_nodes
+                max_nodes = nodepool.max_nodes
+                if nodes < 1:
+                    raise BadRequestError(
+                        'Nodepool nodes must be at least 1')
+
+                if nodepool.autoscaling:
+                    if not (min_nodes and max_nodes):
+                        raise BadRequestError(
+                            'min_nodes,max_nodes are required '
+                            'to enable autoscaling')
+                    if (min_nodes < 0 or
+                        nodes < min_nodes or
+                            max_nodes < nodes):
+                        raise BadRequestError(
+                            'Invalid valued for nodes, min_nodes, max_nodes')
+                else:
+                    if min_nodes is not None or max_nodes is not None:
+                        raise BadRequestError(
+                            'Cannot set min_nodes, max_nodes with '
+                            'autoscaling false')
+
                 kwargs['nodepools'].append({
                     'node_count': nodes,
+                    'min_nodes': min_nodes,
+                    'max_nodes': max_nodes,
                     'size': size,
                     'disk_size': disk_size,
                     'disk_type': disk_type,
@@ -231,7 +255,7 @@ class GoogleContainerController(BaseContainerController):
                         min_nodes,
                         max_nodes,
                         autoscaling):
-        has_autoscaling = self._nodepool_has_autoscaling(nodepool)
+        has_autoscaling = nodepool.autoscaling
         if not has_autoscaling and not autoscaling:
             operation = self.connection.ex_scale_nodepool(
                 cluster=cluster.name,
@@ -245,7 +269,7 @@ class GoogleContainerController(BaseContainerController):
                 cluster=cluster.name,
                 nodepool=nodepool.name,
                 zone=cluster.location.name,
-                enabled=enabled,
+                autoscaling=enabled,
                 min_nodes=min_nodes,
                 max_nodes=max_nodes,
             )
@@ -334,7 +358,7 @@ class AmazonContainerController(BaseContainerController):
 
                 nodepool_dict['disk_size'] = nodepool.disk_size or 20
                 nodepool_dict['disk_type'] = nodepool.disk_type or 'gp3'
-                nodes = nodepool.nodes or 2
+                nodes = nodepool.nodes
                 min_nodes = nodepool.min_nodes or nodes
                 max_nodes = nodepool.max_nodes or nodes
                 if (min_nodes > nodes or
@@ -354,6 +378,8 @@ class AmazonContainerController(BaseContainerController):
             kwargs['nodepools'] = [{
                 'size': 't3.medium',
                 'nodes': 2,
+                'min_nodes': 2,
+                'max_nodes': 2,
                 'disk_size': 20,
                 'disk_type': 'gp3'
             }]
