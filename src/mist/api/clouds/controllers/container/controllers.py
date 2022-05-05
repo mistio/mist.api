@@ -325,15 +325,28 @@ class AmazonContainerController(BaseContainerController):
                             limit=1
                         )
                     except ValueError:
-                        raise Exception(f'Size {nodepool.size} does not exist')
+                        raise BadRequestError(
+                            f'Size {nodepool.size} does not exist')
 
                     nodepool_dict['size'] = size.external_id
                 else:
                     nodepool_dict['size'] = ' t3.medium'
 
                 nodepool_dict['disk_size'] = nodepool.disk_size or 20
-                nodepool_dict['nodes'] = nodepool.nodes or 2
                 nodepool_dict['disk_type'] = nodepool.disk_type or 'gp3'
+                nodes = nodepool.nodes or 2
+                min_nodes = nodepool.min_nodes or nodes
+                max_nodes = nodepool.max_nodes or nodes
+                if (min_nodes > nodes or
+                    max_nodes < nodes or
+                    min_nodes < 0 or
+                        max_nodes < 1):
+                    raise BadRequestError(
+                        'Invalid values for nodes,min_nodes,max_nodes')
+
+                nodepool_dict['nodes'] = nodes
+                nodepool_dict['min_nodes'] = min_nodes
+                nodepool_dict['max_nodes'] = max_nodes
                 nodepools.append(nodepool_dict)
             kwargs['nodepools'] = nodepools
         else:
@@ -386,8 +399,8 @@ class AmazonContainerController(BaseContainerController):
                 cluster_name=name,
                 size=nodepool['size'],
                 nodes=nodepool['nodes'],
-                min_nodes=nodepool['nodes'],
-                max_nodes=nodepool['nodes'],
+                min_nodes=nodepool['min_nodes'],
+                max_nodes=nodepool['max_nodes'],
                 volume_size=nodepool['disk_size'],
                 volume_type=nodepool['disk_type'],
             )
