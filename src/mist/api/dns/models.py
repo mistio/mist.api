@@ -214,12 +214,7 @@ class Record(OwnershipMixin, me.Document, TagMixin):
                 'default_language': 'english',
                 'sparse': True,
                 'unique': False
-            }, {
-                'fields': ['$tags'],
-                'default_language': 'english',
-                'sparse': True,
-                'unique': False
-            }
+            },
         ],
     }
     _record_type = None

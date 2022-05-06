@@ -163,7 +163,7 @@ class Key(OwnershipMixin, me.Document, TagMixin):
         from mist.api.helpers import prepare_dereferenced_dict
         from mist.api.machines.models import KeyMachineAssociation
 
-        standard_fields = ['id', 'name', 'default', 'tags']
+        standard_fields = ['id', 'name', 'default']
         deref_map = {
             'owned_by': 'email',
             'created_by': 'email',
