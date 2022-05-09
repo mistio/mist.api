@@ -174,7 +174,7 @@ class Key(OwnershipMixin, me.Document):
                 for tag in Tag.objects(
                     owner=self.owner,
                     resource_id=self.id,
-                    resource_type='Key').only('key', 'value')
+                    resource_type='key').only('key', 'value')
             }
         return ret
 
