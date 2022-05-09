@@ -1995,12 +1995,10 @@ def create_helm_command(repo_url, release_name, chart_name, host, port, token,
     """Create the helm command that will be passed as CMD/ENTRYPOINT
     to the container that will install the helm chart.
     """
-    # The name to use for `helm repo add [NAME] [URL]`
-    repo_name = "misthelm"
     if not (host.startswith("https://") or host.startswith("http://")):
         host = f"https://{host}"
 
-    helm_install_command = (f'helm install {release_name} {repo_name}/{chart_name} --atomic'  # noqa
+    helm_install_command = (f'helm install {release_name} {chart_name} --repo {repo_url} --atomic'  # noqa
                             f' --kube-apiserver "{host}:{port}" --kube-token "{token}"'  # noqa
                             f' --kube-ca-file {ca_cert_path}')
 
@@ -2014,8 +2012,4 @@ def create_helm_command(repo_url, release_name, chart_name, host, port, token,
         helm_install_command += f' --version "{version}"'
 
     # The docker image used defines container entrypoint
-    helm_command = (f"helm repo add {repo_name} {repo_url} && "
-                    f"helm repo update && "
-                    f"{helm_install_command}"
-                    )
-    return helm_command
+    return helm_install_command

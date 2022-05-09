@@ -25,6 +25,7 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish_user
@@ -109,7 +110,8 @@ class BaseContainerController(BaseController):
                                         nodepool,
                                         desired_nodes,
                                         min_nodes,
-                                        max_nodes) -> None:
+                                        max_nodes,
+                                        autoscaling) -> None:
         """Make sure the request parameters are valid to scale this nodepool.
 
         Raises:
@@ -124,7 +126,8 @@ class BaseContainerController(BaseController):
                                                      nodepool,
                                                      desired_nodes,
                                                      min_nodes,
-                                                     max_nodes)
+                                                     max_nodes,
+                                                     autoscaling)
 
     def _validate_scale_nodepool_request(self,
                                          auth_context,
@@ -132,7 +135,8 @@ class BaseContainerController(BaseController):
                                          nodepool,
                                          desired_nodes,
                                          min_nodes,
-                                         max_nodes) -> None:
+                                         max_nodes,
+                                         autoscaling) -> None:
         """
         Raises:
             BadRequestError if the parameters given are invalid
@@ -140,8 +144,6 @@ class BaseContainerController(BaseController):
         Returns:
             None
         """
-        if min_nodes is None and max_nodes is None and desired_nodes is None:
-            raise BadRequestError("Required parameter missing")
 
         if (min_nodes is not None and
             desired_nodes is not None and
@@ -167,7 +169,8 @@ class BaseContainerController(BaseController):
                        nodepool,
                        desired_nodes,
                        min_nodes,
-                       max_nodes):
+                       max_nodes,
+                       autoscaling):
         """Scale the specified nodepool's nodes
         """
         return self._scale_nodepool(auth_context,
@@ -175,7 +178,8 @@ class BaseContainerController(BaseController):
                                     nodepool,
                                     desired_nodes,
                                     min_nodes,
-                                    max_nodes)
+                                    max_nodes,
+                                    autoscaling)
 
     def _scale_nodepool(self,
                         auth_context,
@@ -183,7 +187,9 @@ class BaseContainerController(BaseController):
                         nodepool,
                         desired_nodes,
                         min_nodes,
-                        max_nodes):
+                        max_nodes,
+                        autoscaling):
+
         raise NotImplementedError()
 
     def _destroy_cluster(self, *args, **kwargs):
@@ -925,3 +931,59 @@ class BaseContainerController(BaseController):
         except Exception as exc:
             log.warning("Error while closing connection: %r", exc)
         return clusters
+
+    def _get_libcloud_cluster(self, cluster, no_fail=False):
+        """Return an instance of a libcloud cluster
+
+        This is a private method.
+
+        Subclasses should override or extend this method.
+        """
+        raise MistNotImplementedError()
+
+    def _libcloud_ingress_to_ingress(self, libcloud_ingress):
+        load_balancer_ingresses = libcloud_ingress.load_balancer_ingresses
+        ips = [
+            load_balancer_ingress.ip
+            for load_balancer_ingress in load_balancer_ingresses
+            if load_balancer_ingress.ip
+        ]
+        hostnames = [
+            load_balancer_ingress.hostname
+            for load_balancer_ingress in load_balancer_ingresses
+            if load_balancer_ingress.hostname
+        ]
+        return {
+            "name": libcloud_ingress.name,
+            "namespace": libcloud_ingress.namespace,
+            "ips": ips,
+            "hostnames": hostnames,
+        }
+
+    def get_ingress(self, cluster, name, namespace):
+        try:
+            libcloud_cluster = self._get_libcloud_cluster(cluster)
+            libcloud_ingress = libcloud_cluster.driver.ex_get_ingress(
+                name, namespace)
+        except Exception as exc:
+            log.error(
+                'Failed to fetch ingress: %s on' +
+                ' namespace: %s for cluster: %s, %r',
+                name, namespace, cluster, exc)
+            raise CloudUnavailableError(msg=str(exc)) from exc
+
+        return self._libcloud_ingress_to_ingress(libcloud_ingress)
+
+    def list_ingresses(self, cluster, namespace=None):
+        try:
+            libcloud_cluster = self._get_libcloud_cluster(cluster)
+            libcloud_ingresses = libcloud_cluster.driver.ex_list_ingresses(
+                namespace)
+        except Exception as exc:
+            log.error('Failed to fetch ingresses for cluster: %s, %r',
+                      cluster, exc)
+            raise CloudUnavailableError(msg=str(exc)) from exc
+        return [
+            self._libcloud_ingress_to_ingress(libcloud_ingress)
+            for libcloud_ingress in libcloud_ingresses
+        ]
