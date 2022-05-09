@@ -2695,7 +2695,6 @@ def prepare_docker_uri(auth_context, machine):
     vault_token = machine.owner.vault_token
     vault_secret_engine_path = machine.owner.vault_secret_engine_path
     key_name = machine.cloud.name
-    
     msg_to_encrypt = '%s,%s,%s,%s' % (
         vault_token,
         vault_secret_engine_path,
@@ -2726,7 +2725,6 @@ def prepare_docker_uri(auth_context, machine):
         expiry,
         encrypted_msg,
         mac)
-    log.info(msg)
     return exec_uri
 
 
