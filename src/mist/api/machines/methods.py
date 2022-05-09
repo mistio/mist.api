@@ -2637,7 +2637,7 @@ def prepare_ssh_uri(auth_context, machine):
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
-    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
+    exec_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
         base_ws_uri,
         user,
         hostname,
@@ -2645,7 +2645,7 @@ def prepare_ssh_uri(auth_context, machine):
         expiry,
         encrypted_msg,
         mac)
-    return ssh_uri
+    return exec_uri
 
 
 def prepare_kubernetes_uri(auth_context, machine):
@@ -2673,7 +2673,7 @@ def prepare_kubernetes_uri(auth_context, machine):
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
-    kubernetes_uri = '%s/k8s-exec/%s/%s/%s/%s/%s/%s' % (
+    exec_uri = '%s/k8s-exec/%s/%s/%s/%s/%s/%s' % (
         base_ws_uri,
         name,
         cluster,
@@ -2681,7 +2681,7 @@ def prepare_kubernetes_uri(auth_context, machine):
         expiry,
         encrypted_msg,
         mac)
-    return kubernetes_uri
+    return exec_uri
 
 
 def prepare_docker_uri(auth_context, machine):
@@ -2695,6 +2695,7 @@ def prepare_docker_uri(auth_context, machine):
     vault_token = machine.owner.vault_token
     vault_secret_engine_path = machine.owner.vault_secret_engine_path
     key_name = machine.cloud.name
+    
     msg_to_encrypt = '%s,%s,%s,%s' % (
         vault_token,
         vault_secret_engine_path,
@@ -2714,8 +2715,8 @@ def prepare_docker_uri(auth_context, machine):
         config.SECRET.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
-    base_ws_uri = config.CORE_URI.replace('http', 'wss')
-    ssh_uri = '%s/docker-exec/%s/%s/%s/%s/%s/%s/%s/%s' % (
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    exec_uri = '%s/docker-exec/%s/%s/%s/%s/%s/%s/%s/%s' % (
         base_ws_uri,
         name,
         cluster,
@@ -2725,4 +2726,46 @@ def prepare_docker_uri(auth_context, machine):
         expiry,
         encrypted_msg,
         mac)
-    return ssh_uri
+    log.info(msg)
+    return exec_uri
+
+
+def prepare_lxd_uri(auth_context, machine):
+    expiry = int(datetime.now().timestamp()) + 100
+    name = machine.name
+    machine_id = machine.external_id
+    cluster = machine.cloud.name
+    host = machine.cloud.host
+    port = machine.cloud.port
+    vault_token = machine.owner.vault_token
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    key_name = machine.cloud.name
+    msg_to_encrypt = '%s,%s,%s,%s' % (
+        vault_token,
+        vault_secret_engine_path,
+        key_name,
+        machine_id)
+    # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
+    encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
+    msg = '%s,%s,%s,%s,%s,%s' % (
+        name,
+        cluster,
+        host,
+        port,
+        expiry,
+        encrypted_msg)
+    mac = hmac.new(
+        config.SECRET.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256).hexdigest()
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    exec_uri = '%s/lxd-exec/%s/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri,
+        name,
+        cluster,
+        host,
+        port,
+        expiry,
+        encrypted_msg,
+        mac)
+    return exec_uri

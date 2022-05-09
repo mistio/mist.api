@@ -1153,14 +1153,17 @@ def machine_ssh(request):
 
     if machine.machine_type == 'container' and \
             machine.cloud.provider == 'kubernetes':
-        ssh_uri = methods.prepare_kubernetes_uri(auth_context, machine)
+        exec_uri = methods.prepare_kubernetes_uri(auth_context, machine)
 
     elif machine.machine_type == 'container' and \
             machine.cloud.provider == 'docker':
-        ssh_uri = methods.prepare_docker_uri(auth_context, machine)
+        exec_uri = methods.prepare_docker_uri(auth_context, machine)
+    elif machine.machine_type == 'container' and \
+            machine.cloud.provider == 'lxd':
+        exec_uri = methods.prepare_lxd_uri(auth_context, machine)
     else:
-        ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
-    return {"location": ssh_uri}
+        exec_uri = methods.prepare_ssh_uri(auth_context, machine)
+    return {"location": exec_uri}
 
 
 @view_config(route_name='api_v1_machine_ssh',
