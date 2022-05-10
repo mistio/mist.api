@@ -1,7 +1,8 @@
+import random
 import re
 
-
 import mongoengine as me
+from mist.api.mongoengine_extras import TagQuerySet
 from mist.api.config import TAGS_RESOURCE_TYPES
 from mist.api.users.models import Owner
 from mist.api.tag.tasks import update_tags, delete_tags
@@ -21,6 +22,10 @@ class Tag(me.Document):
     meta = {
         'indexes': ['owner', 'resource_type', 'resource_id', 'key']
     }
+
+    def __new__(cls, *args, **kwargs):
+        cls.objects = TagQuerySet(cls, cls._get_collection())
+        return super().__new__(cls)
 
     @property
     def resource(self):
@@ -50,12 +55,16 @@ class Tag(me.Document):
 
     def save(self):
         super(Tag, self).save()
-        update_tags.send(self.resource_type,
-                         self.resource_id,
-                         {self.key: self.value})
+        delay = random.randrange(10**3, 10000)
+        update_tags.send_with_options(args=(self.resource_type,
+                                      self.resource_id,
+                                      {self.key: self.value}),
+                                      delay=delay)
 
     def delete(self):
+        delay = random.randrange(1000, 10000)
+        delete_tags.send_with_options(args=(self.resource_type,
+                                      self.resource_id,
+                                      [self.key]),
+                                      delay=delay)
         super(Tag, self).delete()
-        delete_tags.send(self.resource_type,
-                         self.resource_id,
-                         [self.key])

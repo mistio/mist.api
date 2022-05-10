@@ -125,17 +125,17 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     # merge all the tags in the list into one dict. this will also make sure
     # that if there are duplicates they will be cleaned up
     tag_dict = dict(tags)
+    rtype = resource_obj._meta["collection"].rstrip('s')
+
     tag_dict = {
         k: v for k, v
         in tag_dict.items() - {
             tag.key: tag.value for tag in get_tag_objects_for_resource(
                 owner, resource_obj)}.items()
     }
-
-    for key, value in tag_dict.items():
-        Tag(owner=owner, resource_id=resource_obj.id,
-            resource_type=resource_obj.to_dbref().collection.rstrip('s'),
-            key=key, value=value).save()
+    Tag.objects.insert([Tag(owner=owner, resource_id=resource_obj.id,
+                            resource_type=rtype, key=key, value=value)
+                        for key, value in tag_dict.items()])
 
     # SEC
     owner.mapper.update(resource_obj)
