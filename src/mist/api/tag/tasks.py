@@ -20,6 +20,6 @@ def delete_tags(resource_type, resource_id, key_list):
         get_resource_model(resource_type).objects.get(
             id=resource_id).delete_tags(key_list)
     except (DoesNotExist, ValidationError) as exc:
-        update_tags.logger.error(
+        delete_tags.logger.error(
             'Deleting tag %s on %s (id%s)failed with %r',
             key_list, resource_type, resource_id, exc)
