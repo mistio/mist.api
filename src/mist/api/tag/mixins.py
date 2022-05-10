@@ -1,5 +1,4 @@
 import mongoengine as me
-import re
 
 
 class TagMixin(object):
@@ -10,15 +9,32 @@ class TagMixin(object):
     """
     tags = me.StringField(default='')
 
-    def update_tags(self, tag_dict):
+    def to_dict(self, tags):
+        dikt = {}
+        for pair in tags.split(',')[1:-1]:
+            k, v = pair.split(':')
+            dikt[k] = v
+
+        return dikt
+
+    def to_string(self, tag_dict):
+        tags = ''
         for k, v in tag_dict.items():
-            if f',{k}:' not in self.tags:
-                self.tags = self.tags.rstrip(',') + f',{k}:{v},'
-            elif f',{k}:{v},' not in self.tags:
-                self.tags = re.sub(f',{k}:.*?,', f',{k}:{v},', self.tags)
+            tags = tags.rstrip(',') + f',{k}:{v},'
+
+        return tags
+
+    def update_tags(self, tags_to_update):
+        tag_dict = self.to_dict(self.tags)
+        tag_dict.update(tags_to_update)
+
+        self.tags = self.to_string(tag_dict)
         self.save()
 
     def delete_tags(self, key_list):
+        tag_dict = self.to_dict(self.tags)
         for k in key_list:
-            self.tags = re.sub(f',{k}:.*?,', ',', self.tags)
-            self.save()
+            tag_dict.pop(k, None)
+
+        self.tags = self.to_string(tag_dict)
+        self.save()
