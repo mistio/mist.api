@@ -10,10 +10,14 @@ from mist.api import config
 def migrate_organizations():
 
     orgs = Organization.objects()
-    failed = migrated = 0
+    failed = migrated = skipped = 0
     print('Will try to update %s organizations' % len(orgs))
 
     for org in orgs:
+        if org.vault_secret_engine_path:
+            print(f'Skipping org {org.id}, vault secret engine path exists')
+            skipped += 1
+            continue
         try:
             print('Updating org %s...' % org.id)
             secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[org.name] \
@@ -35,6 +39,7 @@ def migrate_organizations():
 
     print('Organizations migrated: ' + str(migrated))
     print('Failed to migrate: ' + str(failed))
+    print(f'Organizations skipped: {skipped}')
 
 
 if __name__ == '__main__':
