@@ -441,6 +441,9 @@ class Machine(OwnershipMixin, me.Document):
 
         if 'cost' in only or not only:
             ret['cost'] = self.cost.as_dict()
+            # remove cluster cost stuff
+            ret['cost'].pop('control_plane_hourly', None)
+            ret['cost'].pop('control_plane_monthly', None)
 
         if 'monitoring' in only or not only:
             if self.monitoring and self.monitoring.hasmonitoring:
@@ -529,6 +532,10 @@ class Machine(OwnershipMixin, me.Document):
                 self, self.extra, exc))
             extra = {}
 
+        cost = self.cost.as_dict()
+        # remove cluster cost stuff
+        cost.pop('control_plane_hourly', None)
+        cost.pop('control_plane_monthly', None)
         return {
             'id': self.id,
             'hostname': self.hostname,
@@ -542,7 +549,7 @@ class Machine(OwnershipMixin, me.Document):
             'actions': {action: self.actions[action]
                         for action in self.actions},
             'extra': extra,
-            'cost': self.cost.as_dict(),
+            'cost': cost,
             'state': self.state,
             'tags': tags,
             'monitoring':
