@@ -1,13 +1,13 @@
 import logging
-import mongoengine as me
 from uuid import uuid4
+from typing import Any, Dict
+
+import mongoengine as me
+from mist.api.exceptions import BadRequestError
 
 from mist.api.users.models import Owner
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.tag.models import Tag
-from mist.api.secrets import controllers
-
-from mist.api import config
 
 
 log = logging.getLogger(__name__)
@@ -35,28 +35,8 @@ class Secret(OwnershipMixin, me.Document):
         ],
     }
 
-    _controller_cls = None
-
     def __init__(self, *args, **kwargs):
-        super(Secret, self).__init__(*args, **kwargs)
-        # Set attribute `ctl` to an instance of the appropriate controller.
-        if self._controller_cls is None:
-            raise NotImplementedError(
-                "Can't initialize %s. Secret is an abstract base class and "
-                "shouldn't be used to create cloud instances. All Secret "
-                "subclasses should define a `_controller_cls` class attribute "
-                "pointing to a `BaseSecretController` subclass." % self
-            )
-        elif not issubclass(self._controller_cls,
-                            controllers.BaseSecretController):
-            raise TypeError(
-                "Can't initialize %s.  All Secret subclasses should define a"
-                " `_controller_cls` class attribute pointing to a "
-                "`BaseSecretController` subclass." % self
-            )
-
-        self.ctl = self._controller_cls(self)
-
+        super().__init__(*args, **kwargs)
         # Calculate and store key type specific fields.
         self._secret_specific_fields = [field for field in type(self)._fields
                                         if field not in Secret._fields]
@@ -65,10 +45,6 @@ class Secret(OwnershipMixin, me.Document):
     def data(self):
         raise NotImplementedError()
 
-    def __str__(self):
-        return '%s secret %s (%s) of %s' % (type(self), self.name,
-                                            self.id, self.owner)
-
     @property
     def tags(self):
         """Return the tags of this secret."""
@@ -76,29 +52,41 @@ class Secret(OwnershipMixin, me.Document):
                 for tag in Tag.objects(resource_id=self.id,
                                        resource_type='secret')}
 
-    def delete(self):
-        super(Secret, self).delete()
+    def create_or_update(self, attributes: Dict[str, Any]) -> None:
+        raise NotImplementedError()
+
+    def delete(self, delete_from_engine: bool = False) -> None:
+        super().delete()
         self.owner.mapper.remove(self)
         Tag.objects(resource_id=self.id, resource_type='secret').delete()
+
+    def __str__(self):
+        return '%s secret %s (%s) of %s' % (type(self), self.name,
+                                            self.id, self.owner)
 
 
 class VaultSecret(Secret):
     """ A Vault Secret object """
-    _controller_cls = controllers.VaultSecretController
-
-    def __init__(self, *args, **kwargs):
-        if config.VAULT_KV_VERSION == 1:
-            self._controller_cls = controllers.KV1VaultSecretController
-        else:
-            self._controller_cls = controllers.KV2VaultSecretController
-
-        super(VaultSecret, self).__init__(*args, **kwargs)
 
     @property
-    def data(self):
-        return self.ctl.read_secret()
+    def data(self) -> Dict[str, Any]:
+        try:
+            data = self.owner.secrets_ctl.read_secret(self.name)
+        except BadRequestError:
+            data = {}
+        return data
 
-    def as_dict(self):
+    def create_or_update(self, attributes: Dict[str, Any]) -> None:
+        return self.owner.secrets_ctl.create_or_update_secret(
+            self.name,
+            attributes)
+
+    def delete(self, delete_from_engine: bool = False) -> None:
+        super().delete()
+        if delete_from_engine:
+            self.owner.secrets_ctl.delete_secret(self.name)
+
+    def as_dict(self) -> Dict[str, Any]:
         s_dict = {
             'id': self.id,
             'name': self.name,
@@ -114,8 +102,8 @@ class SecretValue(me.EmbeddedDocument):
     secret = me.ReferenceField('Secret', required=False)
     key = me.StringField()
 
-    def __init__(self, secret, key='', *args, **kwargs):
-        super(SecretValue, self).__init__(*args, **kwargs)
+    def __init__(self, secret: Secret, key: str = '', *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self.secret = secret
         if key:
             self.key = key

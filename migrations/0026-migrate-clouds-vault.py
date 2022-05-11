@@ -4,7 +4,7 @@ import mongoengine as me
 from pymongo import MongoClient
 from mongoengine.fields import EmbeddedDocumentField
 
-from mist.api.config import MONGO_URI
+from mist.api import config
 
 from mist.api.secrets.models import VaultSecret, SecretValue
 from mist.api.users.models import Owner
@@ -14,7 +14,7 @@ from mist.api.clouds.models import *  # noqa
 
 def migrate_clouds():
 
-    c = MongoClient(MONGO_URI)
+    c = MongoClient(config.MONGO_URI)
     db = c.get_database('mist2')
     db_clouds = db['clouds']
     failed = migrated = skipped = 0
@@ -40,12 +40,12 @@ def migrate_clouds():
                 else:
                     skipped_all = False
 
+                name = f"{config.VAULT_CLOUDS_PATH}{cloud['name']}"
                 try:
-                    secret = VaultSecret.objects.get(name="clouds/%s" %
-                                                     cloud['name'],
+                    secret = VaultSecret.objects.get(name=name,
                                                      owner=owner)
                 except me.DoesNotExist:
-                    secret = VaultSecret(name="clouds/%s" % cloud['name'],
+                    secret = VaultSecret(name=name,
                                          owner=owner)
                     secret.save()
 
@@ -65,8 +65,7 @@ def migrate_clouds():
                     secret_dict = {
                         field: cloud[field]
                     }
-                    secret.ctl.create_or_update_secret(secret_dict)
-
+                    secret.create_or_update(secret_dict)
         except Exception:
             print('*** WARNING ** Could not migrate cloud %s' % cloud['_id'])
             traceback.print_exc()

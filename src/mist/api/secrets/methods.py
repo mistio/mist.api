@@ -31,9 +31,7 @@ def list_secrets(owner, cached=True, path='.'):
                        if secret.name.startswith(path)]
 
     else:
-        # TODO: is there a better way?
-        secret = VaultSecret(owner=owner)
-        secrets = secret.ctl.list_secrets(path)
+        secrets = owner.secrets_ctl.list_secrets(path)
 
         # Update RBAC Mappings given the list of new secrets.
         owner.mapper.update(secrets, asynchronous=False)

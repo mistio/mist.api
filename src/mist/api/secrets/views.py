@@ -69,15 +69,16 @@ def create_secret(request):
     try:
         _secret.save()
     except me.NotUniqueError:
-        raise BadRequestError("The path specified exists on Vault. \
-                    Try changing the name of the secret")
+        raise BadRequestError(
+            "The path specified exists on Vault. "
+            "Try changing the name of the secret")
 
     # Set ownership.
     _secret.assign_to(auth_context.user)
 
     try:
-        _secret.ctl.create_or_update_secret(secret)
-        _secret.ctl.list_secrets(recursive=True)
+        _secret.create_or_update(attributes=secret)
+        owner.secrets_ctl.list_secrets(recursive=True)
     except Exception as exc:
         _secret.delete()
         raise exc
@@ -117,7 +118,7 @@ def get_secret(request):
         raise NotFoundError('Secret does not exist')
 
     auth_context.check_perm("secret", "read", secret_id)
-    secret_dict = secret.ctl.read_secret()
+    secret_dict = secret.data
 
     if key and not secret_dict.get(key, ''):
         raise BadRequestError('Secret %s does not have a %s key'
@@ -153,8 +154,9 @@ def update_secret(request):
         raise NotFoundError('Secret does not exist')
 
     auth_context.check_perm("secret", "edit", secret_id)
-    _secret.ctl.create_or_update_secret(secret)
-    _secret.ctl.list_secrets(recursive=True)
+    _secret.create_or_update(attributes=secret)
+
+    auth_context.owner.secrets_ctl.list_secrets(recursive=True)
 
     return OK
 
@@ -178,8 +180,8 @@ def delete_secret(request):
         raise NotFoundError('Secret does not exist')
 
     auth_context.check_perm('secret', 'delete', secret_id)
-    secret.ctl.delete_secret()
-    secret.delete()
-    secret.ctl.list_secrets(recursive=True)
+    secret.delete(delete_from_engine=True)
+
+    auth_context.owner.secrets_ctl.list_secrets(recursive=True)
 
     return OK
