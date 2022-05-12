@@ -160,8 +160,8 @@ class BaseBackendPlugin(object):
                 if offset.total_seconds() < elapsed.total_seconds():
                     state.firing_since = datetime.datetime.utcnow()
 
-        log.info("%s %s for %s %s", self.rule.full_name, state or 'OK', self.rtype,
-                 rid)
+        log.info("%s %s for %s %s", self.rule.full_name, state or 'OK',
+                 self.rtype, rid)
 
         if state and not state.is_pending() and trigger_actions is True:
             self.trigger(triggered, incident, state)
