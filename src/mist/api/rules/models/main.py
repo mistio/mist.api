@@ -213,11 +213,11 @@ class Rule(me.Document):
     # NOTE The following properties are required by the scheduler.
 
     @property
-    def name(self):
+    def full_name(self):
         """Return the name of the task.
 
         """
-        return 'Org(%s):Rule(%s)' % (self.owner_id, self.id)
+        return f'Org({self.owner.name}):Rule({self.title})'
 
     @property
     def task(self):
