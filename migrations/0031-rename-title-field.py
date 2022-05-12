@@ -14,7 +14,7 @@ def rename_title_field():
         try:
             print("RULE", rule['_id'])
             update_result = db_rules.update_one(
-                {'_id': rule['_id']}, 
+                {'_id': rule['_id']},
                 {'$rename': {'title': 'name'}}
             )
             if update_result.modified_count > 0:
@@ -31,6 +31,7 @@ def rename_title_field():
     print(f'Rules renamed: {str(renamed)}')
     print(f'Rules skipped: {str(skipped)}')
     print(f'Failed to rename: {str(failed)}')
+
 
 if __name__ == '__main__':
     rename_title_field()
