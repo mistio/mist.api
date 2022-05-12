@@ -710,13 +710,14 @@ def associate_stories(event):
     """Associate potential stories to the event provided."""
     story_id = event['story_id']
     story_type = event['type'] if event['type'] != 'request' else 'job'
-    try:
-        job = json.loads(event['extra']).pop('job', None)
-    except Exception as exc:
-        job = None
-        log.warn('Failed to extract job param from extra: %s', exc)
-    if job:
-        event['job'] = job
+    job = event.get('job')
+    if not job:
+        try:
+            job = json.loads(event['extra']).pop('job', None)
+            event['job'] = job
+        except Exception as exc:
+            job = None
+            log.warn('Failed to extract job param from extra: %s', exc)
 
     # Decide whether the event tends to open, update, or close a story.
     action = 'updates'

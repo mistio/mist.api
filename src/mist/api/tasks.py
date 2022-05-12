@@ -1387,6 +1387,7 @@ def create_cluster_async(auth_context_serialized, cloud_id,
         cluster_post_deploy_steps.send(auth_context_serialized,
                                        cluster.id,
                                        job_id,
+                                       job,
                                        helm_charts,
                                        waiters)
 
@@ -1757,6 +1758,7 @@ def cluster_post_deploy_steps(
     auth_context_serialized,
     cluster_external_id,
     job_id,
+    job,
     helm_charts,
     waiters
 ):
@@ -1775,6 +1777,7 @@ def cluster_post_deploy_steps(
             "job",
             action="cluster_post_deploy_finished",
             job_id=job_id,
+            job=job,
             cluster_external_id=cluster_external_id,
             error="Failed to deserialize auth_context",
         )
@@ -1823,6 +1826,7 @@ def cluster_post_deploy_steps(
             "job",
             action="cluster_waiters_finished",
             job_id=job_id,
+            job=job,
             cluster=cluster.id,
             results=results,
             error=error
@@ -1833,6 +1837,7 @@ def cluster_post_deploy_steps(
         "job",
         action="cluster_post_deploy_finished",
         job_id=job_id,
+        job=job,
         cluster=cluster.id,
     )
 
@@ -1853,6 +1858,7 @@ def helm_install(
     timeout="10m",
     version=None,
     job_id=None,
+    job=None,
 ):
     """Install a Helm chart on the given Kubernetes cluster.
 
@@ -1893,6 +1899,7 @@ def helm_install(
         "helm_installation_started",
         user_id=auth_context.user.id,
         job_id=job_id,
+        job=job,
         cluster=cluster_id,
         repo_url=repo_url,
         chart=chart_name,
@@ -1921,6 +1928,7 @@ def helm_install(
             "helm_installation_finished",
             user_id=auth_context.user.id,
             job_id=job_id,
+            job=job,
             cluster=cluster_id,
             repo_url=repo_url,
             chart=chart_name,
@@ -2000,6 +2008,7 @@ def helm_install(
             "helm_installation_finished",
             user_id=auth_context.user.id,
             job_id=job_id,
+            job=job,
             cluster=cluster_id,
             repo_url=repo_url,
             chart=chart_name,
