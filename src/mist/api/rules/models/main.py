@@ -73,7 +73,9 @@ class Rule(me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     name = me.StringField(required=True)
     org = me.StringField(required=True)
-
+    # Deprecated
+    title = me.StringField(required=True)
+    owner_id = me.StringField(required=True)
     # Specifies a list of queries to be evaluated. Results will be logically
     # ANDed together in order to decide whether an alert should be raised.
     queries = me.EmbeddedDocumentListField(QueryCondition, required=True)
