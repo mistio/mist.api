@@ -2620,10 +2620,12 @@ def prepare_ssh_uri(auth_context, machine):
     vault_secret_engine_path = machine.owner.vault_secret_engine_path
     key = Key.objects(owner=machine.owner, deleted=None)[0]
     key_name = key.name
-    msg_to_encrypt = '%s,%s,%s' % (
-        vault_token,
+    vault_secret_engine_path = '/v1/%s/data/mist/keys/%s' % (
         vault_secret_engine_path,
         key_name)
+    msg_to_encrypt = '%s,%s' % (
+        vault_token,
+        vault_secret_engine_path)
     # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
     encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
     msg = '%s,%s,%s,%s,%s' % (
@@ -2714,7 +2716,7 @@ def prepare_docker_uri(auth_context, machine):
         config.SECRET.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
-    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    base_ws_uri = config.CORE_URI.replace('http', 'wss')
     exec_uri = '%s/docker-exec/%s/%s/%s/%s/%s/%s/%s/%s' % (
         base_ws_uri,
         name,
