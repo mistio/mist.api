@@ -8,12 +8,20 @@ from mist.api.helpers import get_object_with_id, search_parser
 from functools import reduce
 from mist.api.config import TAGS_RESOURCE_TYPES
 from mist.api.helpers import get_resource_model
+from mist.api import config
 
 log = logging.getLogger(__name__)
 
 
 def get_tags(auth_context, verbose='', resource='', search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
     query = Q(owner=auth_context.owner)
+
+    if config.HAS_RBAC and not auth_context.is_owner():
+        rbac_filter = Q(id='')
+        for rtype, rids in auth_context.get_allowed_resources().items():
+            rbac_filter |= Q(resource_type=rtype.rstrip('s'), resource_id__in=rids)
+        query &= rbac_filter
+        
     if resource:
         query &= Q(resource_type=resource.rstrip('s'))
 
@@ -44,33 +52,29 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
             set((t.key, t.value) for t in tags)]
 
     if verbose:
+        from mist.api.methods import list_resources
 
         for kv in data:
             kv_temp = kv.copy()
             kv['resources'] = {}
             for resource_type in TAGS_RESOURCE_TYPES:
                 kv['resources'][resource_type + 's'] = []
-                try:
-                    resource_obj = get_resource_model(resource_type)
-                except KeyError:
-                    continue
+                deref = 'domain' if deref == 'name' and resource_type == 'Zone' else deref
+                
                 for tag in tags.filter(**kv_temp, resource_type=resource_type):
-                    rid = tag.resource_id
-                    if deref == "name":
-                        try:
-                            attr = getattr(
-                                resource_obj.objects.get(id=rid),
-                                deref)
-                        except AttributeError:
-                            attr = getattr(
-                                resource_obj.objects.get(id=rid),
-                                'domain')
-                        except me.DoesNotExist:
-                            log.error('%s with id %s does not exist',
-                                      resource_type, tag.resource_id)
-                    else:
-                        attr = rid
-                    kv['resources'][resource_type + 's'] = attr
+                    try:
+                        resource = list_resources(
+                                    auth_context=auth_context, resource_type=resource_type,
+                                    search=tag.resource_id, only=deref
+                                    )[0]
+                        if resource:
+                            kv['resources'][resource_type + 's'].append(getattr(resource.get(), deref))
+                    except KeyError:
+                        continue
+                    except me.DoesNotExist:
+                        log.error('%s with id %s does not exist',
+                                    resource_type, tag.resource_id)
+                                        
 
     if sort == "resource_count" and verbose:
         data.sort(key=lambda x: sum(map(len, x['resources'])), reverse=reverse)
