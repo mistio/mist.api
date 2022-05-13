@@ -113,7 +113,7 @@ def push_metering_info(owner_id):
     # Checks
     for rule in Rule.objects(owner_id=owner_id):
         try:
-            metering[rule.owner_id]['checks'] += rule.total_check_count
+            metering[rule.org]['checks'] += rule.total_check_count
         except Exception as exc:
             log.error('Failed upon checks metering of %s: %r', rule.id, exc)
 

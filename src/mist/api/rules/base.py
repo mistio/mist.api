@@ -101,7 +101,7 @@ class BaseController(object):
             self.update(fail_on_error=fail_on_error,
                         called_from_add=True, **kwargs)
         except (me.ValidationError, BadRequestError) as err:
-            log.error('Error adding %s: %s', self.rule.title, err)
+            log.error('Error adding %s: %s', self.rule.name, err)
             raise
 
     def update(self, fail_on_error=True, called_from_add=False, **kwargs):
@@ -110,7 +110,7 @@ class BaseController(object):
         This method is invoked by `self.add` when adding a new Rule, but it
         can also be called directly, as such:
 
-            rule = Rule.objects.get(owner=owner, title='rule15')
+            rule = Rule.objects.get(owner=owner, name='rule15')
             rule.ctl.update(**kwargs)
 
         """
@@ -180,13 +180,13 @@ class BaseController(object):
                 self.check_auth_context()
                 self.rule.save()
             except me.ValidationError as err:
-                log.error('Error updating %s: %s', self.rule.title, err)
+                log.error('Error updating %s: %s', self.rule.name, err)
                 raise BadRequestError({'msg': str(err),
                                        'errors': err.to_dict()})
             except me.NotUniqueError as err:
-                log.error('Error updating %s: %s', self.rule.title, err)
+                log.error('Error updating %s: %s', self.rule.name, err)
                 raise BadRequestError(
-                    'Rule "%s" already exists' % self.rule.title)
+                    'Rule "%s" already exists' % self.rule.name)
 
         # Validate the rule against the plugin in use.
         try:
@@ -202,21 +202,21 @@ class BaseController(object):
             self.check_auth_context()
             self.rule.save()
         except me.ValidationError as err:
-            log.error('Error updating %s: %s', self.rule.title, err)
+            log.error('Error updating %s: %s', self.rule.name, err)
             if called_from_add:
                 self.rule.delete()
             raise BadRequestError({'msg': str(err),
                                    'errors': err.to_dict()})
         except me.NotUniqueError as err:
-            log.error('Error updating %s: %s', self.rule.title, err)
-            raise BadRequestError('Rule "%s" already exists' % self.rule.title)
+            log.error('Error updating %s: %s', self.rule.name, err)
+            raise BadRequestError('Rule "%s" already exists' % self.rule.name)
 
         # Trigger a UI session update.
         trigger_session_update(self.rule.owner, ['monitoring'])
 
-    def rename(self, title):
+    def rename(self, name):
         """Rename an existing Rule."""
-        self.rule.title = title
+        self.rule.name = name
         self.rule.save()
         trigger_session_update(self.rule.owner, ['monitoring'])
 
@@ -371,7 +371,7 @@ class ResourceRuleController(BaseController):
             for mid in selector.ids:
                 try:
                     Model = self.rule.selector_resource_cls
-                    m = Model.objects.get(id=mid, owner=self.rule.owner_id)
+                    m = Model.objects.get(id=mid, owner=self.rule.org)
                 except Model.DoesNotExist:
                     raise NotFoundError('%s %s' % (Model, mid))
                 read_perm = (
@@ -396,15 +396,15 @@ class NoDataRuleController(ResourceRuleController):
     def delete(self):
         raise BadRequestError('NoData rules may not be deleted')
 
-    def rename(self, title):
+    def rename(self, name):
         raise BadRequestError('NoData rules may not be renamed')
 
     def auto_setup(self, backend='graphite'):
         """Idempotently setup a NoDataRule."""
         assert backend in ('graphite', 'influxdb', 'tsfdb', 'victoriametrics')
 
-        # The rule's title. There should be a single NoDataRule per Org.
-        self.rule.title = 'NoData'
+        # The rule's name. There should be a single NoDataRule per Org.
+        self.rule.name = 'NoData'
 
         # The list of query conditions to evaluate. If at least one of
         # the following metrics returns non-None datapoints, the rule

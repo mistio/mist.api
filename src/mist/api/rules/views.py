@@ -534,7 +534,7 @@ def triggered(request):
         resource_type = rule.resource_model_name
         Model = get_resource_model(resource_type)
         try:
-            resource = Model.objects.get(id=resource_id, owner=rule.owner_id)
+            resource = Model.objects.get(id=resource_id, owner=rule.org)
         except Model.DoesNotExist:
             raise NotFoundError('%s %s' % (resource_type, resource_id))
         if is_resource_missing(resource):
