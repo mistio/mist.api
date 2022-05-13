@@ -121,9 +121,9 @@ class Rule(me.Document):
         'collection': 'rules',
         'allow_inheritance': True,
         'indexes': [
-            'org',
+            'owner_id',
             {
-                'fields': ['org', 'name'],
+                'fields': ['owner_id', 'title'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
