@@ -847,12 +847,12 @@ def get_console_proxy_uri(machine):
         expiry = int(datetime.now().timestamp()) + 100
         vault_token = machine.owner.vault_token
         vault_secret_engine_path = machine.owner.vault_secret_engine_path
-        vault_secret_engine_path = '/v1/%s/data/mist/keys/kvm' % (
-            vault_secret_engine_path)
+        vault_secret_path = '/v1/%s/data/mist/keys/%s' % (
+            vault_secret_engine_path,
+            key_name)
         msg_to_encrypt = '%s,%s' % (
             vault_token,
-            vault_secret_engine_path)
-
+            vault_secret_path)
         from mist.api.helpers import encrypt
         encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
         msg = '%s,%s,%s,%s,%s' % (
