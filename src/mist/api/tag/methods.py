@@ -59,7 +59,7 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
             kv['resources'] = {}
             for resource_type in TAGS_RESOURCE_TYPES:
                 kv['resources'][resource_type + 's'] = []
-                if deref == 'name' and resource_type == 'Zone':
+                if deref == 'name' and resource_type == 'zone':
                     attr = 'domain'
                 else:
                     attr = deref
