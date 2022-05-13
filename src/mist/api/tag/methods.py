@@ -8,6 +8,8 @@ from mist.api.helpers import get_object_with_id, search_parser
 from functools import reduce
 from mist.api.config import TAGS_RESOURCE_TYPES
 from mist.api import config
+from mist.api.helpers import get_resource_model
+
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +23,14 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
             rbac_filter |= Q(resource_type=rtype.rstrip('s'),
                              resource_id__in=rids)
         query &= rbac_filter
+
+    missing_resources = get_missing_resources()
+    if missing_resources:
+        missing_query = Q()
+        for rtype, rids in missing_resources.items():
+            missing_query |= Q(resource_type=rtype, resource_id__nin=rids)
+
+        query &= missing_query
 
     if resource:
         query &= Q(resource_type=resource.rstrip('s'))
@@ -288,3 +298,29 @@ def delete_security_tag(auth_context, tag_key):
                 if key == tag_key:
                     return False
         return True
+
+
+def get_missing_resources():
+
+    dikt = {}
+    states_rtypes = {
+        'deleted': ['cloud', 'key', 'script', 'template'],
+        'missing_since': ['machine', 'cluster', 'network',
+                          'volume', 'image', 'subnet',
+                          'location', 'size']
+    }
+    for state, rtypes in states_rtypes.items():
+        condition = None if state == 'missing_since' else False
+        for resource_type in rtypes:
+            query = Q(**{f'{state}__ne': condition})
+            if resource_type == 'cloud':
+                query |= Q(**{'enabled': False})
+            try:
+                resource_objs = get_resource_model(
+                    resource_type).objects(query)
+            except KeyError:
+                continue
+            if resource_objs:
+                dikt[resource_type] = [obj.id for obj in resource_objs]
+
+    return dikt
