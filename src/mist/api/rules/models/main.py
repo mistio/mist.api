@@ -71,8 +71,8 @@ class Rule(me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    title = me.StringField(required=True)
-    owner_id = me.StringField(required=True)
+    name = me.StringField(required=True)
+    org = me.StringField(required=True)
 
     # Specifies a list of queries to be evaluated. Results will be logically
     # ANDed together in order to decide whether an alert should be raised.
@@ -119,9 +119,9 @@ class Rule(me.Document):
         'collection': 'rules',
         'allow_inheritance': True,
         'indexes': [
-            'owner_id',
+            'org',
             {
-                'fields': ['owner_id', 'title'],
+                'fields': ['org', 'name'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -160,7 +160,7 @@ class Rule(me.Document):
         self.ctl = self._controller_cls(self)
 
     @classmethod
-    def add(cls, auth_context, title=None, **kwargs):
+    def add(cls, auth_context, name=None, **kwargs):
         """Add a new Rule.
 
         New rules should be added by invoking this class method on a Rule
@@ -169,19 +169,19 @@ class Rule(me.Document):
         Arguments:
 
             owner:  instance of mist.api.users.models.Organization
-            title:  the name of the rule. This must be unique per Organization
+            name:  the name of the rule. This must be unique per Organization
             kwargs: additional keyword arguments that will be passed to the
                     corresponding controller in order to setup the self
 
         """
         try:
-            cls.objects.get(owner_id=auth_context.owner.id, title=title)
+            cls.objects.get(org=auth_context.owner.id, name=name)
         except cls.DoesNotExist:
-            rule = cls(owner_id=auth_context.owner.id, title=title)
+            rule = cls(org=auth_context.owner.id, name=name)
             rule.ctl.set_auth_context(auth_context)
             rule.ctl.add(**kwargs)
         else:
-            raise BadRequestError('Title "%s" is already in use' % title)
+            raise BadRequestError('name "%s" is already in use' % name)
         return rule
 
     @property
@@ -192,7 +192,7 @@ class Rule(me.Document):
         avoid automatic/unwanted dereferencing.
 
         """
-        return Organization.objects.get(id=self.owner_id)
+        return Organization.objects.get(id=self.org)
 
     @property
     def org(self):
@@ -217,7 +217,7 @@ class Rule(me.Document):
         """Return the name of the task.
 
         """
-        return f'Org({self.owner.name}):Rule({self.title})'
+        return f'Org({self.owner.name}):Rule({self.name})'
 
     @property
     def task(self):
@@ -269,13 +269,13 @@ class Rule(me.Document):
         # FIXME This is needed in order to ensure rule name convention remains
         # backwards compatible with the old monitoring stack. However, it will
         # have to change in the future due to uniqueness constrains.
-        if not self.title:
-            self.title = 'rule%d' % self.owner.rule_counter
+        if not self.name:
+            self.name = 'rule%d' % self.owner.rule_counter
 
     def as_dict(self):
         return {
             'id': self.id,
-            'title': self.title,
+            'name': self.name,
             'queries': [query.as_dict() for query in self.queries],
             'window': self.window.as_dict(),
             'frequency': self.frequency.as_dict(),
@@ -287,7 +287,7 @@ class Rule(me.Document):
 
     def __str__(self):
         return '%s %s of %s' % (self.__class__.__name__,
-                                self.title, self.owner)
+                                self.name, self.owner)
 
 
 class ArbitraryRule(Rule):

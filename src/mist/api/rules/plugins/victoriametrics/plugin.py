@@ -78,7 +78,7 @@ class VictoriaMetricsBackendPlugin(base.BaseBackendPlugin):
             if isinstance(result, Exception):
                 exceptions += 1
                 log.warning(
-                    f"Got {result} on rule: {rule.title} - {rule.full_name}")
+                    f"Got {result} on rule: {rule.name} - {rule.full_name}")
         if exceptions >= len(results):
             raise results[0]
 

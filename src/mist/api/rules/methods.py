@@ -47,7 +47,7 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
     if skip_log is False:
         if not rule.is_arbitrary():
             Model = get_resource_model(resource_type)
-            resource = Model.objects.get(id=resource_id, owner=rule.owner_id)
+            resource = Model.objects.get(id=resource_id, owner=rule.org)
         else:
             resource = rule.owner
         _log_alert(resource, rule, value, triggered, timestamp, incident_id,
