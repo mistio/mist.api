@@ -22,7 +22,6 @@ def rename_title_and_owner_id_fields():
         db_rules.drop_index('owner_id_1_title_1')
     except OperationFailure:
         print("Index already dropped")
-    
     for rule in db_rules.find():
         for _, rename_map in RENAME_MAPS.items():
             try:
@@ -35,9 +34,8 @@ def rename_title_and_owner_id_fields():
                 print(update_result.modified_count)
                 if update_result.modified_count > 0:
                     print(f'Successfully renamed rule field: '
-                            f'with id: {rule["_id"]} '
-                            f'{rename_map}'.replace(':', ' ->'))
-                            
+                          f'with id: {rule["_id"]} '
+                          f'{rename_map}'.replace(':', ' ->'))
                     renamed += 1
                 else:
                     skipped += 1
