@@ -44,7 +44,7 @@ def delete_key(owner, key_id, delete_from_vault=False):
     log.info("Deleted key with id '%s'.", key_id)
 
     if delete_from_vault:
-        key.private.secret.ctl.delete_secret()
+        owner.secrets_ctl.delete_secret(key.private.secret.name)
 
     trigger_session_update(owner, ['keys'])
 

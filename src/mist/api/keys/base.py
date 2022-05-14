@@ -58,12 +58,12 @@ class BaseKeyController(object):
 
         for key, value in kwargs.items():
             if key == 'private':
-                secret, _key, arg_from_vault = maybe_get_secret_from_arg(value,
-                                                                         self.
-                                                                         key.
-                                                                         owner)
+                secret, _key, arg_from_vault = maybe_get_secret_from_arg(
+                    value,
+                    self.key.owner)
+
                 if secret:
-                    data = secret.ctl.read_secret()
+                    data = secret.data
                     if _key not in data.keys():
                         raise BadRequestError('The key specified (%s) does not exist in \
                             secret `%s`' % (_key, secret.name))
@@ -75,7 +75,7 @@ class BaseKeyController(object):
                                                         self.key.name),
                                          owner=self.key.owner)
                     # first store key in Vault
-                    secret.ctl.create_or_update_secret({key: value})
+                    secret.create_or_update({key: value})
                     # save the VaultSecret object and assign owner
                     try:
                         secret.save()
@@ -87,7 +87,7 @@ class BaseKeyController(object):
                                              (config.VAULT_KEYS_PATH,
                                               self.key.name))
                     try:
-                        secret.ctl.create_or_update_secret({key: value})
+                        secret.create_or_update({key: value})
                     except Exception as exc:
                         # in case secret is not successfully stored in Vault,
                         # delete it from database as well
@@ -107,22 +107,20 @@ class BaseKeyController(object):
             self.key.save()
             # store public key as well if key is new
             if not arg_from_vault:
-                secret.ctl.create_or_update_secret({'public': self.key.public})
+                secret.create_or_update({'public': self.key.public})
         except me.ValidationError as exc:
             log.error("Error adding %s: %s", self.key.name, exc.to_dict())
             # delete VaultSecret object and secret
             # if it was just added to Vault
             if not arg_from_vault:
-                secret.delete()
-                secret.ctl.delete_secret()
+                secret.delete(delete_from_engine=True)
             raise BadRequestError("%s" % str(exc.to_dict()['__all__']))
         except me.NotUniqueError as exc:
             log.error("Key %s not unique error: %s", self.key.name, exc)
             # delete VaultSecret object and secret
             # if it was just added to Vault
             if not arg_from_vault:
-                secret.delete()
-                secret.ctl.delete_secret()
+                secret.delete(delete_from_engine=True)
             raise KeyExistsError()
 
         # SEC

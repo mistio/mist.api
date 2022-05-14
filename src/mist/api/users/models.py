@@ -497,6 +497,18 @@ class Organization(Owner):
 
     meta = {'indexes': ['name', 'vault_secret_engine_path']}
 
+    _secrets_ctl = None
+
+    @property
+    def secrets_ctl(self):
+        if self._secrets_ctl is None:
+            from mist.api.secrets import controllers
+            if config.VAULT_KV_VERSION == 1:
+                self._secrets_ctl = controllers.KV1VaultSecretController(self)
+            else:
+                self._secrets_ctl = controllers.KV2VaultSecretController(self)
+        return self._secrets_ctl
+
     @property
     def mapper(self):
         """Returns the `PermissionMapper` for the current Org context."""

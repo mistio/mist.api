@@ -1,15 +1,14 @@
 import traceback
 
 from pymongo import MongoClient
-from mist.api.config import MONGO_URI
-
+from mist.api import config
 from mist.api.secrets.models import VaultSecret
 from mist.api.users.models import Owner
 
 
 def migrate_keys():
 
-    c = MongoClient(MONGO_URI)
+    c = MongoClient(config.MONGO_URI)
     db = c.get_database('mist2')
     db_keys = db['keys']
     failed = migrated = skipped = 0
@@ -26,13 +25,14 @@ def migrate_keys():
             owner = Owner.objects.get(id=key['owner'])
 
             # insert new secret in secrets collection
-            secret = VaultSecret(name=key["name"], owner=owner)
+            name = f"{config.VAULT_KEYS_PATH}{key['name']}"
+            secret = VaultSecret(name=name, owner=owner)
             secret.save()
             # store secret in Vault
             secret_dict = {
                 'private': private
             }
-            secret.ctl.create_or_update_secret(secret_dict)
+            secret.create_or_update(secret_dict)
 
             # update_one in keys collection
             # secret_value = SecretValue(secret=secret, key='private')
