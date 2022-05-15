@@ -817,7 +817,9 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
 
 
 def get_console_proxy_uri(machine):
+    log.info("hey")
     if machine.cloud.ctl.provider == 'libvirt':
+
         import xml.etree.ElementTree as ET
         from html import unescape
         from datetime import datetime
@@ -839,8 +841,7 @@ def get_console_proxy_uri(machine):
             or KeyMachineAssociation.objects(machine=machine.parent)
         if not key_associations:
             return 'You are not authorized to perform this action', 403
-        key_name = Key.objects(owner=machine.owner, deleted=None)[0]
-        key_id = key_associations[0].key.id
+        key_name = key_associations[0].key.name
         host = '%s@%s:%d' % (key_associations[0].ssh_user,
                              machine.parent.hostname,
                              key_associations[0].port)
@@ -854,6 +855,7 @@ def get_console_proxy_uri(machine):
             vault_token,
             vault_secret_path)
         from mist.api.helpers import encrypt
+        log.info(msg_to_encrypt)
         encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
         msg = '%s,%s,%s,%s,%s' % (
             host,

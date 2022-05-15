@@ -2482,7 +2482,7 @@ def find_best_ssh_params(machine, auth_context=None):
             key_association.last_used = int(
                 datetime.now().timestamp())
             key_association.save()
-            return key_association.id, \
+            return key_association.key.name, \
                 hostname, \
                 key_association.ssh_user, \
                 port
@@ -2607,19 +2607,17 @@ def find_best_ssh_params(machine, auth_context=None):
                 machine.save()
                 if trigger_session_update_flag:
                     trigger_session_update(machine.owner.id, ['keys'])
-                return key_association.id, host, ssh_user, port
+                return key_association.key.name, host, ssh_user, port
     raise MachineUnauthorizedError
 
 
 # SEC
 def prepare_ssh_uri(auth_context, machine):
-    key_association_id, hostname, user, port = find_best_ssh_params(
+    key_name, hostname, user, port = find_best_ssh_params(
         machine, auth_context=auth_context)
     expiry = int(datetime.now().timestamp()) + 100
     vault_token = machine.owner.vault_token
     vault_secret_engine_path = machine.owner.vault_secret_engine_path
-    key = Key.objects(owner=machine.owner, deleted=None)[0]
-    key_name = key.name
     vault_secret_path = '/v1/%s/data/mist/keys/%s' % (
         vault_secret_engine_path,
         key_name)
