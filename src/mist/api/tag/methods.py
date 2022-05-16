@@ -18,10 +18,11 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
     query = Q(owner=auth_context.owner)
 
     if config.HAS_RBAC and not auth_context.is_owner():
-        rbac_filter = Q(id='')
+        rbac_filter = Q()
         for rtype, rids in auth_context.get_allowed_resources().items():
-            rbac_filter |= Q(resource_type=rtype.rstrip('s'),
-                             resource_id__in=rids)
+            if rids:
+                rbac_filter |= Q(resource_type=rtype.rstrip('s'),
+                                 resource_id__in=rids)
         query &= rbac_filter
 
     missing_resources = get_missing_resources()
@@ -133,7 +134,7 @@ def get_tag_objects_for_resource(owner, resource_obj, *args, **kwargs):
 def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     """
     This function get a list of tags in the form
-    [{'joe': 'schmoe'), ...] and will scan the list and update all
+    [{'joe': 'schmoe'}, ...] and will scan the list and update all
     the tags whose keys are present but whose values are different and add all
     the missing ones
     :param owner: the resource owner
@@ -142,15 +143,17 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     """
     # merge all the tags in the list into one dict. this will also make sure
     # that if there are duplicates they will be cleaned up
-    tag_dict = dict(tags)
     rtype = resource_obj._meta["collection"].rstrip('s')
+    existing_tags = get_tag_objects_for_resource(owner, resource_obj)
 
     tag_dict = {
         k: v for k, v
-        in tag_dict.items() - {
-            tag.key: tag.value for tag in get_tag_objects_for_resource(
-                owner, resource_obj)}.items()
+        in dict(tags).items() - {
+                    tag.key: tag.value for tag in existing_tags}.items()
     }
+
+    remove_tags_from_resource(owner, resource_obj, tag_dict)
+
     Tag.objects.insert([Tag(owner=owner, resource_id=resource_obj.id,
                             resource_type=rtype, key=key, value=value)
                         for key, value in tag_dict.items()])
@@ -172,8 +175,8 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
 
 def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
     """
-    This function get a list of tags in the form [{'key': 'joe'}] or
-    [{'key': 'joe', 'value': 'schmoe'}] and will delete them from the resource
+    This function get a list of tags in the form {'key1': 'value1',
+    'key2': 'value2'} and will delete them from the resource
     :param owner: the resource owner
     :param resource_obj: the resource object where the tags will be added
     :param rtype: resource type
@@ -302,7 +305,7 @@ def delete_security_tag(auth_context, tag_key):
 
 def get_missing_resources():
 
-    dikt = {}
+    dikt = {rtype: [] for rtype in TAGS_RESOURCE_TYPES}
     states_rtypes = {
         'deleted': ['cloud', 'key', 'script', 'template'],
         'missing_since': ['machine', 'cluster', 'network',
@@ -321,6 +324,6 @@ def get_missing_resources():
             except KeyError:
                 continue
             if resource_objs:
-                dikt[resource_type] = [obj.id for obj in resource_objs]
+                dikt[resource_type] += [obj.id for obj in resource_objs]
 
     return dikt
