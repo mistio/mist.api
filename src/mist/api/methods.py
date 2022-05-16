@@ -838,16 +838,19 @@ def get_console_proxy_uri(machine):
             or KeyMachineAssociation.objects(machine=machine.parent)
         if not key_associations:
             return 'You are not authorized to perform this action', 403
-        key_name = key_associations[0].key.name
+        key = key_associations[0].key
+        key_path = key.private.secret.name
         host = '%s@%s:%d' % (key_associations[0].ssh_user,
                              machine.parent.hostname,
                              key_associations[0].port)
         expiry = int(datetime.now().timestamp()) + 100
         vault_token = machine.owner.vault_token
         vault_secret_engine_path = machine.owner.vault_secret_engine_path
-        vault_secret_path = '/v1/%s/data/mist/keys/%s' % (
+        vault_addr = config.VAULT_ADDR + "/v1"
+        vault_secret_path = '%s/%s/data/%s' % (
+            vault_addr,
             vault_secret_engine_path,
-            key_name)
+            key_path)
         msg_to_encrypt = '%s,%s' % (
             vault_token,
             vault_secret_path)

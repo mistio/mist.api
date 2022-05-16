@@ -2617,13 +2617,15 @@ def prepare_ssh_uri(auth_context, machine):
         machine, auth_context=auth_context)
     association = KeyMachineAssociation.objects.get(id=key_association_id)
     key = association.key
-    key_name = key.name
+    key_path = key.private.secret.name
     expiry = int(datetime.now().timestamp()) + 100
     vault_token = machine.owner.vault_token
     vault_secret_engine_path = machine.owner.vault_secret_engine_path
-    vault_secret_path = '/v1/%s/data/mist/keys/%s' % (
+    vault_addr = config.VAULT_ADDR + "/v1"
+    vault_secret_path = '%s/%s/data/%s' % (
+        vault_addr,
         vault_secret_engine_path,
-        key_name)
+        key_path)
     msg_to_encrypt = '%s,%s' % (
         vault_token,
         vault_secret_path)
