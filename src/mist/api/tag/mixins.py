@@ -13,14 +13,14 @@ class TagMixin(object):
         dikt = {}
         for pair in tags.split(',')[1:-1]:
             k, v = pair.split(':')
-            dikt[k] = v
+            dikt[k] = v or None
 
         return dikt
 
     def to_string(self, tag_dict):
         tags = ''
         for k, v in tag_dict.items():
-            tags = tags.rstrip(',') + f',{k}:{v},'
+            tags = tags.rstrip(',') + f',{k}:{v or ""},'
 
         return tags
 
