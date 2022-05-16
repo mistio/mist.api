@@ -38,7 +38,7 @@ def _get_alert_details(resource, rule, incident_id,
     # Use the old way for monitoring data for now..
     if isinstance(rule, MachineMetricRule):
         return _alert_pretty_machine_details(
-            rule.owner, rule.name, value, triggered, timestamp,
+            rule.org, rule.name, value, triggered, timestamp,
             resource.cloud.id, resource.external_id, action, level, description
         )
 
@@ -76,7 +76,7 @@ def _get_alert_details(resource, rule, incident_id,
     d.update({'name': '', 'machine_link': ''})
 
     if isinstance(rule, ArbitraryLogsRule):
-        resource = rule.owner
+        resource = rule.org
         resource_type = 'organization'
         resource_link = config.CORE_URI
     elif isinstance(rule, ResourceLogsRule):

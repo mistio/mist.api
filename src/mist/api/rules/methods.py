@@ -49,7 +49,7 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
             Model = get_resource_model(resource_type)
             resource = Model.objects.get(id=resource_id, owner=rule.org)
         else:
-            resource = rule.owner
+            resource = rule.org
         _log_alert(resource, rule, value, triggered, timestamp, incident_id,
                    rule.actions[0])
     # If the rule got un-triggered or re-triggered, just send a notification
