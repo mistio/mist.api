@@ -149,7 +149,7 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     tag_dict = {
         k: v for k, v
         in dict(tags).items() - {
-                    tag.key: tag.value for tag in existing_tags}.items()
+            tag.key: tag.value for tag in existing_tags}.items()
     }
 
     remove_tags_from_resource(owner, resource_obj, tag_dict)
