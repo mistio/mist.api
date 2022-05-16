@@ -196,7 +196,6 @@ class Rule(me.Document):
         """
         return Organization.objects.get(id=self.org_id)
 
-
     @property
     def plugin(self):
         """Return the instance of a backend plugin.
