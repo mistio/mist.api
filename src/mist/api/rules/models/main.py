@@ -72,10 +72,10 @@ class Rule(me.Document):
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     name = me.StringField(required=True)
-    org = me.StringField(required=True)
+    org_id = me.StringField(required=True)
     # Deprecated
-    title = me.StringField(required=True)
-    owner_id = me.StringField(required=True)
+    title = me.StringField(required=False)
+    owner_id = me.StringField(required=False)
     # Specifies a list of queries to be evaluated. Results will be logically
     # ANDed together in order to decide whether an alert should be raised.
     queries = me.EmbeddedDocumentListField(QueryCondition, required=True)
@@ -121,9 +121,9 @@ class Rule(me.Document):
         'collection': 'rules',
         'allow_inheritance': True,
         'indexes': [
-            'owner_id',
+            'org_id',
             {
-                'fields': ['owner_id', 'title'],
+                'fields': ['org_id', 'name'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -170,16 +170,16 @@ class Rule(me.Document):
 
         Arguments:
 
-            owner:  instance of mist.api.users.models.Organization
+            org_id:  instance of mist.api.users.models.Organization
             name:  the name of the rule. This must be unique per Organization
             kwargs: additional keyword arguments that will be passed to the
                     corresponding controller in order to setup the self
 
         """
         try:
-            cls.objects.get(org=auth_context.owner.id, name=name)
+            cls.objects.get(org_id=auth_context.owner.id, name=name)
         except cls.DoesNotExist:
-            rule = cls(org=auth_context.owner.id, name=name)
+            rule = cls(org_id=auth_context.owner.id, name=name)
             rule.ctl.set_auth_context(auth_context)
             rule.ctl.add(**kwargs)
         else:
@@ -187,21 +187,15 @@ class Rule(me.Document):
         return rule
 
     @property
-    def owner(self):
-        """Return the Organization (instance) owning self.
-
-        We refrain from storing the owner as a me.ReferenceField in order to
-        avoid automatic/unwanted dereferencing.
-
-        """
-        return Organization.objects.get(id=self.org)
-
-    @property
     def org(self):
         """Return the Organization (instance) owning self.
 
+        We refrain from storing the org as a me.ReferenceField in order to
+        avoid automatic/unwanted dereferencing.
+
         """
-        return self.owner
+        return Organization.objects.get(id=self.org_id)
+
 
     @property
     def plugin(self):
@@ -219,7 +213,7 @@ class Rule(me.Document):
         """Return the name of the task.
 
         """
-        return f'Org({self.owner.name}):Rule({self.name})'
+        return f'Org({self.org.name}):Rule({self.name})'
 
     @property
     def task(self):
@@ -272,7 +266,7 @@ class Rule(me.Document):
         # backwards compatible with the old monitoring stack. However, it will
         # have to change in the future due to uniqueness constrains.
         if not self.name:
-            self.name = 'rule%d' % self.owner.rule_counter
+            self.name = 'rule%d' % self.org.rule_counter
 
     def as_dict(self):
         return {
@@ -289,7 +283,7 @@ class Rule(me.Document):
 
     def __str__(self):
         return '%s %s of %s' % (self.__class__.__name__,
-                                self.name, self.owner)
+                                self.name, self.org)
 
 
 class ArbitraryRule(Rule):

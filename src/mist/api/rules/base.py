@@ -212,25 +212,25 @@ class BaseController(object):
             raise BadRequestError('Rule "%s" already exists' % self.rule.name)
 
         # Trigger a UI session update.
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
     def rename(self, name):
         """Rename an existing Rule."""
         self.rule.name = name
         self.rule.save()
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
     def enable(self):
         """Enable a Rule that has been previously disabled."""
         self.rule.disabled = False
         self.rule.save()
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
     def disable(self):
         """Disable a Rule's evaluation."""
         self.rule.disabled = True
         self.rule.save()
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
     def delete(self):
         """Delete an existing Rule.
@@ -242,7 +242,7 @@ class BaseController(object):
         """
         self.check_auth_context()
         self.rule.delete()
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
     def evaluate(self, update_state=False, trigger_actions=False):
         """Evaluate a Rule.

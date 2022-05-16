@@ -74,7 +74,7 @@ def run_action_by_id(rule_id, incident_id, action_id,
     else:
         assert resource_type in rtype_to_classpath, resource_type
         Model = get_resource_model(resource_type)
-        resource = Model.objects.get(id=resource_id, owner=rule.owner_id)
+        resource = Model.objects.get(id=resource_id, owner=rule.org_id)
 
     try:
         action.run(resource, value, triggered, timestamp, incident_id)

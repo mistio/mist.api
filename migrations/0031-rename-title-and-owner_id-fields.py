@@ -6,7 +6,7 @@ from mist.api.config import MONGO_URI
 from pymongo.errors import OperationFailure
 
 RENAME_MAPS = {
-    'owner': {'owner_id': 'org'},
+    'owner': {'owner_id': 'org_id'},
     'name': {'title': 'name'}
 }
 
@@ -19,9 +19,9 @@ def rename_title_and_owner_id_fields():
     failed = renamed = skipped = 0
     # drop index containing owner_id
     try:
-        db_rules.drop_index('owner_id_1_title_1')
+        db_rules.drop_indexes()
     except OperationFailure:
-        print("Index already dropped")
+        print("Indexes already dropped")
     for rule in db_rules.find():
         for _, rename_map in RENAME_MAPS.items():
             try:
