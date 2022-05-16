@@ -28,7 +28,7 @@ from libcloud.compute.base import NodeAuthPassword
 import mist.api.tasks
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import KeyAssociation, Machine, KeyMachineAssociation
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.keys.models import Key, SignedSSHKey
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
