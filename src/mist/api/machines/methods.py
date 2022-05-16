@@ -28,7 +28,7 @@ from libcloud.compute.base import NodeAuthPassword
 import mist.api.tasks
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine, KeyMachineAssociation
+from mist.api.machines.models import KeyAssociation, Machine, KeyMachineAssociation
 from mist.api.keys.models import Key, SignedSSHKey
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
@@ -2615,16 +2615,37 @@ def find_best_ssh_params(machine, auth_context=None):
 def prepare_ssh_uri(auth_context, machine):
     key_association_id, hostname, user, port = find_best_ssh_params(
         machine, auth_context=auth_context)
+    key = KeyMachineAssociation.objects.get(id=key_association_id)
+    key_name = key.name
     expiry = int(datetime.now().timestamp()) + 100
-    msg = '%s,%s,%s,%s,%s' % (user,
-                              hostname,
-                              port, key_association_id, expiry)
+    vault_token = machine.owner.vault_token
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    vault_secret_path = '/v1/%s/data/mist/keys/%s' % (
+        vault_secret_engine_path,
+        key_name)
+    msg_to_encrypt = '%s,%s' % (
+        vault_token,
+        vault_secret_path)
+    from mist.api.helpers import encrypt
+    # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
+    encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
+    msg = '%s,%s,%s,%s,%s' % (
+        user,
+        hostname,
+        port,
+        expiry,
+        encrypted_msg)
     mac = hmac.new(
         config.SECRET.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
     ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
-        base_ws_uri, user,
-        hostname, port, key_association_id, expiry, mac)
+        base_ws_uri,
+        user,
+        hostname,
+        port,
+        expiry,
+        encrypted_msg,
+        mac)
     return ssh_uri
