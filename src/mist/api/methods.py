@@ -823,7 +823,6 @@ def get_console_proxy_uri(machine):
         from datetime import datetime
         import hmac
         import hashlib
-        from mist.api.keys.models import Key
         xml_desc = unescape(machine.extra.get('xml_description', ''))
         root = ET.fromstring(xml_desc)
         vnc_element = root.find('devices').find('graphics[@type="vnc"]')
