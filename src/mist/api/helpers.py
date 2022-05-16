@@ -855,7 +855,8 @@ def iso_to_seconds(iso):
     return get_datetime(iso).strftime('%s')
 
 
-def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
+def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False,
+            segment_size=8):
     """Encrypt shit the right way"""
 
     # sanitize inputs
@@ -864,7 +865,6 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
         raise Exception()
     if isinstance(plaintext, string_types):
         plaintext = plaintext.encode('utf-8')
-
     # pad plaintext using PKCS7 padding scheme
     padlen = AES.block_size - len(plaintext) % AES.block_size
     plaintext += (chr(padlen) * padlen).encode('utf-8')
@@ -874,14 +874,12 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
         iv = ('\0' * AES.block_size).encode()
     else:
         iv = get_random_bytes(AES.block_size)
-
     # encrypt using AES in CFB mode
-    ciphertext = AES.new(key, AES.MODE_CFB, iv).encrypt(plaintext)
-
+    ciphertext = AES.new(key, AES.MODE_CFB, iv,
+                         segment_size=segment_size).encrypt(plaintext)
     # prepend iv to ciphertext
     if not no_iv:
         ciphertext = iv + ciphertext
-
     # return ciphertext in hex encoding
     return ciphertext.hex()
 
