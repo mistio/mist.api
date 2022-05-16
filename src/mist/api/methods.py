@@ -823,6 +823,7 @@ def get_console_proxy_uri(machine):
         from datetime import datetime
         import hmac
         import hashlib
+        from mist.api.keys.models import Key
         xml_desc = unescape(machine.extra.get('xml_description', ''))
         root = ET.fromstring(xml_desc)
         vnc_element = root.find('devices').find('graphics[@type="vnc"]')
@@ -838,19 +839,34 @@ def get_console_proxy_uri(machine):
             or KeyMachineAssociation.objects(machine=machine.parent)
         if not key_associations:
             return 'You are not authorized to perform this action', 403
-        key_id = key_associations[0].key.id
+        key_name = key_associations[0].key.name
         host = '%s@%s:%d' % (key_associations[0].ssh_user,
                              machine.parent.hostname,
                              key_associations[0].port)
         expiry = int(datetime.now().timestamp()) + 100
-        msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
+        vault_token = machine.owner.vault_token
+        vault_secret_engine_path = machine.owner.vault_secret_engine_path
+        vault_secret_path = '/v1/%s/data/mist/keys/%s' % (
+            vault_secret_engine_path,
+            key_name)
+        msg_to_encrypt = '%s,%s' % (
+            vault_token,
+            vault_secret_path)
+        from mist.api.helpers import encrypt
+        encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
+        msg = '%s,%s,%s,%s,%s' % (
+            host,
+            vnc_host,
+            vnc_port,
+            expiry,
+            encrypted_msg)
         mac = hmac.new(
             config.SECRET.encode(),
             msg=msg.encode(),
             digestmod=hashlib.sha256).hexdigest()
         base_ws_uri = config.CORE_URI.replace('http', 'ws')
         proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
-            base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
+            base_ws_uri, host, vnc_host, vnc_port, expiry, encrypted_msg, mac)
         return proxy_uri
     elif machine.cloud.ctl.provider == 'vsphere':
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
