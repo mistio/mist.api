@@ -2615,7 +2615,8 @@ def find_best_ssh_params(machine, auth_context=None):
 def prepare_ssh_uri(auth_context, machine):
     key_association_id, hostname, user, port = find_best_ssh_params(
         machine, auth_context=auth_context)
-    key = KeyMachineAssociation.objects.get(id=key_association_id)
+    association = KeyMachineAssociation.objects.get(id=key_association_id)
+    key = association.key
     key_name = key.name
     expiry = int(datetime.now().timestamp()) + 100
     vault_token = machine.owner.vault_token
