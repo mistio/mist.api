@@ -2656,10 +2656,12 @@ def prepare_kubernetes_uri(auth_context, machine):
     vault_token = machine.owner.vault_token
     vault_secret_engine_path = machine.owner.vault_secret_engine_path
     key_name = machine.cloud.name
-    msg_to_encrypt = '%s,%s,%s' % (
-        vault_token,
+    vault_secret_path = '/v1/%s/data/mist/clouds/%s' % (
         vault_secret_engine_path,
         key_name)
+    msg_to_encrypt = '%s,%s' % (
+        vault_token,
+        vault_secret_path)
     # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
     encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
     msg = '%s,%s,%s,%s,%s' % (
