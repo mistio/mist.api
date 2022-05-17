@@ -90,8 +90,7 @@ class VaultSecret(Secret):
             'tags': {
                 tag.key: tag.value
                 for tag in Tag.objects(resource_id=self.id,
-                                       resource_type='secret')
-                    },
+                                       resource_type='secret')},
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }
