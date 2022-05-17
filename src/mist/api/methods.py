@@ -846,7 +846,7 @@ def get_console_proxy_uri(machine):
         expiry = int(datetime.now().timestamp()) + 100
         vault_token = machine.owner.vault_token
         vault_secret_engine_path = machine.owner.vault_secret_engine_path
-        vault_addr = config.VAULT_ADDR + "/v1"
+        vault_addr = config.VAULT_ADDR
         vault_secret_path = '%s/%s/%s' % (
             vault_addr,
             vault_secret_engine_path,
