@@ -44,7 +44,15 @@ class Bucket(OwnershipMixin, me.Document, TagMixin):
 
     meta = {
         'indexes': [
+            'cloud',
+            'last_seen',
+            'missing_since',
             {
+                'fields': ['owner', 'name', 'cloud'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            }, {
                 'fields': ['$tags'],
                 'default_language': 'english',
                 'sparse': True,
