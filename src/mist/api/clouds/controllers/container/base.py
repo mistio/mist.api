@@ -497,6 +497,7 @@ class BaseContainerController(BaseController):
                 cluster.total_cost.monthly = round(cpm, 2)
                 cluster.cost.hourly = round(control_plane_cph, 2)
                 cluster.cost.monthly = round(
+                    control_plane_cpm, 2)
                 updated = True
         except Exception as exc:
             log.exception("Error while calculating cost "
