@@ -1457,8 +1457,8 @@ LANDING_FORMS = [
 ###############################################################################
 TAGS_RESOURCE_TYPES = (
     'bucket', 'cloud', 'cluster', 'image', 'key',
-    'machine', 'network', 'record', 'rule', 'schedule',
-    'script', 'stack', 'subnet', 'team', 'template',
+    'machine', 'network', 'record', 'schedule',
+    'script', 'secret', 'stack', 'subnet', 'template',
     'tunnel', 'volume', 'zone'
 )
 STATES = {
