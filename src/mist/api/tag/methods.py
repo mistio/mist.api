@@ -151,26 +151,20 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
         in dict(tags).items() - {
             tag.key: tag.value for tag in existing_tags}.items()
     }
+    if tag_dict:
+        remove_tags_from_resource(owner, resource_obj, tag_dict)
 
-    remove_tags_from_resource(owner, resource_obj, tag_dict)
+        Tag.objects.insert([Tag(owner=owner, resource_id=resource_obj.id,
+                                resource_type=rtype, key=key, value=value)
+                            for key, value in tag_dict.items()])
 
-    Tag.objects.insert([Tag(owner=owner, resource_id=resource_obj.id,
-                            resource_type=rtype, key=key, value=value)
-                        for key, value in tag_dict.items()])
+        # SEC
+        owner.mapper.update(resource_obj)
 
-    # SEC
-    owner.mapper.update(resource_obj)
-
-    # FIXME: The fact that a session update is triggered at this point may
-    # result in re-updating the RBAC Mappings twice for the given resource
-    # for no f*** reason.
-    rtype = resource_obj._meta["collection"]
-
-    if rtype not in ['machine', 'zone', 'network', 'volume', 'image']:
         trigger_session_update(
-            owner,
-            [rtype + 's' if not rtype.endswith('s') else rtype]
-        )
+                owner,
+                [rtype + 's' if not rtype.endswith('s') else rtype]
+            )
 
 
 def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
