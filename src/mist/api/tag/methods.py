@@ -161,10 +161,9 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
         # SEC
         owner.mapper.update(resource_obj)
 
-        trigger_session_update(
-                owner,
-                [rtype + 's' if not rtype.endswith('s') else rtype]
-            )
+        trigger_session_update(owner,
+                               [rtype + 's' if not rtype.endswith('s')
+                                else rtype])
 
 
 def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
