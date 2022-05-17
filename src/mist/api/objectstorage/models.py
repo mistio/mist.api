@@ -87,7 +87,7 @@ class Bucket(OwnershipMixin, me.Document, TagMixin):
                 tag.key: tag.value for tag in
                 Tag.objects(resource_type='bucket',
                             resource_id=self.id).only('key', 'value')
-                }
+                    }
         }
 
     def get_content(self):
