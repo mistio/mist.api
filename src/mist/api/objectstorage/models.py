@@ -6,7 +6,8 @@ import mongoengine as me
 
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
-
+from mist.api.tag.models import Tag
+from mist.api.tag.mixins import TagMixin
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class BucketItem(me.EmbeddedDocument):
     meta_data = MistDictField()
 
 
-class Bucket(OwnershipMixin, me.Document):
+class Bucket(OwnershipMixin, me.Document, TagMixin):
     """The basic bucket model"""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
@@ -41,11 +42,35 @@ class Bucket(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     first_seen = me.DateTimeField()
 
+    meta = {
+        'indexes': [
+            {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
+        ],
+    }
+
     def __init__(self, *args, **kwargs):
         super(Bucket, self).__init__(*args, **kwargs)
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
+
+    def delete(self):
+        super().delete()
+        Tag.objects(resource_id=self.id, resource_type='bucket').delete()
+        try:
+            self.owner.mapper.remove(self)
+        except Exception as exc:
+            log.error("Got error %r while removing bucket %s", exc, self.id)
+        try:
+            if self.owned_by:
+                self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        except Exception as exc:
+            log.error("Got error %r while removing bucket %s", exc, self.id)
 
     def as_dict(self):
         return {
@@ -58,6 +83,11 @@ class Bucket(OwnershipMixin, me.Document):
             'extra': self.extra,
             'created': str(self.created),
             'last_seen': str(self.last_seen),
+            'tags': {
+                tag.key: tag.value for tag in
+                Tag.objects(resource_type='bucket',
+                            resource_id=self.id).only('key', 'value')
+                }
         }
 
     def get_content(self):
