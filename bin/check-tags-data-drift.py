@@ -21,7 +21,7 @@ def check_difference(owner, resource_object, override=False):
         check_difference(owner, resource_object, override=True)
 
     elif override:
-        print(15*'-', 'Fixing', 15*'-')
+        print(15 * '-', 'Fixing', 15 * '-')
         print_diff(canonical, tags_attribute, resource_object)
 
 
