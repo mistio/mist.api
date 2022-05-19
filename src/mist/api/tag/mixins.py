@@ -9,7 +9,7 @@ class TagMixin(object):
     """
     tags = me.StringField(default='')
 
-    def to_dict(self):
+    def tags_to_dict(self):
         dikt = {}
         for pair in self.tags.split(',')[1:-1]:
             k, v = pair.split(':')
@@ -17,7 +17,7 @@ class TagMixin(object):
 
         return dikt
 
-    def to_string(self, tag_dict):
+    def tags_to_string(self, tag_dict):
         tags = ''
         for k, v in tag_dict.items():
             tags = tags.rstrip(',') + f',{k}:{v},'
@@ -25,16 +25,16 @@ class TagMixin(object):
         return tags
 
     def update_tags(self, tags_to_update):
-        tag_dict = self.to_dict()
+        tag_dict = self.tags_to_dict()
         tag_dict.update(tags_to_update)
 
-        self.tags = self.to_string(tag_dict)
+        self.tags = self.tags_to_string(tag_dict)
         self.save()
 
     def delete_tags(self, key_list):
-        tag_dict = self.to_dict()
+        tag_dict = self.tags_to_dict()
         for k in key_list:
             tag_dict.pop(k, None)
 
-        self.tags = self.to_string(tag_dict)
+        self.tags = self.tags_to_string(tag_dict)
         self.save()

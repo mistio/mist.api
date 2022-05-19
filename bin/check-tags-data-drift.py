@@ -9,14 +9,12 @@ from mist.api.models import Cloud  # noqa F401
 def check_difference(owner, resource_object, override=False):
 
     canonical = get_tags_for_resource(owner, resource_object)
-    tags_attribute = resource_object.to_dict()
-    canonical = get_tags_for_resource(owner, resource_object)
-    tags_attribute = resource_object.to_dict()
+    tags_attribute = resource_object.tags_to_dict()
 
     if canonical != tags_attribute:
 
         print_diff(canonical, tags_attribute, resource_object)
-        resource_object.tags = resource_object.to_string(canonical)
+        resource_object.tags = resource_object.tags_to_string(canonical)
         resource_object.save()
         check_difference(owner, resource_object, override=True)
 
