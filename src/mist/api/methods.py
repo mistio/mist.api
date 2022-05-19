@@ -847,7 +847,7 @@ def get_console_proxy_uri(machine):
         vault_token = machine.owner.vault_token
         vault_secret_engine_path = machine.owner.vault_secret_engine_path
         vault_addr = config.VAULT_ADDR
-        vault_secret_path = '%s/%s/%s' % (
+        vault_secret_path = '%s/v1/%s/data/%s' % (
             vault_addr,
             vault_secret_engine_path,
             key_path)
