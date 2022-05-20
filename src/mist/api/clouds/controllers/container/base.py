@@ -945,12 +945,18 @@ class BaseContainerController(BaseController):
     def _libcloud_ingress_to_ingress(self, libcloud_ingress):
         load_balancer_ingresses = libcloud_ingress.load_balancer_ingresses
         ips = [
-            load_balancer_ingress.ip
+            {"address": load_balancer_ingress.ip,
+             "ports": [vars(ingress_port)
+                       for ingress_port in load_balancer_ingress.ports
+                       ]}
             for load_balancer_ingress in load_balancer_ingresses
             if load_balancer_ingress.ip
         ]
         hostnames = [
-            load_balancer_ingress.hostname
+            {"address": load_balancer_ingress.hostname,
+             "ports": [vars(ingress_port)
+                       for ingress_port in load_balancer_ingress.ports
+                       ]}
             for load_balancer_ingress in load_balancer_ingresses
             if load_balancer_ingress.hostname
         ]
