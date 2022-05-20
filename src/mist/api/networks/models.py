@@ -168,23 +168,19 @@ class Network(OwnershipMixin, me.Document):
         return net_dict
 
     def as_dict_v2(self, deref='auto', only=''):
-        """Returns the API representation of the `Volume` object."""
+        """Returns the API representation of the `Network` object."""
         # TODO: add machines
         from mist.api.helpers import prepare_dereferenced_dict
-        standard_fields = ['id', 'name', 'extra', 'last_seen', 'created']
+        standard_fields = ['id', 'name', 'external_id', 'extra',
+                           'last_seen', 'created']
         deref_map = {
-            'cloud': 'title',
+            'cloud': 'name',
             'location': 'name',
             'owned_by': 'email',
             'created_by': 'email',
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
-
-        if 'external_id' in only or not only:
-            ret['external_id'] = None
-            if self.network_id:
-                ret['external_id'] = self.network_id
 
         if 'subnets' in only or not only:
             ret['subnets'] = {s.id: s.as_dict() for s
