@@ -62,8 +62,12 @@ class VaultSecretController(BaseSecretController):
     def __init__(self, org: Organization) -> None:
         super().__init__(org)
         url = org.vault_address or config.VAULT_ADDR
-        token = org.vault_token or (
-            not org.vault_address and config.VAULT_TOKEN)
+        token = None
+        if org.vault_token:
+            token = org.vault_token
+        elif not org.vault_address and not org.vault_role_id \
+                and config.VAULT_TOKEN:
+            token = config.VAULT_TOKEN
         is_authenticated = False
         if token:
             self.client = hvac.Client(url=url, token=token)
