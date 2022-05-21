@@ -77,12 +77,12 @@ class VaultSecretController(BaseSecretController):
                 raise ServiceUnavailableError("Vault is sealed.")
 
         if not token or not is_authenticated:
-            if org.role_id and org.secret_id:
+            if org.vault_role_id and org.vault_secret_id:
                 self.client = hvac.Client(url=url)
                 try:
                     result = self.client.auth.approle.login(
-                        role_id=org.role_id,
-                        secret_id=org.secret_id,
+                        role_id=org.vault_role_id,
+                        secret_id=org.vault_secret_id,
                     )
                 except hvac.exceptions.InvalidRequest:
                     raise BadRequestError(
