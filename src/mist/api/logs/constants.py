@@ -44,6 +44,9 @@ JOBS = {
     'create_cluster': (
         'cluster_post_deploy_finished',
     ),
+    'destroy_cluster': (
+        'cluster_deletion_finished',
+    ),
     'enable_monitoring': (
         'telegraf_deployment_finished',
     ),
