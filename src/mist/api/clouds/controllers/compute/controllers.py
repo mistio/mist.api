@@ -48,7 +48,7 @@ from html import unescape
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price, get_pricing
-from libcloud.pricing import get_gce_image_price_dict
+from libcloud.pricing import get_gce_image_price
 
 from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.base import NodeAuthSSHKey, NodeAuthPassword
@@ -2332,49 +2332,23 @@ class GoogleComputeController(BaseComputeController):
                     ram_price = ram_instance['ram'][
                         usage_type][default_location].get('price', 0)
         if os_type in {'win', 'windows'}:
-            os_prices = get_gce_image_price_dict(image_name="Windows Server")
-            if size_type in {'f1', 'g1'}:
-                os_price = os_prices[size_type].get('price', 0)
-            else:
-                os_price = os_prices['any'].get('price', 0) * machine_cpu
+            os_price = get_gce_image_price(image="Windows Server",
+                                           size_type=size_type,
+                                           cpus=machine_cpu)
         if os_type in {'rhel'}:
-            os_prices = get_gce_image_price_dict(image_name="RHEL")
-            if machine_cpu <= 4:
-                os_price = os_prices['4vcpu or less'].get('price', 0)
-            else:
-                os_price = os_prices['6vcpu or more'].get('price', 0)
+            os_price = get_gce_image_price(image="RHEL", cpus=machine_cpu)
         if os_type in {'sles'}:
-            os_prices = get_gce_image_price_dict(image_name="SLES")
-            if size_type in {'f1', 'g1'}:
-                os_price = os_prices[size_type].get('price', 0)
-            else:
-                os_price = os_prices['any'].get('price', 0)
+            os_price = get_gce_image_price(image="SLES", size_type=size_type)
         if "sles for sap" in os_type:
-            os_prices = get_gce_image_price_dict(image_name="SLES for SAP")
-            if machine_cpu >= 6:
-                os_price = os_prices['6vcpu or more'].get('price', 0)
-            elif 2 < machine_cpu <= 4:
-                os_price = os_prices['3-4vcpu'].get('price', 0)
-            elif machine_cpu <= 2:
-                os_price = os_prices['1-2vcpu'].get('price', 0)
+            os_prices = get_gce_image_price(image="SLES for SAP", cpus=machine_cpu)
         if "rhel" in os_type and "update services" in os_type:
-            os_prices = get_gce_image_price_dict(
-                image_name="RHEL with Update Services"
+            os_prices = get_gce_image_price(
+                image="RHEL with Update Services",
+                cpus=machine_cpu
             )
-            if machine_cpu <= 4:
-                os_price = os_prices['4vcpu or less'].get('price', 0)
-            else:
-                os_price = os_prices['6vcpu or more'].get('price', 0)
-
         if "sql" in os_type.lower():
-            os_prices = get_gce_image_price_dict('SQL Server')
-
-            if 'standard' in machine.image:
-                os_price = os_prices['standard'].get('price', 0)
-            elif 'enterprise' in machine.image:
-                os_price = os_prices['enterprise'].get('price', 0)
-            elif 'web' in machine.image:
-                os_price = os_prices['web'].get('price', 0)
+            os_price = get_gce_image_price(image='SQL Server',
+                                           img_full_name=machine.image)
 
         total_price = (machine_cpu * cpu_price + machine_ram *
                        ram_price + os_price + disk_price * disk_size)
