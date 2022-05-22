@@ -2249,7 +2249,6 @@ class GoogleComputeController(BaseComputeController):
         location = node_dict['extra'].get('zone', {}).get('name')
         # could be europe-west1-d, we want europe-west1
         location = '-'.join(location.split('-')[:2])
-        os_type = machine.os_type
         disk_type = machine.extra.get('boot_disk_type') or \
             node_dict['extra'].get('boot_disk',
                                    {}).get('extra',
@@ -2331,25 +2330,17 @@ class GoogleComputeController(BaseComputeController):
                 except KeyError:
                     ram_price = ram_instance['ram'][
                         usage_type][default_location].get('price', 0)
-        if os_type in {'win', 'windows'}:
-            os_price = get_gce_image_price(image="Windows Server",
-                                           size_type=size_type,
-                                           cpus=machine_cpu)
-        if os_type in {'rhel'}:
-            os_price = get_gce_image_price(image="RHEL", cpus=machine_cpu)
-        if os_type in {'sles'}:
-            os_price = get_gce_image_price(image="SLES", size_type=size_type)
-        if "sles for sap" in os_type:
-            os_prices = get_gce_image_price(image="SLES for SAP",
-                                            cpus=machine_cpu)
-        if "rhel" in os_type and "update services" in os_type:
-            os_prices = get_gce_image_price(
-                image="RHEL with Update Services",
-                cpus=machine_cpu
-            )
-        if "sql" in os_type.lower():
-            os_price = get_gce_image_price(image='SQL Server',
-                                           img_full_name=machine.image)
+        image_name = machine.image.name if machine.image \
+            else machine.extra.get('image', '')
+
+        # hack machine.size to have 'guestCpus' in extra to avoid calling
+        # `_get_libcloud_node` which calls list_nodes() every time
+        # get_gce_image_price needs size with size.name and
+        # size.extra['guestCpus']
+        machine.size.extra['guestCpus'] = machine.size.cpus
+
+        os_price = get_gce_image_price(image_name=image_name,
+                                       size=machine.size)
 
         total_price = (machine_cpu * cpu_price + machine_ram *
                        ram_price + os_price + disk_price * disk_size)
