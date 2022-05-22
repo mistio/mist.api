@@ -2340,7 +2340,8 @@ class GoogleComputeController(BaseComputeController):
         if os_type in {'sles'}:
             os_price = get_gce_image_price(image="SLES", size_type=size_type)
         if "sles for sap" in os_type:
-            os_prices = get_gce_image_price(image="SLES for SAP", cpus=machine_cpu)
+            os_prices = get_gce_image_price(image="SLES for SAP",
+                                            cpus=machine_cpu)
         if "rhel" in os_type and "update services" in os_type:
             os_prices = get_gce_image_price(
                 image="RHEL with Update Services",
