@@ -488,14 +488,14 @@ class BaseContainerController(BaseController):
                 self._list_clusters__cost_nodes(cluster, libcloud_cluster)
             cph = nodes_cph + control_plane_cph
             cpm = nodes_cpm + control_plane_cpm
-            if(cluster.cost.hourly != cph or
-               cluster.cost.monthly != cpm or
-               cluster.cost.control_plane_hourly != control_plane_cph or
-               cluster.cost.control_plane_monthly != control_plane_cpm):
-                cluster.cost.hourly = round(cph, 2)
-                cluster.cost.monthly = round(cpm, 2)
-                cluster.cost.control_plane_hourly = round(control_plane_cph, 2)
-                cluster.cost.control_plane_monthly = round(
+            if(cluster.total_cost.hourly != round(cph, 2) or
+               cluster.total_cost.monthly != round(cpm, 2) or
+               cluster.cost.hourly != round(control_plane_cph, 2) or
+               cluster.cost.monthly != round(control_plane_cpm, 2)):
+                cluster.total_cost.hourly = round(cph, 2)
+                cluster.total_cost.monthly = round(cpm, 2)
+                cluster.cost.hourly = round(control_plane_cph, 2)
+                cluster.cost.monthly = round(
                     control_plane_cpm, 2)
                 updated = True
         except Exception as exc:
