@@ -1,0 +1,67 @@
+#!/usr/bin/env python
+import os
+
+import mongoengine as me
+
+from mist.api.users.models import User, Organization
+from mist.api.auth.models import ApiToken
+
+
+def main():
+    email = os.getenv("PORTAL_ADMIN_EMAIL")
+    try:
+        user = User.objects.get(email=email)
+    except me.DoesNotExist:
+        print(f"Will create user with email {email}")
+    else:
+        print(f"User {email} exists, exiting")
+        return
+
+    password = os.getenv("PORTAL_ADMIN_PASSWORD")
+    user = User(email=email)
+
+    print("Setting user password.")
+    user.set_password(password)
+    user.role = 'Admin'
+    user.status = 'confirmed'
+
+    try:
+        user.save()
+    except me.ValidationError as exc:
+        print(f"Failed to save user with exception: {exc!r}")
+        print("Exiting")
+        return
+
+    org_name = os.getenv("PORTAL_ADMIN_ORGANIZATION")
+    org = Organization(name=org_name)
+    org.add_member_to_team('Owners', user)
+    try:
+        org.save()
+    except me.ValidationError as exc:
+        print(f"Failed to save org with exception: {exc!r}")
+        user.delete()
+        return
+
+    token = os.getenv("PORTAL_ADMIN_API_TOKEN")
+    if token:
+        print("Creating api token")
+        if len(token) != 64:
+            print(
+                f"Expected apitoken of 64 chars, found {len(token)}. "
+                f"Skipping")
+            return
+        api_token = ApiToken()
+        api_token.name = "auto-created"
+        api_token.org = org
+        api_token.set_user(user)
+        api_token.token = token
+        try:
+            api_token.save()
+        except (me.ValidationError, me.NotUniqueError) as exc:
+            print(f"Failed to save api token with exception {exc}")
+        else:
+            print("Created api token")
+
+
+if __name__ == '__main__':
+    main()
