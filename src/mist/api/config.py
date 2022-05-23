@@ -1264,7 +1264,7 @@ VICTORIAMETRICS_TO_VICTORIAMETRICS_METRICS_MAP = {}
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
-CILIA_SECRET_KEY = ""
+CILIA_SECRET_KEY = os.getenv("INTERNAL_KEYS_CILIA") or ""
 CILIA_GRAPHITE_NODATA_TARGETS = (
     "load.shortterm", "load.midterm", "cpu.0.idle"
 )
@@ -1409,8 +1409,8 @@ BANNED_EMAIL_PROVIDERS = [
 #  Different set in io and core
 ###############################################################################
 
-SECRET = ""
-SIGN_KEY = "dummy"
+SECRET = os.getenv("INTERNAL_KEYS_SECRET") or ""
+SIGN_KEY = os.getenv("INTERNAL_KEYS_SIGN") or "dummy"
 
 NOTIFICATION_EMAIL = {
     'all': "",
