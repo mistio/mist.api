@@ -127,6 +127,7 @@ class Cluster(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     created = me.DateTimeField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
+    total_cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     first_seen = me.DateTimeField()
 
     meta = {
@@ -200,6 +201,7 @@ class Cluster(OwnershipMixin, me.Document):
             'credentials': self.credentials,
             'config': self.config,
             'cost': self.cost.as_dict(),
+            'total_cost': self.total_cost.as_dict(),
             'extra': self.extra,
             'state': self.state,
             'last_seen': str(self.last_seen),
@@ -244,6 +246,10 @@ class Cluster(OwnershipMixin, me.Document):
                                         deref, only)
         if 'cost' in only or not only:
             ret['cost'] = self.cost.as_dict()
+
+        if 'total_cost' in only or not only:
+            ret['total_cost'] = self.total_cost.as_dict()
+
         if "nodepools" in only or not only:
             ret["nodepools"] = [nodepool.as_dict()
                                 for nodepool in self.nodepools]
