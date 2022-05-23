@@ -776,7 +776,7 @@ class Organization(Owner):
                 path "sys" {
                     capabilities = ["deny"]
                 }
-                path "%s" {
+                path "%s/*" {
                     capabilities = [
                         "create", "read", "update", "delete", "list"]
                 }
