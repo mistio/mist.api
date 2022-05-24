@@ -2333,14 +2333,9 @@ class GoogleComputeController(BaseComputeController):
         image_name = machine.image.name if machine.image \
             else machine.extra.get('image', '')
 
-        # hack machine.size to have 'guestCpus' in extra to avoid calling
-        # `_get_libcloud_node` which calls list_nodes() every time
-        # get_gce_image_price needs size with size.name and
-        # size.extra['guestCpus']
-        machine.size.extra['guestCpus'] = machine.size.cpus
-
         os_price = get_gce_image_price(image_name=image_name,
-                                       size=machine.size)
+                                       size_name=machine.size.name,
+                                       cores=machine_cpu)
 
         total_price = (machine_cpu * cpu_price + machine_ram *
                        ram_price + os_price + disk_price * disk_size)
