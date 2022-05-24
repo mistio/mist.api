@@ -1917,7 +1917,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                                        exc)
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
-
     try:
         ex_ip = conn.ex_create_public_ip(machine_name,
                                          ex_resource_group,
@@ -2656,7 +2655,9 @@ def prepare_kubernetes_uri(auth_context, machine):
     vault_token = machine.owner.vault_token
     vault_secret_engine_path = machine.owner.vault_secret_engine_path
     key_name = machine.cloud.name
-    vault_secret_path = '/v1/%s/data/mist/clouds/%s' % (
+    vault_address = config.VAULT_ADDR
+    vault_secret_path = '%s/v1/%s/data/mist/clouds/%s' % (
+        vault_address,
         vault_secret_engine_path,
         key_name)
     msg_to_encrypt = '%s,%s' % (
