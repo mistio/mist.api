@@ -6,7 +6,7 @@ import hvac
 import mongoengine as me
 
 from mist.api import config
-from mist.api.exceptions import BadRequestError, ForbiddenError
+from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api.secrets.models import Secret, VaultSecret
 
@@ -94,34 +94,22 @@ class VaultSecretController(BaseSecretController):
                     return
             raise BadRequestError("Vault authentication failed.")
 
-    def check_if_secrets_engine_exists(self) -> bool:
-        """Check whether a secrets engine exists for the org.
-        """
-        try:
-            response = self.client.sys.list_mounted_secrets_engines()
-        except hvac.exceptions.Forbidden:
-            raise ForbiddenError(
-                "Make sure your token has access to the Vault instance"
-            )
-        secret_engines = response['data'].keys()
-        return self.org.vault_secret_engine_path + '/' in secret_engines
-
     def ensure_secrets_engine(self) -> None:
         """
         Make sure that a secrets engine exists for the organization.
-
-        If one does not exist, it will be created.
         """
-        if self.check_if_secrets_engine_exists():
-            return
-        log.info("Creating secrets engine for org %s", self.org.id)
-        self.client.sys.enable_secrets_engine(
-            backend_type='kv',
-            path=self.org.vault_secret_engine_path,
-            options={
-                'version': config.VAULT_KV_VERSION,
-            }
-        )
+        try:
+            self.client.sys.enable_secrets_engine(
+                backend_type='kv',
+                path=self.org.vault_secret_engine_path,
+                options={
+                    'version': config.VAULT_KV_VERSION,
+                }
+            )
+        except hvac.exceptions.InvalidRequest:
+            log.info("Secrets engine already exists for org %s", self.org.id)
+        else:
+            log.info("Created secrets engine for org %s", self.org.id)
 
 
 class KV1VaultSecretController(VaultSecretController):
