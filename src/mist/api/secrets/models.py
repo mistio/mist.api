@@ -3,6 +3,7 @@ from uuid import uuid4
 from typing import Any, Dict
 
 import mongoengine as me
+
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Owner
 from mist.api.ownership.mixins import OwnershipMixin
@@ -48,6 +49,13 @@ class Secret(OwnershipMixin, me.Document, TagMixin):
     @property
     def data(self):
         raise NotImplementedError()
+
+    @property
+    def tags(self):
+        """Return the tags of this secret."""
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='secret')}
 
     def create_or_update(self, attributes: Dict[str, Any]) -> None:
         raise NotImplementedError()
