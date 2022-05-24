@@ -776,11 +776,16 @@ class Organization(Owner):
                 path "sys" {
                     capabilities = ["deny"]
                 }
-                path "%s" {
+                path "sys/mounts/%s" {
+                    capabilities = [
+                        "create", "read", "update", "delete"]
+                }
+                path "%s*" {
                     capabilities = [
                         "create", "read", "update", "delete", "list"]
                 }
-            ''' % self.vault_secret_engine_path
+            ''' % (self.vault_secret_engine_path,
+                   self.vault_secret_engine_path)
             policy_name = '%s-policy' % self.vault_secret_engine_path
             role_name = '%s-role' % self.vault_secret_engine_path
             client.sys.create_or_update_policy(
