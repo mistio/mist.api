@@ -22,7 +22,8 @@ QUEUES = os.getenv('QUEUES', '').split(',') or [
     'dramatiq_zones',
     'dramatiq_volumes',
     'dramatiq_secrets',
-    'dramatiq_buckets']
+    'dramatiq_buckets',
+    'dramatiq_tags']
 
 POSSIBLE_MODULES = []  # 'mist.api.dramatiq_tasks', 'mist.rbac.dramatiq_tasks']
 

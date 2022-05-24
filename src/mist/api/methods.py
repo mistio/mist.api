@@ -736,12 +736,24 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 query &= Q(**{k: v})
         elif k in ['key_associations', ]:  # Looks like a postfilter
             postfilters.append((k, v))
+        elif k == 'tag':
+            try:
+                key, val = v.split(',')
+            except ValueError:
+                key = v
+                val = ''
+            if key and val:
+                query &= Q(__raw__={'$text': {'$search': f"\"{key}:{val}\""}})
+            elif key:
+                query &= Q(__raw__={'$text': {'$search': f"\"{key}:\""}})
+            elif val:
+                query &= Q(__raw__={'$text': {'$search': f"\":{val}\""}})
         elif k == 'id':
             if id_implicit is True:
                 implicit_query = Q(id=v)
                 implicit_search_fields = {
                     'name', 'domain', 'title',
-                    'email', 'first_name', 'last_name'}
+                    'email', 'first_name', 'last_name', 'tags'}
                 for field in implicit_search_fields:
                     if getattr(resource_model, field, None) and \
                             not isinstance(getattr(resource_model, field), property):  # noqa
