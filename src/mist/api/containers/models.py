@@ -12,7 +12,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
 from mist.api.common.models import Cost
-
+from mist.api.tag.mixins import TagMixin
 from mist.api import config as api_config
 
 __all__ = [
@@ -74,7 +74,7 @@ class NodePool(me.EmbeddedDocument):
                 self.max_nodes is not None)
 
 
-class Cluster(OwnershipMixin, me.Document):
+class Cluster(OwnershipMixin, me.Document, TagMixin):
     """Abstract base class for every cluster mongoengine model
 
     This class defines the fields common to all clusters of all types. For each
@@ -127,6 +127,7 @@ class Cluster(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     created = me.DateTimeField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
+    total_cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     first_seen = me.DateTimeField()
 
     meta = {
@@ -144,6 +145,11 @@ class Cluster(OwnershipMixin, me.Document):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
             }
         ],
     }
@@ -161,16 +167,6 @@ class Cluster(OwnershipMixin, me.Document):
     @property
     def provider(self):
         return self.cloud.provider
-
-    @property
-    def tags(self):
-        return {
-            tag.key: tag.value
-            for tag in Tag.objects(
-                owner=self.owner,
-                resource_id=self.id,
-                resource_type='cluster').only('key', 'value')
-        }
 
     def delete(self):
         super(Cluster, self).delete()
@@ -200,12 +196,18 @@ class Cluster(OwnershipMixin, me.Document):
             'credentials': self.credentials,
             'config': self.config,
             'cost': self.cost.as_dict(),
+            'total_cost': self.total_cost.as_dict(),
             'extra': self.extra,
             'state': self.state,
             'last_seen': str(self.last_seen),
             'missing_since': str(self.missing_since),
             'created': str(self.created),
-            'tags': self.tags,
+            'tags': {
+                tag.key: tag.value for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cluster').only('key', 'value')
+            },
             'owned_by': self.owned_by.email if self.owned_by else '',
             'created_by': self.created_by.email if self.created_by else '',
             'nodepools': [nodepool.as_dict()
@@ -231,7 +233,6 @@ class Cluster(OwnershipMixin, me.Document):
             'last_seen',
             'missing_since',
             'created',
-            'tags'
         ]
         deref_map = {
             'cloud': 'id',
@@ -244,6 +245,10 @@ class Cluster(OwnershipMixin, me.Document):
                                         deref, only)
         if 'cost' in only or not only:
             ret['cost'] = self.cost.as_dict()
+
+        if 'total_cost' in only or not only:
+            ret['total_cost'] = self.total_cost.as_dict()
+
         if "nodepools" in only or not only:
             ret["nodepools"] = [nodepool.as_dict()
                                 for nodepool in self.nodepools]
@@ -253,6 +258,16 @@ class Cluster(OwnershipMixin, me.Document):
             ret['missing_since'] = str(ret['missing_since'])
         if 'created' in ret:
             ret['created'] = str(ret['created'])
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cluster').only('key', 'value')
+            }
+
         return ret
 
     def __str__(self):

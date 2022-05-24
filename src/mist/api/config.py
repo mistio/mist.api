@@ -131,7 +131,7 @@ SENTRY_CONFIG = {
     'ENVIRONMENT': '',
 }
 
-DATABASE_VERSION = 30
+DATABASE_VERSION = 32
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -1455,6 +1455,12 @@ LANDING_FORMS = [
 ###############################################################################
 # App constants
 ###############################################################################
+TAGS_RESOURCE_TYPES = (
+    'bucket', 'cloud', 'cluster', 'image', 'key',
+    'machine', 'network', 'record', 'schedule',
+    'script', 'secret', 'stack', 'subnet', 'template',
+    'tunnel', 'volume', 'zone'
+)
 STATES = {
     NodeState.RUNNING.value: 'running',
     NodeState.REBOOTING.value: 'rebooting',
