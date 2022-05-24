@@ -306,7 +306,7 @@ class BaseMainController(object):
                                                                          owner)
 
                 if secret:  # value will be obtained from vault
-                    data = secret.ctl.read_secret()
+                    data = secret.data
                     if _key not in data.keys():
                         raise BadRequestError('The key specified (%s) does not exist in \
                             secret `%s`' % (_key, secret.name))
@@ -326,14 +326,14 @@ class BaseMainController(object):
                                                           self.cloud.name),
                                                          owner=self.cloud.
                                                          owner)
-                        secret.ctl.create_or_update_secret({key: value})
+                        secret.create_or_update({key: value})
                     except me.DoesNotExist:
                         secret = VaultSecret(name='%s%s' %
                                              (config.VAULT_CLOUDS_PATH,
                                               self.cloud.name),
                                              owner=self.cloud.owner)
                         # first store key in Vault
-                        secret.ctl.create_or_update_secret({key: value})
+                        secret.create_or_update({key: value})
                         try:
                             secret.save()
                             if user:
@@ -346,7 +346,7 @@ class BaseMainController(object):
                             )
 
                     try:
-                        secret.ctl.create_or_update_secret({key: value})
+                        secret.create_or_update({key: value})
                     except Exception as exc:
                         # in case secret is not successfully stored in Vault,
                         # delete it from database as well
@@ -366,8 +366,7 @@ class BaseMainController(object):
             # delete VaultSecret object and secret
             # if it was just added to Vault
             if not arg_from_vault and secret:
-                secret.delete()
-                secret.ctl.delete_secret()
+                secret.delete(delete_from_engine=True)
             raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
 
@@ -382,8 +381,7 @@ class BaseMainController(object):
                 # delete VaultSecret object and secret
                 # if it was just added to Vault
                 if not arg_from_vault:
-                    secret.delete()
-                    secret.ctl.delete_secret()
+                    secret.delete(delete_from_engine=True)
                 raise
             except Exception as exc:
                 log.exception("Will not update cloud %s because "
@@ -391,8 +389,7 @@ class BaseMainController(object):
                 # delete VaultSecret object and secret
                 # if it was just added to Vault
                 if not arg_from_vault:
-                    secret.delete()
-                    secret.ctl.delete_secret()
+                    secret.delete(delete_from_engine=True)
                 raise CloudUnavailableError(exc=exc)
 
         # Attempt to save.

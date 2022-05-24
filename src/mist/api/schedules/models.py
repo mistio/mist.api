@@ -4,6 +4,7 @@ import logging
 from uuid import uuid4
 
 import mongoengine as me
+import json
 
 from mist.api.helpers import rtype_to_classpath
 from mist.api.tag.models import Tag
@@ -285,6 +286,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
             raise RequiredParameterMissingError('name')
         if not owner or not isinstance(owner, Organization):
             raise BadRequestError('owner')
+        # Deprecated Resource_Type
         resource_type = kwargs.pop('resource_type', 'machine').rstrip('s')
         if resource_type not in rtype_to_classpath:
             raise BadRequestError('resource_type')
@@ -292,6 +294,48 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
             raise ScheduleNameExistsError()
         schedule = cls(owner=owner, name=name,
                        resource_model_name=resource_type)
+        schedule.ctl.set_auth_context(auth_context)
+        schedule.ctl.add(**kwargs)
+        schedule.assign_to(auth_context.user)
+        return schedule
+
+    @classmethod
+    def add_v2(cls, auth_context, name, **kwargs):
+        """Add schedule v2
+
+        This is a class method, meaning that it is meant to be called on the
+        class itself and not on an instance of the class.
+
+        You're not meant to be calling this directly, but on a schedule class
+        instead like this:
+
+            schedule = Schedule.add_v2(owner=owner, **kwargs)
+        """
+        owner = auth_context.owner
+
+        if not name:
+            raise RequiredParameterMissingError('name')
+        if not owner or not isinstance(owner, Organization):
+            raise BadRequestError('owner')
+        selectors = kwargs.get('selectors')
+        error_count = 0
+        selector_type = None
+        for selector in selectors:
+            if selector['type'] not in rtype_to_classpath:
+                error_count += 1
+            if selector['ids'] is not None:
+                selector_type = selector['type'].rstrip('s')
+        if error_count == len(selectors):
+            raise BadRequestError('selector_type')
+        schedule_type = kwargs.get('schedule_type')
+        if schedule_type == 'crontab' or schedule_type == 'interval':
+            schedule_entry = kwargs.pop('schedule_entry')
+            schedule_entry = json.loads(schedule_entry)
+            kwargs['schedule_entry'] = schedule_entry
+        if Schedule.objects(owner=owner, name=name, deleted=None):
+            raise ScheduleNameExistsError()
+        schedule = cls(owner=owner, name=name,
+                       resource_model_name=selector_type)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
         schedule.assign_to(auth_context.user)
@@ -417,3 +461,40 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
         }
 
         return sdict
+
+    def as_dict_v2(self, deref='auto', only=''):
+        """Returns the API representation of the `Schedule` object."""
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['id', 'name', 'description',
+                           'start_after', 'run_immediately']
+        deref_map = {
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'schedule_entry' in only or not only:
+            ret['schedule_entry'] = self.schedule_type.as_dict()
+
+        if 'schedule_type' in only or not only:
+            ret['schedule_type'] = self.schedule_type.type
+
+        ret['action'] = self.task_type.action
+
+        ret['enabled'] = self.task_enabled
+
+        selectors = [selector.as_dict() for selector in self.selectors]
+
+        ret['selectors'] = selectors
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='schedule').only('key', 'value')
+            }
+
+        return ret

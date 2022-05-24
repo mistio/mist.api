@@ -254,10 +254,7 @@ def list_vault_secrets(schedule_id):
     """
     from mist.api.poller.models import ListVaultSecretsPollingSchedule
     sched = ListVaultSecretsPollingSchedule.objects.get(id=schedule_id)
-    from mist.api.secrets.models import VaultSecret
-    # TODO: Is there a better way?
-    secret = VaultSecret(owner=sched.owner)
-    secret.ctl.list_secrets(recursive=True)
+    sched.owner.secrets_ctl.list_secrets(recursive=True)
 
 
 @dramatiq.actor(queue_name='dramatiq_ping_probe',

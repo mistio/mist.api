@@ -96,7 +96,8 @@ def remove_cloud(owner, cloud_id, delete_from_vault=False):
     log.info("Successfully deleted cloud '%s'", cloud_id)
 
     if delete_from_vault and cloud._private_fields:
-        getattr(cloud, cloud._private_fields[0]).secret.ctl.delete_secret()
+        private_field = getattr(cloud, cloud._private_fields[0])
+        private_field.secret.delete(delete_from_engine=True)
 
     trigger_session_update(owner, ['clouds'])
     c_count = Cloud.objects(owner=owner, deleted=None).count()

@@ -371,7 +371,8 @@ class AmazonComputeController(BaseComputeController):
         try:
             parent = CloudLocation.objects.get(
                 external_id=self.cloud.region,
-                cloud=self.cloud)
+                cloud=self.cloud,
+                missing_since=None)
             return parent
         except me.DoesNotExist:
             log.error('Parent does not exist for Location: %s',
@@ -2444,6 +2445,7 @@ class GoogleComputeController(BaseComputeController):
         region_name = libcloud_location.extra['region']
         try:
             parent = CloudLocation.objects.get(name=region_name,
+                                               missing_since=None,
                                                cloud=self.cloud)
             return parent
         except me.DoesNotExist:

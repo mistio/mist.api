@@ -110,7 +110,8 @@ class BaseContainerController(BaseController):
                                         nodepool,
                                         desired_nodes,
                                         min_nodes,
-                                        max_nodes) -> None:
+                                        max_nodes,
+                                        autoscaling) -> None:
         """Make sure the request parameters are valid to scale this nodepool.
 
         Raises:
@@ -125,7 +126,8 @@ class BaseContainerController(BaseController):
                                                      nodepool,
                                                      desired_nodes,
                                                      min_nodes,
-                                                     max_nodes)
+                                                     max_nodes,
+                                                     autoscaling)
 
     def _validate_scale_nodepool_request(self,
                                          auth_context,
@@ -133,7 +135,8 @@ class BaseContainerController(BaseController):
                                          nodepool,
                                          desired_nodes,
                                          min_nodes,
-                                         max_nodes) -> None:
+                                         max_nodes,
+                                         autoscaling) -> None:
         """
         Raises:
             BadRequestError if the parameters given are invalid
@@ -141,8 +144,6 @@ class BaseContainerController(BaseController):
         Returns:
             None
         """
-        if min_nodes is None and max_nodes is None and desired_nodes is None:
-            raise BadRequestError("Required parameter missing")
 
         if (min_nodes is not None and
             desired_nodes is not None and
@@ -168,7 +169,8 @@ class BaseContainerController(BaseController):
                        nodepool,
                        desired_nodes,
                        min_nodes,
-                       max_nodes):
+                       max_nodes,
+                       autoscaling):
         """Scale the specified nodepool's nodes
         """
         return self._scale_nodepool(auth_context,
@@ -176,7 +178,8 @@ class BaseContainerController(BaseController):
                                     nodepool,
                                     desired_nodes,
                                     min_nodes,
-                                    max_nodes)
+                                    max_nodes,
+                                    autoscaling)
 
     def _scale_nodepool(self,
                         auth_context,
@@ -184,7 +187,9 @@ class BaseContainerController(BaseController):
                         nodepool,
                         desired_nodes,
                         min_nodes,
-                        max_nodes):
+                        max_nodes,
+                        autoscaling):
+
         raise NotImplementedError()
 
     def _destroy_cluster(self, *args, **kwargs):
@@ -484,14 +489,14 @@ class BaseContainerController(BaseController):
                 self._list_clusters__cost_nodes(cluster, libcloud_cluster)
             cph = nodes_cph + control_plane_cph
             cpm = nodes_cpm + control_plane_cpm
-            if(cluster.cost.hourly != cph or
-               cluster.cost.monthly != cpm or
-               cluster.cost.control_plane_hourly != control_plane_cph or
-               cluster.cost.control_plane_monthly != control_plane_cpm):
-                cluster.cost.hourly = round(cph, 2)
-                cluster.cost.monthly = round(cpm, 2)
-                cluster.cost.control_plane_hourly = round(control_plane_cph, 2)
-                cluster.cost.control_plane_monthly = round(
+            if(cluster.total_cost.hourly != round(cph, 2) or
+               cluster.total_cost.monthly != round(cpm, 2) or
+               cluster.cost.hourly != round(control_plane_cph, 2) or
+               cluster.cost.monthly != round(control_plane_cpm, 2)):
+                cluster.total_cost.hourly = round(cph, 2)
+                cluster.total_cost.monthly = round(cpm, 2)
+                cluster.cost.hourly = round(control_plane_cph, 2)
+                cluster.cost.monthly = round(
                     control_plane_cpm, 2)
                 updated = True
         except Exception as exc:
@@ -940,12 +945,18 @@ class BaseContainerController(BaseController):
     def _libcloud_ingress_to_ingress(self, libcloud_ingress):
         load_balancer_ingresses = libcloud_ingress.load_balancer_ingresses
         ips = [
-            load_balancer_ingress.ip
+            {"address": load_balancer_ingress.ip,
+             "ports": [vars(ingress_port)
+                       for ingress_port in load_balancer_ingress.ports
+                       ]}
             for load_balancer_ingress in load_balancer_ingresses
             if load_balancer_ingress.ip
         ]
         hostnames = [
-            load_balancer_ingress.hostname
+            {"address": load_balancer_ingress.hostname,
+             "ports": [vars(ingress_port)
+                       for ingress_port in load_balancer_ingress.ports
+                       ]}
             for load_balancer_ingress in load_balancer_ingresses
             if load_balancer_ingress.hostname
         ]

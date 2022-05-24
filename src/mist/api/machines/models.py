@@ -407,7 +407,7 @@ class Machine(OwnershipMixin, me.Document):
             'created', 'last_seen', 'missing_since', 'unreachable_since',
             'os_type', 'cores', 'extra']
         deref_map = {
-            'cloud': 'title',
+            'cloud': 'name',
             'parent': 'name',
             'location': 'name',
             'image': 'name',
