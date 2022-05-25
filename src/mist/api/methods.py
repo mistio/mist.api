@@ -876,7 +876,7 @@ def get_console_proxy_uri(machine):
             expiry,
             encrypted_msg)
         mac = hmac.new(
-            config.SECRET.encode(),
+            config.SIGN_KEY.encode(),
             msg=msg.encode(),
             digestmod=hashlib.sha256).hexdigest()
         base_ws_uri = config.CORE_URI.replace('http', 'ws')
