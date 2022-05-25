@@ -862,7 +862,7 @@ def get_console_proxy_uri(machine):
         vault_secret_engine_path = machine.owner.vault_secret_engine_path
         vault_addr = org.vault_address if org.vault_address is not None else \
             config.VAULT_ADDR
-        vault_secret_path = '%s/v1/%s/data/%s' % (
+        vault_secret_path = '%s/%s/%s' % (
             vault_addr,
             vault_secret_engine_path,
             key_path)
