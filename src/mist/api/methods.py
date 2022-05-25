@@ -862,13 +862,11 @@ def get_console_proxy_uri(machine):
         vault_secret_engine_path = machine.owner.vault_secret_engine_path
         vault_addr = org.vault_address if org.vault_address is not None else \
             config.VAULT_ADDR
-        vault_secret_path = '%s/%s/%s' % (
+        msg_to_encrypt = '%s,%s,%s,%s' % (
+            vault_token,
             vault_addr,
             vault_secret_engine_path,
             key_path)
-        msg_to_encrypt = '%s,%s' % (
-            vault_token,
-            vault_secret_path)
         from mist.api.helpers import encrypt
         encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
         msg = '%s,%s,%s,%s,%s' % (
