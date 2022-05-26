@@ -2615,16 +2615,41 @@ def find_best_ssh_params(machine, auth_context=None):
 def prepare_ssh_uri(auth_context, machine):
     key_association_id, hostname, user, port = find_best_ssh_params(
         machine, auth_context=auth_context)
+    association = KeyMachineAssociation.objects.get(id=key_association_id)
+    key = association.key
+    key_path = key.private.secret.name
     expiry = int(datetime.now().timestamp()) + 100
-    msg = '%s,%s,%s,%s,%s' % (user,
-                              hostname,
-                              port, key_association_id, expiry)
+    org = machine.owner
+    vault_token = org.vault_token if org.vault_token is not None else \
+        config.VAULT_TOKEN
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    vault_addr = org.vault_address if org.vault_address is not None else \
+        config.VAULT_ADDR
+    msg_to_encrypt = '%s,%s,%s,%s' % (
+        vault_token,
+        vault_addr,
+        vault_secret_engine_path,
+        key_path)
+    from mist.api.helpers import encrypt
+    # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
+    encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
+    msg = '%s,%s,%s,%s,%s' % (
+        user,
+        hostname,
+        port,
+        expiry,
+        encrypted_msg)
     mac = hmac.new(
-        config.SECRET.encode(),
+        config.SIGN_KEY.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
     base_ws_uri = config.CORE_URI.replace('http', 'ws')
     ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
-        base_ws_uri, user,
-        hostname, port, key_association_id, expiry, mac)
+        base_ws_uri,
+        user,
+        hostname,
+        port,
+        expiry,
+        encrypted_msg,
+        mac)
     return ssh_uri
