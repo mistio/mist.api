@@ -16,7 +16,7 @@ from mist.api.helpers import get_resource_model
 log = logging.getLogger(__name__)
 
 
-def get_tags(auth_context, verbose='', resource='', search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
+def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
     """
     List unique tags and the corresponding resources.
 
@@ -75,9 +75,15 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
 
         query &= missing_query
 
-    if resource:
-        query &= Q(resource_type=resource.rstrip('s'))
+    if types == 'all':
+        types = TAGS_RESOURCE_TYPES
+    elif types:
+        types = types.split(',')
 
+    type_query = Q()
+    for rtype in types:
+        type_query |= Q(resource_type=rtype.rstrip('s'))
+    query &= type_query
     # search filter contains space separated terms
     # if the term contains :,=,<,>,!=, <=, >= then assume key/value query
     # otherwise search for objects with id or name matching the term
@@ -104,14 +110,14 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
     data = [{'key': k, 'value': v} for k, v in
             set((t.key, t.value) for t in tags)]
 
-    if verbose:
+    if types:
         from mist.api.methods import list_resources
 
         for kv in data:
             kv_temp = kv.copy()
             kv['resources'] = {}
-            for resource_type in TAGS_RESOURCE_TYPES:
-                kv['resources'][resource_type + 's'] = []
+            for resource_type in types:
+                kv['resources'][resource_type] = []
                 if deref == 'name' and resource_type == 'zone':
                     attr = 'domain'
                 else:
@@ -125,7 +131,7 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
                             search=tag.resource_id, only=attr
                         )[0]
                         if resource:
-                            kv['resources'][resource_type + 's'].append(
+                            kv['resources'][resource_type].append(
                                 getattr(resource.get(), attr))
                     except KeyError:
                         continue
@@ -133,7 +139,7 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
                         log.error('%s with id %s does not exist',
                                   resource_type, tag.resource_id)
 
-    if sort == "resource_count" and verbose:
+    if sort == "resource_count" and types:
         data.sort(key=lambda x: sum(map(len, x['resources'])), reverse=reverse)
     elif sort == 'key':
         data.sort(key=lambda x: x['key'], reverse=reverse)
