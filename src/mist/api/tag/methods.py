@@ -117,7 +117,8 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
             kv_temp = kv.copy()
             kv['resources'] = {}
             for resource_type in types:
-                kv['resources'][resource_type] = []
+                resource_type = resource_type.rstrip('s')
+                resource_atrrs = []
                 if deref == 'name' and resource_type == 'zone':
                     attr = 'domain'
                 else:
@@ -131,7 +132,7 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
                             search=tag.resource_id, only=attr
                         )[0]
                         if resource:
-                            kv['resources'][resource_type].append(
+                            resource_atrrs.append(
                                 getattr(resource.get(), attr))
                     except KeyError:
                         continue
@@ -139,8 +140,12 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
                         log.error('%s with id %s does not exist',
                                   resource_type, tag.resource_id)
 
+                if resource_atrrs:
+                    kv['resources'][resource_type] = resource_atrrs
+
     if sort == "resource_count" and types:
-        data.sort(key=lambda x: sum(map(len, x['resources'])), reverse=reverse)
+        data.sort(key=lambda x: sum(map(len, x['resources'].values())),
+                  reverse=reverse)
     elif sort == 'key':
         data.sort(key=lambda x: x['key'], reverse=reverse)
 
