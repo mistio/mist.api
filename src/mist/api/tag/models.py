@@ -1,8 +1,11 @@
+import random
 import re
 
 import mongoengine as me
-
+from mist.api.mongoengine_extras import TagQuerySet
+from mist.api.config import TAGS_RESOURCE_TYPES
 from mist.api.users.models import Owner
+from mist.api.tag.tasks import update_tags, delete_tags
 
 
 class Tag(me.Document):
@@ -11,11 +14,7 @@ class Tag(me.Document):
                               reverse_delete_rule=me.CASCADE)
     key = me.StringField(required=True)
 
-    resource_type = me.StringField(
-        choices=['cloud', 'machine', 'volume', 'buckets', 'image',
-                 'network', 'subnet', 'zone', 'record',
-                 'key', 'script', 'template', 'stack',
-                 'schedule', 'tunnel', 'rule', 'team', 'secret'])
+    resource_type = me.StringField(choices=TAGS_RESOURCE_TYPES)
 
     value = me.StringField()
     resource_id = me.StringField()
@@ -24,11 +23,18 @@ class Tag(me.Document):
         'indexes': ['owner', 'resource_type', 'resource_id', 'key']
     }
 
+    def __new__(cls, *args, **kwargs):
+        cls.objects = TagQuerySet(cls, cls._get_collection())
+        return super().__new__(cls)
+
     @property
     def resource(self):
-        resource_type = self.resource_type.capitalize().rstrip('s')
-        from mist.api import models
-        return getattr(models, resource_type).objects.get(id=self.resource_id)
+        try:
+            resource_type = self.resource_type.rstrip('s')
+            from mist.api.helpers import get_resource_model
+            return get_resource_model(resource_type).objects.get(id=self.resource_id)   # noqa: E501
+        except AttributeError:
+            return None
 
     def validate(self, clean=False):
         if not re.search(r'^[a-zA-Z0-9_]+(?:[ :.-][a-zA-Z0-9_]+)*$',
@@ -46,3 +52,19 @@ class Tag(me.Document):
             'resource_type': self.resource_type,
             'resource_id': self.resource_id,
         }
+
+    def save(self):
+        super(Tag, self).save()
+        delay = random.randrange(10**3, 10000)
+        update_tags.send_with_options(args=(self.resource_type,
+                                      self.resource_id,
+                                      {self.key: self.value}),
+                                      delay=delay)
+
+    def delete(self):
+        delay = random.randrange(1000, 10000)
+        delete_tags.send_with_options(args=(self.resource_type,
+                                      self.resource_id,
+                                      [self.key]),
+                                      delay=delay)
+        super(Tag, self).delete()

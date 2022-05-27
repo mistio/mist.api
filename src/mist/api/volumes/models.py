@@ -2,6 +2,7 @@ import uuid
 import logging
 import mongoengine as me
 
+from mist.api.tag.mixins import TagMixin
 from mist.api.tag.models import Tag
 
 from mist.api.ownership.mixins import OwnershipMixin
@@ -19,7 +20,7 @@ class VolumeActions(me.EmbeddedDocument):
     tag = me.BooleanField(default=False)
 
 
-class Volume(OwnershipMixin, me.Document):
+class Volume(OwnershipMixin, me.Document, TagMixin):
     """The basic block storage (volume) model"""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
@@ -53,7 +54,12 @@ class Volume(OwnershipMixin, me.Document):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
         ],
     }
 
@@ -61,13 +67,6 @@ class Volume(OwnershipMixin, me.Document):
         super(Volume, self).__init__(*args, **kwargs)
         # Set `ctl` attribute.
         self.ctl = StorageController(self)
-
-    @property
-    def tags(self):
-        """Return the tags of this volume."""
-        return {tag.key: tag.value
-                for tag in Tag.objects(resource_id=self.id,
-                                       resource_type='volume')}
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
@@ -90,7 +89,13 @@ class Volume(OwnershipMixin, me.Document):
             'external_id': self.external_id,
             'name': self.name,
             'extra': self.extra,
-            'tags': self.tags,
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='volume').only('key', 'value')
+            },
             'size': self.size,
             'location': self.location.id if self.location else None,
             'attached_to': [m.id for m in self.attached_to],
@@ -122,15 +127,6 @@ class Volume(OwnershipMixin, me.Document):
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
 
-        if 'tags' in only or not only:
-            ret['tags'] = {
-                tag.key: tag.value
-                for tag in Tag.objects(
-                    owner=self.owner,
-                    resource_id=self.id,
-                    resource_type='volume').only('key', 'value')
-            }
-
         if 'actions' in only or not only:
             ret['actions'] = {
                 action: self.actions[action] for action in self.actions
@@ -144,6 +140,14 @@ class Volume(OwnershipMixin, me.Document):
             ret['created'] = str(ret['created'])
 
         ret['size'] = "%dGB" % self.size if self.size else self.size
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id,
+                    resource_type='volume').only('key', 'value')
+            }
 
         return ret
 

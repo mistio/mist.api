@@ -7,6 +7,7 @@ import datetime
 import mongoengine as me
 
 from mist.api.tag.models import Tag
+from mist.api.tag.mixins import TagMixin
 from mist.api.users.models import Organization
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
@@ -84,7 +85,7 @@ def _populate_clouds():
                     CLOUDS[alias] = value
 
 
-class Cloud(OwnershipMixin, me.Document):
+class Cloud(OwnershipMixin, me.Document, TagMixin):
     """Abstract base class for every cloud/provider mongoengine model
 
     This class defines the fields common to all clouds of all types. For each
@@ -161,6 +162,11 @@ class Cloud(OwnershipMixin, me.Document):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
             }
         ],
     }

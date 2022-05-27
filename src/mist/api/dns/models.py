@@ -12,7 +12,7 @@ from mist.api.dns.controllers import ZoneController, RecordController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
-
+from mist.api.tag.mixins import TagMixin
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError
 
@@ -31,7 +31,7 @@ def _populate_records():
                 RECORDS[value._record_type] = value
 
 
-class Zone(OwnershipMixin, me.Document):
+class Zone(OwnershipMixin, me.Document, TagMixin):
     """This is the class definition for the Mongo Engine Document related to a
     DNS zone.
     """
@@ -62,6 +62,11 @@ class Zone(OwnershipMixin, me.Document):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
             }
         ],
     }
@@ -106,13 +111,6 @@ class Zone(OwnershipMixin, me.Document):
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
-
-    @property
-    def tags(self):
-        """Return the tags of this zone."""
-        return {tag.key: tag.value
-                for tag in Tag.objects(
-                    resource_id=self.id, resource_type='zone')}
 
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
@@ -164,7 +162,12 @@ class Zone(OwnershipMixin, me.Document):
             'created_by': self.created_by.id if self.created_by else '',
             'records': {r.id: r.as_dict() for r
                         in Record.objects(zone=self, missing_since=None)},
-            'tags': self.tags
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id,
+                    resource_type='zone').only('key', 'value')
+            }
         }
 
     def clean(self):
@@ -177,7 +180,7 @@ class Zone(OwnershipMixin, me.Document):
                                           self.domain, self.owner)
 
 
-class Record(OwnershipMixin, me.Document):
+class Record(OwnershipMixin, me.Document, TagMixin):
     """This is the class definition for the Mongo Engine Document related to a
     DNS record.
     """
@@ -206,6 +209,12 @@ class Record(OwnershipMixin, me.Document):
         'allow_inheritance': True,
         'indexes': [
             'owner', 'zone', 'external_id', 'last_seen', 'missing_since',
+            {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            },
         ],
     }
     _record_type = None
@@ -269,13 +278,6 @@ class Record(OwnershipMixin, me.Document):
         return 'Record %s (name:%s, type:%s) of %s' % (
             self.id, self.name, self.type, self.zone.domain)
 
-    @property
-    def tags(self):
-        """Return the tags of this record."""
-        return {tag.key: tag.value
-                for tag in Tag.objects(resource_id=self.id,
-                                       resource_type='record')}
-
     def as_dict(self):
         """ Return a dict with the model values."""
         return {
@@ -292,7 +294,12 @@ class Record(OwnershipMixin, me.Document):
             'missing_since': str(self.missing_since),
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
-            'tags': self.tags
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id,
+                    resource_type='record').only('key', 'value')
+            }
         }
 
 

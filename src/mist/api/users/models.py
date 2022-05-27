@@ -740,14 +740,19 @@ class Organization(Owner):
         except Exception as exc:
             log.error('Error adding metering schedule for %s: %r', self, exc)
 
+        # If the org has a name but not a secret engine path we need to create
+        # one in Vault
         if self.name and not self.vault_secret_engine_path:
             secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
                 if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
-            secret_engine_path = re.sub(
-                '[^a-zA-Z0-9\.]', '-', secret_engine_path) + '-' + ''.join(
-                    random.SystemRandom().choice(
-                        string.ascii_lowercase +
-                        string.digits) for _ in range(6))
+            # Add a random postfix if secret engine path not specified
+            # in settings.py
+            if not config.VAULT_SECRET_ENGINE_PATHS.get(self.name):
+                secret_engine_path = re.sub(
+                    '[^a-zA-Z0-9\.]', '-', secret_engine_path) + '-' + ''.join(
+                        random.SystemRandom().choice(
+                            string.ascii_lowercase +
+                            string.digits) for _ in range(6))
 
             self.vault_secret_engine_path = secret_engine_path
 
@@ -756,7 +761,7 @@ class Organization(Owner):
             if config.VAULT_ROLE_ID:
                 client = hvac.Client(url=config.VAULT_ADDR)
                 try:
-                    result = client.auth.approle.login(
+                    client.auth.approle.login(
                         role_id=config.VAULT_ROLE_ID,
                         secret_id=config.VAULT_SECRET_ID,
                     )
@@ -776,11 +781,16 @@ class Organization(Owner):
                 path "sys" {
                     capabilities = ["deny"]
                 }
-                path "%s" {
+                path "sys/mounts/%s" {
+                    capabilities = [
+                        "create", "read", "update", "delete"]
+                }
+                path "%s*" {
                     capabilities = [
                         "create", "read", "update", "delete", "list"]
                 }
-            ''' % self.vault_secret_engine_path
+            ''' % (self.vault_secret_engine_path,
+                   self.vault_secret_engine_path)
             policy_name = '%s-policy' % self.vault_secret_engine_path
             role_name = '%s-role' % self.vault_secret_engine_path
             client.sys.create_or_update_policy(

@@ -10,8 +10,8 @@ from mist.api.exceptions import BadRequestError
 from mist.api.scripts.base import BaseScriptController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
-
 from mist.api.tag.models import Tag
+from mist.api.tag.mixins import TagMixin
 
 import mist.api.scripts.controllers as controllers
 
@@ -95,7 +95,7 @@ class UrlLocation(Location):
             return 'Script is in repo {0.repo}'.format(self)
 
 
-class Script(OwnershipMixin, me.Document):
+class Script(OwnershipMixin, me.Document, TagMixin):
     """Abstract base class for every script attr mongoengine model.
 
         This class defines the fields common to all scripts of all types.
@@ -143,7 +143,12 @@ class Script(OwnershipMixin, me.Document):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
         ],
     }
 

@@ -5,11 +5,11 @@ import mongoengine as me
 from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.ownership.mixins import OwnershipMixin
-
 from mist.api.tag.models import Tag
+from mist.api.tag.mixins import TagMixin
 
 
-class CloudImage(OwnershipMixin, me.Document):
+class CloudImage(OwnershipMixin, me.Document, TagMixin):
     """A base Cloud Image Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True,
@@ -48,16 +48,14 @@ class CloudImage(OwnershipMixin, me.Document):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
         ]
     }
-
-    @property
-    def tags(self):
-        """Return the tags of this image."""
-        return {tag.key: tag.value
-                for tag in Tag.objects(resource_id=self.id,
-                                       resource_type='image')}
 
     def __str__(self):
         # this is for mongo medthod objects.only('id') to work..
@@ -80,7 +78,12 @@ class CloudImage(OwnershipMixin, me.Document):
             'architecture': self.architecture,
             'min_disk_size': self.min_disk_size,
             'min_memory_size': self.min_memory_size,
-            'tags': self.tags,
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id,
+                    resource_type='image').only('key', 'value')
+            },
             'origin': self.origin,
             'created': str(self.created),
             'last_seen': str(self.last_seen),
@@ -105,7 +108,7 @@ class CloudImage(OwnershipMixin, me.Document):
         if 'tags' in only or not only:
             ret['tags'] = {
                 tag.key: tag.value for tag in Tag.objects(
-                    resource_id=self.id, resource_type='machine').only(
+                    resource_id=self.id, resource_type='image').only(
                         'key', 'value')}
         if 'last_seen' in ret:
             ret['last_seen'] = str(ret['last_seen'])

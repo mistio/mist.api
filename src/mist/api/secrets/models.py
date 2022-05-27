@@ -4,16 +4,15 @@ from typing import Any, Dict
 
 import mongoengine as me
 from mist.api.exceptions import BadRequestError
-
 from mist.api.users.models import Owner
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.tag.models import Tag
-
+from mist.api.tag.mixins import TagMixin
 
 log = logging.getLogger(__name__)
 
 
-class Secret(OwnershipMixin, me.Document):
+class Secret(OwnershipMixin, me.Document, TagMixin):
     """ A Secret object """
     id = me.StringField(primary_key=True,
                         default=lambda: uuid4().hex)
@@ -31,7 +30,12 @@ class Secret(OwnershipMixin, me.Document):
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': ['$tags'],
+                'default_language': 'english',
+                'sparse': True,
+                'unique': False
+            }
         ],
     }
 
@@ -44,13 +48,6 @@ class Secret(OwnershipMixin, me.Document):
     @property
     def data(self):
         raise NotImplementedError()
-
-    @property
-    def tags(self):
-        """Return the tags of this secret."""
-        return {tag.key: tag.value
-                for tag in Tag.objects(resource_id=self.id,
-                                       resource_type='secret')}
 
     def create_or_update(self, attributes: Dict[str, Any]) -> None:
         raise NotImplementedError()
@@ -90,7 +87,10 @@ class VaultSecret(Secret):
         s_dict = {
             'id': self.id,
             'name': self.name,
-            'tags': self.tags,
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='secret')},
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }

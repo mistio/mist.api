@@ -131,7 +131,7 @@ SENTRY_CONFIG = {
     'ENVIRONMENT': '',
 }
 
-DATABASE_VERSION = 31
+DATABASE_VERSION = 32
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -1275,7 +1275,7 @@ VICTORIAMETRICS_TO_VICTORIAMETRICS_METRICS_MAP = {}
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
-CILIA_SECRET_KEY = ""
+CILIA_SECRET_KEY = os.getenv("INTERNAL_KEYS_CILIA") or ""
 CILIA_GRAPHITE_NODATA_TARGETS = (
     "load.shortterm", "load.midterm", "cpu.0.idle"
 )
@@ -1420,8 +1420,8 @@ BANNED_EMAIL_PROVIDERS = [
 #  Different set in io and core
 ###############################################################################
 
-SECRET = ""
-SIGN_KEY = "dummy"
+SECRET = os.getenv("INTERNAL_KEYS_SECRET") or ""
+SIGN_KEY = os.getenv("INTERNAL_KEYS_SIGN") or "dummy"
 
 NOTIFICATION_EMAIL = {
     'all': "",
@@ -1455,6 +1455,12 @@ LANDING_FORMS = [
 ###############################################################################
 # App constants
 ###############################################################################
+TAGS_RESOURCE_TYPES = (
+    'bucket', 'cloud', 'cluster', 'image', 'key',
+    'machine', 'network', 'record', 'schedule',
+    'script', 'secret', 'stack', 'subnet', 'template',
+    'tunnel', 'volume', 'zone'
+)
 STATES = {
     NodeState.RUNNING.value: 'running',
     NodeState.REBOOTING.value: 'rebooting',
