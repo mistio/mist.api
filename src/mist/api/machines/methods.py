@@ -2661,9 +2661,7 @@ def prepare_lxd_uri(auth_context, machine):
     host = machine.cloud.host
     port = machine.cloud.port
     expiry = int(datetime.now().timestamp()) + 100
-    association = machine.KeyMachineAssociation
-    key = association.key
-    key_path = key.private.secret.name
+    key_path = machine.cloud.key_file.secret.name
     org = machine.owner
     vault_token = org.vault_token if org.vault_token is not None else \
         config.VAULT_TOKEN
