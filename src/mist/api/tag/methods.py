@@ -145,7 +145,7 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
                                   resource_type, tag.resource_id)
 
                 if resource_atrrs:
-                    item[resource_type+'s'] = resource_atrrs
+                    item[resource_type + 's'] = resource_atrrs
         data.append(item)
 
     if sort == "resource_count" and types:
