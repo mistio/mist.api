@@ -107,15 +107,17 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
         reverse = False
 
     tags = Tag.objects(query)
-    data = [{'key': k, 'value': v} for k, v in
-            set((t.key, t.value) for t in tags)]
 
-    if types:
-        from mist.api.methods import list_resources
+    tags_unique = [{'key': k, 'value': v} for k, v in
+                   set((t.key, t.value) for t in tags)]
+    data = []
 
-        for kv in data:
-            kv_temp = kv.copy()
-            kv['resources'] = {}
+    for tag_unique in tags_unique:
+        item = {'tag': {tag_unique['key']: tag_unique['value']}}
+        if types:
+            from mist.api.methods import list_resources
+            item['resource_count'] = 0
+
             for resource_type in types:
                 resource_type = resource_type.rstrip('s')
                 resource_atrrs = []
@@ -124,7 +126,8 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
                 else:
                     attr = deref
 
-                for tag in tags.filter(**kv_temp, resource_type=resource_type):
+                for tag in tags.filter(**tag_unique,
+                                       resource_type=resource_type):
                     try:
                         resource = list_resources(
                             auth_context=auth_context,
@@ -134,6 +137,7 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
                         if resource:
                             resource_atrrs.append(
                                 getattr(resource.get(), attr))
+                            item['resource_count'] += 1
                     except KeyError:
                         continue
                     except me.DoesNotExist:
@@ -141,13 +145,15 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
                                   resource_type, tag.resource_id)
 
                 if resource_atrrs:
-                    kv['resources'][resource_type] = resource_atrrs
+                    item[resource_type+'s'] = resource_atrrs
+        data.append(item)
 
     if sort == "resource_count" and types:
-        data.sort(key=lambda x: sum(map(len, x['resources'].values())),
+        data.sort(key=lambda x: x['resource_count'],
                   reverse=reverse)
     elif sort == 'key':
-        data.sort(key=lambda x: x['key'], reverse=reverse)
+        data.sort(key=lambda x: list(x['tag'])[0],
+                  reverse=reverse)
 
     try:
         start = int(start)
