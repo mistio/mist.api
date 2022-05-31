@@ -2064,6 +2064,10 @@ class GoogleComputeController(BaseComputeController):
         for key in list(extra.keys()):
             if key in ['metadata']:
                 del extra[key]
+        for disk in extra.get('disks', []):
+            disk.pop('shieldedInstanceInitialState', None)
+            disk.pop('source', None)
+            disk.pop('licenses', None)
         return extra
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
