@@ -385,7 +385,7 @@ class CloudLocation(OwnershipMixin, me.Document):
             'id', 'name', 'external_id', 'country', 'extra', 'last_seen',
             'location_type', 'created']
         deref_map = {
-            'cloud': 'title',
+            'cloud': 'name',
             'owned_by': 'email',
             'created_by': 'email',
             'available_sizes': 'name',
@@ -489,7 +489,7 @@ class CloudSize(me.Document):
             'id', 'name', 'external_id', 'cpus', 'ram', 'bandwidth', 'disk',
             'architecture', 'extra', 'last_seen', 'created']
         deref_map = {
-            'cloud': 'title',
+            'cloud': 'name',
             'allowed_images': 'name',
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,

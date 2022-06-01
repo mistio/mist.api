@@ -117,7 +117,7 @@ class Zone(OwnershipMixin, me.Document, TagMixin):
         standard_fields = [
             'id', 'domain', 'type', 'ttl', 'extra', 'last_seen', ]
         deref_map = {
-            'cloud': 'title',
+            'cloud': 'name',
             'owned_by': 'email',
             'created_by': 'email'
         }
