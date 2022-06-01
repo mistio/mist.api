@@ -118,7 +118,7 @@ class Volume(OwnershipMixin, me.Document, TagMixin):
         standard_fields = ['id', 'name', 'external_id',
                            'extra', 'last_seen', 'missing_since', 'created']
         deref_map = {
-            'cloud': 'title',
+            'cloud': 'name',
             'location': 'name',
             'owned_by': 'email',
             'created_by': 'email',
