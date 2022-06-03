@@ -1,5 +1,7 @@
 import logging
 import re
+from mist.api.exceptions import NotFoundError, UnauthorizedError
+
 from mongoengine import Q
 import mongoengine as me
 from mist.api.tag.models import Tag
@@ -131,7 +133,7 @@ def get_tag_objects_for_resource(owner, resource_obj, *args, **kwargs):
         resource_id=resource_obj.id)
 
 
-def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
+def add_tags_to_resource(auth_context, resources, tags, *args, **kwargs):
     """
     This function get a list of tags in the form
     [{'joe': 'schmoe'}, ...] and will scan the list and update all
@@ -141,32 +143,54 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     :param resource_obj: the resource object where the tags will be added
     :param tags: list of tags to be added
     """
-    # merge all the tags in the list into one dict. this will also make sure
-    # that if there are duplicates they will be cleaned up
-    rtype = resource_obj._meta["collection"].rstrip('s')
-    existing_tags = get_tag_objects_for_resource(owner, resource_obj)
+    from mist.api.methods import list_resources
+    tag_objects = []
 
-    tag_dict = {
-        k: v for k, v
-        in dict(tags).items() - {
-            tag.key: tag.value for tag in existing_tags}.items()
-    }
-    if tag_dict:
-        remove_tags_from_resource(owner, resource_obj, tag_dict)
+    for resource in resources:
+        resource_type = resource.resource_type.rstrip('s')
+        resource_id = resource.resource_id
 
-        Tag.objects.insert([Tag(owner=owner, resource_id=resource_obj.id,
-                                resource_type=rtype, key=key, value=value)
-                            for key, value in tag_dict.items()])
+        try:
+            resource_obj = list_resources(auth_context, resource_type,
+                                          search=resource_id)[0][0]
+        except IndexError:
+            raise NotFoundError(msg=f'{resource_type} {resource_id}')
 
-        # SEC
-        owner.mapper.update(resource_obj)
+        try:
+            auth_context.check_perm(resource_type, 'edit_tags',
+                                    resource_obj.id)
+            if not modify_security_tags(auth_context, tags, resource_obj):
+                raise UnauthorizedError
+        except UnauthorizedError as e:
+            e.msg = f'edit_tags on {resource_type} {resource_id}'
+            e.http_code = 403
+            raise e
 
-        trigger_session_update(owner,
-                               [rtype + 's' if not rtype.endswith('s')
-                                else rtype])
+        owner = auth_context.owner
+        existing_tags = get_tag_objects_for_resource(owner, resource_obj)
+
+        tag_dict = {
+            k: v for k, v
+            in dict(tags).items() - {
+                tag.key: tag.value for tag in existing_tags}.items()
+        }
+        if tag_dict:
+            remove_tags_from_resource(auth_context, [resource], tag_dict)
+
+            tag_objects.extend([Tag(owner=owner, resource_id=resource_obj.id,
+                                    resource_type=resource_type, key=key,
+                                    value=value)
+                                for key, value in tag_dict.items()])
+
+            # SEC
+            owner.mapper.update(resource_obj)
+
+            trigger_session_update(owner, [resource_type + 's'])
+
+    Tag.objects.insert(tag_objects)
 
 
-def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
+def remove_tags_from_resource(auth_context, resources, tags, *args, **kwargs):
     """
     This function get a list of tags in the form {'key1': 'value1',
     'key2': 'value2'} and will delete them from the resource
@@ -175,23 +199,46 @@ def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
     :param rtype: resource type
     :param tags: list of tags to be deleted
     """
+    from mist.api.methods import list_resources
     # ensure there are no duplicate tag keys because mongoengine will
     # raise exception for duplicates in query
     key_list = list(set(tags))
-
-    # create a query that will return all the tags with
+    # create a query that will return all the tags with the specified keys
     query = reduce(lambda q1, q2: q1.__or__(q2),
                    [Q(key=key) for key in key_list])
 
-    get_tag_objects_for_resource(owner, resource_obj).filter(query).delete()
+    resource_query = Q()
+    for resource in resources:
+        resource_type = resource.resource_type.rstrip('s')
+        resource_id = resource.resource_id
 
-    # SEC
-    owner.mapper.update(resource_obj)
+        try:
+            resource_obj = list_resources(auth_context, resource_type,
+                                          search=resource_id)[0][0]
+        except IndexError:
+            raise NotFoundError(msg=f'{resource_type} {resource_id}')
 
-    rtype = resource_obj._meta["collection"]
+        try:
+            auth_context.check_perm(resource_type, 'edit_tags',
+                                    resource_obj.id)
+            if not modify_security_tags(auth_context, tags, resource_obj):
+                raise UnauthorizedError
+        except UnauthorizedError as e:
+            e.msg = f'edit_tags on {resource_type} {resource_id}'
+            e.http_code = 403
+            raise e
 
-    trigger_session_update(owner,
-                           [rtype + 's' if not rtype.endswith('s') else rtype])
+        owner = auth_context.owner
+        resource_query |= Q(owner=owner,
+                            resource_id=resource_id,
+                            resource_type=resource_type)
+
+        # SEC
+        owner.mapper.update(resource_obj)
+        trigger_session_update(owner, [resource_type + 's'])
+
+    query &= resource_query
+    Tag.objects.filter(query).delete()
 
 
 def resolve_id_and_get_tags(owner, rtype, rid, *args, **kwargs):
