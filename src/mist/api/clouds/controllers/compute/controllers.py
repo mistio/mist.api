@@ -629,6 +629,14 @@ class AmazonComputeController(BaseComputeController):
                 self.connection.attach_volume(node, volume.get('volume'),
                                               volume.get('device'))
 
+    def _list_machines__get_machine_extra(self, machine, node_dict):
+        extra = copy.copy(node_dict['extra'])
+        nodepool_name = extra.get(
+            'tags', {}).get('eks:nodegroup-name', '')
+        if nodepool_name:
+            extra['nodepool'] = nodepool_name
+        return extra
+
 
 class AlibabaComputeController(AmazonComputeController):
 
@@ -2063,6 +2071,22 @@ class GoogleComputeController(BaseComputeController):
 
         for key in list(extra.keys()):
             if key in ['metadata']:
+                # check for nodepool
+                try:
+                    kube_labels = extra[key]['items'][3]
+                except IndexError:
+                    kube_labels = {}
+                if kube_labels.get('key', '') == 'kube-labels':
+                    # value is a super long string that contains
+                    # `,gke-nodepool=xxxx,` among others
+                    value = kube_labels.get('value', '')
+                    result = re.search('gke-nodepool=', value)
+                    if result:
+                        index = result.span()[1]
+                        nodepool_name = value[index:]
+                        # remove anything after first ,
+                        nodepool_name = nodepool_name[:nodepool_name.find(',')]
+                        extra['nodepool'] = nodepool_name
                 del extra[key]
         return extra
 
