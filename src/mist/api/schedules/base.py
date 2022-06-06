@@ -145,6 +145,45 @@ class BaseController(object):
             raise
         log.info("Added schedule with name '%s'", self.schedule.name)
         self.schedule.owner.mapper.update(self.schedule)
+    
+    def add_v2(self, **kwargs):
+        """Add an entry to the database
+
+        This is only to be called by `Schedule.add` classmethod to create
+        a schedule. Fields `owner` and `name` are already populated in
+        `self.schedule`. The `self.schedule` is not yet saved.
+
+        """
+        # check if required variables exist.
+        if not (kwargs.get('actions', '')):
+            raise BadRequestError("You must provide resource's actions")
+
+        if len(kwargs.get('actions')) > 1:
+            raise NotImplementedError()
+
+        if not kwargs.get('selectors'):
+            raise BadRequestError("You must provide a list of selectors, "
+                                  "at least resource ids or tags")
+        import ipdb; ipdb.set_trace()
+        if kwargs.get('when').get('schedule_type') not in ['crontab',
+                                               'interval', 'one_off']:
+            raise BadRequestError('schedule type must be one of these '
+                                  '(crontab, interval, one_off)]')
+
+        if kwargs.get('when').get('schedule_type') in ['one_off', 'reminder'] and \
+                not kwargs.get('when').get('datetime', ''):
+            raise BadRequestError('one_off schedule '
+                                  'requires date given in schedule_entry')
+
+        try:
+            self.update_v2(**kwargs)
+        except (me.ValidationError, me.NotUniqueError) as exc:
+            # Propagate original error.
+            log.error("Error adding %s: %s", self.schedule.name,
+                      exc.to_dict())
+            raise
+        log.info("Added schedule with name '%s'", self.schedule.name)
+        self.schedule.owner.mapper.update(self.schedule)
 
     def update(self, **kwargs):
         """Edit an existing Schedule"""
@@ -354,21 +393,32 @@ class BaseController(object):
             self.schedule.resource_model_name = selector_type
             self.schedule.save()
 
-        action = kwargs.get('action')
-        if action:
-            selector_type = self.schedule.resource_model_name
-            if action not in SUPPORTED_ACTIONS[selector_type]:
-                raise BadRequestError("Action is not correct")
+        script_id = kwargs.get('actions')[0].get('script', '')
 
-        script_id = kwargs.pop('script_id', '')
-        if script_id:
-            try:
-                Script.objects.get(owner=owner, id=script_id, deleted=None)
-            except me.DoesNotExist:
-                raise ScriptNotFoundError('Script with id %s does not '
-                                          'exist' % script_id)
-            # SEC require permission RUN on script
-            auth_context.check_perm('script', 'run', script_id)
+        actions = kwargs.get('actions')
+        if len(actions) == 1:
+            import ipdb; ipdb.set_trace()
+            action = kwargs.get('actions')[0].get('action_type', '')
+            if action == 'notify':
+                raise NotImplementedError()
+            elif action == 'run script':
+                if script_id:
+                    try:
+                        Script.objects.get(owner=owner, id=script_id, deleted=None)
+                    except me.DoesNotExist:
+                        raise ScriptNotFoundError('Script with id %s does not '
+                                                'exist' % script_id)
+                    # SEC require permission RUN on script
+                    auth_context.check_perm('script', 'run', script_id)
+            else:
+                selector_type = self.schedule.resource_model_name
+                if action not in SUPPORTED_ACTIONS[selector_type]:
+                    raise BadRequestError("Action is not correct")
+        elif len(actions) == 0:
+            raise BadRequestError("Action is required")
+        else:
+            raise NotImplementedError()
+
 
         # for ui compatibility
         if kwargs.get('expires') == '':
