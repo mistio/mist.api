@@ -145,7 +145,7 @@ class BaseController(object):
             raise
         log.info("Added schedule with name '%s'", self.schedule.name)
         self.schedule.owner.mapper.update(self.schedule)
-    
+
     def add_v2(self, **kwargs):
         """Add an entry to the database
 
@@ -164,13 +164,15 @@ class BaseController(object):
         if not kwargs.get('selectors'):
             raise BadRequestError("You must provide a list of selectors, "
                                   "at least resource ids or tags")
-        import ipdb; ipdb.set_trace()
+
         if kwargs.get('when').get('schedule_type') not in ['crontab',
-                                               'interval', 'one_off']:
+                                                           'interval',
+                                                           'one_off']:
             raise BadRequestError('schedule type must be one of these '
                                   '(crontab, interval, one_off)]')
 
-        if kwargs.get('when').get('schedule_type') in ['one_off', 'reminder'] and \
+        if kwargs.get('when').get('schedule_type') \
+                in ['one_off', 'reminder'] and \
                 not kwargs.get('when').get('datetime', ''):
             raise BadRequestError('one_off schedule '
                                   'requires date given in schedule_entry')
@@ -397,17 +399,17 @@ class BaseController(object):
 
         actions = kwargs.get('actions')
         if len(actions) == 1:
-            import ipdb; ipdb.set_trace()
             action = kwargs.get('actions')[0].get('action_type', '')
             if action == 'notify':
                 raise NotImplementedError()
             elif action == 'run script':
                 if script_id:
                     try:
-                        Script.objects.get(owner=owner, id=script_id, deleted=None)
+                        Script.objects.get(owner=owner, id=script_id,
+                                           deleted=None)
                     except me.DoesNotExist:
                         raise ScriptNotFoundError('Script with id %s does not '
-                                                'exist' % script_id)
+                                                  'exist' % script_id)
                     # SEC require permission RUN on script
                     auth_context.check_perm('script', 'run', script_id)
             else:
@@ -418,7 +420,6 @@ class BaseController(object):
             raise BadRequestError("Action is required")
         else:
             raise NotImplementedError()
-
 
         # for ui compatibility
         if kwargs.get('expires') == '':
