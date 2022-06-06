@@ -237,8 +237,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
     routing_key = me.StringField()
 
     # mist specific fields
-    schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=True)
-    task_type = me.EmbeddedDocumentField(BaseTaskType, required=True)
+    schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=False)
+    task_type = me.EmbeddedDocumentField(BaseTaskType, required=False)
 
     # celerybeat-mongo specific fields
     expires = me.DateTimeField()
@@ -343,7 +343,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
         schedule = cls(owner=owner, name=name,
                        resource_model_name=selector_type)
         schedule.ctl.set_auth_context(auth_context)
-        schedule.ctl.add(**kwargs)
+        schedule.ctl.add_v2(**kwargs)
         schedule.assign_to(auth_context.user)
         return schedule
 
@@ -480,13 +480,13 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
 
-        if 'schedule_entry' in only or not only:
-            ret['schedule_entry'] = self.schedule_type.as_dict()
+        # if 'schedule_entry' in only or not only:
+        #     ret['schedule_entry'] = self.schedule_type.as_dict()
 
-        if 'schedule_type' in only or not only:
-            ret['schedule_type'] = self.schedule_type.type
+        # if 'schedule_type' in only or not only:
+        #     ret['schedule_type'] = self.schedule_type.type
 
-        ret['action'] = self.task_type.action
+        # ret['action'] = self.task_type.action
 
         ret['enabled'] = self.task_enabled
 
