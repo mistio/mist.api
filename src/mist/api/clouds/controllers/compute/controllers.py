@@ -2073,7 +2073,7 @@ class GoogleComputeController(BaseComputeController):
             if key in ['metadata']:
                 # check for nodepool
                 try:
-                    kube_labels = extra[key][3]
+                    kube_labels = extra[key]['items'][3]
                 except IndexError:
                     kube_labels = {}
                 if kube_labels.get('key', '') == 'kube-labels':
@@ -2082,7 +2082,8 @@ class GoogleComputeController(BaseComputeController):
                     value = kube_labels.get('value', '')
                     result = re.search('gke-nodepool=', value)
                     if result:
-                        nodepool_name = result.group(0)
+                        index = result.span()[1]
+                        nodepool_name = value[index:]
                         # remove anything after first ,
                         nodepool_name = nodepool_name[:nodepool_name.find(',')]
                         extra['nodepool'] = nodepool_name
