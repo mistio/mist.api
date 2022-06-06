@@ -2071,7 +2071,7 @@ class GoogleComputeController(BaseComputeController):
 
         for key in list(extra.keys()):
             if key in ['metadata']:
-                ## check for nodepool
+                # check for nodepool
                 try:
                     kube_labels = extra[key][3]
                 except IndexError:
@@ -2080,10 +2080,10 @@ class GoogleComputeController(BaseComputeController):
                     # value is a super long string that contains
                     # `,gke-nodepool=xxxx,` among others
                     value = kube_labels.get('value', '')
-                    result = re.search('gke-nodepool=', v)
+                    result = re.search('gke-nodepool=', value)
                     if result:
                         nodepool_name = result.group(0)
-                        #remove anything after first ,
+                        # remove anything after first ,
                         nodepool_name = nodepool_name[:nodepool_name.find(',')]
                         extra['nodepool'] = nodepool_name
                 del extra[key]
