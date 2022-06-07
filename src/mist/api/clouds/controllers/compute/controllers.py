@@ -2074,7 +2074,7 @@ class GoogleComputeController(BaseComputeController):
                 # check for nodepool
                 try:
                     kube_labels = extra[key]['items'][3]
-                except IndexError:
+                except (IndexError, KeyError):
                     kube_labels = {}
                 if kube_labels.get('key', '') == 'kube-labels':
                     # value is a super long string that contains
