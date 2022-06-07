@@ -395,16 +395,16 @@ class BaseController(object):
             self.schedule.resource_model_name = selector_type
             self.schedule.save()
 
-        script_id = kwargs.get('actions')[0].get('script', '')
-
         actions = kwargs.get('actions')
         if len(actions) == 1:
             action = kwargs.get('actions')[0].get('action_type', '')
             if action == 'notify':
                 raise NotImplementedError()
             elif action == 'run script':
+                script_id = kwargs.get('actions')[0].get('script', '')
                 if script_id:
                     try:
+                        # TODO List Resources insted of Script objects
                         Script.objects.get(owner=owner, id=script_id,
                                            deleted=None)
                     except me.DoesNotExist:
@@ -476,12 +476,23 @@ class BaseController(object):
                               self.schedule.id)
                 raise InternalServerError(exc=exc)
 
-        action = kwargs.pop('action', '')
-        if action:
-            self.schedule.task_type = schedules.ActionTask(action=action)
-        elif script_id:
-            self.schedule.task_type = schedules.ScriptTask(
-                script_id=script_id, params=kwargs.pop('params', ''))
+        actions = kwargs.pop('actions', [])
+        if len(actions) == 1:
+            action = actions[0]['action_type']
+            if action == 'notify':
+                raise NotImplementedError()
+            elif action == 'run script':
+                script_id = actions[0]['script']
+                params = actions[0]['params']
+                if script_id:
+                    self.schedule.task_type = schedules.ScriptTask(
+                        script_id=script_id, params=params)
+            else:
+                self.schedule.task_type = schedules.ActionTask(action=action)
+        elif len(actions) == 0:
+            raise BadRequestError("Action is required")
+        else:
+            raise NotImplementedError()
 
         schedule_type = kwargs.pop('schedule_type', '')
 
@@ -548,6 +559,8 @@ class BaseController(object):
                         entry=future_date)
                 self.schedule.max_run_count = self.schedule.max_run_count or 1
 
+                if self.schedule.reminder:
+                    self.schedule.reminder.delete()
                 notify = kwargs.pop('notify', 0)
                 if notify:
                     _delta = datetime.timedelta(0, notify)
@@ -563,8 +576,6 @@ class BaseController(object):
                         'notify_msg': notify_msg
                     }
                     name = self.schedule.name + '-reminder'
-                    if self.schedule.reminder:
-                        self.schedule.reminder.delete()
                     from mist.api.schedules.models import Schedule
                     self.schedule.reminder = Schedule.add(
                         auth_context, name, **params)
