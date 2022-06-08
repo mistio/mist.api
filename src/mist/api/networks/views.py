@@ -146,7 +146,10 @@ def create_network(request):
     network.assign_to(auth_context.user)
 
     if tags:
-        add_tags_to_resource(auth_context.owner, network, tags)
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type': 'network',
+                               'resource_id': network.id}],
+                             tags)
 
     # Bundling Subnet creation in this call because it is required for
     # backwards compatibility with the current UI  # FIXME

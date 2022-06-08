@@ -650,11 +650,16 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
                                             expiration)
             except ImportError:
                 pass
-        if tags:
-            add_tags_to_resource(auth_context.owner, cloned_machine, tags)
+
         cloned_machine.save()
         cloned_machine.cloud.ctl.compute.produce_and_publish_patch(
             [before], [cloned_machine])
+
+        if tags:
+            add_tags_to_resource(auth_context.owner,
+                                 [{'resource_type': 'machine',
+                                   'resource_id': cloned_machine.id}],
+                                 tags)
     except NameError as exc:
         print(exc)
         log.error("Cloned machine is not present in the database yet."

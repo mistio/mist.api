@@ -2412,7 +2412,11 @@ def machine_safe_expire(owner_id, machine):
     owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
     existing_tags = get_tags_for_resource(owner, machine)
     if existing_tags:
-        remove_tags_from_resource(owner, machine, existing_tags)
+        remove_tags_from_resource(owner,
+                                  [{'resource_type': 'machine'},
+                                   {'resource_id': machine.id}],
+                                  existing_tags)
+
     # unown machine
     machine.owned_by = None
 
