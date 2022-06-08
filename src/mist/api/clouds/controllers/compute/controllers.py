@@ -2300,9 +2300,10 @@ class GoogleComputeController(BaseComputeController):
             disk_type = 'SSD'
 
         disk_prices = get_pricing(driver_type='compute',
-                                  driver_name='gce_disks')[disk_type]
+                                  driver_name='gce_disks').get(disk_type, {}})
         gce_instance = get_pricing(driver_type='compute',
-                                   driver_name='gce_instances')[size_type]
+                                   driver_name='gce_instances').get(
+                                       size_type, {})
         cpu_price = 0
         ram_price = 0
         os_price = 0
