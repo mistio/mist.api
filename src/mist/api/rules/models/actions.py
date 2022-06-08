@@ -69,6 +69,14 @@ class BaseAlertAction(me.EmbeddedDocument):
         return '%s %s' % (self.__class__.__name__, self.id)
 
 
+class ActionClassMixin(object):
+    """Generic action mixin class used as a handler for different
+    query sets for a specific collection. It constructs a query from
+    a list of query sets which chains together with logical & operator."""
+
+    actions = me.EmbeddedDocumentListField(BaseAlertAction)
+
+
 class NotificationAction(BaseAlertAction):
     """An action that notifies the users, once a rule has been triggered."""
 
