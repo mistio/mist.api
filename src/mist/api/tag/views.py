@@ -11,8 +11,7 @@ from mist.api.machines.models import Machine
 from mist.api.networks.models import Network
 from mist.api.schedules.models import Schedule
 
-from mist.api.tag.methods import delete_security_tag
-from mist.api.tag.methods import modify_security_tags
+from mist.api.tag.methods import can_modify_resources_tags
 from mist.api.tag.methods import add_tags_to_resource
 from mist.api.tag.methods import resolve_id_and_get_tags
 from mist.api.tag.methods import remove_tags_from_resource
@@ -95,9 +94,6 @@ def tag_resources(request):
             # if the resource can not be found just go on and process the next
             continue
 
-        # SEC require EDIT_TAGS permission on resource
-        auth_context.check_perm(rtype, 'edit_tags', resource_obj.id)
-
         # normalized_resources.append(resource_data)
         query['rtype'] = rtype
 
@@ -106,19 +102,28 @@ def tag_resources(request):
         tags_to_add = [(tag['key'], tag['value']) for tag in [
             tag for tag in resource_tags if tag.get('op', '+') == '+']]
         # also extract the keys from all the tags to be deleted
-        tags_to_remove = [tag['key'] for tag in [
+        tags_to_remove = [(tag['key'], tag['value']) for tag in [
             tag for tag in resource_tags if tag.get('op', '+') == '-']]
 
-        # SEC only Org Owners may edit the secure tags
-        tags = {tag[0]: tag[1] for tag in tags_to_add}
-        if not modify_security_tags(auth_context, tags, resource_obj):
-            auth_context._raise(rtype, 'edit_security_tags')
-
         old_tags = get_tags_for_resource(auth_context.owner, resource_obj)
+        resources = [{'resource_type': rtype,
+                      'resource_id': rid}]
         if tags_to_add:
-            add_tags_to_resource(auth_context.owner, resource_obj, tags_to_add)
+            if not can_modify_resources_tags(auth_context, resources,
+                                             tags_to_add, 'add'):
+                auth_context._raise(rtype, 'edit_tags', rtags=tags_to_add)
+
+            add_tags_to_resource(auth_context.owner,
+                                 resources,
+                                 tags_to_add)
+
         if tags_to_remove:
-            remove_tags_from_resource(auth_context.owner, resource_obj,
+            if not can_modify_resources_tags(auth_context, resources,
+                                             tags_to_remove, 'remove'):
+                auth_context._raise(rtype, 'edit_tags', rtags=tags_to_remove)
+
+            remove_tags_from_resource(auth_context.owner,
+                                      resources,
                                       tags_to_remove)
 
         if rtype in ['machine', 'network', 'volume', 'zone', 'record']:
@@ -318,10 +323,16 @@ def set_cloud_tags(request):
     if type(tags) != dict:
         raise BadRequestError('tags should be dictionary of tags')
 
-    if not modify_security_tags(auth_context, tags, cloud):
-        raise auth_context._raise('cloud', 'edit_security_tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'cloud',
+                                       'resource_id': cloud.id}],
+                                     tags, 'add'):
+        auth_context._raise('cloud', 'edit_tags', rtags=tags)
 
-    return add_tags_to_resource(auth_context.owner, cloud, list(tags.items()))
+    return add_tags_to_resource(auth_context.owner,
+                                [{'resource_type': 'cloud',
+                                  'resource_id': cloud_id}],
+                                list(tags.items()))
 
 
 @view_config(route_name='api_v1_machine_tags', request_method='POST',
@@ -364,8 +375,10 @@ def set_machine_tags(request):
     if type(tags) != dict:
         raise BadRequestError('tags should be dictionary of tags')
 
-    if not modify_security_tags(auth_context, tags, machine):
-        raise auth_context._raise('machine', 'edit_security_tags')
+    can_modify_resources_tags(auth_context,
+                              [{'resource_type': 'machine',
+                                'resource_id': machine.id}],
+                              tags)
 
     # FIXME: This is f***** up! This method is utilized by the Ember UI in
     # order to update a machine's tags by providing the entire list of tags
@@ -373,7 +386,10 @@ def set_machine_tags(request):
     # tags without deleting any.
 
     old_tags = get_tags_for_resource(auth_context.owner, machine)
-    add_tags_to_resource(auth_context.owner, machine, list(tags.items()))
+    add_tags_to_resource(auth_context.owner,
+                         [{'resource_type': 'machine',
+                           'resource_id': machine.id}],
+                         list(tags.items()))
 
     if config.MACHINE_PATCHES:
         new_tags = get_tags_for_resource(auth_context.owner, machine)
@@ -420,11 +436,17 @@ def set_schedule_tags(request):
     if type(tags) != dict:
         raise BadRequestError('tags should be dictionary of tags')
 
-    if not modify_security_tags(auth_context, tags, schedule):
-        raise auth_context._raise('schedule', 'edit_security_tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'schedule',
+                                       'resource_id': schedule.id}],
+                                     tags, 'add'):
+        auth_context._raise('schedule', 'edit_tags', rtags=tags)
 
     return add_tags_to_resource(
-        auth_context.owner, schedule, list(tags.items()))
+        auth_context.owner,
+        [{'resource_type': 'schedule',
+          'resource_id': schedule.id}],
+        list(tags.items()))
 
 
 @view_config(route_name='script_tags', request_method='POST', renderer='json')
@@ -456,11 +478,16 @@ def set_script_tags(request):
     tags = params.get("tags")
     if type(tags) != dict:
         raise BadRequestError('tags should be dictionary of tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'script',
+                                       'resource_id': script.id}],
+                                     tags, 'add'):
+        auth_context._raise('script', 'edit_tags', rtags=tags)
 
-    if not modify_security_tags(auth_context, tags, script):
-        raise auth_context._raise('script', 'edit_security_tags')
-
-    return add_tags_to_resource(auth_context.owner, script, list(tags.items()))
+    return add_tags_to_resource(auth_context.owner,
+                                [{'resource_type': 'script',
+                                  'resource_id': script.id}],
+                                list(tags.items()))
 
 
 @view_config(route_name='key_tags', request_method='POST', renderer='json')
@@ -496,10 +523,16 @@ def set_key_tags(request):
     if type(tags) != dict:
         raise BadRequestError('tags should be dictionary of tags')
 
-    if not modify_security_tags(auth_context, tags, key):
-        raise auth_context._raise('key', 'edit_security_tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'key',
+                                       'resource_id': key.id}],
+                                     tags, 'add'):
+        auth_context._raise('key', 'edit_tags', rtags=tags)
 
-    return add_tags_to_resource(auth_context.owner, key, list(tags.items()))
+    return add_tags_to_resource(auth_context.owner,
+                                [{'resource_type': 'key',
+                                  'resource_id': key.id}],
+                                list(tags.items()))
 
 
 @view_config(route_name='network_tags', request_method='POST', renderer='json')
@@ -540,12 +573,17 @@ def set_network_tags(request):
     tags = params.get("tags")
     if type(tags) != dict:
         raise BadRequestError('tags should be dictionary of tags')
-
-    if not modify_security_tags(auth_context, tags, network):
-        raise auth_context._raise('network', 'edit_security_tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'network',
+                                       'resource_id': network.id}],
+                                     tags, 'add'):
+        auth_context._raise('network', 'edit_tags', rtags=tags)
 
     return add_tags_to_resource(
-        auth_context.owner, network, list(tags.items()))
+        auth_context.owner,
+        [{'resource_type': 'network',
+          'resource_id': network.id}],
+        list(tags.items()))
 
 
 @view_config(route_name='schedule_tag', request_method='DELETE',
@@ -561,11 +599,13 @@ def delete_schedule_tag(request):
     params = params_from_request(request)
     schedule_id = request.matchdict["schedule"]
     tag_key = params.get("tag_key")
-
+    tags = {tag_key: ''}
     # SEC require EDIT_TAGS permission on schedule
-    auth_context.check_perm('schedule', 'edit_tags', schedule_id)
-    if not delete_security_tag(auth_context, tag_key):
-        raise auth_context._raise('schedule', 'edit_security_tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'schedule',
+                                       'resource_id': schedule_id}],
+                                     tags, 'remove'):
+        auth_context._raise('schedule', 'edit_tags', rtags=tags)
 
     return resolve_id_and_delete_tags(auth_context.owner, 'schedule',
                                       schedule_id, tags=[tag_key])
@@ -591,11 +631,14 @@ def delete_cloud_tag(request):
     params = params_from_request(request)
     cloud_id = request.matchdict["cloud"]
     tag_key = params.get("tag_key")
+    tags = {tag_key: ''}
 
     # SEC require EDIT_TAGS permission on cloud
-    auth_context.check_perm('cloud', 'edit_tags', cloud_id)
-    if not delete_security_tag(auth_context, tag_key):
-        raise auth_context._raise('cloud', 'edit_security_tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'cloud',
+                                       'resource_id': cloud_id}],
+                                     tags, 'remove'):
+        auth_context._raise('cloud', 'edit_tags', rtags=tags)
 
     return resolve_id_and_delete_tags(auth_context.owner, 'cloud', cloud_id,
                                       tags=[tag_key])
@@ -628,14 +671,14 @@ def delete_machine_tag(request):
     cloud_id = request.matchdict["cloud"]
     machine_id = request.matchdict["machine"]
     tag_key = params.get("tag_key")
-
-    # SEC require READ permission on cloud
-    auth_context.check_perm("cloud", "read", cloud_id)
+    tags = {tag_key: ''}
 
     # SEC require EDIT_TAGS permission on machine
-    auth_context.check_perm("machine", "edit_tags", machine_id)
-    if not delete_security_tag(auth_context, tag_key):
-        raise auth_context._raise('machine', 'edit_security_tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'machine',
+                                       'resource_id': machine_id}],
+                                     tags, 'remove'):
+        auth_context._raise('machine', 'edit_tags', rtags=tags)
 
     return resolve_id_and_delete_tags(auth_context.owner,
                                       'machine', machine_id,
@@ -662,11 +705,14 @@ def delete_script_tag(request):
     params = params_from_request(request)
     script_id = request.matchdict["script"]
     tag_key = params.get("tag_key")
+    tags = {tag_key: ''}
 
     # SEC require EDIT_TAGS permission on script
-    auth_context.check_perm('script', 'edit_tags', script_id)
-    if not delete_security_tag(auth_context, tag_key):
-        raise auth_context._raise('script', 'edit_security_tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'script',
+                                       'resource_id': script_id}],
+                                     tags, 'remove'):
+        auth_context._raise('script', 'edit_tags', rtags=tags)
 
     return resolve_id_and_delete_tags(auth_context.owner, 'script', script_id,
                                       tags=[tag_key])
@@ -692,11 +738,14 @@ def delete_key_tag(request):
     params = params_from_request(request)
     key_id = request.matchdict["key"]
     tag_key = params.get("tag_key")
+    tags = {tag_key: ''}
 
     # SEC require EDIT_TAGS permission on key
-    auth_context.check_perm('key', 'edit_tags', key_id)
-    if not delete_security_tag(auth_context, tag_key):
-        raise auth_context._raise('key', 'edit_security_tags')
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'key',
+                                       'resource_id': key_id}],
+                                     tags, 'remove'):
+        auth_context._raise('key', 'edit_tags', rtags=tags)
 
     return resolve_id_and_delete_tags(auth_context.owner, 'key', key_id,
                                       tags=[tag_key])
@@ -733,8 +782,14 @@ def delete_network_tag(request):
     auth_context.check_perm('cloud', 'read', cloud_id)
     # SEC require EDIT_TAGS permission on network
     auth_context.check_perm('network', 'edit_tags', network_id)
-    if not delete_security_tag(auth_context, tag_key):
-        raise auth_context._raise('network', 'edit_security_tags')
+    tags = {tag_key: ''}
+
+    # SEC require EDIT_TAGS permission on network
+    if not can_modify_resources_tags(auth_context,
+                                     [{'resource_type': 'network',
+                                       'resource_id': network_id}],
+                                     tags, 'remove'):
+        auth_context._raise('network', 'edit_tags', rtags=tags)
 
     return resolve_id_and_delete_tags(auth_context.owner,
                                       'network', network_id,

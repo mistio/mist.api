@@ -1,6 +1,6 @@
 import logging
 import re
-from mist.api.exceptions import NotFoundError, UnauthorizedError
+from mist.api.exceptions import NotFoundError, PolicyUnauthorizedError
 
 from mongoengine import Q
 import mongoengine as me
@@ -133,7 +133,7 @@ def get_tag_objects_for_resource(owner, resource_obj, *args, **kwargs):
         resource_id=resource_obj.id)
 
 
-def add_tags_to_resource(auth_context, resources, tags, *args, **kwargs):
+def add_tags_to_resource(owner, resources, tags, *args, **kwargs):
     """
     This function get a list of tags in the form
     [{'joe': 'schmoe'}, ...] and will scan the list and update all
@@ -143,41 +143,32 @@ def add_tags_to_resource(auth_context, resources, tags, *args, **kwargs):
     :param resource_obj: the resource object where the tags will be added
     :param tags: list of tags to be added
     """
-    from mist.api.methods import list_resources
+
     tag_objects = []
+    missing_resources = get_missing_resources()
 
     for resource in resources:
-        resource_type = resource.resource_type.rstrip('s')
-        resource_id = resource.resource_id
+        resource_type = resource.get('resource_type').rstrip('s')
+        resource_id = resource.get('resource_id')
 
+        if resource_id in missing_resources[resource_type]:
+            raise NotFoundError(msg=f'{resource_type} {resource_id}')
         try:
-            resource_obj = list_resources(auth_context, resource_type,
-                                          search=resource_id)[0][0]
-        except IndexError:
+            resource_obj = get_resource_model(
+                resource_type).objects(id=resource_id).get()
+        except me.DoesNotExist:
             raise NotFoundError(msg=f'{resource_type} {resource_id}')
 
-        try:
-            auth_context.check_perm(resource_type, 'edit_tags',
-                                    resource_obj.id)
-            if not modify_security_tags(auth_context, tags, resource_obj):
-                raise UnauthorizedError
-        except UnauthorizedError as e:
-            e.msg = f'edit_tags on {resource_type} {resource_id}'
-            e.http_code = 403
-            raise e
-
-        owner = auth_context.owner
-        existing_tags = get_tag_objects_for_resource(owner, resource_obj)
+        existing_tags = get_tags_for_resource(owner, resource_obj)
 
         tag_dict = {
             k: v for k, v
-            in dict(tags).items() - {
-                tag.key: tag.value for tag in existing_tags}.items()
+            in dict(tags).items() - existing_tags.items()
         }
         if tag_dict:
-            remove_tags_from_resource(auth_context, [resource], tag_dict)
+            remove_tags_from_resource(owner, [resource], tag_dict)
 
-            tag_objects.extend([Tag(owner=owner, resource_id=resource_obj.id,
+            tag_objects.extend([Tag(owner=owner, resource_id=resource_id,
                                     resource_type=resource_type, key=key,
                                     value=value)
                                 for key, value in tag_dict.items()])
@@ -190,7 +181,7 @@ def add_tags_to_resource(auth_context, resources, tags, *args, **kwargs):
     Tag.objects.insert(tag_objects)
 
 
-def remove_tags_from_resource(auth_context, resources, tags, *args, **kwargs):
+def remove_tags_from_resource(owner, resources, tags, *args, **kwargs):
     """
     This function get a list of tags in the form {'key1': 'value1',
     'key2': 'value2'} and will delete them from the resource
@@ -199,7 +190,6 @@ def remove_tags_from_resource(auth_context, resources, tags, *args, **kwargs):
     :param rtype: resource type
     :param tags: list of tags to be deleted
     """
-    from mist.api.methods import list_resources
     # ensure there are no duplicate tag keys because mongoengine will
     # raise exception for duplicates in query
     key_list = list(set(tags))
@@ -208,33 +198,24 @@ def remove_tags_from_resource(auth_context, resources, tags, *args, **kwargs):
                    [Q(key=key) for key in key_list])
 
     resource_query = Q()
-    for resource in resources:
-        resource_type = resource.resource_type.rstrip('s')
-        resource_id = resource.resource_id
+    missing_resources = get_missing_resources()
 
-        try:
-            resource_obj = list_resources(auth_context, resource_type,
-                                          search=resource_id)[0][0]
-        except IndexError:
+    for resource in resources:
+        resource_type = resource.get('resource_type').rstrip('s')
+        resource_id = resource.get('resource_id')
+
+        if resource_id in missing_resources[resource_type]:
             raise NotFoundError(msg=f'{resource_type} {resource_id}')
 
-        try:
-            auth_context.check_perm(resource_type, 'edit_tags',
-                                    resource_obj.id)
-            if not modify_security_tags(auth_context, tags, resource_obj):
-                raise UnauthorizedError
-        except UnauthorizedError as e:
-            e.msg = f'edit_tags on {resource_type} {resource_id}'
-            e.http_code = 403
-            raise e
-
-        owner = auth_context.owner
         resource_query |= Q(owner=owner,
                             resource_id=resource_id,
                             resource_type=resource_type)
 
         # SEC
-        owner.mapper.update(resource_obj)
+        owner.mapper.update(
+            get_resource_model(resource_type).
+            objects(id=resource_id).get())
+
         trigger_session_update(owner, [resource_type + 's'])
 
     query &= resource_query
@@ -284,7 +265,7 @@ def resolve_id_and_delete_tags(owner, rtype, rid, tags, *args, **kwargs):
                                      *args, **kwargs)
 
 
-def modify_security_tags(auth_context, tags, resource=None):
+def can_modify_resources_tags(auth_context, resources, tags, op):
     """
     This method splits the resources' tags in security and non-security
     groups. Security tags are part of team policies. Such tags should only
@@ -296,51 +277,43 @@ def modify_security_tags(auth_context, tags, resource=None):
     :return: False, if a security tag has been modified in the new tags
     dict by someone other than the organization owner, otherwise True
     """
-    # private context
-    if auth_context.org is None:
-        return True
 
-    if auth_context.is_owner():
-        return True
-    else:
-        rtags = get_tag_objects_for_resource(
-            auth_context.owner, resource).only('key', 'value')
-        rtags = {rtag.key: rtag.value for rtag in rtags}
-        security_tags = auth_context.get_security_tags()
-        # check whether the new tags tend to modify any of the security_tags
-        for security_tag in security_tags:
-            for key, value in list(security_tag.items()):
-                if key not in list(rtags.keys()):
-                    if key in list(tags.keys()):
-                        return False
-                else:
-                    if key not in list(tags.keys()):
-                        return False
-                    elif value != tags[key]:
-                        return False
-        return True
+    if auth_context.org and not auth_context.is_owner():
+        tags = dict(tags)
+        need_sec_tags_check = False
 
+        security_tags = [(k, v) for tag in auth_context.get_security_tags()
+                         for k, v in tag.items()]
+        common_keys = set(dict(security_tags)).intersection(set((tags)))
+        common_tags = set(security_tags).intersection(set(tags.items()))
+        if common_keys:
+            if op == 'remove':
+                return False
 
-def delete_security_tag(auth_context, tag_key):
-    """
-    This method checks whether the tag to be deleted belongs to the
-    secure tags group
-    :param tag_key: the key of the tag to be removed
-    :return: False in case a security tag is about to be deleted
-    """
-    # private context
-    if auth_context.org is None:
-        return True
-
-    if auth_context.is_owner():
-        return True
-    else:
-        security_tags = auth_context.get_security_tags()
-        for security_tag in security_tags:
-            for key, value in list(security_tag.items()):
-                if key == tag_key:
+            for key in common_keys:
+                if key not in (ctag[0] for ctag in common_tags):
                     return False
-        return True
+            need_sec_tags_check = True
+
+        for resource in resources:
+            resource_type = resource.get('resource_type').rstrip('s')
+            resource_id = resource.get('resource_id')
+
+            try:
+                auth_context.check_perm(resource_type, 'edit_tags',
+                                        resource_id)
+            except PolicyUnauthorizedError:
+                return False
+
+            if need_sec_tags_check:
+                existing_tags = {(tag.key, tag.value)
+                                 for tag in Tag.objects(
+                                     owner=auth_context.owner,
+                                     resource_type=resource_type,
+                                     resource_id=resource_id)}
+                if not common_tags.issubset(existing_tags):
+                    return False
+    return True
 
 
 def get_missing_resources():
