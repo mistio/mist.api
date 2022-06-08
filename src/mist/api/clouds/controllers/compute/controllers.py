@@ -2261,7 +2261,11 @@ class GoogleComputeController(BaseComputeController):
         # eg n1-standard-1 (1 vCPU, 3.75 GB RAM)
         machine_cpu = float(machine.size.cpus)
         machine_ram = float(machine.size.ram) / 1024
-        size_type = machine.size.name.split(" ")[0][:2]
+        # example is `t2d-standard-1 (1 vCPUs, 4 GB RAM)`` we want just `t2d`
+        # get size without the `x vCPUs y GB RAM` part
+        size_type = machine.size.name.split(" ")[0]
+        # remove the `-standard-1` like part
+        size_type = size_type[0:size_type.find('-')]
         if "custom" in machine.size.name:
             size_type += "_custom"
             if machine.size.name.startswith('custom'):
