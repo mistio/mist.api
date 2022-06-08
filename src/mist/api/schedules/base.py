@@ -400,7 +400,7 @@ class BaseController(object):
             action = kwargs.get('actions')[0].get('action_type', '')
             if action == 'notify':
                 raise NotImplementedError()
-            elif action == 'run script':
+            elif action == 'run_script':
                 script_id = kwargs.get('actions')[0].get('script', '')
                 if script_id:
                     try:
@@ -481,7 +481,7 @@ class BaseController(object):
             action = actions[0]['action_type']
             if action == 'notify':
                 raise NotImplementedError()
-            elif action == 'run script':
+            elif action == 'run_script':
                 script_id = actions[0]['script']
                 params = actions[0]['params']
                 if script_id:
@@ -494,7 +494,11 @@ class BaseController(object):
         else:
             raise NotImplementedError()
 
-        schedule_type = kwargs.pop('schedule_type', '')
+        schedule_type = ''
+        when = kwargs.pop('when')
+        if when:
+            schedule_type = when['schedule_type']
+            when.pop('schedule_type')
 
         if schedule_type == 'crontab':
             schedule_entry = kwargs.pop('schedule_entry', {})
@@ -523,7 +527,7 @@ class BaseController(object):
 
         elif schedule_type in ['one_off', 'reminder']:
             # implements Interval under the hood
-            future_date = kwargs.pop('schedule_entry', '')
+            future_date = when.pop('datetime')
 
             if future_date:
                 try:
