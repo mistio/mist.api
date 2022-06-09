@@ -55,8 +55,6 @@ from mist.api.auth.methods import AuthContext
 
 from mist.api.logs.methods import log_event
 
-from mist.api.tag.methods import resolve_id_and_set_tags
-
 from mist.api.dramatiq_app import dramatiq
 
 from mist.api import config
@@ -1502,8 +1500,10 @@ def create_machine_async_v2(
                           % str(exc))
 
     if plan.get('tags'):
-        resolve_id_and_set_tags(auth_context.owner, 'machine', node.id,
-                                plan['tags'], cloud_id=cloud.id)
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type =': 'record',
+                               'resource_id': node.id}],
+                             plan['tags'])
 
     machine = Machine.objects.get(cloud=cloud, external_id=node.id)
 

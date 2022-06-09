@@ -15,7 +15,6 @@ from mist.api.tag.methods import can_modify_resources_tags
 from mist.api.tag.methods import add_tags_to_resource
 from mist.api.tag.methods import resolve_id_and_get_tags
 from mist.api.tag.methods import remove_tags_from_resource
-from mist.api.tag.methods import resolve_id_and_delete_tags
 from mist.api.tag.methods import get_tags_for_resource
 
 from mist.api.auth.methods import auth_context_from_request
@@ -607,8 +606,10 @@ def delete_schedule_tag(request):
                                      tags, 'remove'):
         auth_context._raise('schedule', 'edit_tags', rtags=tags)
 
-    return resolve_id_and_delete_tags(auth_context.owner, 'schedule',
-                                      schedule_id, tags=[tag_key])
+    return remove_tags_from_resource(auth_context.owner,
+                                     [{'resource_type': 'schedule',
+                                       'resource_id': schedule_id}],
+                                     tags)
 
 
 @view_config(route_name='cloud_tag', request_method='DELETE', renderer='json')
@@ -640,8 +641,10 @@ def delete_cloud_tag(request):
                                      tags, 'remove'):
         auth_context._raise('cloud', 'edit_tags', rtags=tags)
 
-    return resolve_id_and_delete_tags(auth_context.owner, 'cloud', cloud_id,
-                                      tags=[tag_key])
+    return remove_tags_from_resource(auth_context.owner,
+                                     [{'resource_type': 'cloud',
+                                       'resource_id': cloud_id}],
+                                     tags)
 
 
 @view_config(route_name='api_v1_machine_tag', request_method='DELETE',
@@ -680,9 +683,10 @@ def delete_machine_tag(request):
                                      tags, 'remove'):
         auth_context._raise('machine', 'edit_tags', rtags=tags)
 
-    return resolve_id_and_delete_tags(auth_context.owner,
-                                      'machine', machine_id,
-                                      tags=[tag_key], cloud_id=cloud_id)
+    return remove_tags_from_resource(auth_context.owner,
+                                     [{'resource_type': 'machine',
+                                       'resource_id': machine_id}],
+                                     tags)
 
 
 @view_config(route_name='script_tag', request_method='DELETE', renderer='json')
@@ -714,8 +718,10 @@ def delete_script_tag(request):
                                      tags, 'remove'):
         auth_context._raise('script', 'edit_tags', rtags=tags)
 
-    return resolve_id_and_delete_tags(auth_context.owner, 'script', script_id,
-                                      tags=[tag_key])
+    return remove_tags_from_resource(auth_context.owner,
+                                     [{'resource_type': 'script',
+                                       'resource_id': script_id}],
+                                     tags)
 
 
 @view_config(route_name='key_tag', request_method='DELETE', renderer='json')
@@ -747,8 +753,10 @@ def delete_key_tag(request):
                                      tags, 'remove'):
         auth_context._raise('key', 'edit_tags', rtags=tags)
 
-    return resolve_id_and_delete_tags(auth_context.owner, 'key', key_id,
-                                      tags=[tag_key])
+    return remove_tags_from_resource(auth_context.owner,
+                                     [{'resource_type': 'key',
+                                       'resource_id': key_id}],
+                                     tags, 'remove')
 
 
 @view_config(route_name='network_tag', request_method='DELETE',
@@ -791,6 +799,7 @@ def delete_network_tag(request):
                                      tags, 'remove'):
         auth_context._raise('network', 'edit_tags', rtags=tags)
 
-    return resolve_id_and_delete_tags(auth_context.owner,
-                                      'network', network_id,
-                                      tags=[tag_key], cloud_id=cloud_id)
+    return remove_tags_from_resource(auth_context.owner,
+                                     [{'resource_type': 'network',
+                                       'resource_id': network_id}],
+                                     tags)

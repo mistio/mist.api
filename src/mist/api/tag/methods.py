@@ -239,32 +239,6 @@ def resolve_id_and_get_tags(owner, rtype, rid, *args, **kwargs):
     return get_tags_for_resource(owner, resource_obj)
 
 
-def resolve_id_and_set_tags(owner, rtype, rid, tags, *args, **kwargs):
-    """
-    :param owner: the owner of the resource
-    :param rtype: resource type
-    :param rid: resource id
-    :param tags: resource tags to be added or updated
-    :return: the tags to be added or updated to this resource
-    """
-    resource_obj = get_object_with_id(owner, rid, rtype, *args, **kwargs)
-    return add_tags_to_resource(owner, resource_obj, tags, *args,
-                                **kwargs)
-
-
-def resolve_id_and_delete_tags(owner, rtype, rid, tags, *args, **kwargs):
-    """
-    :param owner: the owner of the resource
-    :param rtype: resource type
-    :param rid: resource id
-    :param tags: resource id
-    :return: the tags to be deleted from this resource
-    """
-    resource_obj = get_object_with_id(owner, rid, rtype, *args, **kwargs)
-    return remove_tags_from_resource(owner, resource_obj, tags,
-                                     *args, **kwargs)
-
-
 def can_modify_resources_tags(auth_context, resources, tags, op):
     """
     This method splits the resources' tags in security and non-security
