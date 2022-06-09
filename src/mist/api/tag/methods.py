@@ -146,7 +146,7 @@ def add_tags_to_resource(owner, resources, tags, *args, **kwargs):
 
     tag_objects = []
     missing_resources = get_missing_resources()
-
+    rtypes_to_update = set()
     for resource in resources:
         resource_type = resource.get('resource_type').rstrip('s')
         resource_id = resource.get('resource_id')
@@ -167,7 +167,7 @@ def add_tags_to_resource(owner, resources, tags, *args, **kwargs):
         }
         if tag_dict:
             remove_tags_from_resource(owner, [resource], tag_dict)
-
+            rtypes_to_update.add(resource_type + 's')
             tag_objects.extend([Tag(owner=owner, resource_id=resource_id,
                                     resource_type=resource_type, key=key,
                                     value=value)
@@ -175,10 +175,8 @@ def add_tags_to_resource(owner, resources, tags, *args, **kwargs):
 
             # SEC
             owner.mapper.update(resource_obj)
-
-            trigger_session_update(owner, [resource_type + 's'])
-
     Tag.objects.insert(tag_objects)
+    trigger_session_update(owner, list(rtypes_to_update))
 
 
 def remove_tags_from_resource(owner, resources, tags, *args, **kwargs):
@@ -192,13 +190,14 @@ def remove_tags_from_resource(owner, resources, tags, *args, **kwargs):
     """
     # ensure there are no duplicate tag keys because mongoengine will
     # raise exception for duplicates in query
-    key_list = list(set(tags))
+    key_list = list(dict(tags))
     # create a query that will return all the tags with the specified keys
     query = reduce(lambda q1, q2: q1.__or__(q2),
                    [Q(key=key) for key in key_list])
 
     resource_query = Q()
     missing_resources = get_missing_resources()
+    rtypes_to_update = set()
 
     for resource in resources:
         resource_type = resource.get('resource_type').rstrip('s')
@@ -210,16 +209,15 @@ def remove_tags_from_resource(owner, resources, tags, *args, **kwargs):
         resource_query |= Q(owner=owner,
                             resource_id=resource_id,
                             resource_type=resource_type)
-
+        rtypes_to_update.add(resource_type + 's')
         # SEC
         owner.mapper.update(
             get_resource_model(resource_type).
             objects(id=resource_id).get())
 
-        trigger_session_update(owner, [resource_type + 's'])
-
     query &= resource_query
     Tag.objects.filter(query).delete()
+    trigger_session_update(owner, list(rtypes_to_update))
 
 
 def resolve_id_and_get_tags(owner, rtype, rid, *args, **kwargs):
