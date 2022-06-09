@@ -501,10 +501,9 @@ class BaseController(object):
             when.pop('schedule_type')
 
         if schedule_type == 'crontab':
-            schedule_entry = kwargs.pop('schedule_entry', {})
+            schedule_entry = kwargs.pop('when', {})
 
             if schedule_entry:
-                schedule_entry = json.loads(schedule_entry)
                 for k in schedule_entry:
                     if k not in ['minute', 'hour', 'day_of_week',
                                  'day_of_month', 'month_of_year']:
@@ -514,10 +513,9 @@ class BaseController(object):
                     **schedule_entry)
 
         elif schedule_type == 'interval':
-            schedule_entry = kwargs.pop('schedule_entry', {})
+            schedule_entry = kwargs.pop('when', {})
 
             if schedule_entry:
-                schedule_entry = json.loads(schedule_entry)
                 for k in schedule_entry:
                     if k not in ['period', 'every']:
                         raise BadRequestError("Invalid key given: %s" % k)
