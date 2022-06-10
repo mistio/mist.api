@@ -8,7 +8,7 @@ import mongoengine as me
 from mist.api.helpers import is_email_valid
 from mist.api.logs.methods import log_event
 from mist.api.users.models import User
-from mist.api.machines.models import Machine
+# from mist.api.machines.models import Machine
 
 
 log = logging.getLogger(__name__)
