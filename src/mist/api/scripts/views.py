@@ -424,7 +424,7 @@ def run_script(request):
     else:
         # this will be deprecated, keep it for backwards compatibility
         cloud_id = params.get('cloud_id')
-        machine_id = params.get('machine_id')
+        machine_id = params.get('machine_id') or params.get('external_id')
 
         for key in ('cloud_id', 'machine_id'):
             if key not in params:
