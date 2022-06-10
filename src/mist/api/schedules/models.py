@@ -241,7 +241,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
 
     # mist specific fields
     schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=False)
-    task_type = me.EmbeddedDocumentField(BaseTaskType, required=False)
+    # task_type = me.EmbeddedDocumentField(BaseTaskType, required=False)
 
     # Defines a list of actions to be executed whenever the schedule is triggered.
     # Defaults to just notifying the users.
