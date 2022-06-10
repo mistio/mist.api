@@ -2261,7 +2261,21 @@ class GoogleComputeController(BaseComputeController):
         # eg n1-standard-1 (1 vCPU, 3.75 GB RAM)
         machine_cpu = float(machine.size.cpus)
         machine_ram = float(machine.size.ram) / 1024
-        size_type = machine.size.name.split(" ")[0][:2]
+        # example is `t2d-standard-1 (1 vCPUs, 4 GB RAM)`` we want just `t2d`
+        # get size without the `x vCPUs y GB RAM` part
+        size_type = machine.size.name.split(" ")[0]
+        # make sure the format is as expected
+        index = size_type.find('-')
+        # remove the `-standard-1` like part
+        if index != -1:
+            size_type = size_type[0:index]
+        else:
+            size_type = size_type[0:2]
+            log.warn(
+                f'Machine {machine.name} with id {machine.id} has unexpected '
+                f'size name: {machine.size.name}, will use size type '
+                f'{size_type} to determine machine cost.'
+            )
         if "custom" in machine.size.name:
             size_type += "_custom"
             if machine.size.name.startswith('custom'):
@@ -2304,9 +2318,10 @@ class GoogleComputeController(BaseComputeController):
             disk_type = 'SSD'
 
         disk_prices = get_pricing(driver_type='compute',
-                                  driver_name='gce_disks')[disk_type]
+                                  driver_name='gce_disks').get(disk_type, {})
         gce_instance = get_pricing(driver_type='compute',
-                                   driver_name='gce_instances')[size_type]
+                                   driver_name='gce_instances').get(
+                                       size_type, {})
         cpu_price = 0
         ram_price = 0
         os_price = 0
