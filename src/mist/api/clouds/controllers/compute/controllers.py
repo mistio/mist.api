@@ -2260,8 +2260,18 @@ class GoogleComputeController(BaseComputeController):
         # example is `t2d-standard-1 (1 vCPUs, 4 GB RAM)`` we want just `t2d`
         # get size without the `x vCPUs y GB RAM` part
         size_type = machine.size.name.split(" ")[0]
+        # make sure the format is as expected
+        index = size_type.find('-')
         # remove the `-standard-1` like part
-        size_type = size_type[0:size_type.find('-')]
+        if index != -1:
+            size_type = size_type[0:index]
+        else:
+            size_type = size_type[0:2]
+            log.warn(
+                f'Machine {machine.name} with id {machine.id} has unexpected '
+                f'size name: {machine.size.name}, will use size type '
+                f'{size_type} to determine machine cost.'
+            )
         if "custom" in machine.size.name:
             size_type += "_custom"
             if machine.size.name.startswith('custom'):
