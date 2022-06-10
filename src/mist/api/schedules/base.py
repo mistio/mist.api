@@ -7,7 +7,6 @@ Cloud specific controllers are in `mist.api.schedules.controllers`.
 import re
 import logging
 import datetime
-import json
 import mongoengine as me
 
 from mist.api.helpers import rtype_to_classpath

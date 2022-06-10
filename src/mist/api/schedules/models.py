@@ -15,6 +15,9 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.selectors.models import SelectorClassMixin
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.tag.mixins import TagMixin
+from mist.api.actions.models import ActionClassMixin
+from mist.api.actions.models import BaseAlertAction
+from mist.api.actions.models import NotificationAction
 
 log = logging.getLogger(__name__)
 
@@ -120,76 +123,76 @@ class Crontab(BaseScheduleType):
         )
 
 
-class BaseTaskType(me.EmbeddedDocument):
-    """Abstract Base class used as a common interface
-    for scheduler's tasks types. Action and Script"""
+# class BaseTaskType(me.EmbeddedDocument):
+#     """Abstract Base class used as a common interface
+#     for scheduler's tasks types. Action and Script"""
 
-    meta = {'allow_inheritance': True}
+#     meta = {'allow_inheritance': True}
 
-    @property
-    def args(self):
-        raise NotImplementedError()
+#     @property
+#     def args(self):
+#         raise NotImplementedError()
 
-    @property
-    def kwargs(self):
-        raise NotImplementedError()
+#     @property
+#     def kwargs(self):
+#         raise NotImplementedError()
 
-    @property
-    def task(self):
-        raise NotImplementedError()
-
-
-class ActionTask(BaseTaskType):
-    action = me.StringField()
-
-    @property
-    def args(self):
-        return self.action
-
-    @property
-    def kwargs(self):
-        return {}
-
-    @property
-    def task(self):
-        return 'mist.api.tasks.group_resources_actions'
-
-    def __str__(self):
-        return 'Action: %s' % self.action
-
-    def as_dict(self):
-        return {
-            'action': self.action
-        }
+#     @property
+#     def task(self):
+#         raise NotImplementedError()
 
 
-class ScriptTask(BaseTaskType):
-    script_id = me.StringField()
-    params = me.StringField()
+# class ActionTask(BaseTaskType):
+#     action = me.StringField()
 
-    @property
-    def args(self):
-        return self.script_id
+#     @property
+#     def args(self):
+#         return self.action
 
-    @property
-    def kwargs(self):
-        return {'params': self.params}
+#     @property
+#     def kwargs(self):
+#         return {}
 
-    @property
-    def task(self):
-        return 'mist.api.tasks.group_run_script'
+#     @property
+#     def task(self):
+#         return 'mist.api.tasks.group_resources_actions'
 
-    def __str__(self):
-        return 'Run script: %s' % self.script_id
+#     def __str__(self):
+#         return 'Action: %s' % self.action
 
-    def as_dict(self):
-        return {
-            'script_id': self.script_id,
-            'params': self.params
-        }
+#     def as_dict(self):
+#         return {
+#             'action': self.action
+#         }
 
 
-class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
+# class ScriptTask(BaseTaskType):
+#     script_id = me.StringField()
+#     params = me.StringField()
+
+#     @property
+#     def args(self):
+#         return self.script_id
+
+#     @property
+#     def kwargs(self):
+#         return {'params': self.params}
+
+#     @property
+#     def task(self):
+#         return 'mist.api.tasks.group_run_script'
+
+#     def __str__(self):
+#         return 'Run script: %s' % self.script_id
+
+#     def as_dict(self):
+#         return {
+#             'script_id': self.script_id,
+#             'params': self.params
+#         }
+
+
+class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, ActionClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -239,6 +242,12 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
     # mist specific fields
     schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=False)
     task_type = me.EmbeddedDocumentField(BaseTaskType, required=False)
+
+    # Defines a list of actions to be executed whenever the schedule is triggered.
+    # Defaults to just notifying the users.
+    actions = me.EmbeddedDocumentListField(
+        BaseAlertAction, required=False, default=lambda: [NotificationAction()]
+    )
 
     # celerybeat-mongo specific fields
     expires = me.DateTimeField()

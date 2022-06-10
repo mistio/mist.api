@@ -76,6 +76,9 @@ class ActionClassMixin(object):
 
     actions = me.EmbeddedDocumentListField(BaseAlertAction)
 
+    def owner_query(self):
+        return me.Q(owner=self.owner_id)
+
 
 class NotificationAction(BaseAlertAction):
     """An action that notifies the users, once a rule has been triggered."""
