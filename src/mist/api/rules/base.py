@@ -15,8 +15,8 @@ from mist.api.rules.models import Frequency
 from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
 
-from mist.api.rules.models import ACTIONS
-from mist.api.rules.models import NoDataAction
+from mist.api.actions.models import ACTIONS
+from mist.api.actions.models import NoDataAction
 
 from mist.api.selectors.models import FieldSelector
 from mist.api.selectors.models import TaggingSelector
