@@ -344,8 +344,7 @@ def get_missing_resources() -> dict:
     states_rtypes = {
         'deleted': ['cloud', 'key', 'script', 'template'],
         'missing_since': ['machine', 'cluster', 'network',
-                          'volume', 'image', 'subnet',
-                          'location', 'size']
+                          'volume', 'image', 'subnet']
     }
     for state, rtypes in states_rtypes.items():
         condition = None if state == 'missing_since' else False
