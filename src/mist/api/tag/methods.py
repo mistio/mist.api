@@ -17,6 +17,46 @@ log = logging.getLogger(__name__)
 
 
 def get_tags(auth_context, verbose='', resource='', search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
+    """
+    List unique tags and the corresponding resources.
+
+    Supports filtering, sorting, pagination. Enforces RBAC.
+
+    Parameters:
+        auth_context(AuthContext): The AuthContext of the user
+            to list tags for.
+        verbose(bool):  Flag to determine whether the tagged resources are
+                        going to be displayed (default False)
+        resource(str): Display tags on a single resource
+                       One of taggable resources:
+            'bucket', 'cloud', 'cluster', 'image', 'key',
+            'machine', 'network', 'record', 'schedule',
+            'script', 'secret', 'stack', 'subnet', 'template',
+            'tunnel', 'volume', 'zone'
+        search(str): The pattern to search for, that contains:
+            key(field)-value pairs separated by one of the operators:
+                :, =, !=
+            Example:
+            >>>  key:key1 or key:key1 value:value1
+        cloud(str): List resources from these clouds only,
+            with the same pattern as `search`.
+        tags(str or dict): List resources which satisfy these tags:
+            Examples:
+            >>> '{"dev": "", "server": "east"}'
+            >>> 'dev,server=east'
+        only(str): The fields to load from the resource_type's document,
+            comma-seperated.
+        sort(str): The field to order the query results by; field may be
+            prefixed with “+” or a “-” to determine the ordering direction.
+        start(int): The index of the first item to return.
+        limit(int): Return up to this many items.
+        deref(str): Name or id. Display either the id or the name of the tagged
+                    resources (default id).
+    Returns:
+        tuple(A mongoengine QuerySet containing the objects found,
+             the total number of items found)
+    """
+
     query = Q(owner=auth_context.owner)
 
     if config.HAS_RBAC and not auth_context.is_owner():
@@ -135,12 +175,14 @@ def get_tag_objects_for_resource(owner, resource_obj, *args, **kwargs):
 
 def add_tags_to_resource(owner, resources, tags, *args, **kwargs):
     """
-    This function get a list of tags in the form
-    [{'joe': 'schmoe'}, ...] and will scan the list and update all
-    the tags whose keys are present but whose values are different and add all
-    the missing ones
+    This function gets a dict of tags in the form
+    {'key1': 'value1',..,'key_i','value_i'}, or a list of key,value tuples
+    (api-v1-implementation) and a list of dict-like resource objects
+    with keys 'resource_type', 'resource_id'. For every resource, already
+    existing tags in the request will be filtered out, existing tags with
+    common keys will by updated, and non-existing will be added.
     :param owner: the resource owner
-    :param resource_obj: the resource object where the tags will be added
+    :param resources: the resource objects where the tags will be added
     :param tags: list of tags to be added
     """
 
@@ -182,9 +224,10 @@ def add_tags_to_resource(owner, resources, tags, *args, **kwargs):
 def remove_tags_from_resource(owner, resources, tags, *args, **kwargs):
     """
     This function get a list of tags in the form {'key1': 'value1',
-    'key2': 'value2'} and will delete them from the resource
+    'key2': 'value2'} and a list of dict-like resource objects
+    with keys 'resource_type', 'resource_id'.
     :param owner: the resource owner
-    :param resource_obj: the resource object where the tags will be added
+    :param resources: the resource objects from which the tags will be removed
     :param rtype: resource type
     :param tags: list of tags to be deleted
     """
@@ -237,17 +280,20 @@ def resolve_id_and_get_tags(owner, rtype, rid, *args, **kwargs):
     return get_tags_for_resource(owner, resource_obj)
 
 
-def can_modify_resources_tags(auth_context, resources, tags, op):
+def can_modify_resources_tags(auth_context, resources, tags, op: str) -> bool:
     """
-    This method splits the resources' tags in security and non-security
-    groups. Security tags are part of team policies. Such tags should only
-    be modified by organization owners in order to enforce team policies.
-    If a team member attempts to edit a security tag, an UnauthorizedError
-    will be thrown
+    This method checks edit_tags permission, and whether security
+    tags are modified. In either case, if the user belongs to the owner
+    team, the result is true.
+    Security tags are part of team policies. The only occasion where a
+    non-owner can have security tags in his tag request in his tag request
+    is if the security tags allready exist in the resource.
+    :param auth_context: the auth_context of the request
+    :param resources: the resources on which the tags are going to be applied.
+    A list of dict-like objects with keys 'resource_type', 'resource_id'
     :param tags: the new tags dict
-    :param resource: the resource on which the tags are going to be applied
-    :return: False, if a security tag has been modified in the new tags
-    dict by someone other than the organization owner, otherwise True
+    :return: False, if the user  is not owner, and doesn't have edit_tags
+    permission, or security_tags are going to be modified. True otherwise
     """
 
     if auth_context.org and not auth_context.is_owner():
@@ -288,7 +334,11 @@ def can_modify_resources_tags(auth_context, resources, tags, op):
     return True
 
 
-def get_missing_resources():
+def get_missing_resources() -> dict:
+    """
+    This method runs a query and returns the taggable resources
+    that are missing, deleted, or disabled.
+    """
 
     dikt = {rtype: [] for rtype in TAGS_RESOURCE_TYPES}
     states_rtypes = {
