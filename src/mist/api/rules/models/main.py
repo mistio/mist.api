@@ -8,7 +8,7 @@ from mist.api.exceptions import BadRequestError
 
 from mist.api.users.models import Organization
 from mist.api.selectors.models import SelectorClassMixin
-from mist.api.actions.models import ActionClassMixin
+# from mist.api.actions.models import ActionClassMixin
 from mist.api.actions.models import BaseAlertAction
 from mist.api.actions.models import NotificationAction
 
