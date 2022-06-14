@@ -488,7 +488,7 @@ class BaseController(object):
                     self.schedule.actions[0] = acts.ScriptAction(
                         script=script_id, params=params)
             else:
-                self.schedule.actions[0] = acts.MachineAction(action=action)
+                self.schedule.actions[0] = acts.ResourceAction(action=action)
         elif len(actions) == 0:
             raise BadRequestError("Action is required")
         else:

@@ -294,10 +294,10 @@ class WebhookAction(BaseAction):
                 'headers': self.headers}
 
 
-class MachineAction(BaseAction):
+class ResourceAction(BaseAction):
     """Perform a machine action."""
 
-    atype = 'machine_action'
+    atype = 'resource_action'
 
     action = me.StringField(required=True, choices=('reboot', 'destroy'))
 
