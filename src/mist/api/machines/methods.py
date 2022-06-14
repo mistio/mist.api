@@ -629,7 +629,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         machine.ctl.associate_key(key, username=username,
                                   port=ssh_port, no_connect=True)
     if tags:
-        resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
+        resolve_id_and_set_tags(auth_context.owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
     machine.reload()
     # The poller has already sent an add jsonpatch when the machine was

@@ -153,11 +153,11 @@ def add_routes(configurator):
     """
 
     def valid_ui_section(context, request):
-        ui_sections = ['clouds', 'machines', 'images', 'keys', 'scripts',
-                       'templates', 'stacks', 'teams', 'networks', 'volumes',
-                       'tunnels', 'members', 'insights', 'my-account',
-                       'schedules', 'zones', 'rules', 'incidents',
-                       'buckets', 'secrets']
+        ui_sections = ['clouds', 'clusters', 'machines', 'images', 'keys',
+                       'scripts', 'templates', 'stacks', 'teams', 'networks',
+                       'volumes', 'tunnels', 'members', 'insights',
+                       'my-account', 'schedules', 'zones', 'rules',
+                       'incidents', 'buckets', 'secrets']
         landing_sections = ['sign-up', 'sign-in', 'forgot-password', 'about',
                             'product', 'buy-license', 'request-pricing',
                             'get-started', 'privacy-policy', 'pledge', 'tos',
