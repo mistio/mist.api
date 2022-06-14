@@ -423,12 +423,15 @@ def run_script(request):
         cloud_id = machine.cloud.id
     else:
         # this will be deprecated, keep it for backwards compatibility
-        cloud_id = params.get('cloud_id')
-        machine_id = params.get('machine_id') or params.get('external_id')
-
-        for key in ('cloud_id', 'machine_id'):
-            if key not in params:
-                raise RequiredParameterMissingError(key)
+        cloud_id_key = 'cloud_id'
+        machine_id_key = 'machine_id'
+        external_id_key = 'external_id'
+        cloud_id = params.get(cloud_id_key)
+        if cloud_id_key not in params:
+            raise RequiredParameterMissingError(cloud_id_key)
+        machine_id = params.get(machine_id_key) or params.get(external_id_key)
+        if machine_id_key not in params and external_id_key not in params:
+            raise RequiredParameterMissingError(machine_id_key)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
                                           machine_id=machine_id,
