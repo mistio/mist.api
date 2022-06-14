@@ -1499,13 +1499,13 @@ def create_machine_async_v2(
             tmp_log_error('Got exception %s in key association'
                           % str(exc))
 
+    machine = Machine.objects.get(cloud=cloud, external_id=node.id)
+
     if plan.get('tags'):
         add_tags_to_resource(auth_context.owner,
-                             [{'resource_type =': 'record',
-                               'resource_id': node.id}],
+                             [{'resource_type': 'machine',
+                               'resource_id': machine.id}],
                              plan['tags'])
-
-    machine = Machine.objects.get(cloud=cloud, external_id=node.id)
 
     # first_run is set to True because poller has already
     # logged an observation event for this machine

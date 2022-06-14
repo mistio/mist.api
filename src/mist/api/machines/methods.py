@@ -631,7 +631,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         add_tags_to_resource(auth_context.owner,
                              [{'resource_type': 'machine',
-                               'resource_id': node.id}],
+                               'resource_id': machine.id}],
                              tags)
 
     machine.reload()
