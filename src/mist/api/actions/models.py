@@ -21,16 +21,16 @@ def _populate_actions():
     """Populate ACTIONS variable."""
     for key, value in globals().items():
         if key.endswith('Action') and key != 'Action':
-            if issubclass(value, BaseAlertAction):
+            if issubclass(value, BaseAction):
                 if value.atype not in (None, 'no_data', ):  # Exclude these.
                     ACTIONS[value.atype] = value
 
 
-class BaseAlertAction(me.EmbeddedDocument):
+class BaseAction(me.EmbeddedDocument):
     """The base class for all alert actions.
 
     This class serves as very basic, common interface amongst subclasses that
-    define alert actions. Every subclass of the `BaseAlertAction` MUST define
+    define alert actions. Every subclass of the `BaseAction` MUST define
     at least its own `run` method, which holds all the logic of the action's
     execution, and a descriptive `atype`.
 
@@ -74,13 +74,13 @@ class ActionClassMixin(object):
     query sets for a specific collection. It constructs a query from
     a list of query sets which chains together with logical & operator."""
 
-    actions = me.EmbeddedDocumentListField(BaseAlertAction)
+    actions = me.EmbeddedDocumentListField(BaseAction)
 
     def owner_query(self):
         return me.Q(owner=self.owner_id)
 
 
-class NotificationAction(BaseAlertAction):
+class NotificationAction(BaseAction):
     """An action that notifies the users, once a rule has been triggered."""
 
     atype = 'notification'
@@ -162,7 +162,7 @@ class NoDataAction(NotificationAction):
                                       incident_id, action)
 
 
-class CommandAction(BaseAlertAction):
+class CommandAction(BaseAction):
     """Execute a remote command."""
 
     atype = 'command'
@@ -182,7 +182,7 @@ class CommandAction(BaseAlertAction):
         return {'type': self.atype, 'command': self.command}
 
 
-class ScriptAction(BaseAlertAction):
+class ScriptAction(BaseAction):
     """Execute a remote script."""
 
     atype = 'script'
@@ -208,7 +208,7 @@ class ScriptAction(BaseAlertAction):
                 'params': self.params}
 
 
-class WebhookAction(BaseAlertAction):
+class WebhookAction(BaseAction):
     """Perform an HTTP request."""
 
     atype = 'webhook'
@@ -293,7 +293,7 @@ class WebhookAction(BaseAlertAction):
                 'headers': self.headers}
 
 
-class MachineAction(BaseAlertAction):
+class MachineAction(BaseAction):
     """Perform a machine action."""
 
     atype = 'machine_action'

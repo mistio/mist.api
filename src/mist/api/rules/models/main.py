@@ -9,7 +9,7 @@ from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
 from mist.api.selectors.models import SelectorClassMixin
 from mist.api.actions.models import ActionClassMixin
-from mist.api.actions.models import BaseAlertAction
+from mist.api.actions.models import BaseAction
 from mist.api.actions.models import NotificationAction
 
 from mist.api.rules.base import NoDataRuleController
@@ -95,7 +95,7 @@ class Rule(me.Document):
     # Defines a list of actions to be executed once the rule is triggered.
     # Defaults to just notifying the users.
     actions = me.EmbeddedDocumentListField(
-        BaseAlertAction, required=True, default=lambda: [NotificationAction()]
+        BaseAction, required=True, default=lambda: [NotificationAction()]
     )
 
     # Disable the rule organization-wide.
