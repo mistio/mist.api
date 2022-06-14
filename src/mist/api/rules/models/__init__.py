@@ -4,7 +4,7 @@ from mist.api.rules.models.conditions import TriggerOffset  # noqa
 from mist.api.rules.models.conditions import QueryCondition  # noqa
 
 from mist.api.actions.models import ACTIONS  # noqa
-from mist.api.actions.models import BaseAlertAction  # noqa
+from mist.api.actions.models import BaseAction  # noqa
 from mist.api.actions.models import NotificationAction  # noqa
 from mist.api.actions.models import WebhookAction  # noqa
 from mist.api.actions.models import NoDataAction  # noqa

@@ -25,6 +25,7 @@ from mist.api.selectors.models import FieldSelector, ResourceSelector
 from mist.api.selectors.models import TaggingSelector, AgeSelector
 
 import mist.api.schedules.models as schedules
+import mist.api.actions.models as actions
 
 from mist.api.auth.methods import AuthContext
 
@@ -484,10 +485,10 @@ class BaseController(object):
                 script_id = actions[0]['script']
                 params = actions[0]['params']
                 if script_id:
-                    self.schedule.task_type = schedules.ScriptTask(
-                        script_id=script_id, params=params)
+                    self.schedule.actions[0] = actions.ScriptAction(
+                        script=script_id, params=params)
             else:
-                self.schedule.task_type = schedules.ActionTask(action=action)
+                self.schedule.actions[0] = actions.MachineAction(action=action)
         elif len(actions) == 0:
             raise BadRequestError("Action is required")
         else:
