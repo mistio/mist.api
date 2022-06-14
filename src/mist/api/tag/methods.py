@@ -208,7 +208,10 @@ def add_tags_to_resource(owner, resources, tags, *args, **kwargs):
             in dict(tags).items() - existing_tags.items()
         }
         if tag_dict:
+            # Remove existing tags with common keys with the tags to be added,
+            # in order to update them.
             remove_tags_from_resource(owner, [resource], tag_dict)
+
             rtypes_to_update.add(resource_type + 's')
             tag_objects.extend([Tag(owner=owner, resource_id=resource_id,
                                     resource_type=resource_type, key=key,
