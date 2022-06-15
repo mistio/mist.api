@@ -2722,9 +2722,10 @@ def prepare_docker_uri(auth_context, machine):
     from mist.api.helpers import encrypt
     # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
     encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
-    msg = '%s,%s,%s,%s,%s,%s' % (
+    msg = '%s,%s,%s,%s,%s,%s,%s' % (
         name,
         cluster,
+        machine_id,
         host,
         port,
         expiry,
@@ -2733,11 +2734,12 @@ def prepare_docker_uri(auth_context, machine):
         config.SECRET.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
-    base_ws_uri = config.CORE_URI.replace('http', 'wss')
-    exec_uri = '%s/docker-exec/%s/%s/%s/%s/%s/%s/%s' % (
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    exec_uri = '%s/docker-exec/%s/%s/%s/%s/%s/%s/%s/%s' % (
         base_ws_uri,
         name,
         cluster,
+        machine_id,
         host,
         port,
         expiry,
