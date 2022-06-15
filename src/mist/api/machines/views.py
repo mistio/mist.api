@@ -1155,6 +1155,9 @@ def machine_ssh(request):
     if machine.machine_type == 'container' and \
             machine.cloud.provider == 'lxd':
         exec_uri = methods.prepare_lxd_uri(auth_context, machine)
+    elif machine.machine_type == 'container' and \
+            machine.cloud.provider == 'docker':
+        exec_uri = methods.prepare_docker_uri(auth_context, machine)
     else:
         exec_uri = methods.prepare_ssh_uri(auth_context, machine)
     return {"location": exec_uri}
