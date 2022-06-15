@@ -8,7 +8,6 @@ import mongoengine as me
 from mist.api.helpers import is_email_valid
 from mist.api.logs.methods import log_event
 from mist.api.users.models import User
-# from mist.api.machines.models import Machine
 
 
 log = logging.getLogger(__name__)
@@ -146,6 +145,7 @@ class NoDataAction(NotificationAction):
         if timestamp + 60 * 60 * 24 < time.time():
             # FIXME Imported here due to circular dependency issues.
             from mist.api.monitoring.methods import disable_monitoring
+            from mist.api.machines.models import Machine
             # If NoData alerts are being triggered for over 24h, disable
             # monitoring and log the action to close any open incidents.
             disable_monitoring(machine.owner, machine.cloud.id,
@@ -172,6 +172,7 @@ class CommandAction(BaseAction):
     def run(self, machine, *args, **kwargs):
         # FIXME Imported here due to circular dependency issues.
         from mist.api.methods import ssh_command
+        from mist.api.machines.models import Machine
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
         return ssh_command(machine.owner, machine.cloud.id,
@@ -193,6 +194,7 @@ class ScriptAction(BaseAction):
     def run(self, machine, *args, **kwargs):
         # FIXME Imported here due to circular dependency issues.
         from mist.api import tasks
+        from mist.api.machines.models import Machine
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
         job_id = uuid.uuid4().hex
@@ -293,14 +295,16 @@ class WebhookAction(BaseAction):
                 'headers': self.headers}
 
 
-class ResourceAction(BaseAction):
+class MachineAction(BaseAction):
     """Perform a machine action."""
 
-    atype = 'resource_action'
+    atype = 'machine_action'
 
     action = me.StringField(required=True, choices=('reboot', 'destroy'))
 
     def run(self, machine, *args, **kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.machines.models import Machine
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
         getattr(machine.ctl, self.action)()
@@ -313,6 +317,60 @@ class ResourceAction(BaseAction):
             # MachineController.
             disable_monitoring(machine.owner, machine.cloud.id,
                                machine.id, no_ssh=True)
+
+    def as_dict(self):
+        return {'type': self.atype, 'action': self.action}
+
+
+class VolumeAction(BaseAction):
+    """Perform a volume action."""
+
+    atype = 'volume_action'
+
+    action = me.StringField(required=True, choices=('delete'))
+
+    def run(self, volume, *args, **kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.volumes.models import Volume
+        assert isinstance(volume, Volume)
+        assert volume.owner == self._instance.owner
+        getattr(volume.ctl, self.action)()
+
+    def as_dict(self):
+        return {'type': self.atype, 'action': self.action}
+
+
+class ClusterAction(BaseAction):
+    """Perform a cluster action."""
+
+    atype = 'cluster_action'
+
+    action = me.StringField(required=True, choices=('delete'))
+
+    def run(self, cluster, *args, **kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.containers.models.Cluster import Cluster
+        assert isinstance(cluster, Cluster)
+        assert cluster.owner == self._instance.owner
+        getattr(cluster.ctl, self.action)()
+
+    def as_dict(self):
+        return {'type': self.atype, 'action': self.action}
+
+
+class NetworkAction(BaseAction):
+    """Perform a network action."""
+
+    atype = 'network_action'
+
+    action = me.StringField(required=True, choices=('delete'))
+
+    def run(self, network, *args, **kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.networks.models import Network
+        assert isinstance(network, Network)
+        assert network.owner == self._instance.owner
+        getattr(network.ctl, self.action)()
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
