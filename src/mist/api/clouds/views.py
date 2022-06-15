@@ -234,7 +234,10 @@ def add_cloud(request):
     cloud = Cloud.objects.get(owner=owner, id=cloud_id)
 
     if cloud_tags:
-        add_tags_to_resource(owner, cloud, list(cloud_tags.items()))
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type': 'cloud',
+                               'resource_id': cloud.id}],
+                             list(cloud_tags.items()))
 
     # Set ownership.
     cloud.assign_to(auth_context.user)

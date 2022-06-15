@@ -123,7 +123,9 @@ def add_script(request):
     script.assign_to(auth_context.user)
 
     if script_tags:
-        add_tags_to_resource(auth_context.owner, script,
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type': 'script',
+                               'resource_id': script.id}],
                              list(script_tags.items()))
 
     script = script.as_dict()

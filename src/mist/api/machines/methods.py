@@ -57,7 +57,7 @@ from mist.api.auth.methods import auth_context_from_auth_token
 
 from mist.api.monitoring.methods import disable_monitoring
 
-from mist.api.tag.methods import resolve_id_and_set_tags
+from mist.api.tag.methods import add_tags_to_resource
 from mist.api.tag.methods import get_tags_for_resource
 from mist.api.tag.methods import remove_tags_from_resource
 
@@ -629,8 +629,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         machine.ctl.associate_key(key, username=username,
                                   port=ssh_port, no_connect=True)
     if tags:
-        resolve_id_and_set_tags(auth_context.owner, 'machine', node.id, tags,
-                                cloud_id=cloud_id)
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type': 'machine',
+                               'resource_id': machine.id}],
+                             tags)
+
     machine.reload()
     # The poller has already sent an add jsonpatch when the machine was
     # first found, without the fields (tags,key association,expiration etc.)
@@ -2412,7 +2415,11 @@ def machine_safe_expire(owner_id, machine):
     owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
     existing_tags = get_tags_for_resource(owner, machine)
     if existing_tags:
-        remove_tags_from_resource(owner, machine, existing_tags)
+        remove_tags_from_resource(owner,
+                                  [{'resource_type': 'machine'},
+                                   {'resource_id': machine.id}],
+                                  existing_tags)
+
     # unown machine
     machine.owned_by = None
 

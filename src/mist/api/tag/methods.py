@@ -1,5 +1,7 @@
 import logging
 import re
+from mist.api.exceptions import NotFoundError, PolicyUnauthorizedError
+
 from mongoengine import Q
 import mongoengine as me
 from mist.api.tag.models import Tag
@@ -15,6 +17,46 @@ log = logging.getLogger(__name__)
 
 
 def get_tags(auth_context, verbose='', resource='', search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
+    """
+    List unique tags and the corresponding resources.
+
+    Supports filtering, sorting, pagination. Enforces RBAC.
+
+    Parameters:
+        auth_context(AuthContext): The AuthContext of the user
+            to list tags for.
+        verbose(bool):  Flag to determine whether the tagged resources are
+                        going to be displayed (default False)
+        resource(str): Display tags on a single resource
+                       One of taggable resources:
+            'bucket', 'cloud', 'cluster', 'image', 'key',
+            'machine', 'network', 'record', 'schedule',
+            'script', 'secret', 'stack', 'subnet', 'template',
+            'tunnel', 'volume', 'zone'
+        search(str): The pattern to search for, that contains:
+            key(field)-value pairs separated by one of the operators:
+                :, =, !=
+            Example:
+            >>>  key:key1 or key:key1 value:value1
+        cloud(str): List resources from these clouds only,
+            with the same pattern as `search`.
+        tags(str or dict): List resources which satisfy these tags:
+            Examples:
+            >>> '{"dev": "", "server": "east"}'
+            >>> 'dev,server=east'
+        only(str): The fields to load from the resource_type's document,
+            comma-seperated.
+        sort(str): The field to order the query results by; field may be
+            prefixed with “+” or a “-” to determine the ordering direction.
+        start(int): The index of the first item to return.
+        limit(int): Return up to this many items.
+        deref(str): Name or id. Display either the id or the name of the tagged
+                    resources (default id).
+    Returns:
+        tuple(A mongoengine QuerySet containing the objects found,
+             the total number of items found)
+    """
+
     query = Q(owner=auth_context.owner)
 
     if config.HAS_RBAC and not auth_context.is_owner():
@@ -131,67 +173,97 @@ def get_tag_objects_for_resource(owner, resource_obj, *args, **kwargs):
         resource_id=resource_obj.id)
 
 
-def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
+def add_tags_to_resource(owner, resources, tags, *args, **kwargs):
     """
-    This function get a list of tags in the form
-    [{'joe': 'schmoe'}, ...] and will scan the list and update all
-    the tags whose keys are present but whose values are different and add all
-    the missing ones
+    This function gets a dict of tags in the form
+    {'key1': 'value1',..,'key_i','value_i'}, or a list of key,value tuples
+    (api-v1-implementation) and a list of dict-like resource objects
+    with keys 'resource_type', 'resource_id'. For every resource, already
+    existing tags in the request will be filtered out, existing tags with
+    common keys will by updated, and non-existing will be added.
     :param owner: the resource owner
-    :param resource_obj: the resource object where the tags will be added
+    :param resources: the resource objects where the tags will be added
     :param tags: list of tags to be added
     """
-    # merge all the tags in the list into one dict. this will also make sure
-    # that if there are duplicates they will be cleaned up
-    rtype = resource_obj._meta["collection"].rstrip('s')
-    existing_tags = get_tag_objects_for_resource(owner, resource_obj)
 
-    tag_dict = {
-        k: v for k, v
-        in dict(tags).items() - {
-            tag.key: tag.value for tag in existing_tags}.items()
-    }
-    if tag_dict:
-        remove_tags_from_resource(owner, resource_obj, tag_dict)
+    tag_objects = []
+    missing_resources = get_missing_resources()
+    rtypes_to_update = set()
+    for resource in resources:
+        resource_type = resource.get('resource_type').rstrip('s')
+        resource_id = resource.get('resource_id')
 
-        Tag.objects.insert([Tag(owner=owner, resource_id=resource_obj.id,
-                                resource_type=rtype, key=key, value=value)
-                            for key, value in tag_dict.items()])
+        if resource_id in missing_resources[resource_type]:
+            raise NotFoundError(msg=f'{resource_type} {resource_id}')
+        try:
+            resource_obj = get_resource_model(
+                resource_type).objects(id=resource_id).get()
+        except me.DoesNotExist:
+            raise NotFoundError(msg=f'{resource_type} {resource_id}')
 
-        # SEC
-        owner.mapper.update(resource_obj)
+        existing_tags = get_tags_for_resource(owner, resource_obj)
 
-        trigger_session_update(owner,
-                               [rtype + 's' if not rtype.endswith('s')
-                                else rtype])
+        tag_dict = {
+            k: v for k, v
+            in dict(tags).items() - existing_tags.items()
+        }
+        if tag_dict:
+            # Remove existing tags with common keys with the tags to be added,
+            # in order to update them.
+            remove_tags_from_resource(owner, [resource], tag_dict)
+
+            rtypes_to_update.add(resource_type + 's')
+            tag_objects.extend([Tag(owner=owner, resource_id=resource_id,
+                                    resource_type=resource_type, key=key,
+                                    value=value)
+                                for key, value in tag_dict.items()])
+
+            # SEC
+            owner.mapper.update(resource_obj)
+    Tag.objects.insert(tag_objects)
+    trigger_session_update(owner, list(rtypes_to_update))
 
 
-def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
+def remove_tags_from_resource(owner, resources, tags, *args, **kwargs):
     """
     This function get a list of tags in the form {'key1': 'value1',
-    'key2': 'value2'} and will delete them from the resource
+    'key2': 'value2'} and a list of dict-like resource objects
+    with keys 'resource_type', 'resource_id'.
     :param owner: the resource owner
-    :param resource_obj: the resource object where the tags will be added
+    :param resources: the resource objects from which the tags will be removed
     :param rtype: resource type
     :param tags: list of tags to be deleted
     """
     # ensure there are no duplicate tag keys because mongoengine will
     # raise exception for duplicates in query
-    key_list = list(set(tags))
-
-    # create a query that will return all the tags with
+    key_list = list(dict(tags))
+    # create a query that will return all the tags with the specified keys
     query = reduce(lambda q1, q2: q1.__or__(q2),
                    [Q(key=key) for key in key_list])
 
-    get_tag_objects_for_resource(owner, resource_obj).filter(query).delete()
+    resource_query = Q()
+    missing_resources = get_missing_resources()
+    rtypes_to_update = set()
 
-    # SEC
-    owner.mapper.update(resource_obj)
+    for resource in resources:
+        resource_type = resource.get('resource_type').rstrip('s')
+        resource_id = resource.get('resource_id')
 
-    rtype = resource_obj._meta["collection"]
+        if resource_id in missing_resources[resource_type]:
+            raise NotFoundError(msg=f'{resource_type} {resource_id}')
 
-    trigger_session_update(owner,
-                           [rtype + 's' if not rtype.endswith('s') else rtype])
+        resource_query |= Q(owner=owner,
+                            resource_id=resource_id,
+                            resource_type=resource_type)
+        rtypes_to_update.add(resource_type + 's')
+        # SEC
+        owner.mapper.update(
+            get_resource_model(resource_type).
+            objects(id=resource_id).get())
+
+    query &= resource_query
+    Tag.objects.filter(query).delete()
+    trigger_session_update(owner, list(rtypes_to_update))
 
 
 def resolve_id_and_get_tags(owner, rtype, rid, *args, **kwargs):
@@ -211,99 +283,71 @@ def resolve_id_and_get_tags(owner, rtype, rid, *args, **kwargs):
     return get_tags_for_resource(owner, resource_obj)
 
 
-def resolve_id_and_set_tags(owner, rtype, rid, tags, *args, **kwargs):
+def can_modify_resources_tags(auth_context, resources, tags, op: str) -> bool:
     """
-    :param owner: the owner of the resource
-    :param rtype: resource type
-    :param rid: resource id
-    :param tags: resource tags to be added or updated
-    :return: the tags to be added or updated to this resource
-    """
-    resource_obj = get_object_with_id(owner, rid, rtype, *args, **kwargs)
-    return add_tags_to_resource(owner, resource_obj, tags, *args,
-                                **kwargs)
-
-
-def resolve_id_and_delete_tags(owner, rtype, rid, tags, *args, **kwargs):
-    """
-    :param owner: the owner of the resource
-    :param rtype: resource type
-    :param rid: resource id
-    :param tags: resource id
-    :return: the tags to be deleted from this resource
-    """
-    resource_obj = get_object_with_id(owner, rid, rtype, *args, **kwargs)
-    return remove_tags_from_resource(owner, resource_obj, tags,
-                                     *args, **kwargs)
-
-
-def modify_security_tags(auth_context, tags, resource=None):
-    """
-    This method splits the resources' tags in security and non-security
-    groups. Security tags are part of team policies. Such tags should only
-    be modified by organization owners in order to enforce team policies.
-    If a team member attempts to edit a security tag, an UnauthorizedError
-    will be thrown
+    This method checks edit_tags permission, and whether security
+    tags are modified. In either case, if the user belongs to the owner
+    team, the result is true.
+    Security tags are part of team policies. The only occasion where a
+    non-owner can have security tags in his tag request in his tag request
+    is if the security tags allready exist in the resource.
+    :param auth_context: the auth_context of the request
+    :param resources: the resources on which the tags are going to be applied.
+    A list of dict-like objects with keys 'resource_type', 'resource_id'
     :param tags: the new tags dict
-    :param resource: the resource on which the tags are going to be applied
-    :return: False, if a security tag has been modified in the new tags
-    dict by someone other than the organization owner, otherwise True
+    :return: False, if the user  is not owner, and doesn't have edit_tags
+    permission, or security_tags are going to be modified. True otherwise
     """
-    # private context
-    if auth_context.org is None:
-        return True
 
-    if auth_context.is_owner():
-        return True
-    else:
-        rtags = get_tag_objects_for_resource(
-            auth_context.owner, resource).only('key', 'value')
-        rtags = {rtag.key: rtag.value for rtag in rtags}
-        security_tags = auth_context.get_security_tags()
-        # check whether the new tags tend to modify any of the security_tags
-        for security_tag in security_tags:
-            for key, value in list(security_tag.items()):
-                if key not in list(rtags.keys()):
-                    if key in list(tags.keys()):
-                        return False
-                else:
-                    if key not in list(tags.keys()):
-                        return False
-                    elif value != tags[key]:
-                        return False
-        return True
+    if auth_context.org and not auth_context.is_owner():
+        tags = dict(tags)
+        need_sec_tags_check = False
 
+        security_tags = [(k, v) for tag in auth_context.get_security_tags()
+                         for k, v in tag.items()]
+        common_keys = set(dict(security_tags)).intersection(set((tags)))
+        common_tags = set(security_tags).intersection(set(tags.items()))
+        if common_keys:
+            if op == 'remove':
+                return False
 
-def delete_security_tag(auth_context, tag_key):
-    """
-    This method checks whether the tag to be deleted belongs to the
-    secure tags group
-    :param tag_key: the key of the tag to be removed
-    :return: False in case a security tag is about to be deleted
-    """
-    # private context
-    if auth_context.org is None:
-        return True
-
-    if auth_context.is_owner():
-        return True
-    else:
-        security_tags = auth_context.get_security_tags()
-        for security_tag in security_tags:
-            for key, value in list(security_tag.items()):
-                if key == tag_key:
+            for key in common_keys:
+                if key not in (ctag[0] for ctag in common_tags):
                     return False
-        return True
+            need_sec_tags_check = True
+
+        for resource in resources:
+            resource_type = resource.get('resource_type').rstrip('s')
+            resource_id = resource.get('resource_id')
+
+            try:
+                auth_context.check_perm(resource_type, 'edit_tags',
+                                        resource_id)
+            except PolicyUnauthorizedError:
+                return False
+
+            if need_sec_tags_check:
+                existing_tags = {(tag.key, tag.value)
+                                 for tag in Tag.objects(
+                                     owner=auth_context.owner,
+                                     resource_type=resource_type,
+                                     resource_id=resource_id)}
+                if not common_tags.issubset(existing_tags):
+                    return False
+    return True
 
 
-def get_missing_resources():
+def get_missing_resources() -> dict:
+    """
+    This method runs a query and returns the taggable resources
+    that are missing, deleted, or disabled.
+    """
 
     dikt = {rtype: [] for rtype in TAGS_RESOURCE_TYPES}
     states_rtypes = {
         'deleted': ['cloud', 'key', 'script', 'template'],
         'missing_since': ['machine', 'cluster', 'network',
-                          'volume', 'image', 'subnet',
-                          'location', 'size']
+                          'volume', 'image', 'subnet']
     }
     for state, rtypes in states_rtypes.items():
         condition = None if state == 'missing_since' else False
