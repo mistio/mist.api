@@ -16,7 +16,8 @@ from mist.api.helpers import get_resource_model
 log = logging.getLogger(__name__)
 
 
-def get_tags(auth_context, verbose='', resource='', search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
+def get_tags(auth_context, types=[], search='', sort='key',
+             start=None, limit=None, only=None, deref=None):
     """
     List unique tags and the corresponding resources.
 
@@ -75,9 +76,15 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
 
         query &= missing_query
 
-    if resource:
-        query &= Q(resource_type=resource.rstrip('s'))
+    if types == 'all':
+        types = TAGS_RESOURCE_TYPES
+    elif types:
+        types = types.split(',')
 
+    type_query = Q()
+    for rtype in types:
+        type_query |= Q(resource_type=rtype.rstrip('s'))
+    query &= type_query
     # search filter contains space separated terms
     # if the term contains :,=,<,>,!=, <=, >= then assume key/value query
     # otherwise search for objects with id or name matching the term
@@ -101,42 +108,45 @@ def get_tags(auth_context, verbose='', resource='', search='', sort='key', start
         reverse = False
 
     tags = Tag.objects(query)
-    data = [{'key': k, 'value': v} for k, v in
-            set((t.key, t.value) for t in tags)]
 
-    if verbose:
-        from mist.api.methods import list_resources
+    tags_unique = [{'key': k, 'value': v} for k, v in
+                   set((t.key, t.value) for t in tags)]
+    data = []
 
-        for kv in data:
-            kv_temp = kv.copy()
-            kv['resources'] = {}
-            for resource_type in TAGS_RESOURCE_TYPES:
-                kv['resources'][resource_type + 's'] = []
+    for tag_unique in tags_unique:
+
+        item = {'tag': {tag_unique['key']: tag_unique['value']}}
+        item['resource_count'] = tags.filter(**tag_unique).count()
+        if types:
+
+            for resource_type in types:
+                resource_type = resource_type.rstrip('s')
+                resource_atrrs = []
                 if deref == 'name' and resource_type == 'zone':
                     attr = 'domain'
                 else:
                     attr = deref
 
-                for tag in tags.filter(**kv_temp, resource_type=resource_type):
-                    try:
-                        resource = list_resources(
-                            auth_context=auth_context,
-                            resource_type=resource_type,
-                            search=tag.resource_id, only=attr
-                        )[0]
-                        if resource:
-                            kv['resources'][resource_type + 's'].append(
-                                getattr(resource.get(), attr))
-                    except KeyError:
-                        continue
-                    except me.DoesNotExist:
-                        log.error('%s with id %s does not exist',
-                                  resource_type, tag.resource_id)
+                for tag in tags.filter(**tag_unique,
+                                       resource_type=resource_type):
 
-    if sort == "resource_count" and verbose:
-        data.sort(key=lambda x: sum(map(len, x['resources'])), reverse=reverse)
+                    if deref == 'id':
+                        resource_atrrs.append(tag.resource_id)
+                    else:
+                        resource = tag.resource
+                        if resource:
+                            resource_atrrs.append(getattr(resource, attr))
+
+                if resource_atrrs:
+                    item[resource_type + 's'] = resource_atrrs
+        data.append(item)
+
+    if sort == "resource_count" and types:
+        data.sort(key=lambda x: x['resource_count'],
+                  reverse=reverse)
     elif sort == 'key':
-        data.sort(key=lambda x: x['key'], reverse=reverse)
+        data.sort(key=lambda x: list(x['tag'])[0],
+                  reverse=reverse)
 
     try:
         start = int(start)

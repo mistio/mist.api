@@ -33,7 +33,7 @@ class Tag(me.Document):
             resource_type = self.resource_type.rstrip('s')
             from mist.api.helpers import get_resource_model
             return get_resource_model(resource_type).objects.get(id=self.resource_id)   # noqa: E501
-        except AttributeError:
+        except (me.DoesNotExist, AttributeError):
             return None
 
     def validate(self, clean=False):
