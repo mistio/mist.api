@@ -98,18 +98,20 @@ class BaseStorageController(BaseController):
             new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
                            for v in volumes_dict}
 
+            old_volumes = {k: copy.copy(v) for k, v in cached_volumes.items()}
+
             # Exclude last seen from patch.
-            for vd in cached_volumes, new_volumes:
+            for vd in old_volumes, new_volumes:
                 for v in list(vd.values()):
                     v.pop('last_seen')
 
-            patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
+            patch = jsonpatch.JsonPatch.from_diff(old_volumes,
                                                   new_volumes).patch
             if patch:
                 if not first_run and self.cloud.observation_logs_enabled:
                     from mist.api.logs.methods import log_observations
                     log_observations(self.cloud.owner.id, self.cloud.id,
-                                     'volume', patch, cached_volumes,
+                                     'volume', patch, old_volumes,
                                      new_volumes)
                 if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
@@ -173,7 +175,6 @@ class BaseStorageController(BaseController):
             volume.extra = copy.copy(libcloud_volume.extra)
             volume.missing_since = None
             volume.last_seen = now
-
             # Apply cloud-specific processing.
             try:
                 self._list_volumes__postparse_volume(volume, libcloud_volume)
