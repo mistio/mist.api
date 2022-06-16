@@ -234,7 +234,7 @@ class AmazonComputeController(BaseComputeController):
                           f"Will return 0 for this machine's cost")
                 return 0, 0
 
-        size =  self._list_machines__get_size(node_dict)
+        size = self._list_machines__get_size(node_dict)
 
         location = machine.location.name
         # Remove last letter if it is there.
@@ -250,7 +250,8 @@ class AmazonComputeController(BaseComputeController):
             size = 'mac1'
         if size == 'mac2.metal':
             size = 'mac2'
-        cost = self.pricing_data[pricing_driver_name].get(size, {}).get(location, 0)
+        cost = self.pricing_data[pricing_driver_name].get(
+            size, {}).get(location, 0)
         return cost, 0
 
     def _list_machines__get_location(self, node):
