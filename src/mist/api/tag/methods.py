@@ -16,7 +16,8 @@ from mist.api.helpers import get_resource_model
 log = logging.getLogger(__name__)
 
 
-def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=None, only=None, deref=None):  # noqa: E501
+def get_tags(auth_context, types=[], search='', sort='key',
+             start=None, limit=None, only=None, deref=None):
     """
     List unique tags and the corresponding resources.
 
@@ -113,10 +114,10 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
     data = []
 
     for tag_unique in tags_unique:
+
         item = {'tag': {tag_unique['key']: tag_unique['value']}}
+        item['resource_count'] = tags.filter(**tag_unique).count()
         if types:
-            from mist.api.methods import list_resources
-            item['resource_count'] = 0
 
             for resource_type in types:
                 resource_type = resource_type.rstrip('s')
@@ -128,21 +129,13 @@ def get_tags(auth_context, types=[], search='', sort='key', start=None, limit=No
 
                 for tag in tags.filter(**tag_unique,
                                        resource_type=resource_type):
-                    try:
-                        resource = list_resources(
-                            auth_context=auth_context,
-                            resource_type=resource_type,
-                            search=tag.resource_id, only=attr
-                        )[0]
+
+                    if deref == 'id':
+                        resource_atrrs.append(tag.resource_id)
+                    else:
+                        resource = tag.resource
                         if resource:
-                            resource_atrrs.append(
-                                getattr(resource.get(), attr))
-                            item['resource_count'] += 1
-                    except KeyError:
-                        continue
-                    except me.DoesNotExist:
-                        log.error('%s with id %s does not exist',
-                                  resource_type, tag.resource_id)
+                            resource_atrrs.append(getattr(resource, attr))
 
                 if resource_atrrs:
                     item[resource_type + 's'] = resource_atrrs
