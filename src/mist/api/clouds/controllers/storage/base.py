@@ -451,136 +451,178 @@ class BaseStorageController(BaseController):
         volumes_map = {volume.id: volume for volume in volumes}
         cached_volumes_map = {
             volume["id"]: volume for _, volume in cached_volumes.items()}
+
+        # Generate promql queries to fetch the last metering values
+        # of metrics of type counter. This is required in order to calculate
+        # the new values of the counter metrics since Prometheus doesn't
+        # natively support the ability to increment counter metrics.
         read_queries, metering_metrics = self._generate_metering_queries(
             cached_volumes_map, volumes_map)
+
+        # Fetch the last metering values for counter metrics.
         last_metering_data = self._fetch_metering_data(
             read_queries, volumes_map)
+
+        # Generate Prometheus remote write compatible payload.
         fresh_metering_data = self._generate_fresh_metering_data(
             cached_volumes_map, volumes_map, last_metering_data,
             metering_metrics)
 
+        # Send metrics payload.
         self._send_metering_data(fresh_metering_data)
 
     def _get_volume_metering_metrics(
             self, volume_id, volumes_map, metering_metrics):
-        if metering_metrics.get(volumes_map[volume_id].owner.id):
-            return metering_metrics[volumes_map[volume_id].owner.id]
-        if metering_metrics.get(volumes_map[volume_id].cloud.provider):
-            return metering_metrics[volumes_map[volume_id].cloud.provider]
+        volume_owner = volumes_map[volume_id].owner.id
+        volume_provider = volumes_map[volume_id].cloud.provider
+
+        if metering_metrics.get(volume_owner):
+            return metering_metrics[volume_owner]
+
+        if metering_metrics.get(volume_provider):
+            return metering_metrics[volume_provider]
+
         if metering_metrics.get("default"):
             return metering_metrics["default"]
+
         return {}
 
-    def _update_metering_metrics_map(self, volumes_map):
+    def _populate_metering_metrics_map(self, volumes_map):
         """
-        Populates a dict where it maps owner.id, cloud.provider
-        or default to the appropriate metering metrics
+        Populates a dict where it maps owner id, cloud provider
+        or default to the appropriate metering metrics. This
+        helps us later on to choose which metrics we should generate
+        for each volume.
         """
         if not config.METERING_METRICS.get("volume"):
             return {}
         metering_metrics = {}
+        volume_metrics_properties = config.METERING_METRICS["volume"]
         for volume_id, _ in volumes_map.items():
-            if config.METERING_METRICS["volume"].get(
-                    volumes_map[volume_id].owner.id) and \
-                    not metering_metrics.get(
-                        volumes_map[volume_id].owner.id):
-                metering_metrics[volumes_map[volume_id].owner.id] = \
-                    config.METERING_METRICS["volume"].get("default", {})
-                metering_metrics[volumes_map[
-                    volume_id].owner.id].update(
-                        config.METERING_METRICS["volume"].get(
-                            volumes_map[volume_id].cloud.provider, {}))
-                metering_metrics[volumes_map[volume_id].owner.id].update(
-                    config.METERING_METRICS["volume"].get(volumes_map[
-                        volume_id].owner.id, {}))
-            if config.METERING_METRICS["volume"].get(
-                volumes_map[volume_id].cloud.provider) and \
-                    not metering_metrics.get(
-                        volumes_map[volume_id].cloud.provider):
-                metering_metrics[volumes_map[
-                    volume_id].cloud.provider] = config.METERING_METRICS[
-                        "volume"].get("default", {})
-                metering_metrics[volumes_map[
-                    volume_id].cloud.provider].update(
-                        config.METERING_METRICS["volume"].get(
-                            volumes_map[volume_id].cloud.provider, {}))
-            if config.METERING_METRICS["volume"].get("default") and \
-                    not metering_metrics.get("default"):
-                metering_metrics["default"] = config.METERING_METRICS[
-                    "volume"]["default"]
+            volume_owner = volumes_map[volume_id].owner.id
+            volume_cloud_provider = volumes_map[volume_id].cloud.provider
+
+            owner_metrics = volume_metrics_properties.get(volume_owner, {})
+            provider_metrics = volume_metrics_properties.get(
+                volume_cloud_provider, {})
+            default_metrics = volume_metrics_properties.get(
+                "default", {})
+
+            if owner_metrics and not metering_metrics.get(volume_owner):
+                metering_metrics[volume_owner] = default_metrics
+                metering_metrics[volume_owner].update(provider_metrics)
+                metering_metrics[volume_owner].update(owner_metrics)
+
+            if provider_metrics and not metering_metrics.get(volume_cloud_provider):  # noqa
+                metering_metrics[volume_cloud_provider] = default_metrics
+                metering_metrics[volume_cloud_provider].update(
+                    provider_metrics)
+
+            if default_metrics and not metering_metrics.get("default"):
+                metering_metrics["default"] = default_metrics
+
         return metering_metrics
 
-    def _generate_metering_queries(self, cached_volumes_map, volumes_map):
+    def _group_volumes_by_timestamp(self, cached_volumes_map, volumes_map):
         """
-        Generate metering promql queries while grouping volumes together
-        to limit the number of requests to the DB
+        Group the volumes by timestamp
         """
-        # Group the volumes per timestamp
-        last_metering_dt_volumes_map = {}
+        grouped_volumes_by_dt = {}
         for volume_id, _ in volumes_map.items():
             if not cached_volumes_map.get(volume_id):
                 continue
+            cached_volume = cached_volumes_map[volume_id]
             dt = None
-            if cached_volumes_map[volume_id].get("last_seen"):
-                dt = cached_volumes_map[volume_id]["last_seen"]
-            elif cached_volumes_map[volume_id]["missing_since"]:
-                dt = cached_volumes_map[volume_id]["missing_since"]
+
+            # Use either the last_seen or missing_since timestamp
+            # to get the last value of the counter
+            if cached_volume.get("last_seen"):
+                dt = cached_volume["last_seen"]
+            elif cached_volume.get("missing_since"):
+                dt = cached_volume["missing_since"]
+
             if not dt:
                 continue
-            if not last_metering_dt_volumes_map.get(dt):
-                last_metering_dt_volumes_map[dt] = []
-            last_metering_dt_volumes_map[dt].append(volume_id)
 
-        metering_metrics = self._update_metering_metrics_map(volumes_map)
+            if not grouped_volumes_by_dt.get(dt):
+                grouped_volumes_by_dt[dt] = []
 
-        if not metering_metrics or not volumes_map:
+            # Group the volumes by timestamp
+            grouped_volumes_by_dt[dt].append(volume_id)
+
+        return grouped_volumes_by_dt
+
+    def _group_volumes_by_type(self, volumes_map, grouped_volumes_by_dt):
+        """
+        Further group down the volumes into metric categories
+        (owner id, cloud provider or default). This means that
+        queries are grouped by timestamp, metric_category.
+        """
+        volume_metrics_properties = config.METERING_METRICS["volume"]
+        grouped_volumes = {}
+        for dt, volume_ids in grouped_volumes_by_dt.items():
+            for volume_id in volume_ids:
+                volume_owner = volumes_map[volume_id].owner.id
+                volume_cloud_provider = volumes_map[volume_id].cloud.provider
+
+                if volume_metrics_properties.get(volume_owner):
+                    if not grouped_volumes.get((dt, volume_owner)):
+                        grouped_volumes[(dt, volume_owner)] = []
+
+                    grouped_volumes[(dt, volume_owner)].append(volume_id)
+
+                elif volume_metrics_properties.get(volume_cloud_provider):
+                    if not grouped_volumes.get((dt, volume_cloud_provider)):
+                        grouped_volumes[(dt, volume_cloud_provider)] = []
+
+                    grouped_volumes[(dt, volume_cloud_provider)
+                                    ].append(volume_id)
+
+                elif volume_metrics_properties.get("default"):
+                    if not grouped_volumes.get((dt, "default")):
+                        grouped_volumes[(dt, "default")] = []
+
+                    grouped_volumes[(dt, "default")].append(
+                        volume_id)
+        return grouped_volumes
+
+    def _generate_metering_queries(self, cached_volumes_map, volumes_map):
+        """
+        Generate metering promql queries while grouping queries together
+        to limit the number of requests to the DB
+        """
+        if not volumes_map or not config.METERING_METRICS.get("volume"):
             return {}, {}
 
-        # Further group down the volumes into metric categories
-        # (owner.id, cloud.provider or default)
+        metering_metrics = self._populate_metering_metrics_map(volumes_map)
+
+        if not metering_metrics:
+            return {}, {}
+
+        grouped_volumes_by_dt = self._group_volumes_by_timestamp(
+            cached_volumes_map, volumes_map)
+
+        grouped_volumes = self._group_volumes_by_type(
+            volumes_map, grouped_volumes_by_dt)
+
+        # Generate Prometheus queries which fetch metering data for multiple
+        # volumes at once when they share the same timestamp and metrics.
         read_queries = {}
-        volume_metrics_category_map = {}
-
-        for dt, volume_ids in last_metering_dt_volumes_map.items():
-            for volume_id in volume_ids:
-                if config.METERING_METRICS["volume"].get(volumes_map[
-                        volume_id].owner.id):
-                    if not volume_metrics_category_map.get(
-                            (dt, volumes_map[volume_id].owner.id)):
-                        volume_metrics_category_map[(
-                            dt, volumes_map[volume_id].owner.id)] = []
-                    volume_metrics_category_map[(dt, volumes_map[
-                        volume_id].owner.id)].append(
-                        volume_id)
-                elif config.METERING_METRICS["volume"].get(volumes_map[
-                        volume_id].cloud.provider):
-                    if not volume_metrics_category_map.get(
-                            (dt, volumes_map[volume_id].cloud.provider)):
-                        volume_metrics_category_map[(
-                            dt, volumes_map[volume_id].cloud.provider)] = []
-                    volume_metrics_category_map[(dt, volumes_map[
-                        volume_id].cloud.provider)].append(
-                        volume_id)
-                elif config.METERING_METRICS["volume"].get("default"):
-                    if not volume_metrics_category_map.get((dt, "default")):
-                        volume_metrics_category_map[(dt, "default")] = []
-                    volume_metrics_category_map[(dt, "default")].append(
-                        volume_id)
-
-        # Generate queries which fetch metering data for multiple volumes
-        # at once when they share the same timestamp and metrics
-        for key, volume_ids in volume_metrics_category_map.items():
+        for key, volume_ids in grouped_volumes.items():
             dt, metrics_category = key
+
             metering_metrics_list = "|".join(
                 metric_name
                 for metric_name, properties in metering_metrics[
                     metrics_category].items()
                 if properties['type'] == "counter")
+
             volumes_ids_list = "|".join(volume_ids)
             read_queries[(dt, metrics_category)] = (
                 f"{{__name__=~\"{metering_metrics_list}\""
                 f",org=\"{self.cloud.owner.id}\","
                 f"volume_id=~\"{volumes_ids_list}\",metering=\"true\"}}")
+
         return read_queries, metering_metrics
 
     def _fetch_query(self, dt, query):
@@ -588,6 +630,7 @@ class BaseStorageController(BaseController):
         dt = int(datetime.datetime.timestamp(
             datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
         error_msg = f"Could not fetch metering data with query: {query}"
+
         try:
             data = requests_retry_session(retries=1).post(
                 f"{read_uri}/api/v1/query",
@@ -606,16 +649,20 @@ class BaseStorageController(BaseController):
 
         data = data.json()
 
-        last_metering_data = {}
+        metering_data = {}
 
+        # Parse payload and group metrics data by volume id
         for result in data.get("data", {}).get("result", []):
             metric_name = result["metric"]["__name__"]
             volume_id = result["metric"]["volume_id"]
             value = result["value"][1]
-            if not last_metering_data.get(volume_id):
-                last_metering_data[volume_id] = {}
-            last_metering_data[volume_id].update({metric_name: value})
-        return last_metering_data
+
+            if not metering_data.get(volume_id):
+                metering_data[volume_id] = {}
+
+            metering_data[volume_id].update({metric_name: value})
+
+        return metering_data
 
     async def _async_fetch_metering_data(self, read_queries, loop):
         metering_data_list = [loop.run_in_executor(
@@ -635,18 +682,26 @@ class BaseStorageController(BaseController):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         asyncio.set_event_loop(loop)
-        metering_data_list = loop.run_until_complete(
+
+        # Fetch queries
+        queries_result = loop.run_until_complete(
             self._async_fetch_metering_data(read_queries, loop))
         loop.close()
-        last_metering_data = {}
+
+        # Combine metering data from multiple queries and group it
+        # by volume id
+        metering_data = {}
         for volume_id, _ in volumes_map.items():
-            last_metering_data[volume_id] = {}
-            for metering_data in metering_data_list:
-                if not metering_data.get(volume_id):
+            metering_data[volume_id] = {}
+
+            for query_result in queries_result:
+                if not query_result.get(volume_id):
                     continue
-                last_metering_data[volume_id].update(
-                    metering_data[volume_id])
-        return last_metering_data
+
+                metering_data[volume_id].update(
+                    query_result[volume_id])
+
+        return metering_data
 
     def _find_old_counter_value(self, metric_name, volume_id, properties):
         read_uri = get_victoriametrics_uri(self.cloud.owner)
@@ -687,16 +742,20 @@ class BaseStorageController(BaseController):
                 volume_id, {}).get(metric_name)
             if old_value:
                 current_value = float(old_value)
-                # Take into account the time range only
-                # if the volume was not missing
+                # Calculate the new counter by
+                # taking into account the time range
+                # between now and the last time the counter
+                # was saved. Ignore it in case the volume
+                # was missing.
                 if old_dt:
                     delta_in_hours = (
                         new_dt - old_dt).total_seconds() / (60 * 60)
                     current_value += properties["value"](
                         volume, delta_in_hours)
             else:
-                # In order to avoid counter resets, we check
-                # for the last counter up to
+                # When we can't find the last counter value,
+                # in order to avoid counter resets, we check
+                # again for the last counter up to
                 # METERING_PROMQL_LOOKBACK time in the past
                 current_value = self._find_old_counter_value(
                     metric_name, volume_id, properties)
@@ -730,11 +789,10 @@ class BaseStorageController(BaseController):
                 continue
             new_dt = volume.last_seen
             old_dt = None
-            if cached_volumes_map.get(volume_id) and \
-                    cached_volumes_map[volume_id].get("last_seen"):
+            cached_volume = cached_volumes_map.get(volume_id)
+            if cached_volume and cached_volume.get("last_seen"):
                 old_dt = datetime.datetime.strptime(
-                    cached_volumes_map[volume_id]["last_seen"],
-                    '%Y-%m-%d %H:%M:%S.%f')
+                    cached_volume["last_seen"], '%Y-%m-%d %H:%M:%S.%f')
             for metric_name, properties in self._get_volume_metering_metrics(
                     volume_id, volumes_map, metering_metrics).items():
                 metering_data_list.append(
@@ -750,6 +808,7 @@ class BaseStorageController(BaseController):
             last_metering_data, metering_metrics):
         if not volumes_map or not metering_metrics:
             return ""
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_closed():
@@ -758,6 +817,10 @@ class BaseStorageController(BaseController):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         asyncio.set_event_loop(loop)
+
+        # Generate fresh metering data with asyncio
+        # to avoid slowdowns. This is required since
+        # queries to the timeseries DB may be required.
         metering_data_list = loop.run_until_complete(
             self._async_generate_fresh_metering_data(volumes_map,
                                                      cached_volumes_map,
