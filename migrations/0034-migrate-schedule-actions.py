@@ -1,4 +1,5 @@
 import traceback
+import uuid
 
 from pymongo import MongoClient
 from mist.api.config import MONGO_URI
@@ -22,6 +23,12 @@ def migrate_schedule_actions():
                 {'_id': schedule['_id']},
                 {'$unset': {'task_type': ''}}
             )
+            action['id'] =  uuid.uuid4().hex
+            if action['_cls'] == 'ActionTask':
+                action['_cls'] = 'MachineAction'
+            elif action['_cls'] == 'ScriptTask':
+                action['_cls'] == 'ScriptAction'
+                action['script'] = action.pop('script_id')
             update_set_result = db_schedules.update_one(
                 {'_id': schedule['_id']},
                 {'$set': {'actions': [action]}}
