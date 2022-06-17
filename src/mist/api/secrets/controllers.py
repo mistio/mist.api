@@ -1,4 +1,5 @@
 from __future__ import annotations
+import time
 import logging
 from typing import TYPE_CHECKING, List, Dict, Any
 
@@ -110,6 +111,7 @@ class VaultSecretController(BaseSecretController):
             log.info("Secrets engine already exists for org %s", self.org.id)
         else:
             log.info("Created secrets engine for org %s", self.org.id)
+            time.sleep(2)
 
 
 class KV1VaultSecretController(VaultSecretController):
