@@ -7,6 +7,7 @@ Cloud specific controllers are in `mist.api.schedules.controllers`.
 import re
 import logging
 import datetime
+import ast
 import mongoengine as me
 
 from mist.api.helpers import rtype_to_classpath
@@ -26,6 +27,8 @@ from mist.api.selectors.models import TaggingSelector, AgeSelector
 
 import mist.api.schedules.models as schedules
 import mist.api.actions.models as acts
+from mist.api.actions.models import MachineAction, VolumeAction
+from mist.api.actions.models import NetworkAction, ClusterAction
 
 from mist.api.auth.methods import AuthContext
 
@@ -70,7 +73,7 @@ def check_perm(auth_context, resource_type, action, resource=None):
         raise NotImplementedError(resource_type)
 
 
-def extract_schedule_selector_type_v2(**kwargs):
+def extract_selector_type_v2(**kwargs):
     error_count = 0
     selectors = kwargs.get('selectors')
     for selector in selectors:
@@ -391,9 +394,11 @@ class BaseController(object):
 
         owner = auth_context.owner
         if kwargs.get('selectors'):
-            selector_type = extract_schedule_selector_type_v2(**kwargs)
+            selector_type = extract_selector_type_v2(**kwargs)
             self.schedule.resource_model_name = selector_type
             self.schedule.save()
+        else:
+            raise BadRequestError('Selectors are required')
 
         actions = kwargs.get('actions')
         if len(actions) == 1:
@@ -401,17 +406,21 @@ class BaseController(object):
             if action == 'notify':
                 raise NotImplementedError()
             elif action == 'run_script':
-                script_id = kwargs.get('actions')[0].get('script', '')
-                if script_id:
-                    try:
-                        # TODO List Resources insted of Script objects
-                        Script.objects.get(owner=owner, id=script_id,
-                                           deleted=None)
-                    except me.DoesNotExist:
-                        raise ScriptNotFoundError('Script with id %s does not '
-                                                  'exist' % script_id)
-                    # SEC require permission RUN on script
-                    auth_context.check_perm('script', 'run', script_id)
+                script_type = kwargs.get('actions')[0].get('script_type')
+                if script_type == 'existing':
+                    script = kwargs.get('actions')[0].get('script')
+                    script = ast.literal_eval(script)
+                    script_id = script['script']
+                    if script_id:
+                        try:
+                            # TODO List Resources insted of Script objects
+                            Script.objects.get(owner=owner, id=script_id,
+                                            deleted=None)
+                        except me.DoesNotExist:
+                            raise ScriptNotFoundError('Script with id %s does not '
+                                                    'exist' % script_id)
+                        # SEC require permission RUN on script
+                        auth_context.check_perm('script', 'run', script_id)
             else:
                 selector_type = self.schedule.resource_model_name
                 if action not in SUPPORTED_ACTIONS[selector_type]:
@@ -482,13 +491,18 @@ class BaseController(object):
             if action == 'notify':
                 raise NotImplementedError()
             elif action == 'run_script':
-                script_id = actions[0]['script']
-                params = actions[0]['params']
+                script = ast.literal_eval(actions[0]['script'])
+                script_id = script['script']
+                params = script['params']
                 if script_id:
                     self.schedule.actions[0] = acts.ScriptAction(
                         script=script_id, params=params)
             else:
-                self.schedule.actions[0] = acts.ResourceAction(action=action)
+                if (self.schedule.resource_model_name in SUPPORTED_ACTIONS.keys() 
+                   and action in SUPPORTED_ACTIONS[self.schedule.resource_model_name]):
+                    self.schedule.actions[0] = globals()[f'{self.schedule.resource_model_name.title()}Action'](action=action)
+                else:
+                    raise BadRequestError('Action not allowed for this selector resource type')
         elif len(actions) == 0:
             raise BadRequestError("Action is required")
         else:
