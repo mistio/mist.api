@@ -12,19 +12,22 @@ def migrate_schedule_actions():
     for schedule in db_schedules.find():
         print('Updating schedule action ' + schedule['_id'])
         try:
-            print(schedule)
-            action = schedule['task_type']
-            print(action)
-            db_schedules.update_one(
+            try:
+                action = schedule['task_type']
+            except Exception:
+                print('Field task_type has been already migrated')
+                skipped += 1
+                continue
+            update_unset_result = db_schedules.update_one(
                 {'_id': schedule['_id']},
                 {'$unset': {'task_type': ''}}
             )
-            db_schedules.update_one(
+            update_set_result = db_schedules.update_one(
                 {'_id': schedule['_id']},
                 {'$set': {'actions': [action]}}
             )
-            print(update_result.modified_count)
-            if update_result.modified_count > 0:
+            print(update_unset_result.modified_count)
+            if update_unset_result.modified_count > 0 and update_set_result.modified_count > 0:
                 print(f'Successfully migrated schedule action: '
                       f'with id: {schedule["_id"]} ')
                 migrated += 1
