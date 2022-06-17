@@ -30,7 +30,8 @@ def schedule_to_actor(schedule):
     if isinstance(schedule, PollingSchedule) or isinstance(schedule, Rule):
         task_path = schedule.task.split('.')
     else:
-        task_path = schedule.task_type.task.split('.')
+        for schedule_action in schedule.actions:
+            task_path = schedule_action.task.split('.')
     method = task_path[-1]
     module = '.'.join(task_path[:-1])
     return getattr(importlib.import_module(module), method)
@@ -65,24 +66,25 @@ def add_job(scheduler, schedule, actor, first_run=False):
         else:
             log.error('Invalid schedule type: %s' % schedule.schedule_type)
             raise
-        if schedule.task_type._cls == 'ScriptTask':
-            job['args'] = (
-                None,
-                schedule.task_type.script_id,
-                schedule.name,
-                [r.id for r in schedule.get_resources()],
-                schedule.task_type.params,
-                schedule.org.id
-            )
-        elif schedule.task_type._cls == 'ActionTask':
-            job['args'] = (
-                schedule.org.id,
-                schedule.task_type.action,
-                schedule.name,
-                [r.id for r in schedule.get_resources()],
-            )
-        else:
-            log.error('Invalid task type: %s' % schedule.task_type._cls)
+        for schedule_action in schedule.actions:
+            if schedule_action._cls == 'ScriptAction':
+                job['args'] = (
+                    None,
+                    schedule_action.script,
+                    schedule.name,
+                    [r.id for r in schedule.get_resources()],
+                    schedule_action.params,
+                    schedule.org.id
+                )
+            elif schedule_action._cls == 'MachineAction':
+                job['args'] = (
+                    schedule.org.id,
+                    schedule_action.action,
+                    schedule.name,
+                    [r.id for r in schedule.get_resources()],
+                )
+            else:
+                log.error('Invalid task type: %s' % schedule_action._cls)
 
     if not first_run and schedule.run_immediately:
         schedule.run_immediately = False
@@ -146,23 +148,23 @@ def update_job(scheduler, schedule, actor, existing):
         if str(existing.func) != str(actor.send):
             # Update func
             changes['func'] = actor.send
-
-        if schedule.task_type._cls == 'ScriptTask':
-            new_args = (
-                None,
-                schedule.task_type.script_id,
-                schedule.name,
-                [r.id for r in schedule.get_resources()],
-                schedule.task_type.params,
-                schedule.org.id,
-            )
-        elif schedule.task_type._cls == 'ActionTask':
-            new_args = (
-                schedule.org.id,
-                schedule.task_type.action,
-                schedule.name,
-                [r.id for r in schedule.get_resources()],
-            )
+        for schedule_action in schedule.actions:
+            if schedule_action._cls == 'ScriptAction':
+                new_args = (
+                    None,
+                    schedule_action.script,
+                    schedule.name,
+                    [r.id for r in schedule.get_resources()],
+                    schedule_action.params,
+                    schedule.org.id,
+                )
+            elif schedule_action._cls == 'MachineAction':
+                new_args = (
+                    schedule.org.id,
+                    schedule_action.action,
+                    schedule.name,
+                    [r.id for r in schedule.get_resources()],
+                )
 
         if existing.args != new_args:
             # Update args

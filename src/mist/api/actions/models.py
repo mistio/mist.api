@@ -60,6 +60,10 @@ class BaseAction(me.EmbeddedDocument):
 
         """
         raise NotImplementedError()
+    
+    @property
+    def task(self):
+        raise NotImplementedError()
 
     def as_dict(self):
         return {'type': self.atype}
@@ -130,6 +134,10 @@ class NotificationAction(BaseAction):
             if not is_email_valid(email):
                 raise me.ValidationError('Invalid e-mail address: %s' % email)
 
+    @property
+    def task(self):
+        return ''
+
     def as_dict(self):
         return {'type': self.atype, 'emails': self.emails,
                 'users': self.users, 'teams': self.teams,
@@ -179,6 +187,10 @@ class CommandAction(BaseAction):
                            machine.external_id,
                            machine.hostname, self.command)
 
+    @property
+    def task(self):
+        return 'mist.api.tasks.group_run_script'
+
     def as_dict(self):
         return {'type': self.atype, 'command': self.command}
 
@@ -204,6 +216,10 @@ class ScriptAction(BaseAction):
                          job_id=job_id, job=job,
                          owner_id=machine.owner.id)
         return {'job_id': job_id, 'job': job}
+
+    @property
+    def task(self):
+        return 'mist.api.tasks.group_run_script'
 
     def as_dict(self):
         return {'type': self.atype, 'script': self.script.id,
@@ -290,6 +306,10 @@ class WebhookAction(BaseAction):
             notify_admin(title + ' ' + self._instance.id, body)
         return {'status_code': response.status_code}
 
+    @property
+    def task(self):
+        return ''
+
     def as_dict(self):
         return {'type': self.atype, 'method': self.method, 'url': self.url,
                 'params': self.params, 'json': self.json,
@@ -301,7 +321,7 @@ class MachineAction(BaseAction):
 
     atype = 'machine_action'
 
-    action = me.StringField(required=True, choices=('reboot', 'destroy'))
+    action = me.StringField(required=True, choices=('start', 'stop', 'reboot', 'destroy'))
 
     def run(self, machine, *args, **kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -318,6 +338,10 @@ class MachineAction(BaseAction):
             # MachineController.
             disable_monitoring(machine.owner, machine.cloud.id,
                                machine.id, no_ssh=True)
+
+    @property
+    def task(self):
+        return 'mist.api.tasks.group_resources_actions'
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
@@ -337,6 +361,10 @@ class VolumeAction(BaseAction):
         assert volume.owner == self._instance.owner
         getattr(volume.ctl, self.action)()
 
+    @property
+    def task(self):
+        return 'mist.api.tasks.group_resources_actions'
+
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
 
@@ -355,6 +383,10 @@ class ClusterAction(BaseAction):
         assert cluster.owner == self._instance.owner
         getattr(cluster.ctl, self.action)()
 
+    @property
+    def task(self):
+        return 'mist.api.tasks.group_resources_actions'
+
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
 
@@ -372,6 +404,10 @@ class NetworkAction(BaseAction):
         assert isinstance(network, Network)
         assert network.owner == self._instance.owner
         getattr(network.ctl, self.action)()
+
+    @property
+    def task(self):
+        return 'mist.api.tasks.group_resources_actions'
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
