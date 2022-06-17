@@ -465,7 +465,9 @@ class DockerShell(WebSocketWrapper):
     def interactive_shell(self, owner, **kwargs):
 
         docker_port, cloud, container_id = \
-            self.get_docker_endpoint(owner, cloud_id=kwargs['cloud_id'], machine_id=kwargs['machine_id'])
+            self.get_docker_endpoint(owner,
+                                     cloud_id=kwargs['cloud_id'],
+                                     machine_id=kwargs['machine_id'])
         log.info("Autoconfiguring DockerShell for machine %s:%s",
                  cloud.id, kwargs['machine_id'])
 
