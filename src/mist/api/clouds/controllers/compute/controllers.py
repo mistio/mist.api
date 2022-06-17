@@ -2110,7 +2110,7 @@ class GoogleComputeController(BaseComputeController):
         size = self.connection.ex_get_size(machine_type,
                                            node['extra']['zone'].get('name'))
         # create object only if the size of the node is custom
-        if size.name.startswith('custom'):
+        if 'custom' in size.name:
             # FIXME: resolve circular import issues
             from mist.api.clouds.models import CloudSize
             _size = CloudSize(cloud=self.cloud, external_id=size.id)
