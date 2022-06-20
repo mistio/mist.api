@@ -61,8 +61,8 @@ class AnsibleScriptController(BaseScriptController):
 
         # parse stdout for errors
         if re.search('ERROR!', wstdout) or re.search(
-            'failed=[1-9]+[0-9]{0,}', wstdout
-        ):
+            'failed=[1-9]+[0-9]{0,}', wstdout) or re.search(
+                'Traceback', wstdout):
             exit_code = 1
 
         conn.destroy_container(container)
