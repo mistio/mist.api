@@ -26,10 +26,10 @@ def _populate_actions():
 
 
 class BaseAction(me.EmbeddedDocument):
-    """The base class for all alert actions.
+    """The base class for all actions.
 
     This class serves as very basic, common interface amongst subclasses that
-    define alert actions. Every subclass of the `BaseAction` MUST define
+    define actions. Every subclass of the `BaseAction` MUST define
     at least its own `run` method, which holds all the logic of the action's
     execution, and a descriptive `atype`.
 
@@ -315,7 +315,40 @@ class WebhookAction(BaseAction):
                 'headers': self.headers}
 
 
-class MachineAction(BaseAction):
+class BaseResourceAction(BaseAction):
+    """The base class for resource actions.
+
+    This class serves as an intermediate level between BaseAction and Resource Action
+    implementations.
+
+    """
+
+    meta = {'allow_inheritance': True}
+
+    atype = None
+
+    id = me.StringField(required=True, default=lambda: uuid.uuid4().hex)
+
+    def run(self):
+        """Execute self.
+
+        The body of the action to be executed. Subclasses MUST override this.
+
+        """
+        raise NotImplementedError()
+    
+    @property
+    def task(self):
+        raise NotImplementedError()
+
+    def as_dict(self):
+        return {'type': self.atype}
+
+    def __str__(self):
+        return '%s %s' % (self.__class__.__name__, self.id)
+        
+
+class MachineAction(BaseResourceAction):
     """Perform a machine action."""
 
     atype = 'machine_action'
@@ -346,7 +379,7 @@ class MachineAction(BaseAction):
         return {'type': self.atype, 'action': self.action}
 
 
-class VolumeAction(BaseAction):
+class VolumeAction(BaseResourceAction):
     """Perform a volume action."""
 
     atype = 'volume_action'
@@ -368,7 +401,7 @@ class VolumeAction(BaseAction):
         return {'type': self.atype, 'action': self.action}
 
 
-class ClusterAction(BaseAction):
+class ClusterAction(BaseResourceAction):
     """Perform a cluster action."""
 
     atype = 'cluster_action'
@@ -390,7 +423,7 @@ class ClusterAction(BaseAction):
         return {'type': self.atype, 'action': self.action}
 
 
-class NetworkAction(BaseAction):
+class NetworkAction(BaseResourceAction):
     """Perform a network action."""
 
     atype = 'network_action'
