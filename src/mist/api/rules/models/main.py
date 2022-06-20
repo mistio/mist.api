@@ -11,6 +11,7 @@ from mist.api.selectors.models import SelectorClassMixin
 from mist.api.actions.models import ActionClassMixin
 from mist.api.actions.models import BaseAction
 from mist.api.actions.models import NotificationAction
+from mist.api.when.models import BaseWhenType
 
 from mist.api.rules.base import NoDataRuleController
 from mist.api.rules.base import ResourceRuleController
@@ -83,7 +84,12 @@ class Rule(me.Document):
 
     # Defines the time window and frequency of each search.
     window = me.EmbeddedDocumentField(Window, required=True)
-    frequency = me.EmbeddedDocumentField(Frequency, required=True)
+
+    # Deprecated
+    frequency = me.EmbeddedDocumentField(Frequency, required=False)
+
+    # Defines the frequency of each search.
+    when_type = me.EmbeddedDocumentField(BaseWhenType, required=False)
 
     # Associates a reminder offset, which will cause an alert to be fired if
     # and only if the threshold is exceeded for a number of trigger_after
