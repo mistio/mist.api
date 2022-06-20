@@ -23,7 +23,7 @@ def migrate_schedule_actions():
                 {'_id': schedule['_id']},
                 {'$unset': {'task_type': ''}}
             )
-            action['id'] =  uuid.uuid4().hex
+            action['id'] = uuid.uuid4().hex
             if action['_cls'] == 'ActionTask':
                 action['_cls'] = 'MachineAction'
             elif action['_cls'] == 'ScriptTask':
@@ -42,7 +42,7 @@ def migrate_schedule_actions():
                 skipped += 1
         except Exception:
             print(f'*** WARNING ** Could not migrate schedule action '
-                    f'with id: {schedule["_id"]} ')
+                  f'with id: {schedule["_id"]} ')
             traceback.print_exc()
             failed += 1
             continue
