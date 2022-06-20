@@ -26,6 +26,7 @@ from mist.api.selectors.models import FieldSelector, ResourceSelector
 from mist.api.selectors.models import TaggingSelector, AgeSelector
 
 import mist.api.schedules.models as schedules
+import mist.api.when.models as When
 import mist.api.actions.models as acts
 from mist.api.actions.models import MachineAction, VolumeAction
 from mist.api.actions.models import NetworkAction, ClusterAction
@@ -511,10 +512,10 @@ class BaseController(object):
         schedule_type = ''
         when = kwargs.pop('when')
         if when:
-            schedule_type = when['schedule_type']
+            when_type = when['schedule_type']
             when.pop('schedule_type')
 
-        if schedule_type == 'crontab':
+        if when_type == 'crontab':
             schedule_entry = kwargs.pop('when', {})
 
             if schedule_entry:
@@ -523,10 +524,10 @@ class BaseController(object):
                                  'day_of_month', 'month_of_year']:
                         raise BadRequestError("Invalid key given: %s" % k)
 
-                self.schedule.schedule_type = schedules.Crontab(
+                self.schedule.when_type = When.Crontab(
                     **schedule_entry)
 
-        elif schedule_type == 'interval':
+        elif when_type == 'interval':
             schedule_entry = kwargs.pop('when', {})
 
             if schedule_entry:
@@ -534,10 +535,10 @@ class BaseController(object):
                     if k not in ['period', 'every']:
                         raise BadRequestError("Invalid key given: %s" % k)
 
-                self.schedule.schedule_type = schedules.Interval(
+                self.schedule.when_type = When.Interval(
                     **schedule_entry)
 
-        elif schedule_type in ['one_off', 'reminder']:
+        elif when_type in ['one_off', 'reminder']:
             # implements Interval under the hood
             future_date = when.pop('datetime')
 
@@ -562,14 +563,14 @@ class BaseController(object):
                 delta = future_date - now
                 notify_msg = kwargs.get('notify_msg', '')
 
-                if schedule_type == 'reminder':
-                    self.schedule.schedule_type = schedules.Reminder(
+                if when_type == 'reminder':
+                    self.schedule.when_type = When.Reminder(
                         period='seconds',
                         every=delta.seconds,
                         entry=future_date,
                         message=notify_msg)
                 else:
-                    self.schedule.schedule_type = schedules.OneOff(
+                    self.schedule.when_type = When.OneOff(
                         period='seconds',
                         every=delta.seconds,
                         entry=future_date)
@@ -584,7 +585,7 @@ class BaseController(object):
                     notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
                     params = {
                         'action': 'notify',
-                        'schedule_type': 'reminder',
+                        'when_type': 'reminder',
                         'description': 'Schedule expiration reminder',
                         'task_enabled': True,
                         'schedule_entry': notify_at,
