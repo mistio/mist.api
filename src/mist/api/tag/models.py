@@ -20,12 +20,9 @@ class Tag(me.Document):
     resource_id = me.StringField()
 
     meta = {
-        'indexes': ['owner', 'resource_type', 'resource_id', 'key']
+        'indexes': ['owner', 'resource_type', 'resource_id', 'key'],
+        'queryset_class': TagQuerySet
     }
-
-    def __new__(cls, *args, **kwargs):
-        cls.objects = TagQuerySet(cls, cls._get_collection())
-        return super().__new__(cls)
 
     @property
     def resource(self):
