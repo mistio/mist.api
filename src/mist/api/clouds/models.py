@@ -207,7 +207,7 @@ class Cloud(OwnershipMixin, me.Document, TagMixin):
         return self.ctl.provider
 
     @classmethod
-    def add(cls, owner, name, user, id='', **kwargs):
+    def add(cls, owner, name, user=None, id='', **kwargs):
         """Add cloud
 
         This is a class method, meaning that it is meant to be called on the

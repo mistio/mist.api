@@ -152,7 +152,11 @@ def create_volume(request):
     request.matchdict['volume'] = volume.id
 
     if tags:
-        add_tags_to_resource(auth_context.owner, volume, tags)
+        add_tags_to_resource(
+            auth_context,
+            [{'resource_type': 'volume',
+              'resource_id': volume.id}],
+            tags)
 
     # Set ownership.
     volume.assign_to(auth_context.user)

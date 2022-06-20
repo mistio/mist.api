@@ -11,7 +11,7 @@ from mist.api.dns.methods import filter_list_records
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import CloudNotFoundError
 
-from mist.api.tag.methods import resolve_id_and_set_tags
+from mist.api.tag.methods import add_tags_to_resource
 
 from mist.api.helpers import params_from_request, view_config
 
@@ -112,8 +112,10 @@ def create_dns_zone(request):
     new_zone.assign_to(auth_context.user)
 
     if tags:
-        resolve_id_and_set_tags(auth_context.owner, 'zone', new_zone.id,
-                                tags, cloud_id=cloud_id)
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type =': 'zone',
+                               'resource_id': new_zone.id}],
+                             tags)
 
     return new_zone.as_dict()
 
@@ -166,8 +168,10 @@ def create_dns_record(request):
     rec.assign_to(auth_context.user)
 
     if tags:
-        resolve_id_and_set_tags(auth_context.owner, 'record', rec.id, tags,
-                                cloud_id=cloud_id, zone_id=zone_id)
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type =': 'record',
+                               'resource_id': rec.id}],
+                             tags)
 
     return rec.as_dict()
 

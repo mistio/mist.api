@@ -78,7 +78,10 @@ def add_key(request):
     key.assign_to(auth_context.user)
 
     if key_tags:
-        add_tags_to_resource(auth_context.owner, key, list(key_tags.items()))
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type': 'key',
+                               'resource_id': key.id}],
+                             list(key_tags.items()))
 
     return {'id': key.id,
             'name': key.name,
