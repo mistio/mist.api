@@ -153,7 +153,6 @@ class NoDataAction(NotificationAction):
         if timestamp + 60 * 60 * 24 < time.time():
             # FIXME Imported here due to circular dependency issues.
             from mist.api.monitoring.methods import disable_monitoring
-            from mist.api.machines.models import Machine
             # If NoData alerts are being triggered for over 24h, disable
             # monitoring and log the action to close any open incidents.
             disable_monitoring(machine.owner, machine.cloud.id,
@@ -347,14 +346,15 @@ class BaseResourceAction(BaseAction):
 
     def __str__(self):
         return '%s %s' % (self.__class__.__name__, self.id)
-        
+
 
 class MachineAction(BaseResourceAction):
     """Perform a machine action."""
 
     atype = 'machine_action'
 
-    action = me.StringField(required=True, choices=('start', 'stop', 'reboot', 'destroy'))
+    action = me.StringField(required=True, choices=('start', 'stop', 
+                                                    'reboot', 'destroy'))
 
     def run(self, machine, *args, **kwargs):
         # FIXME Imported here due to circular dependency issues.
