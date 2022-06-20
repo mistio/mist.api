@@ -18,6 +18,7 @@ from mist.api.tag.mixins import TagMixin
 from mist.api.actions.models import ActionClassMixin
 from mist.api.actions.models import BaseAction
 from mist.api.actions.models import NotificationAction
+from mist.api.when.models import BaseWhenType
 
 log = logging.getLogger(__name__)
 
@@ -252,6 +253,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
         BaseAction, required=False, default=lambda: [NotificationAction()]
     )
 
+    when_type = me.EmbeddedDocumentField(BaseWhenType, required=False)
+
     # celerybeat-mongo specific fields
     expires = me.DateTimeField()
     start_after = me.DateTimeField()
@@ -457,6 +460,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
 
         selectors = [selector.as_dict() for selector in self.selectors]
 
+        action = 'run script' if self.actions[0].__class__.__name__ == 'ScriptAction' else self.actions[0].action
+
         sdict = {
             'id': self.id,
             'name': self.name,
@@ -464,7 +469,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
             'schedule': str(self.schedule_type),
             'schedule_type': self.schedule_type.type,
             'schedule_entry': self.schedule_type.as_dict(),
-            'task_type': self.task_type.as_dict(),
+            'task_type': action,
             'expires': str(self.expires or ''),
             'start_after': str(self.start_after or ''),
             'task_enabled': self.task_enabled,
@@ -498,7 +503,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
         # if 'schedule_type' in only or not only:
         #     ret['schedule_type'] = self.schedule_type.type
 
-        # ret['action'] = self.task_type.action
+        ret['actions'] = self.actions[0].action
 
         ret['enabled'] = self.task_enabled
 

@@ -1,0 +1,108 @@
+"""When entity model."""
+import datetime
+import logging
+
+import mongoengine as me
+
+log = logging.getLogger(__name__)
+
+#: Authorized values for Interval.period
+PERIODS = ('days', 'hours', 'minutes', 'seconds', 'microseconds')
+
+
+class BaseWhenType(me.EmbeddedDocument):
+    """Abstract Base class used as a common interface
+    for scheduler types. There are three different types
+    for now: Interval, Crontab and OneOff
+    """
+    meta = {'allow_inheritance': True}
+
+    @property
+    def schedule(self):
+        raise NotImplementedError()
+
+
+class Interval(BaseWhenType):
+    meta = {'allow_inheritance': True}
+
+    type = 'interval'
+    every = me.IntField(min_value=0, default=0, required=True)
+    period = me.StringField(choices=PERIODS)
+
+    @property
+    def period_singular(self):
+        return self.period[:-1]
+
+    def __unicode__(self):
+        if self.every == 1:
+            return 'Interval every {0.period_singular}'.format(self)
+        return 'Interval every {0.every} {0.period}'.format(self)
+
+    def as_dict(self):
+        return {
+            'every': self.every,
+            'period': self.period
+        }
+
+
+class OneOff(Interval):
+    type = 'one_off'
+    entry = me.DateTimeField(required=True)
+
+    def __unicode__(self):
+        return 'OneOff date to run {0.entry}'.format(self)
+
+    def as_dict(self):
+        return {
+            'entry': str(self.entry)
+        }
+
+
+class Reminder(OneOff):
+    type = 'reminder'
+    message = me.StringField()
+
+    def as_dict(self):
+        return {
+            'message': self.message
+        }
+
+
+class Crontab(BaseWhenType):
+    type = 'crontab'
+
+    minute = me.StringField(default='*', required=True)
+    hour = me.StringField(default='*', required=True)
+    day_of_week = me.StringField(default='*', required=True)
+    day_of_month = me.StringField(default='*', required=True)
+    month_of_year = me.StringField(default='*', required=True)
+
+    def __unicode__(self):
+
+        def rfield(x):
+            return str(x).replace(' ', '') or '*'
+
+        return 'Crontab {0} {1} {2} {3} {4} (m/h/dom/mon/dow)'.format(
+            rfield(self.minute), rfield(self.hour),
+            rfield(self.day_of_month), rfield(self.month_of_year),
+            rfield(self.day_of_week),
+        )
+
+    def as_dict(self):
+        return {
+            'minute': self.minute,
+            'hour': self.hour,
+            'day_of_week': self.day_of_week,
+            'day_of_month': self.day_of_month,
+            'month_of_year': self.month_of_year
+        }
+
+    def as_cron(self):
+        def rfield(x):
+            return str(x).replace(' ', '') or '*'
+
+        return '{0} {1} {2} {3} {4}'.format(
+            rfield(self.minute), rfield(self.hour),
+            rfield(self.day_of_month), rfield(self.month_of_year),
+            rfield(self.day_of_week),
+        )
