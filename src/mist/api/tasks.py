@@ -55,8 +55,6 @@ from mist.api.auth.methods import AuthContext
 
 from mist.api.logs.methods import log_event
 
-from mist.api.tag.methods import resolve_id_and_set_tags
-
 from mist.api.dramatiq_app import dramatiq
 
 from mist.api import config
@@ -650,11 +648,16 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
                                             expiration)
             except ImportError:
                 pass
-        if tags:
-            add_tags_to_resource(auth_context.owner, cloned_machine, tags)
+
         cloned_machine.save()
         cloned_machine.cloud.ctl.compute.produce_and_publish_patch(
             [before], [cloned_machine])
+
+        if tags:
+            add_tags_to_resource(auth_context.owner,
+                                 [{'resource_type': 'machine',
+                                   'resource_id': cloned_machine.id}],
+                                 tags)
     except NameError as exc:
         print(exc)
         log.error("Cloned machine is not present in the database yet."
@@ -1496,11 +1499,13 @@ def create_machine_async_v2(
             tmp_log_error('Got exception %s in key association'
                           % str(exc))
 
-    if plan.get('tags'):
-        resolve_id_and_set_tags(auth_context.owner, 'machine', node.id,
-                                plan['tags'], cloud_id=cloud.id)
-
     machine = Machine.objects.get(cloud=cloud, external_id=node.id)
+
+    if plan.get('tags'):
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type': 'machine',
+                               'resource_id': machine.id}],
+                             plan['tags'])
 
     # first_run is set to True because poller has already
     # logged an observation event for this machine
