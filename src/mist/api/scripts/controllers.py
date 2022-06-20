@@ -38,7 +38,7 @@ class AnsibleScriptController(BaseScriptController):
             key_id=None, params=None, job_id=None, **kwargs):
         url = self.generate_signed_url()
 
-        private_key = SSHKey.objects(id=key_id)[0].private
+        private_key = SSHKey.objects(id=key_id)[0].private.value
         private_key = f'\'{private_key}\''
 
         params = ['-s', url]
