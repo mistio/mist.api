@@ -50,7 +50,7 @@ class AnsibleScriptController(BaseScriptController):
             params += ['-e', self.script.location.entrypoint]
 
         container = docker_run(name=f'ansible_runner-{job_id}',
-                               image_id='mist/ansible-runner:v0.3',
+                               image_id='mist/ansible-runner:v0.4',
                                command=' '.join(params))
         conn = docker_connect()
         while conn.get_container(container.id).state != 'stopped':
@@ -61,8 +61,8 @@ class AnsibleScriptController(BaseScriptController):
 
         # parse stdout for errors
         if re.search('ERROR!', wstdout) or re.search(
-            'failed=[1-9]+[0-9]{0,}', wstdout
-        ):
+            'failed=[1-9]+[0-9]{0,}', wstdout) or re.search(
+                'Traceback', wstdout):
             exit_code = 1
 
         conn.destroy_container(container)
