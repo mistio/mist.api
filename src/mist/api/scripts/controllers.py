@@ -50,7 +50,7 @@ class AnsibleScriptController(BaseScriptController):
             params += ['-e', self.script.location.entrypoint]
 
         container = docker_run(name=f'ansible_runner-{job_id}',
-                               image_id='mist/ansible-runner:v0.3',
+                               image_id='mist/ansible-runner:v0.4',
                                command=' '.join(params))
         conn = docker_connect()
         while conn.get_container(container.id).state != 'stopped':
