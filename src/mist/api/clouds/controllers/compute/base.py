@@ -543,8 +543,10 @@ class BaseComputeController(BaseController):
         updated = self._update_machine_image(
             node, machine, images_map) or updated
 
-        updated = self._update_machine_size(
-            node, machine, sizes_map) or updated
+        updated_size = self._update_machine_size(
+            node, machine, sizes_map)
+
+        updated = updated or updated_size
 
         # set machine's os_type from image's os_type, but if
         # info of os_type can be obtained from libcloud node, then
@@ -693,6 +695,11 @@ class BaseComputeController(BaseController):
                 machine.name, machine.id, is_new))
 
         machine.last_seen = now
+
+        if (is_new or updated_size) and machine.machine_type not in ('container', 'pod'):  # noqa
+            # FIXME Imported here due to circular dependency issues.
+            from mist.api.metering.tasks import find_machine_cores
+            find_machine_cores.send(machine.id)
 
         return machine, is_new
 
