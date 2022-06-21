@@ -1133,11 +1133,13 @@ def list_sizes(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     params = params_from_request(request)
     cached = bool(params.get('cached', False))
+    extra = params.get('extra', 'True') == 'True'
+
     if cached:
         sizes = cloud.ctl.compute.list_cached_sizes()
     else:
         sizes = cloud.ctl.compute.list_sizes()
-    return [size.as_dict() for size in sizes]
+    return [size.as_dict(extra=extra) for size in sizes]
 
 
 @view_config(route_name='api_v1_locations', request_method='GET',
@@ -1170,7 +1172,11 @@ def list_locations(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     params = params_from_request(request)
     cached = bool(params.get('cached', False))
-    return filter_list_locations(auth_context, cloud_id, cached=cached)
+    extra = params.get('extra', 'True') == 'True'
+    return filter_list_locations(auth_context,
+                                 cloud_id,
+                                 cached=cached,
+                                 extra=extra)
 
 
 @view_config(route_name='api_v1_storage_accounts', request_method='GET',

@@ -74,9 +74,13 @@ def list_images(request):
         raise NotFoundError('Cloud does not exist')
 
     cached = bool(params.get('cached', False))
+    extra = params.get('extra', 'True') == 'True'
 
-    return methods.filter_list_images(auth_context, cloud_id, cached=cached,
-                                      term=term)
+    return methods.filter_list_images(auth_context,
+                                      cloud_id,
+                                      cached=cached,
+                                      term=term,
+                                      extra=extra)
 
 
 @view_config(route_name='api_v1_image', request_method='POST', renderer='json')
