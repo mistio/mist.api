@@ -253,7 +253,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
         BaseAction, required=False, default=lambda: [NotificationAction()]
     )
 
-    when_type = me.EmbeddedDocumentField(BaseWhenType, required=False)
+    when = me.EmbeddedDocumentField(BaseWhenType, required=False)
 
     # celerybeat-mongo specific fields
     expires = me.DateTimeField()
@@ -466,9 +466,9 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
             'id': self.id,
             'name': self.name,
             'description': self.description or '',
-            'schedule': str(self.when_type),
-            'schedule_type': self.when_type.type,
-            'schedule_entry': self.when_type.as_dict(),
+            'schedule': str(self.when),
+            'schedule_type': self.when.type,
+            'schedule_entry': self.when.as_dict(),
             'task_type': action,
             'expires': str(self.expires or ''),
             'start_after': str(self.start_after or ''),

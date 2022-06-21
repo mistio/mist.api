@@ -54,17 +54,17 @@ def add_job(scheduler, schedule, actor, first_run=False):
         job['seconds'] = schedule.frequency.timedelta.total_seconds()
         job['args'] = schedule.args
     else:
-        if schedule.when_type.type == 'interval':
+        if schedule.when.type == 'interval':
             job['trigger'] = 'interval'
-            period = schedule.when_type['period']
-            job[period] = schedule.when_type['every']
-        elif schedule.when_type.type == 'crontab':
+            period = schedule.when['period']
+            job[period] = schedule.when['every']
+        elif schedule.when.type == 'crontab':
             job['trigger'] = CronTrigger.from_crontab(
-                schedule.when_type.as_cron())
-        elif schedule.when_type.type in ('one_off', 'reminder'):
-            job['run_date'] = schedule.when_type.entry
+                schedule.when.as_cron())
+        elif schedule.when.type in ('one_off', 'reminder'):
+            job['run_date'] = schedule.when.entry
         else:
-            log.error('Invalid schedule type: %s' % schedule.when_type)
+            log.error('Invalid schedule type: %s' % schedule.when)
             raise
         for schedule_action in schedule.actions:
             if schedule_action._cls == 'ScriptAction':
@@ -119,30 +119,30 @@ def update_job(scheduler, schedule, actor, existing):
             scheduler.remove_job(existing.id)
             add_job(scheduler, schedule, actor)
     else:
-        if schedule.when_type.type == 'interval' and interval:
+        if schedule.when.type == 'interval' and interval:
             # Update interval
             delta = datetime.timedelta(**{
-                schedule.when_type.period: schedule.when_type.every
+                schedule.when.period: schedule.when.every
             })
             if interval.total_seconds() != \
                     delta.total_seconds():
-                changes[schedule.when_type['period']] = \
-                    schedule.when_type['every']
-        elif schedule.when_type.type == 'crontab':
+                changes[schedule.when['period']] = \
+                    schedule.when['every']
+        elif schedule.when.type == 'crontab':
             new_trigger = CronTrigger.from_crontab(
-                schedule.when_type.as_cron())
+                schedule.when.as_cron())
             # Update crontab
             if str(new_trigger) != str(existing.trigger):
                 changes['trigger'] = new_trigger
-        elif schedule.when_type.type in ('one_off', 'reminder'):
+        elif schedule.when.type in ('one_off', 'reminder'):
             # Update run_date
-            if (existing.trigger.run_date != pytz.utc.localize(schedule.when_type.entry) or  # noqa
+            if (existing.trigger.run_date != pytz.utc.localize(schedule.when.entry) or  # noqa
                     schedule.run_immediately):
                 scheduler.remove_job(existing.id)
                 add_job(scheduler, schedule, actor)
                 return
         else:
-            log.error('Invalid schedule type: %s' % schedule.when_type)
+            log.error('Invalid schedule type: %s' % schedule.when)
             raise
 
         if str(existing.func) != str(actor.send):
