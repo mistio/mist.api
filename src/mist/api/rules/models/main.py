@@ -89,7 +89,7 @@ class Rule(me.Document):
     frequency = me.EmbeddedDocumentField(Frequency, required=False)
 
     # Defines the frequency of each search.
-    when_type = me.EmbeddedDocumentField(BaseWhenType, required=False)
+    when = me.EmbeddedDocumentField(BaseWhenType, required=False)
 
     # Associates a reminder offset, which will cause an alert to be fired if
     # and only if the threshold is exceeded for a number of trigger_after

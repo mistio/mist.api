@@ -74,7 +74,7 @@ def check_perm(auth_context, resource_type, action, resource=None):
         raise NotImplementedError(resource_type)
 
 
-def extract_selector_type_v2(**kwargs):
+def extract_selector_type(**kwargs):
     error_count = 0
     selectors = kwargs.get('selectors')
     for selector in selectors:
@@ -280,7 +280,7 @@ class BaseController(object):
         schedule_type = kwargs.pop('schedule_type', '')
 
         if (schedule_type == 'crontab' or isinstance(
-                self.schedule.schedule_type, schedules.Crontab)):
+                self.schedule.when, schedules.Crontab)):
             schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
@@ -289,11 +289,11 @@ class BaseController(object):
                                  'day_of_month', 'month_of_year']:
                         raise BadRequestError("Invalid key given: %s" % k)
 
-                self.schedule.schedule_type = schedules.Crontab(
+                self.schedule.when = schedules.Crontab(
                     **schedule_entry)
 
         elif (schedule_type == 'interval' or type(
-                self.schedule.schedule_type) == schedules.Interval):
+                self.schedule.when) == schedules.Interval):
             schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
@@ -301,11 +301,11 @@ class BaseController(object):
                     if k not in ['period', 'every']:
                         raise BadRequestError("Invalid key given: %s" % k)
 
-                self.schedule.schedule_type = schedules.Interval(
+                self.schedule.when = schedules.Interval(
                     **schedule_entry)
 
         elif (schedule_type in ['one_off', 'reminder'] or type(
-                self.schedule.schedule_type) == schedules.OneOff):
+                self.schedule.when) == schedules.OneOff):
             # implements Interval under the hood
             future_date = kwargs.pop('schedule_entry', '')
 
@@ -331,13 +331,13 @@ class BaseController(object):
                 notify_msg = kwargs.get('notify_msg', '')
 
                 if schedule_type == 'reminder':
-                    self.schedule.schedule_type = schedules.Reminder(
+                    self.schedule.when = schedules.Reminder(
                         period='seconds',
                         every=delta.seconds,
                         entry=future_date,
                         message=notify_msg)
                 else:
-                    self.schedule.schedule_type = schedules.OneOff(
+                    self.schedule.when = schedules.OneOff(
                         period='seconds',
                         every=delta.seconds,
                         entry=future_date)
@@ -395,7 +395,7 @@ class BaseController(object):
 
         owner = auth_context.owner
         if kwargs.get('selectors'):
-            selector_type = extract_selector_type_v2(**kwargs)
+            selector_type = extract_selector_type(**kwargs)
             self.schedule.resource_model_name = selector_type
             self.schedule.save()
         else:
@@ -524,7 +524,7 @@ class BaseController(object):
                                  'day_of_month', 'month_of_year']:
                         raise BadRequestError("Invalid key given: %s" % k)
 
-                self.schedule.when_type = When.Crontab(
+                self.schedule.when = When.Crontab(
                     **schedule_entry)
 
         elif when_type == 'interval':
@@ -535,7 +535,7 @@ class BaseController(object):
                     if k not in ['period', 'every']:
                         raise BadRequestError("Invalid key given: %s" % k)
 
-                self.schedule.when_type = When.Interval(
+                self.schedule.when = When.Interval(
                     **schedule_entry)
 
         elif when_type in ['one_off', 'reminder']:
@@ -564,13 +564,13 @@ class BaseController(object):
                 notify_msg = kwargs.get('notify_msg', '')
 
                 if when_type == 'reminder':
-                    self.schedule.when_type = When.Reminder(
+                    self.schedule.when = When.Reminder(
                         period='seconds',
                         every=delta.seconds,
                         entry=future_date,
                         message=notify_msg)
                 else:
-                    self.schedule.when_type = When.OneOff(
+                    self.schedule.when = When.OneOff(
                         period='seconds',
                         every=delta.seconds,
                         entry=future_date)
@@ -585,7 +585,7 @@ class BaseController(object):
                     notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
                     params = {
                         'action': 'notify',
-                        'when_type': 'reminder',
+                        'schedule_type': 'reminder',
                         'description': 'Schedule expiration reminder',
                         'task_enabled': True,
                         'schedule_entry': notify_at,

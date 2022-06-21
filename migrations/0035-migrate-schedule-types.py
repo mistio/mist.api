@@ -25,7 +25,7 @@ def migrate_schedule_types():
             )
             update_set_result = db_schedules.update_one(
                 {'_id': schedule['_id']},
-                {'$set': {'when_type': schedule_type}}
+                {'$set': {'when': schedule_type}}
             )
             print(update_unset_result.modified_count)
             if update_unset_result.modified_count > 0 and update_set_result.modified_count > 0:
