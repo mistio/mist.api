@@ -475,7 +475,7 @@ class CloudSize(me.Document):
 
         return ret
 
-    def as_dict(self):
+    def as_dict(self, extra=True):
         size_dict = {
             'id': self.id,
             'cloud': self.cloud.id if self.cloud else None,  # same as above
@@ -484,7 +484,7 @@ class CloudSize(me.Document):
             'cpus': self.cpus,
             'ram': self.ram,
             'bandwidth': self.bandwidth,
-            'extra': self.extra,
+            'extra': self.extra if extra else {},
             'disk': self.disk,
             'architecture': self.architecture,
             'missing_since': str(self.missing_since.replace(tzinfo=None)

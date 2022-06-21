@@ -445,7 +445,10 @@ class MainConnection(MistConnection):
                 )
                 self.internal_request(
                     'api/v1/clouds/%s/sizes' % cloud.id,
-                    params={'cached': True},
+                    params={
+                        'cached': True,
+                        'extra': False,
+                    },
                     callback=lambda sizes, cloud_id=cloud.id: self.send(
                         'list_sizes',
                         {'cloud_id': cloud_id, 'sizes': sizes}
