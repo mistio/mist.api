@@ -400,10 +400,10 @@ class CloudLocation(OwnershipMixin, me.Document):
             ret['created'] = str(ret['created'])
         return ret
 
-    def as_dict(self):
+    def as_dict(self, extra=True):
         location_dict = {
             'id': self.id,
-            'extra': self.extra,
+            'extra': self.extra if extra else {},
             'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
@@ -500,7 +500,7 @@ class CloudSize(me.Document):
             ret['created'] = str(ret['created'])
         return ret
 
-    def as_dict(self):
+    def as_dict(self, extra=True):
         size_dict = {
             'id': self.id,
             'cloud': self.cloud.id if self.cloud else None,  # same as above
@@ -509,7 +509,7 @@ class CloudSize(me.Document):
             'cpus': self.cpus,
             'ram': self.ram,
             'bandwidth': self.bandwidth,
-            'extra': self.extra,
+            'extra': self.extra if extra else {},
             'disk': self.disk,
             'architecture': self.architecture,
             'created': str(self.created),

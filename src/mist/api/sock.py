@@ -434,7 +434,10 @@ class MainConnection(MistConnection):
                 )
                 self.internal_request(
                     'api/v1/clouds/%s/locations' % cloud.id,
-                    params={'cached': True},
+                    params={
+                        'cached': True,
+                        'extra': False,
+                    },
                     callback=lambda locations, cloud_id=cloud.id: self.send(
                         'list_locations',
                         {'cloud_id': cloud_id, 'locations': locations}
@@ -442,7 +445,10 @@ class MainConnection(MistConnection):
                 )
                 self.internal_request(
                     'api/v1/clouds/%s/sizes' % cloud.id,
-                    params={'cached': True},
+                    params={
+                        'cached': True,
+                        'extra': False,
+                    },
                     callback=lambda sizes, cloud_id=cloud.id: self.send(
                         'list_sizes',
                         {'cloud_id': cloud_id, 'sizes': sizes}
@@ -450,7 +456,10 @@ class MainConnection(MistConnection):
                 )
                 self.internal_request(
                     'api/v1/clouds/%s/images' % cloud.id,
-                    params={'cached': True},
+                    params={
+                        'cached': True,
+                        'extra': False,
+                    },
                     callback=lambda images, cloud_id=cloud.id: self.send(
                         'list_images',
                         {'cloud_id': cloud_id, 'images': images}
