@@ -158,6 +158,8 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                     data = self.channel.recv(1024).decode('utf-8', 'ignore')
                 except TypeError:
                     data = self.channel.recv().decode('utf-8', 'ignore')
+                except AttributeError:
+                    data = self.channel.recv()
 
                 if not len(data):
                     return
