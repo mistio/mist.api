@@ -65,14 +65,14 @@ class CloudImage(OwnershipMixin, me.Document, TagMixin):
             name = f"{self.name}, None, {self.external_id}"
         return name
 
-    def as_dict(self):
+    def as_dict(self, extra=True):
         return {
             'id': self.id,
             'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
             'starred': self.starred,
-            'extra': self.extra,
+            'extra': self.extra if extra else {},
             'os_type': self.os_type,
             'os_distro': self.os_distro,
             'architecture': self.architecture,
