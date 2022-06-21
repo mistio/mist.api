@@ -471,10 +471,9 @@ class DockerShell(WebSocketWrapper):
                                      job_id=kwargs['job_id'])
         log.info('Autoconfiguring DockerShell to stream %s logs from '
                  'container %s (User: %s)', log_type, container_id, owner.id)
-
-        # TODO: SSL for CFY container
+        ssl_enabled = config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT
         self.uri = self.build_uri(container_id, docker_port, allow_logs=1,
-                                  allow_stdin=0)
+                                  allow_stdin=0, ssl_enabled=ssl_enabled)
 
     def get_docker_endpoint(self, owner, cloud_id, job_id=None):
         if job_id:
@@ -491,13 +490,14 @@ class DockerShell(WebSocketWrapper):
                   ssl_enabled=False, allow_logs=0, allow_stdin=1):
         if ssl_enabled:
             self.protocol = 'wss'
-            ssl_key, ssl_cert = self.ssl_credentials(cloud)
-            self.sslopt = {
-                'cert_reqs': ssl.CERT_NONE,
-                'keyfile': ssl_key,
-                'certfile': ssl_cert
-            }
-            self.ws = websocket.WebSocket(sslopt=self.sslopt)
+            ssl_key, ssl_cert = self.ssl_credentials()
+            if None not in (ssl_key, ssl_cert):
+                self.sslopt = {
+                    'cert_reqs': ssl.CERT_NONE,
+                    'keyfile': ssl_key,
+                    'certfile': ssl_cert
+                }
+                self.ws = websocket.WebSocket(sslopt=self.sslopt)
 
         if cloud and cloud.username and cloud.password:
             uri = '%s://%s:%s@%s:%s/containers/%s/attach/ws?logs=%s&stream=1&stdin=%s&stdout=1&stderr=1' % (  # noqa
@@ -512,21 +512,17 @@ class DockerShell(WebSocketWrapper):
 
         return uri
 
-    """
     @staticmethod
-    def ssl_credentials(cloud=None):
-        if cloud:
-            _key, _cert = cloud.key_file, cloud.cert_file
-
+    def ssl_credentials():
+        if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
             tempkey = tempfile.NamedTemporaryFile(delete=False)
             with open(tempkey.name, 'w') as f:
-                f.write(_key)
+                f.write(config.DOCKER_TLS_KEY)
             tempcert = tempfile.NamedTemporaryFile(delete=False)
             with open(tempcert.name, 'w') as f:
-                f.write(_cert)
-
+                f.write(config.DOCKER_TLS_CERT)
             return tempkey.name, tempcert.name
-    """
+        return None, None
 
 
 class LXDWebSocket(WebSocketWrapper):
