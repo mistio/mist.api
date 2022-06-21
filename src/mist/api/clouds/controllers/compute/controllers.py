@@ -209,23 +209,50 @@ class AmazonComputeController(BaseComputeController):
         if node_dict['state'] == NodeState.STOPPED.value:
             return 0, 0
 
-        sizes = self.connection.list_sizes()
-        size = node_dict['extra'].get('instance_type')
-        for node_size in sizes:
-            if node_size.id == size and node_size.price:
-                if isinstance(node_size.price, dict):
-                    plan_price = node_size.price.get(machine.os_type)
-                    if not plan_price:
-                        # Use the default which is linux.
-                        plan_price = node_size.price.get('linux')
-                else:
-                    plan_price = node_size.price
-                if isinstance(plan_price, float) or isinstance(plan_price,
-                                                               int):
-                    return plan_price, 0
-                else:
-                    return plan_price.replace('/hour', '').replace('$', ''), 0
-        return 0, 0
+        # getting the pricing data each time is inefficient
+        # for now it will be saved in the controller
+        # in the future it should be cached
+        if not hasattr(self, 'pricing_data'):
+            self.pricing_data = {}
+        if 'high availability' in machine.image.name.lower():
+            pricing_driver_name = 'ec2_rhel_ha'
+        elif 'rhel' in machine.image.name.lower():
+            pricing_driver_name = 'ec2_rhel'
+        elif 'suse' in machine.image.name.lower():
+            pricing_driver_name = 'ec2_suse'
+        else:
+            pricing_driver_name = f'ec2_{machine.image.os_type}'
+
+        if not self.pricing_data.get(pricing_driver_name):
+            try:
+                self.pricing_data[pricing_driver_name] = get_pricing(
+                    'compute', pricing_driver_name)
+            except KeyError:
+                log.error(f"Error while trying to get pricing data for "
+                          f"machine f{machine.name} with id f{machine.id} "
+                          f"Could not find prices for {pricing_driver_name}."
+                          f"Will return 0 for this machine's cost")
+                return 0, 0
+
+        size = self._list_machines__get_size(node_dict)
+
+        location = machine.location.name
+        # Remove last letter if it is there.
+        # eg. remove last 'a' from 'ap-northeast-1a'
+        if location[-1].isalpha():
+            location = location[:-1]
+
+        # This is an exception which might change in the future.
+        # For now prices for mac1.metal or mac2.metal
+        # are under ec2_linux -> mac1 (or mac2).
+        # mac1.metal and mac2.metal have price 0 for all regions.
+        if size == 'mac1.metal':
+            size = 'mac1'
+        if size == 'mac2.metal':
+            size = 'mac2'
+        cost = self.pricing_data[pricing_driver_name].get(
+            size, {}).get(location, 0)
+        return cost, 0
 
     def _list_machines__get_location(self, node):
         return node['extra'].get('availability')
