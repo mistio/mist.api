@@ -384,10 +384,10 @@ class CloudLocation(OwnershipMixin, me.Document):
 
         return ret
 
-    def as_dict(self):
+    def as_dict(self, extra=True):
         location_dict = {
             'id': self.id,
-            'extra': self.extra,
+            'extra': self.extra if extra else {},
             'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
