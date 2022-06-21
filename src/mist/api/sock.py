@@ -456,7 +456,10 @@ class MainConnection(MistConnection):
                 )
                 self.internal_request(
                     'api/v1/clouds/%s/images' % cloud.id,
-                    params={'cached': True},
+                    params={
+                        'cached': True,
+                        'extra': False,
+                    },
                     callback=lambda images, cloud_id=cloud.id: self.send(
                         'list_images',
                         {'cloud_id': cloud_id, 'images': images}
