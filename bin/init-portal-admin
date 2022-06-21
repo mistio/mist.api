@@ -37,10 +37,10 @@ def main():
     org.add_member_to_team('Owners', user)
     try:
         org.save()
-    except me.ValidationError as exc:
+    except Exception as exc:
         print(f"Failed to save org with exception: {exc!r}")
         user.delete()
-        return
+        raise
 
     token = os.getenv("PORTAL_ADMIN_API_TOKEN")
     if token:
