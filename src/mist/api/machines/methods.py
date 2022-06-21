@@ -2660,3 +2660,48 @@ def prepare_ssh_uri(auth_context, machine):
         encrypted_msg,
         mac)
     return ssh_uri
+
+
+def prepare_lxd_uri(auth_context, machine):
+    name = machine.name
+    cluster = machine.cloud.name
+    host = machine.cloud.host
+    port = machine.cloud.port
+    expiry = int(datetime.now().timestamp()) + 100
+    key_path = machine.cloud.key_file.secret.name
+    org = machine.owner
+    vault_token = org.vault_token if org.vault_token is not None else \
+        config.VAULT_TOKEN
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    vault_addr = org.vault_address if org.vault_address is not None else \
+        config.VAULT_ADDR
+    msg_to_encrypt = '%s,%s,%s,%s' % (
+        vault_token,
+        vault_addr,
+        vault_secret_engine_path,
+        key_path)
+    from mist.api.helpers import encrypt
+    # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
+    encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
+    msg = '%s,%s,%s,%s,%s,%s' % (
+        name,
+        cluster,
+        host,
+        port,
+        expiry,
+        encrypted_msg)
+    mac = hmac.new(
+        config.SIGN_KEY.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256).hexdigest()
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    exec_uri = '%s/lxd-exec/%s/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri,
+        name,
+        cluster,
+        host,
+        port,
+        expiry,
+        encrypted_msg,
+        mac)
+    return exec_uri
