@@ -477,14 +477,13 @@ class DockerShell(WebSocketWrapper):
 
     def logging_shell(self, owner, log_type='CFY', **kwargs):
         docker_port, container_id = \
-            self.get_docker_endpoint(owner, cloud_id=None,
+            self.get_docker_endpoint(owner, cloud_id=None, machine_id=None,
                                      job_id=kwargs['job_id'])
         log.info('Autoconfiguring DockerShell to stream %s logs from '
                  'container %s (User: %s)', log_type, container_id, owner.id)
-
-        # TODO: SSL for CFY container
+        ssl_enabled = config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT
         self.uri = self.build_uri(container_id, docker_port, allow_logs=1,
-                                  allow_stdin=0)
+                                  allow_stdin=0, ssl_enabled=ssl_enabled)
 
     def get_docker_endpoint(self, owner, cloud_id, machine_id, job_id=None):
         if job_id:
@@ -526,21 +525,25 @@ class DockerShell(WebSocketWrapper):
             )
         return uri
 
-    """
     @staticmethod
     def ssl_credentials(cloud=None):
-        if cloud:
-            _key, _cert = cloud.key_file, cloud.cert_file
-
-            tempkey = tempfile.NamedTemporaryFile(delete=False)
-            with open(tempkey.name, 'w') as f:
-                f.write(_key)
-            tempcert = tempfile.NamedTemporaryFile(delete=False)
-            with open(tempcert.name, 'w') as f:
-                f.write(_cert)
-
-            return tempkey.name, tempcert.name
-    """
+        if cloud is None:
+            tempkey = None
+            tempcert = None
+            tempca_cert = None
+            if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
+                tempkey = tempfile.NamedTemporaryFile(delete=False)
+                with open(tempkey.name, 'w') as f:
+                    f.write(config.DOCKER_TLS_KEY)
+                tempcert = tempfile.NamedTemporaryFile(delete=False)
+                with open(tempcert.name, 'w') as f:
+                    f.write(config.DOCKER_TLS_CERT)
+            if config.DOCKER_TLS_CA:
+                tempca_cert = tempfile.NamedTemporaryFile(delete=False)
+                with open(tempca_cert.name, 'w') as f:
+                    f.write(config.DOCKER_TLS_CA)
+            return tempkey, tempcert, tempca_cert
+        return super(DockerShell, DockerShell).ssl_credentials(cloud=cloud)
 
 
 class LXDWebSocket(WebSocketWrapper):
