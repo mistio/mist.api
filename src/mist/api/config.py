@@ -1421,7 +1421,7 @@ BANNED_EMAIL_PROVIDERS = [
 ###############################################################################
 
 SECRET = os.getenv("INTERNAL_KEYS_SECRET") or ""
-SIGN_KEY = os.getenv("INTERNAL_KEYS_SIGN") or ""
+SIGN_KEY = os.getenv("INTERNAL_KEYS_SIGN") or "dummy"
 
 NOTIFICATION_EMAIL = {
     'all': "",
