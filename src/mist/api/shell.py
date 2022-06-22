@@ -477,7 +477,7 @@ class DockerShell(WebSocketWrapper):
 
     def logging_shell(self, owner, log_type='CFY', **kwargs):
         docker_port, container_id = \
-            self.get_docker_endpoint(owner, cloud_id=None,
+            self.get_docker_endpoint(owner, cloud_id=None, machine_id=None,
                                      job_id=kwargs['job_id'])
         log.info('Autoconfiguring DockerShell to stream %s logs from '
                  'container %s (User: %s)', log_type, container_id, owner.id)
