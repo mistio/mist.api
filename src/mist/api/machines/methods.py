@@ -2707,7 +2707,7 @@ def prepare_lxd_uri(auth_context, machine):
     return exec_uri
 
 
-def prepare_docker_uri(machine):
+def prepare_docker_attach_uri(machine):
     name = machine.name
     machine_id = machine.external_id
     cluster = machine.cloud.name
