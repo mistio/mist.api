@@ -206,7 +206,7 @@ class AmazonComputeController(BaseComputeController):
         # TODO: stopped instances still charge for the EBS device
         # https://aws.amazon.com/ebs/pricing/
         # Need to add this cost for all instances
-        if node_dict['state'] == NodeState.STOPPED.value:
+        if node_dict['state'] != NodeState.RUNNING.value:
             return 0, 0
 
         # getting the pricing data each time is inefficient
@@ -214,7 +214,10 @@ class AmazonComputeController(BaseComputeController):
         # in the future it should be cached
         if not hasattr(self, 'pricing_data'):
             self.pricing_data = {}
-        if 'high availability' in machine.image.name.lower():
+
+        if not machine.image or not machine.image.name:
+            pricing_driver_name ='ec2_linux'
+        elif 'high availability' in machine.image.name.lower():
             pricing_driver_name = 'ec2_rhel_ha'
         elif 'rhel' in machine.image.name.lower():
             pricing_driver_name = 'ec2_rhel'
