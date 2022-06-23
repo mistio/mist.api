@@ -1421,10 +1421,12 @@ BANNED_EMAIL_PROVIDERS = [
 #  Different set in io and core
 ###############################################################################
 
-if os.getenv("INTERNAL_KEYS_SECRET") is None or "":
+if os.getenv("INTERNAL_KEYS_SECRET") is None or \
+        os.getenv("INTERNAL_KEYS_SIGN") == "":
     os.environ['INTERNAL_KEYS_SECRET'] = \
         open('/secrets/secret.txt', 'r').read()
-if os.getenv("INTERNAL_KEYS_SIGN") is None or "":
+if os.getenv("INTERNAL_KEYS_SIGN") is None or \
+        os.getenv("INTERNAL_KEYS_SIGN") == "":
     os.environ['INTERNAL_KEYS_SIGN'] = \
         open('/secrets/sign.txt', 'r').read()
 
