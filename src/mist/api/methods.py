@@ -577,7 +577,7 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
 
     # Init query object
     if resource_type == 'rule':
-        query = Q(owner_id=auth_context.org.id)
+        query = Q(org_id=auth_context.org.id)
     elif hasattr(resource_model, 'owner'):
         query = Q(owner=auth_context.org)
     else:
