@@ -29,13 +29,13 @@ def migrate_schedule_types():
             )
             print(update_unset_result.modified_count)
             if update_unset_result.modified_count > 0 and update_set_result.modified_count > 0:
-                print(f'Successfully migrated schedule action: '
+                print(f'Successfully migrated schedule type: '
                       f'with id: {schedule["_id"]} ')
                 migrated += 1
             else:
                 skipped += 1
         except Exception:
-            print(f'*** WARNING ** Could not migrate schedule action '
+            print(f'*** WARNING ** Could not migrate schedule type '
                     f'with id: {schedule["_id"]} ')
             traceback.print_exc()
             failed += 1
