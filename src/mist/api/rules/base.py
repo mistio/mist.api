@@ -11,12 +11,14 @@ from mist.api.exceptions import UnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.rules.models import Window
-from mist.api.rules.models import Frequency
+# from mist.api.rules.models import Frequency
 from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
 
 from mist.api.actions.models import ACTIONS
 from mist.api.actions.models import NoDataAction
+
+from mist.api.when.models import Interval
 
 from mist.api.selectors.models import FieldSelector
 from mist.api.selectors.models import TaggingSelector
@@ -34,12 +36,15 @@ log = logging.getLogger(__name__)
 SELECTORS = {
     'tags': TaggingSelector,
     'machines': ResourceSelector,  # FIXME For backwards compatibility.
+    'networks': ResourceSelector,
+    'volumes': ResourceSelector,
+    'clusters': ResourceSelector,
     'resources': ResourceSelector,
 }
 
 TIMEPERIOD = {
     'window': Window,
-    'frequency': Frequency,
+    'when': Interval,
     'trigger_after': TriggerOffset,
 }
 
@@ -94,7 +99,7 @@ class BaseController(object):
         This method is meant to be invoked only by the `Rule.add` classmethod.
 
         """
-        for field in ('queries', 'window', 'frequency', ):
+        for field in ('queries', 'window', 'when', ):
             if field not in kwargs:
                 raise RequiredParameterMissingError(field)
         try:
@@ -118,6 +123,8 @@ class BaseController(object):
         if 'actions' in kwargs:
             self.rule.actions = []
         for action in kwargs.pop('actions', []):
+            action['action'] = action.pop('action_type')
+            action['type'] = self.rule.resource_model_name+'_action'   
             if action.get('type') not in ACTIONS:
                 raise BadRequestError('Action must be in %s' %
                                       list(ACTIONS.keys()))
@@ -148,6 +155,7 @@ class BaseController(object):
         # Update query condition.
         if 'queries' in kwargs:
             self.rule.queries = []
+        import ipdb; ipdb.set_trace()
         for query in kwargs.pop('queries', []):
             for field in query:
                 if field not in QueryCondition._fields:
@@ -428,8 +436,8 @@ class NoDataRuleController(ResourceRuleController):
         # raising an alert.
         if not self.rule.window:
             self.rule.window = Window(start=2, period='minutes')
-        if not self.rule.frequency:
-            self.rule.frequency = Frequency(every=2, period='minutes')
+        if not self.rule.when:
+            self.rule.when = Interval(every=2, period='minutes')
 
         # The rule's single action.
         self.rule.actions = [NoDataAction()]

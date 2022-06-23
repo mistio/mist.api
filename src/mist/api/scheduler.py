@@ -51,7 +51,7 @@ def add_job(scheduler, schedule, actor, first_run=False):
         job['args'] = schedule.args
     elif isinstance(schedule, Rule):
         job['trigger'] = 'interval'
-        job['seconds'] = schedule.frequency.timedelta.total_seconds()
+        job['seconds'] = schedule.when.timedelta.total_seconds()
         job['args'] = schedule.args
     else:
         if schedule.when.type == 'interval':
@@ -115,7 +115,7 @@ def update_job(scheduler, schedule, actor, existing):
             add_job(scheduler, schedule, actor)
     elif isinstance(schedule, Rule):
         if interval.total_seconds() != \
-                schedule.frequency.timedelta.total_seconds():
+                schedule.when.timedelta.total_seconds():
             scheduler.remove_job(existing.id)
             add_job(scheduler, schedule, actor)
     else:
