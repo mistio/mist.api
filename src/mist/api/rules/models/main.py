@@ -12,6 +12,7 @@ from mist.api.actions.models import ActionClassMixin
 from mist.api.actions.models import BaseAction
 from mist.api.actions.models import NotificationAction
 from mist.api.when.models import BaseWhenType
+from mist.api.when.models import Interval
 
 from mist.api.rules.base import NoDataRuleController
 from mist.api.rules.base import ResourceRuleController
@@ -85,11 +86,13 @@ class Rule(me.Document):
     # Defines the time window and frequency of each search.
     window = me.EmbeddedDocumentField(Window, required=True)
 
+    # Defines the frequency of each search.
+    when = me.EmbeddedDocumentField(
+        BaseWhenType, required=False, default=lambda: Interval()
+    )
+
     # Deprecated
     frequency = me.EmbeddedDocumentField(Frequency, required=False)
-
-    # Defines the frequency of each search.
-    when = me.EmbeddedDocumentField(BaseWhenType, required=False)
 
     # Associates a reminder offset, which will cause an alert to be fired if
     # and only if the threshold is exceeded for a number of trigger_after
@@ -280,7 +283,7 @@ class Rule(me.Document):
             'name': self.name,
             'queries': [query.as_dict() for query in self.queries],
             'window': self.window.as_dict(),
-            'frequency': self.frequency.as_dict(),
+            'frequency': self.when.as_dict(),
             'trigger_after': self.trigger_after.as_dict(),
             'actions': [action.as_dict() for action in self.actions],
             'disabled': self.disabled,
@@ -368,14 +371,16 @@ class ResourceRule(Rule, SelectorClassMixin, ActionClassMixin):
 
     @property
     def reminder_offset(self):
-        return self.frequency.timedelta.total_seconds() - 60
+        return self.when.timedelta.total_seconds() - 60
 
     @property
     def action(self):
         for action in reversed(self.actions):
             if action.atype == 'command':
                 return 'command'
-            if action.atype == 'machine_action':
+            if action.atype == 'script':
+                return 'script'
+            if action.atype == f'{self.resource_model_name}_action':
                 return action.action
             if action.atype == 'notification':
                 return 'alert'
