@@ -1420,8 +1420,8 @@ BANNED_EMAIL_PROVIDERS = [
 #  Different set in io and core
 ###############################################################################
 
-SECRET = os.getenv("INTERNAL_KEYS_SECRET") or ""
-SIGN_KEY = os.getenv("INTERNAL_KEYS_SIGN") or ""
+SECRET = os.getenv("INTERNAL_KEYS_SECRET") or open('/secrets/secret.txt','r').read() or ""
+SIGN_KEY = os.getenv("INTERNAL_KEYS_SIGN") or open('/secrets/sign.txt','r').read() or "dummy"
 
 NOTIFICATION_EMAIL = {
     'all': "",
