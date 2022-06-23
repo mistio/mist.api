@@ -2,7 +2,6 @@
    Here we define constants needed by mist.api
    Also, the configuration from settings.py is exposed through this module.
 """
-from fileinput import close
 import os
 import ssl
 import json
@@ -1421,14 +1420,24 @@ BANNED_EMAIL_PROVIDERS = [
 #  Different set in io and core
 ###############################################################################
 
+# catch error when trying to open file
+
+
 if os.getenv("INTERNAL_KEYS_SECRET") is None or \
-        os.getenv("INTERNAL_KEYS_SIGN") == "":
-    os.environ['INTERNAL_KEYS_SECRET'] = \
-        open('/secrets/secret.txt', 'r').read()
+        os.getenv("INTERNAL_KEYS_SECRET") == "":
+    try:
+        with open('/secrets/secret.txt', 'r') as f:
+            os.environ['INTERNAL_KEYS_SECRET'] = f.read()
+    except FileNotFoundError:
+        os.environ['INTERNAL_KEYS_SECRET'] = ""
+
 if os.getenv("INTERNAL_KEYS_SIGN") is None or \
         os.getenv("INTERNAL_KEYS_SIGN") == "":
-    os.environ['INTERNAL_KEYS_SIGN'] = \
-        open('/secrets/sign.txt', 'r').read()
+    try:
+        with open('/secrets/sign.txt', 'r') as f:
+            os.environ['INTERNAL_KEYS_SIGN'] = f.read()
+    except FileNotFoundError:
+        os.environ['INTERNAL_KEYS_SIGN'] = ""
 
 SECRET = os.getenv("INTERNAL_KEYS_SECRET")
 SIGN_KEY = os.getenv("INTERNAL_KEYS_SIGN")
