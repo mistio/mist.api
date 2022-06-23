@@ -216,7 +216,7 @@ class AmazonComputeController(BaseComputeController):
             self.pricing_data = {}
 
         if not machine.image or not machine.image.name:
-            pricing_driver_name ='ec2_linux'
+            pricing_driver_name = 'ec2_linux'
         elif 'high availability' in machine.image.name.lower():
             pricing_driver_name = 'ec2_rhel_ha'
         elif 'rhel' in machine.image.name.lower():
