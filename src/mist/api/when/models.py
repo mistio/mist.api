@@ -20,6 +20,19 @@ class BaseWhenType(me.EmbeddedDocument):
     @property
     def schedule(self):
         raise NotImplementedError()
+    
+    @property
+    def timedelta(self):
+        raise NotImplementedError()
+    
+    def update(self, fail_on_error=True, **kwargs):
+        for key, value in kwargs.items():
+            if key not in type(self)._fields:
+                if not fail_on_error:
+                    continue
+                raise me.ValidationError('Field "%s" does not exist on %s',
+                                         key, type(self))
+            setattr(self, key, value)
 
 
 class Interval(BaseWhenType):
@@ -32,6 +45,10 @@ class Interval(BaseWhenType):
     @property
     def period_singular(self):
         return self.period[:-1]
+    
+    @property
+    def timedelta(self):
+        return datetime.timedelta(**{self.period: self.every})
 
     def __unicode__(self):
         if self.every == 1:
@@ -49,6 +66,10 @@ class OneOff(Interval):
     type = 'one_off'
     entry = me.DateTimeField(required=True)
 
+    @property
+    def timedelta(self):
+        raise NotImplementedError()
+
     def __unicode__(self):
         return 'OneOff date to run {0.entry}'.format(self)
 
@@ -61,6 +82,10 @@ class OneOff(Interval):
 class Reminder(OneOff):
     type = 'reminder'
     message = me.StringField()
+
+    @property
+    def timedelta(self):
+        raise NotImplementedError()
 
     def as_dict(self):
         return {
@@ -76,6 +101,10 @@ class Crontab(BaseWhenType):
     day_of_week = me.StringField(default='*', required=True)
     day_of_month = me.StringField(default='*', required=True)
     month_of_year = me.StringField(default='*', required=True)
+
+    @property
+    def timedelta(self):
+        raise NotImplementedError()
 
     def __unicode__(self):
 
