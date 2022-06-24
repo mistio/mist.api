@@ -135,3 +135,45 @@ class Crontab(BaseWhenType):
             rfield(self.day_of_month), rfield(self.month_of_year),
             rfield(self.day_of_week),
         )
+
+
+class TriggerOffset(BaseWhenType):
+    """An optional period of tolerance-like behavior for an alert.
+
+    Associates a trigger offset with an alert, which will prevent
+    the alert from firing, unless the defined threshold exceeds X
+    for T periods of time.
+
+    The offset must be a multiple of the resource's interval frequency.
+
+    """
+
+    offset = me.IntField(min_value=0, default=0, required=True)
+    period = me.StringField(choices=PERIODS)
+
+    @property
+    def timedelta(self):
+        return datetime.timedelta(**{self.period: self.offset})
+    
+    @property
+    def period_singular(self):
+        return self.period[:-1]
+
+    def clean(self):
+        if self.offset:
+            super(TriggerOffset, self).clean()
+            q, r = divmod(self.timedelta.total_seconds(),
+                          self._instance.when.timedelta.total_seconds())
+            if not q or r:
+                raise me.ValidationError("The trigger offset must be a"
+                                         " multiple of the rule's frequency")
+
+    def as_dict(self):
+        return {'offset': self.offset, 'period': self.period}
+
+    def __str__(self):
+        if self.offset is 0:
+            return 'Trigger offset is 0'
+        if self.offset is 1:
+            return 'Trigger offset of 1 %s' % self.period_singular
+        return 'Trigger offset %s %s' % (self.offset, self.period)
