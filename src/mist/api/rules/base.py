@@ -11,14 +11,13 @@ from mist.api.exceptions import UnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.rules.models import Window
-# from mist.api.rules.models import Frequency
-from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
 
 from mist.api.actions.models import ACTIONS
 from mist.api.actions.models import NoDataAction
 
 from mist.api.when.models import Interval
+from mist.api.when.models import TriggerOffset
 
 from mist.api.selectors.models import FieldSelector
 from mist.api.selectors.models import TaggingSelector
@@ -151,6 +150,9 @@ class BaseController(object):
                     "Multiple notifications are not supported. Users "
                     "will always be notified at the beginning of the "
                     "actions' cycle.")
+
+        if 'description' in kwargs:
+            self.rule.description = kwargs.pop('description')
 
         # Update query condition.
         if 'queries' in kwargs:
