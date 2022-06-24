@@ -11,8 +11,8 @@ from mist.api.selectors.models import SelectorClassMixin
 from mist.api.actions.models import ActionClassMixin
 from mist.api.actions.models import BaseAction
 from mist.api.actions.models import NotificationAction
-from mist.api.when.models import BaseWhenType
 from mist.api.when.models import Interval
+from mist.api.when.models import TriggerOffset
 
 from mist.api.rules.base import NoDataRuleController
 from mist.api.rules.base import ResourceRuleController
@@ -20,7 +20,6 @@ from mist.api.rules.base import ArbitraryRuleController
 from mist.api.rules.models import RuleState
 from mist.api.rules.models import Window
 from mist.api.rules.models import Frequency
-from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
 
 from mist.api.rules.plugins import GraphiteNoDataPlugin
@@ -75,6 +74,7 @@ class Rule(me.Document):
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     name = me.StringField(required=True)
+    description = me.StringField(required=False)
     org_id = me.StringField(required=True)
     # Deprecated
     title = me.StringField(required=False)
@@ -88,7 +88,7 @@ class Rule(me.Document):
 
     # Defines the frequency of each search.
     when = me.EmbeddedDocumentField(
-        BaseWhenType, required=False, default=lambda: Interval()
+        Interval, required=False, default=lambda: Interval()
     )
 
     # Deprecated
