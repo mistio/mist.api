@@ -4,6 +4,7 @@ import mongoengine as me
 from mist.api import config
 
 from mist.api.helpers import trigger_session_update
+from mist.api.methods import _update__preparse_resources
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
@@ -31,15 +32,6 @@ else:
 
 log = logging.getLogger(__name__)
 
-
-SELECTORS = {
-    'tags': TaggingSelector,
-    'machines': ResourceSelector,  # FIXME For backwards compatibility.
-    'networks': ResourceSelector,
-    'volumes': ResourceSelector,
-    'clusters': ResourceSelector,
-    'resources': ResourceSelector,
-}
 
 TIMEPERIOD = {
     'window': Window,
@@ -157,7 +149,6 @@ class BaseController(object):
         # Update query condition.
         if 'queries' in kwargs:
             self.rule.queries = []
-        import ipdb; ipdb.set_trace()
         for query in kwargs.pop('queries', []):
             for field in query:
                 if field not in QueryCondition._fields:
@@ -318,15 +309,13 @@ class ResourceRuleController(BaseController):
         super(ResourceRuleController, self).add(fail_on_error, **kwargs)
 
     def update(self, fail_on_error=True, **kwargs):
-        if 'selectors' in kwargs:
-            self.rule.selectors = []
-        for selector in kwargs.pop('selectors', []):
-            if selector.get('type') not in SELECTORS:
-                raise BadRequestError('Selector not in %s' %
-                                      list(SELECTORS.keys()))
-            sel_cls = SELECTORS[selector.pop('type')]()
-            sel_cls.update(**selector)
-            self.rule.selectors.append(sel_cls)
+        import ipdb; ipdb.set_trace()
+        selectors_actions_kwargs = kwargs.copy()
+        for key in kwargs.keys():
+            if key not in ('selectors','actions'):
+                selectors_actions_kwargs.pop(key)
+        kwargs.pop('selectors')
+        _update__preparse_resources(self.rule, self.auth_context, selectors_actions_kwargs)
         super(ResourceRuleController, self).update(fail_on_error, **kwargs)
 
     def maybe_remove(self, resource):
