@@ -934,14 +934,36 @@ def logging_view_decorator(func):
         if not hasattr(request, 'real_view_name'):
             request.real_view_name = func.__name__
 
-        # check if exception occurred
-        try:
-            response = func(context, request)
-        except HTTPError as e:
-            if request.path_info.startswith('/social_auth/complete'):
-                log.info("There was a bad error during SSO connection: %s, "
-                         "and request was %s" % (repr(e), request.__dict__))
-            raise
+        if config.MEMRAY_ENABLED:
+            import random
+            random.seed()
+            import memray
+            import datetime
+            import string
+            now = datetime.datetime.now()
+            dt = now.isoformat().replace(':','').replace('-','')[:13]
+            rand_str = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(5))
+            cloud_id = request.matchdict.get('cloud') or request.environ.get('cloud_id') or ''
+            with memray.Tracker(f"var/memray-output.{func.__name__}.{cloud_id}.{dt}-{rand_str}"):
+                print("Memray active")
+                # check if exception occurred
+                try:
+                    response = func(context, request)
+                except HTTPError as e:
+                    if request.path_info.startswith('/social_auth/complete'):
+                        log.info("There was a bad error during SSO connection: %s, "
+                                "and request was %s" % (repr(e), request.__dict__))
+                    raise
+        else:
+            # check if exception occurred
+            try:
+                response = func(context, request)
+            except HTTPError as e:
+                if request.path_info.startswith('/social_auth/complete'):
+                    log.info("There was a bad error during SSO connection: %s, "
+                            "and request was %s" % (repr(e), request.__dict__))
+                raise
+
         # check if exception occurred
         exc_flag = (config.LOG_EXCEPTIONS and
                     isinstance(context, Exception) and

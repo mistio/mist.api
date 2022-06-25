@@ -57,3 +57,4 @@ troposphere
 #tornado_profile
 uwsgidecorators
 websocket-client
+memray

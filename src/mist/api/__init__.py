@@ -98,6 +98,8 @@ def main(global_config, **settings):
     configurator.add_renderer('csv', 'mist.api.renderers.CSVRenderer')
 
     configurator.add_static_view('docs', path='../../../docs/build')
+    if config.MEMRAY_ENABLED:
+        configurator.add_static_view('var', path='/mist.api/var')
 
     # FIXME this should not be necessary
     social_auth_keys = {key: getattr(config, key, '')

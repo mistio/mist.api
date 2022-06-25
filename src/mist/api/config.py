@@ -167,6 +167,8 @@ SUPPORT_URI = 'https://docs.mist.io/contact'
 
 INTERNAL_API_URL = 'http://api'
 INTERNAL_API_V2_URL = 'http://api-v2:8080'
+SHOW_PODS = True
+MEMRAY_ENABLED = True
 GOCKY_HOST = 'gocky'
 GOCKY_PORT = 9096
 
