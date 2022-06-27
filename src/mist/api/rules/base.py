@@ -309,7 +309,6 @@ class ResourceRuleController(BaseController):
         super(ResourceRuleController, self).add(fail_on_error, **kwargs)
 
     def update(self, fail_on_error=True, **kwargs):
-        import ipdb; ipdb.set_trace()
         selectors_actions_kwargs = kwargs.copy()
         for key in kwargs.keys():
             if key not in ('selectors','actions'):

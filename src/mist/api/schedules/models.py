@@ -19,6 +19,8 @@ from mist.api.actions.models import ActionClassMixin
 from mist.api.actions.models import BaseAction
 from mist.api.actions.models import NotificationAction
 from mist.api.when.models import BaseWhenType
+from mist.api.when.models import Crontab
+from mist.api.helpers import extract_selector_type
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +28,7 @@ log = logging.getLogger(__name__)
 PERIODS = ('days', 'hours', 'minutes', 'seconds', 'microseconds')
 
 
+# DEPRECATED
 class BaseScheduleType(me.EmbeddedDocument):
     """Abstract Base class used as a common interface
     for scheduler types. There are three different types
@@ -38,90 +41,94 @@ class BaseScheduleType(me.EmbeddedDocument):
         raise NotImplementedError()
 
 
-class Interval(BaseScheduleType):
-    meta = {'allow_inheritance': True}
+# DEPRECATED
+# class Interval(BaseScheduleType):
+#     meta = {'allow_inheritance': True}
 
-    type = 'interval'
-    every = me.IntField(min_value=0, default=0, required=True)
-    period = me.StringField(choices=PERIODS)
+#     type = 'interval'
+#     every = me.IntField(min_value=0, default=0, required=True)
+#     period = me.StringField(choices=PERIODS)
 
-    @property
-    def period_singular(self):
-        return self.period[:-1]
+#     @property
+#     def period_singular(self):
+#         return self.period[:-1]
 
-    def __unicode__(self):
-        if self.every == 1:
-            return 'Interval every {0.period_singular}'.format(self)
-        return 'Interval every {0.every} {0.period}'.format(self)
+#     def __unicode__(self):
+#         if self.every == 1:
+#             return 'Interval every {0.period_singular}'.format(self)
+#         return 'Interval every {0.every} {0.period}'.format(self)
 
-    def as_dict(self):
-        return {
-            'every': self.every,
-            'period': self.period
-        }
-
-
-class OneOff(Interval):
-    type = 'one_off'
-    entry = me.DateTimeField(required=True)
-
-    def __unicode__(self):
-        return 'OneOff date to run {0.entry}'.format(self)
-
-    def as_dict(self):
-        return {
-            'entry': str(self.entry)
-        }
+#     def as_dict(self):
+#         return {
+#             'every': self.every,
+#             'period': self.period
+#         }
 
 
-class Reminder(OneOff):
-    type = 'reminder'
-    message = me.StringField()
+# DEPRECATED
+# class OneOff(Interval):
+#     type = 'one_off'
+#     entry = me.DateTimeField(required=True)
 
-    def as_dict(self):
-        return {
-            'message': self.message
-        }
+#     def __unicode__(self):
+#         return 'OneOff date to run {0.entry}'.format(self)
+
+#     def as_dict(self):
+#         return {
+#             'entry': str(self.entry)
+#         }
 
 
-class Crontab(BaseScheduleType):
-    type = 'crontab'
+# DEPRECATED
+# class Reminder(OneOff):
+#     type = 'reminder'
+#     message = me.StringField()
 
-    minute = me.StringField(default='*', required=True)
-    hour = me.StringField(default='*', required=True)
-    day_of_week = me.StringField(default='*', required=True)
-    day_of_month = me.StringField(default='*', required=True)
-    month_of_year = me.StringField(default='*', required=True)
+#     def as_dict(self):
+#         return {
+#             'message': self.message
+#         }
 
-    def __unicode__(self):
 
-        def rfield(x):
-            return str(x).replace(' ', '') or '*'
+# DEPRECATED
+# class Crontab(BaseScheduleType):
+#     type = 'crontab'
 
-        return 'Crontab {0} {1} {2} {3} {4} (m/h/dom/mon/dow)'.format(
-            rfield(self.minute), rfield(self.hour),
-            rfield(self.day_of_month), rfield(self.month_of_year),
-            rfield(self.day_of_week),
-        )
+#     minute = me.StringField(default='*', required=True)
+#     hour = me.StringField(default='*', required=True)
+#     day_of_week = me.StringField(default='*', required=True)
+#     day_of_month = me.StringField(default='*', required=True)
+#     month_of_year = me.StringField(default='*', required=True)
 
-    def as_dict(self):
-        return {
-            'minute': self.minute,
-            'hour': self.hour,
-            'day_of_week': self.day_of_week,
-            'day_of_month': self.day_of_month,
-            'month_of_year': self.month_of_year
-        }
+#     def __unicode__(self):
 
-    def as_cron(self):
-        def rfield(x):
-            return str(x).replace(' ', '') or '*'
+#         def rfield(x):
+#             return str(x).replace(' ', '') or '*'
 
-        return '{0} {1} {2} {3} {4}'.format(
-            rfield(self.minute), rfield(self.hour),
-            rfield(self.day_of_month), rfield(self.month_of_year),
-            rfield(self.day_of_week),
-        )
+#         return 'Crontab {0} {1} {2} {3} {4} (m/h/dom/mon/dow)'.format(
+#             rfield(self.minute), rfield(self.hour),
+#             rfield(self.day_of_month), rfield(self.month_of_year),
+#             rfield(self.day_of_week),
+#         )
+
+#     def as_dict(self):
+#         return {
+#             'minute': self.minute,
+#             'hour': self.hour,
+#             'day_of_week': self.day_of_week,
+#             'day_of_month': self.day_of_month,
+#             'month_of_year': self.month_of_year
+#         }
+
+#     def as_cron(self):
+#         def rfield(x):
+#             return str(x).replace(' ', '') or '*'
+
+#         return '{0} {1} {2} {3} {4}'.format(
+#             rfield(self.minute), rfield(self.hour),
+#             rfield(self.day_of_month), rfield(self.month_of_year),
+#             rfield(self.day_of_week),
+#         )
 
 
 # DEPRECATED
@@ -307,65 +314,23 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
             raise RequiredParameterMissingError('name')
         if not owner or not isinstance(owner, Organization):
             raise BadRequestError('owner')
-        # Deprecated Resource_Type
-        resource_type = kwargs.pop('resource_type', 'machine').rstrip('s')
-        if resource_type not in rtype_to_classpath:
-            raise BadRequestError('resource_type')
-        if Schedule.objects(owner=owner, name=name, deleted=None):
-            raise ScheduleNameExistsError()
-        schedule = cls(owner=owner, name=name,
-                       resource_model_name=resource_type)
-        schedule.ctl.set_auth_context(auth_context)
-        schedule.ctl.add(**kwargs)
-        schedule.assign_to(auth_context.user)
-        return schedule
-
-    @classmethod
-    def add_v2(cls, auth_context, name, **kwargs):
-        """Add schedule v2
-
-        This is a class method, meaning that it is meant to be called on the
-        class itself and not on an instance of the class.
-
-        You're not meant to be calling this directly, but on a schedule class
-        instead like this:
-
-            schedule = Schedule.add_v2(owner=owner, **kwargs)
-        """
-        owner = auth_context.owner
-
-        if not name:
-            raise RequiredParameterMissingError('name')
-        if not owner or not isinstance(owner, Organization):
-            raise BadRequestError('owner')
-        selectors = kwargs.get('selectors')
-        error_count = 0
-        selector_type = None
-        for selector in selectors:
-            if selector['type'] not in rtype_to_classpath:
-                error_count += 1
-            if selector['ids'] is not None:
-                selector_type = selector['type'].rstrip('s')
-        if error_count == len(selectors):
+        selector_type = extract_selector_type(**kwargs)
+        if selector_type not in rtype_to_classpath:
             raise BadRequestError('selector_type')
-        schedule_type = kwargs.get('schedule_type')
-        if schedule_type == 'crontab' or schedule_type == 'interval':
-            schedule_entry = kwargs.pop('schedule_entry')
-            schedule_entry = json.loads(schedule_entry)
-            kwargs['schedule_entry'] = schedule_entry
+        kwargs['selector_type'] = selector_type
         if Schedule.objects(owner=owner, name=name, deleted=None):
             raise ScheduleNameExistsError()
         schedule = cls(owner=owner, name=name,
                        resource_model_name=selector_type)
         schedule.ctl.set_auth_context(auth_context)
-        schedule.ctl.add_v2(**kwargs)
+        schedule.ctl.add(**kwargs)
         schedule.assign_to(auth_context.user)
         return schedule
 
     @property
     def schedule(self):
-        if self.schedule_type:
-            return self.schedule_type.schedule
+        if self.when:
+            return self.when.schedule
         else:
             raise Exception("must define interval, crontab, one_off schedule")
 
@@ -377,16 +342,16 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
                    machine.state != 'terminated']
         else:
             ids = [resource.id for resource in self.get_resources()]
-        fire_up = self.task_type.args
+        fire_up = self.actions[0].args
         return [self.owner.id, fire_up, self.name, ids]
 
     @property
     def kwargs(self):
-        return self.task_type.kwargs
+        return self.actions[0].kwargs
 
     @property
     def task(self):
-        return self.task_type.task
+        return self.actions[0].task
 
     @property
     def enabled(self):
@@ -413,8 +378,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
 
     def __unicode__(self):
         fmt = '{0.name}: {{no schedule}}'
-        if self.schedule_type:
-            fmt = 'name: {0.name} type: {0.schedule_type._cls}'
+        if self.when:
+            fmt = 'name: {0.name} type: {0.when._cls}'
         else:
             raise Exception("must define interval or crontab schedule")
         return fmt.format(self)
@@ -431,10 +396,10 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
                 [0, 15, 30, 45]
 
         """
-        if isinstance(self.schedule_type, Crontab):
+        if isinstance(self.when, Crontab):
             try:
                 from apscheduler.triggers.cron import CronTrigger
-                CronTrigger.from_crontab(self.schedule_type.as_cron())
+                CronTrigger.from_crontab(self.when.as_cron())
             except ValueError as exc:
                 raise me.ValidationError('Crontab validation failed: %s' % exc)
 
