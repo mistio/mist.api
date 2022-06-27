@@ -2754,6 +2754,7 @@ def prepare_docker_attach_uri(machine):
         mac)
     return attach_uri
 
+
 def prepare_kubernetes_uri(auth_context, machine):
     expiry = int(datetime.now().timestamp()) + 100
     pod = machine.name
@@ -2770,13 +2771,16 @@ def prepare_kubernetes_uri(auth_context, machine):
         vault_addr,
         vault_secret_engine_path,
         key_path)
+    log.info(msg_to_encrypt)
+    from mist.api.helpers import encrypt
     # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
     encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
-    msg = '%s,%s,%s,%s,%s' % (
+    msg = '%s,%s,%s,%s' % (
         pod,
         cluster,
         expiry,
         encrypted_msg)
+    log.info(msg)
     mac = hmac.new(
         config.SIGN_KEY.encode(),
         msg=msg.encode(),
