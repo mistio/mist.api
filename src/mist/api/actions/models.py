@@ -64,6 +64,14 @@ class BaseAction(me.EmbeddedDocument):
     @property
     def task(self):
         raise NotImplementedError()
+    
+    @property
+    def args(self):
+        raise NotImplementedError()
+
+    @property
+    def kwargs(self):
+        raise NotImplementedError()
 
     def as_dict(self):
         return {'type': self.atype}
@@ -137,6 +145,15 @@ class NotificationAction(BaseAction):
     @property
     def task(self):
         return ''
+    
+    @property
+    def args(self):
+        return {'emails': self.emails, 'users': self.users,
+                'teams': self.teams, 'level': self.level}
+    
+    @property
+    def kwargs(self):
+        return {'description': self.description}
 
     def as_dict(self):
         return {'type': self.atype, 'emails': self.emails,
@@ -168,6 +185,18 @@ class NoDataAction(NotificationAction):
         super(NoDataAction, self).run(machine, value, triggered, timestamp,
                                       incident_id, action)
 
+    @property
+    def task(self):
+        return ''
+    
+    @property
+    def args(self):
+        return {}
+    
+    @property
+    def kwargs(self):
+        return {}
+
 
 class CommandAction(BaseAction):
     """Execute a remote command."""
@@ -189,6 +218,14 @@ class CommandAction(BaseAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_run_script'
+    
+    @property
+    def args(self):
+        return self.command
+    
+    @property
+    def kwargs(self):
+        return {}
 
     def as_dict(self):
         return {'type': self.atype, 'command': self.command}
@@ -219,6 +256,14 @@ class ScriptAction(BaseAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_run_script'
+    
+    @property
+    def args(self):
+        return self.script.id
+    
+    @property
+    def kwargs(self):
+        return {'params': self.params}
 
     def as_dict(self):
         return {'type': self.atype, 'script': self.script.id,
@@ -307,6 +352,15 @@ class WebhookAction(BaseAction):
     @property
     def task(self):
         return ''
+    
+    @property
+    def args(self):
+        return {'method': self.method, 'url': self.url}
+    
+    @property
+    def kwargs(self):
+        return {'params': self.params, 'json': self.json,
+                'headers': self.headers}
 
     def as_dict(self):
         return {'type': self.atype, 'method': self.method, 'url': self.url,
@@ -338,6 +392,14 @@ class BaseResourceAction(BaseAction):
     
     @property
     def task(self):
+        raise NotImplementedError()
+    
+    @property
+    def args(self):
+        raise NotImplementedError()
+    
+    @property
+    def kwargs(self):
         raise NotImplementedError()
 
     def as_dict(self):
@@ -374,6 +436,14 @@ class MachineAction(BaseResourceAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_resources_actions'
+    
+    @property
+    def args(self):
+        return self.action
+    
+    @property
+    def kwargs(self):
+        return {}
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
@@ -396,6 +466,14 @@ class VolumeAction(BaseResourceAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_resources_actions'
+    
+    @property
+    def args(self):
+        return self.action
+    
+    @property
+    def kwargs(self):
+        return {}
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
@@ -418,6 +496,14 @@ class ClusterAction(BaseResourceAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_resources_actions'
+    
+    @property
+    def args(self):
+        return self.action
+    
+    @property
+    def kwargs(self):
+        return {}
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
@@ -440,6 +526,14 @@ class NetworkAction(BaseResourceAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_resources_actions'
+    
+    @property
+    def args(self):
+        return self.action
+    
+    @property
+    def kwargs(self):
+        return {}
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}

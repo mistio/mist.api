@@ -169,6 +169,7 @@ def delete_schedule(request):
 
     # NOTE: Do not perform an atomic operation when marking a schedule as
     # deleted, since we do not wish to bypass pre-save validation/cleaning.
+    import ipdb; ipdb.set_trace()
     schedule.deleted = datetime.utcnow()
     schedule.save()
 
