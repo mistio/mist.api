@@ -976,7 +976,6 @@ def _update__preparse_resources(obj, auth_context, kwargs):
             obj.selectors = []
         for selector in kwargs.get('selectors', []):
             sel_cls_key = selector.get('type')
-            import ipdb; ipdb.set_trace()
             if not sel_cls_key:
                 sel_cls_key = 'resource'
                 assert obj.resource_model_name in rtype_to_classpath
@@ -1004,10 +1003,12 @@ def _update__preparse_resources(obj, auth_context, kwargs):
             obj.selectors.append(sel)
 
         actions = []
-        acts = kwargs.get('actions')
-        for act in acts:
+        for act in kwargs.get('actions', []):
             if act['action_type'] not in ('notify', 'run_script', 'webhook', 'resize'):
                 actions.append(act['action_type'])
+        
+        if kwargs.get('action'):
+            actions.append(kwargs.get('action'))
 
         # check permissions
         if len(actions) > 1:
