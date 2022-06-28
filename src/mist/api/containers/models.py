@@ -213,11 +213,8 @@ class Cluster(OwnershipMixin, me.Document, TagMixin):
             'created_by': self.created_by.email if self.created_by else '',
             'nodepools': [nodepool.as_dict()
                           for nodepool in self.nodepools],
-<<<<<<< HEAD
-=======
             'total_cost': self.total_cost.as_dict(),
             'include_pods': self.include_pods,
->>>>>>> 1c800ddef (Fetch pods optionally for clusters, add view to edit this setting)
         }
         return cdict
 
@@ -239,11 +236,8 @@ class Cluster(OwnershipMixin, me.Document, TagMixin):
             'last_seen',
             'missing_since',
             'created',
-<<<<<<< HEAD
-=======
             'tags',
             'include_pods',
->>>>>>> 1c800ddef (Fetch pods optionally for clusters, add view to edit this setting)
         ]
         deref_map = {
             'cloud': 'id',
