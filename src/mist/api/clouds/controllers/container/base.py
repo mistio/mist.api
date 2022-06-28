@@ -789,12 +789,16 @@ class BaseContainerController(BaseController):
                 new_clusters.append(cluster)
             clusters.append(cluster)
 
-            try:
-                libcloud_pods = libcloud_cluster.driver.ex_list_pods(
-                    fetch_metrics=True)
-            except Exception as exc:
-                log.error('Failed to fetch pods/metrics for cluster: %s, %r',
-                          cluster, exc)
+            if cluster.include_pods:
+                try:
+                    libcloud_pods = libcloud_cluster.driver.ex_list_pods(
+                        fetch_metrics=True)
+                except Exception as exc:
+                    log.error(
+                        'Failed to fetch pods/metrics for cluster: %s, %r',
+                        cluster, exc)
+                    continue
+            else:
                 continue
 
             for libcloud_pod in libcloud_pods:
