@@ -128,6 +128,8 @@ class Cluster(OwnershipMixin, me.Document):
     created = me.DateTimeField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     total_cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
+    include_pods = me.BooleanField(default=False)
+
     meta = {
         'strict': False,
         'allow_inheritance': True,
@@ -209,7 +211,8 @@ class Cluster(OwnershipMixin, me.Document):
             'created_by': self.created_by.email if self.created_by else '',
             'nodepools': [nodepool.as_dict()
                           for nodepool in self.nodepools],
-            'total_cost': self.total_cost.as_dict()
+            'total_cost': self.total_cost.as_dict(),
+            'include_pods': self.include_pods,
         }
         return cdict
 
@@ -232,6 +235,7 @@ class Cluster(OwnershipMixin, me.Document):
             'missing_since',
             'created',
             'tags',
+            'include_pods',
         ]
         deref_map = {
             'cloud': 'id',
