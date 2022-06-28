@@ -40,7 +40,7 @@ def get_rules(request):
     auth_context = auth_context_from_request(request)
     if not auth_context.is_owner():
         raise UnauthorizedError('Restricted to Owners')
-    return [r.as_dict() for r in Rule.objects(owner_id=auth_context.owner.id)]
+    return [r.as_dict() for r in Rule.objects(org_id=auth_context.owner.id)]
 
 
 @view_config(route_name='api_v1_rules', request_method='POST', renderer='json')
