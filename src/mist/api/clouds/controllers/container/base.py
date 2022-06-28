@@ -767,7 +767,8 @@ class BaseContainerController(BaseController):
         from mist.api.clouds.models import CloudLocation
 
         locations_map = {}
-        for location in CloudLocation.objects(cloud=self.cloud):
+        for location in CloudLocation.objects(
+                cloud=self.cloud).only('id', 'external_id', 'name'):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
         from mist.api.containers.models import Cluster
