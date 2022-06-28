@@ -116,12 +116,12 @@ class BaseController(object):
 
         owner = auth_context.owner
         selector_type = kwargs.get('selector_type', '')
-        if not selector_type:
+        if not selector_type and kwargs.get('selectors'):
             selector_type = extract_selector_type(**kwargs)
         self.schedule.resource_model_name = selector_type
 
-        actions = kwargs.get('actions')
-        act = kwargs.get('action')
+        actions = kwargs.get('actions', [])
+        act = kwargs.get('action', '')
         if  (actions and len(actions) == 1) or act:
             action = kwargs.get('actions')[0].get('action_type', '') if not act else act
             if action == 'notify':
@@ -152,7 +152,7 @@ class BaseController(object):
                                                 'exist' % script_id)
                     # SEC require permission RUN on script
                     auth_context.check_perm('script', 'run', script_id)
-        else:
+        elif len(actions) > 1:
             raise NotImplementedError()
 
         # for ui compatibility
@@ -229,13 +229,10 @@ class BaseController(object):
                         script=script_id, params=params)
             else:
                     self.schedule.actions[0] = globals()[f'{self.schedule.resource_model_name.title()}Action'](action=action)
-        elif len(actions) == 0:
-            raise BadRequestError("Action is required")
-        else:
+        elif len(actions) > 1:
             raise NotImplementedError()
 
-        schedule_type = ''
-        when_type = kwargs.get('when').pop('schedule_type') if kwargs.get('when') else kwargs.pop('schedule_type')
+        when_type = kwargs.get('when').pop('schedule_type', '') if kwargs.get('when') else kwargs.pop('schedule_type','')
 
         if when_type == 'crontab':
             schedule_entry = kwargs.pop('when', {}) if kwargs.get('when') else kwargs.pop('schedule_entry', {})
