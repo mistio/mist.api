@@ -2025,10 +2025,14 @@ def create_helm_command(repo_url, release_name, chart_name, host, port, token,
 def extract_selector_type(**kwargs):
     error_count = 0
     for selector in kwargs.get('selectors', []):
-        if selector['type'] not in rtype_to_classpath:
+        if selector['type'] not in ['machines', 'volumes','networks',
+                                    'clusters', 'tags']:
             error_count += 1
-        if selector['ids'] is not None:
+        if 'ids' in selector and selector['ids'] is not None:
             selector_type = selector['type'].rstrip('s')
+            break
+        if 'include' in selector and selector['include'] is not None:
+            selector_type = 'machine'
             break
     if error_count == len(kwargs.get('selectors', [])):
         raise BadRequestError('selector_type')
