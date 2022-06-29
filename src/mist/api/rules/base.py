@@ -114,8 +114,12 @@ class BaseController(object):
         if 'actions' in kwargs:
             self.rule.actions = []
         for action in kwargs.pop('actions', []):
-            action['action'] = action.pop('action_type')
-            action['type'] = self.rule.resource_model_name+'_action'   
+            act = action.pop('action_type') if 'action_type' in action else action.pop('type')
+            if act not in ['webhook', 'notification', 'run_script', 'resize']:
+                action['action'] = act
+                action['type'] = self.rule.resource_model_name+'_action'
+            else:
+                action['type'] = act
             if action.get('type') not in ACTIONS:
                 raise BadRequestError('Action must be in %s' %
                                       list(ACTIONS.keys()))

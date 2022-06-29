@@ -979,8 +979,11 @@ def _update__preparse_resources(obj, auth_context, kwargs):
 
         actions = []
         for act in kwargs.get('actions', []):
-            if act['action_type'] not in ('notify', 'run_script', 'webhook', 'resize'):
+            if 'action_type' in act and act['action_type'] not in ('notify', 'run_script', 'webhook', 'resize'):
                 actions.append(act['action_type'])
+            if 'type' in act and act['type'] not in ('notify', 'run_script', 'webhook', 'resize'):
+                actions.append(act['type'])
+            
         
         if kwargs.get('action'):
             actions.append(kwargs.get('action'))
