@@ -244,6 +244,10 @@ def add_rule(request):
     rule_key = '%s-%s' % ('arbitrary' if arbitrary else 'resource', data_type)
     rule_cls = RULES[rule_key]
 
+    # Match with the new when field
+    if kwargs.get('frequency', ''):
+      kwargs['when'] = kwargs.pop('frequency')
+
     # Add new rule.
     rule = rule_cls.add(auth_context, **kwargs)
 
