@@ -348,7 +348,8 @@ class BaseComputeController(BaseController):
         # a node's metadata in order to associate VM instances to their region.
         from mist.api.clouds.models import CloudLocation
         locations_map = {}
-        for location in CloudLocation.objects(cloud=self.cloud):
+        for location in CloudLocation.objects(
+                cloud=self.cloud).only('id', 'external_id', 'name'):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
 
@@ -357,7 +358,8 @@ class BaseComputeController(BaseController):
         # a node's metadata in order to associate VM instances to their size.
         from mist.api.clouds.models import CloudSize
         sizes_map = {}
-        for size in CloudSize.objects(cloud=self.cloud):
+        for size in CloudSize.objects(
+                cloud=self.cloud).only('id', 'external_id', 'name'):
             sizes_map[size.external_id] = size
             sizes_map[size.name] = size
 
@@ -366,7 +368,8 @@ class BaseComputeController(BaseController):
         # a node's metadata in order to associate VM instances to their image.
         from mist.api.images.models import CloudImage
         images_map = {}
-        for image in CloudImage.objects(cloud=self.cloud):
+        for image in CloudImage.objects(
+                cloud=self.cloud).only('id', 'external_id', 'name'):
             images_map[image.external_id] = image
             images_map[image.name] = image
 
