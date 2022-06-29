@@ -24,6 +24,7 @@ from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import BadRequestError
 
 from mist.api.helpers import amqp_publish_user, search_parser
 from mist.api.helpers import startsandendswith
