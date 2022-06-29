@@ -72,14 +72,11 @@ def tag_resources(request):
 
         # ui send this var only for machine. image, network, location
         cloud_id = resource_data.get('cloud_id')
-
         if cloud_id:
             auth_context.check_perm('cloud', 'read', cloud_id)
         elif resource_data['type'] in ['machine', 'image',
                                        'network', 'volume']:
             raise RequiredParameterMissingError("cloud_id")
-        else:
-            del resource_data['cloud_id']
 
         query = {}
         rtype = resource_data['type']
