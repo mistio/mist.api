@@ -213,7 +213,6 @@ class Cluster(OwnershipMixin, me.Document, TagMixin):
             'created_by': self.created_by.email if self.created_by else '',
             'nodepools': [nodepool.as_dict()
                           for nodepool in self.nodepools],
-            'total_cost': self.total_cost.as_dict(),
             'include_pods': self.include_pods,
         }
         return cdict
