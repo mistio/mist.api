@@ -41,17 +41,20 @@ class AnsibleScriptController(BaseScriptController):
         private_key = SSHKey.objects(id=key_id)[0].private
         private_key = f'\'{private_key}\''
 
-        params = ['-s', url]
-        params += ['-i', host]
-        params += ['-p', str(port)]
-        params += ['-u', username]
-        params += ['-k', private_key]
+        runner_params = ['-s', url]
+        runner_params += ['-i', host]
+        runner_params += ['-p', str(port)]
+        runner_params += ['-u', username]
+        runner_params += ['-k', private_key]
         if hasattr(self.script.location, 'entrypoint'):
-            params += ['-e', self.script.location.entrypoint]
+            runner_params += ['-e', self.script.location.entrypoint]
+        if params:
+            runner_params += [' --extra-vars', params]
 
         container = docker_run(name=f'ansible_runner-{job_id}',
-                               image_id='mist/ansible-runner:v0.4',
-                               command=' '.join(params))
+                               image_id='mist/ansible-runner:v0.5',
+                               command=' '.join(runner_params))
+
         conn = docker_connect()
         while conn.get_container(container.id).state != 'stopped':
             sleep(3)
