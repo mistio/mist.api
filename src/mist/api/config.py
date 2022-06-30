@@ -1420,8 +1420,27 @@ BANNED_EMAIL_PROVIDERS = [
 #  Different set in io and core
 ###############################################################################
 
-SECRET = os.getenv("INTERNAL_KEYS_SECRET") or ""
-SIGN_KEY = os.getenv("INTERNAL_KEYS_SIGN") or "dummy"
+# catch error when trying to open file
+
+
+if os.getenv("INTERNAL_KEYS_SECRET") is None or \
+        os.getenv("INTERNAL_KEYS_SECRET") == "":
+    try:
+        with open('/secrets/secret.txt', 'r') as f:
+            os.environ['INTERNAL_KEYS_SECRET'] = f.read()
+    except FileNotFoundError:
+        os.environ['INTERNAL_KEYS_SECRET'] = ""
+
+if os.getenv("INTERNAL_KEYS_SIGN") is None or \
+        os.getenv("INTERNAL_KEYS_SIGN") == "":
+    try:
+        with open('/secrets/sign.txt', 'r') as f:
+            os.environ['INTERNAL_KEYS_SIGN'] = f.read()
+    except FileNotFoundError:
+        os.environ['INTERNAL_KEYS_SIGN'] = ""
+
+SECRET = os.getenv("INTERNAL_KEYS_SECRET")
+SIGN_KEY = os.getenv("INTERNAL_KEYS_SIGN")
 
 NOTIFICATION_EMAIL = {
     'all': "",

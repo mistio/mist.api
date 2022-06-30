@@ -206,26 +206,56 @@ class AmazonComputeController(BaseComputeController):
         # TODO: stopped instances still charge for the EBS device
         # https://aws.amazon.com/ebs/pricing/
         # Need to add this cost for all instances
-        if node_dict['state'] == NodeState.STOPPED.value:
+        if node_dict['state'] != NodeState.RUNNING.value:
             return 0, 0
 
-        sizes = self.connection.list_sizes()
-        size = node_dict['extra'].get('instance_type')
-        for node_size in sizes:
-            if node_size.id == size and node_size.price:
-                if isinstance(node_size.price, dict):
-                    plan_price = node_size.price.get(machine.os_type)
-                    if not plan_price:
-                        # Use the default which is linux.
-                        plan_price = node_size.price.get('linux')
-                else:
-                    plan_price = node_size.price
-                if isinstance(plan_price, float) or isinstance(plan_price,
-                                                               int):
-                    return plan_price, 0
-                else:
-                    return plan_price.replace('/hour', '').replace('$', ''), 0
-        return 0, 0
+        # getting the pricing data each time is inefficient
+        # for now it will be saved in the controller
+        # in the future it should be cached
+        if not hasattr(self, 'pricing_data'):
+            self.pricing_data = {}
+
+        if not machine.image or not machine.image.name:
+            pricing_driver_name = 'ec2_linux'
+        elif 'high availability' in machine.image.name.lower():
+            pricing_driver_name = 'ec2_rhel_ha'
+        elif 'rhel' in machine.image.name.lower():
+            pricing_driver_name = 'ec2_rhel'
+        elif 'suse' in machine.image.name.lower():
+            pricing_driver_name = 'ec2_suse'
+        else:
+            pricing_driver_name = f'ec2_{machine.image.os_type}'
+
+        if not self.pricing_data.get(pricing_driver_name):
+            try:
+                self.pricing_data[pricing_driver_name] = get_pricing(
+                    'compute', pricing_driver_name)
+            except KeyError:
+                log.error(f"Error while trying to get pricing data for "
+                          f"machine f{machine.name} with id f{machine.id} "
+                          f"Could not find prices for {pricing_driver_name}."
+                          f"Will return 0 for this machine's cost")
+                return 0, 0
+
+        size = self._list_machines__get_size(node_dict)
+
+        location = machine.location.name
+        # Remove last letter if it is there.
+        # eg. remove last 'a' from 'ap-northeast-1a'
+        if location[-1].isalpha():
+            location = location[:-1]
+
+        # This is an exception which might change in the future.
+        # For now prices for mac1.metal or mac2.metal
+        # are under ec2_linux -> mac1 (or mac2).
+        # mac1.metal and mac2.metal have price 0 for all regions.
+        if size == 'mac1.metal':
+            size = 'mac1'
+        if size == 'mac2.metal':
+            size = 'mac2'
+        cost = self.pricing_data[pricing_driver_name].get(
+            size, {}).get(location, 0)
+        return cost, 0
 
     def _list_machines__get_location(self, node):
         return node['extra'].get('availability')
@@ -628,6 +658,14 @@ class AmazonComputeController(BaseComputeController):
             for volume in volumes:
                 self.connection.attach_volume(node, volume.get('volume'),
                                               volume.get('device'))
+
+    def _list_machines__get_machine_extra(self, machine, node_dict):
+        extra = copy.copy(node_dict['extra'])
+        nodepool_name = extra.get(
+            'tags', {}).get('eks:nodegroup-name', '')
+        if nodepool_name:
+            extra['nodepool'] = nodepool_name
+        return extra
 
 
 class AlibabaComputeController(AmazonComputeController):
@@ -2063,7 +2101,27 @@ class GoogleComputeController(BaseComputeController):
 
         for key in list(extra.keys()):
             if key in ['metadata']:
+                # check for nodepool
+                try:
+                    kube_labels = extra[key]['items'][3]
+                except (IndexError, KeyError):
+                    kube_labels = {}
+                if kube_labels.get('key', '') == 'kube-labels':
+                    # value is a super long string that contains
+                    # `,gke-nodepool=xxxx,` among others
+                    value = kube_labels.get('value', '')
+                    result = re.search('gke-nodepool=', value)
+                    if result:
+                        index = result.span()[1]
+                        nodepool_name = value[index:]
+                        # remove anything after first ,
+                        nodepool_name = nodepool_name[:nodepool_name.find(',')]
+                        extra['nodepool'] = nodepool_name
                 del extra[key]
+        for disk in extra.get('disks', []):
+            disk.pop('shieldedInstanceInitialState', None)
+            disk.pop('source', None)
+            disk.pop('licenses', None)
         return extra
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
@@ -2086,7 +2144,7 @@ class GoogleComputeController(BaseComputeController):
         size = self.connection.ex_get_size(machine_type,
                                            node['extra']['zone'].get('name'))
         # create object only if the size of the node is custom
-        if size.name.startswith('custom'):
+        if 'custom' in size.name:
             # FIXME: resolve circular import issues
             from mist.api.clouds.models import CloudSize
             _size = CloudSize(cloud=self.cloud, external_id=size.id)
@@ -2233,7 +2291,21 @@ class GoogleComputeController(BaseComputeController):
         # eg n1-standard-1 (1 vCPU, 3.75 GB RAM)
         machine_cpu = float(machine.size.cpus)
         machine_ram = float(machine.size.ram) / 1024
-        size_type = machine.size.name.split(" ")[0][:2]
+        # example is `t2d-standard-1 (1 vCPUs, 4 GB RAM)`` we want just `t2d`
+        # get size without the `x vCPUs y GB RAM` part
+        size_type = machine.size.name.split(" ")[0]
+        # make sure the format is as expected
+        index = size_type.find('-')
+        # remove the `-standard-1` like part
+        if index != -1:
+            size_type = size_type[0:index]
+        else:
+            size_type = size_type[0:2]
+            log.warn(
+                f'Machine {machine.name} with id {machine.id} has unexpected '
+                f'size name: {machine.size.name}, will use size type '
+                f'{size_type} to determine machine cost.'
+            )
         if "custom" in machine.size.name:
             size_type += "_custom"
             if machine.size.name.startswith('custom'):
@@ -2276,9 +2348,10 @@ class GoogleComputeController(BaseComputeController):
             disk_type = 'SSD'
 
         disk_prices = get_pricing(driver_type='compute',
-                                  driver_name='gce_disks')[disk_type]
+                                  driver_name='gce_disks').get(disk_type, {})
         gce_instance = get_pricing(driver_type='compute',
-                                   driver_name='gce_instances')[size_type]
+                                   driver_name='gce_instances').get(
+                                       size_type, {})
         cpu_price = 0
         ram_price = 0
         os_price = 0

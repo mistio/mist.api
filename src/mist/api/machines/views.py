@@ -1152,8 +1152,15 @@ def machine_ssh(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    ssh_uri = methods.prepare_ssh_uri(auth_context, machine)
-    return {"location": ssh_uri}
+    if machine.machine_type == 'container' and \
+            machine.cloud.provider == 'lxd':
+        exec_uri = methods.prepare_lxd_uri(auth_context, machine)
+    elif machine.machine_type == 'container' and \
+            machine.cloud.provider == 'docker':
+        exec_uri = methods.prepare_docker_attach_uri(machine)
+    else:
+        exec_uri = methods.prepare_ssh_uri(auth_context, machine)
+    return {"location": exec_uri}
 
 
 @view_config(route_name='api_v1_machine_ssh',

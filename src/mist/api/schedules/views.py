@@ -14,7 +14,7 @@ from mist.api.helpers import view_config, params_from_request
 
 from mist.api.schedules.methods import filter_list_schedules
 
-from mist.api.tag.methods import resolve_id_and_set_tags
+from mist.api.tag.methods import add_tags_to_resource
 
 
 OK = Response("OK", 200)
@@ -85,8 +85,11 @@ def add_schedule_entry(request):
     schedule = Schedule.add(auth_context, name, **params)
 
     if schedule_tags:
-        resolve_id_and_set_tags(auth_context.owner, 'schedule', schedule.id,
-                                list(schedule_tags.items()))
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type': 'schedule',
+                               'resource_id': schedule.id}],
+                             list(schedule_tags.items()))
+
     trigger_session_update(auth_context.owner, ['schedules'])
     return schedule.as_dict()
 

@@ -207,7 +207,7 @@ class Cloud(OwnershipMixin, me.Document, TagMixin):
         return self.ctl.provider
 
     @classmethod
-    def add(cls, owner, name, user, id='', **kwargs):
+    def add(cls, owner, name, user=None, id='', **kwargs):
         """Add cloud
 
         This is a class method, meaning that it is meant to be called on the
@@ -385,7 +385,7 @@ class CloudLocation(OwnershipMixin, me.Document):
             'id', 'name', 'external_id', 'country', 'extra', 'last_seen',
             'location_type', 'created']
         deref_map = {
-            'cloud': 'title',
+            'cloud': 'name',
             'owned_by': 'email',
             'created_by': 'email',
             'available_sizes': 'name',
@@ -400,10 +400,10 @@ class CloudLocation(OwnershipMixin, me.Document):
             ret['created'] = str(ret['created'])
         return ret
 
-    def as_dict(self):
+    def as_dict(self, extra=True):
         location_dict = {
             'id': self.id,
-            'extra': self.extra,
+            'extra': self.extra if extra else {},
             'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
             'name': self.name,
@@ -489,7 +489,7 @@ class CloudSize(me.Document):
             'id', 'name', 'external_id', 'cpus', 'ram', 'bandwidth', 'disk',
             'architecture', 'extra', 'last_seen', 'created']
         deref_map = {
-            'cloud': 'title',
+            'cloud': 'name',
             'allowed_images': 'name',
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
@@ -500,7 +500,7 @@ class CloudSize(me.Document):
             ret['created'] = str(ret['created'])
         return ret
 
-    def as_dict(self):
+    def as_dict(self, extra=True):
         size_dict = {
             'id': self.id,
             'cloud': self.cloud.id if self.cloud else None,  # same as above
@@ -509,7 +509,7 @@ class CloudSize(me.Document):
             'cpus': self.cpus,
             'ram': self.ram,
             'bandwidth': self.bandwidth,
-            'extra': self.extra,
+            'extra': self.extra if extra else {},
             'disk': self.disk,
             'architecture': self.architecture,
             'created': str(self.created),

@@ -767,7 +767,8 @@ class BaseContainerController(BaseController):
         from mist.api.clouds.models import CloudLocation
 
         locations_map = {}
-        for location in CloudLocation.objects(cloud=self.cloud):
+        for location in CloudLocation.objects(
+                cloud=self.cloud).only('id', 'external_id', 'name'):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
         from mist.api.containers.models import Cluster
@@ -789,12 +790,16 @@ class BaseContainerController(BaseController):
                 new_clusters.append(cluster)
             clusters.append(cluster)
 
-            try:
-                libcloud_pods = libcloud_cluster.driver.ex_list_pods(
-                    fetch_metrics=True)
-            except Exception as exc:
-                log.error('Failed to fetch pods/metrics for cluster: %s, %r',
-                          cluster, exc)
+            if cluster.include_pods:
+                try:
+                    libcloud_pods = libcloud_cluster.driver.ex_list_pods(
+                        fetch_metrics=True)
+                except Exception as exc:
+                    log.error(
+                        'Failed to fetch pods/metrics for cluster: %s, %r',
+                        cluster, exc)
+                    continue
+            else:
                 continue
 
             for libcloud_pod in libcloud_pods:

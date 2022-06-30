@@ -356,17 +356,25 @@ class WebSocketWrapper(object):
 
     @staticmethod
     def ssl_credentials(cloud=None):
-        if cloud:
+        if cloud and cloud.ca_cert_file:
+            _ca_cert = cloud.ca_cert_file
+            tempca_cert = tempfile.NamedTemporaryFile(delete=False)
+            with open(tempca_cert.name, 'w') as f:
+                f.write(_ca_cert)
+        else:
+            tempca_cert = None
+        if cloud and cloud.key_file and cloud.cert_file:
             _key, _cert = cloud.key_file, cloud.cert_file
-
             tempkey = tempfile.NamedTemporaryFile(delete=False)
             with open(tempkey.name, 'w') as f:
                 f.write(_key)
             tempcert = tempfile.NamedTemporaryFile(delete=False)
             with open(tempcert.name, 'w') as f:
                 f.write(_cert)
-
-            return tempkey.name, tempcert.name
+        else:
+            tempkey = None
+            tempcert = None
+        return tempkey, tempcert, tempca_cert
 
     def __init__(self):
         self.ws = websocket.WebSocket()
@@ -471,10 +479,9 @@ class DockerShell(WebSocketWrapper):
                                      job_id=kwargs['job_id'])
         log.info('Autoconfiguring DockerShell to stream %s logs from '
                  'container %s (User: %s)', log_type, container_id, owner.id)
-
-        # TODO: SSL for CFY container
+        ssl_enabled = config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT
         self.uri = self.build_uri(container_id, docker_port, allow_logs=1,
-                                  allow_stdin=0)
+                                  allow_stdin=0, ssl_enabled=ssl_enabled)
 
     def get_docker_endpoint(self, owner, cloud_id, job_id=None):
         if job_id:
@@ -491,12 +498,15 @@ class DockerShell(WebSocketWrapper):
                   ssl_enabled=False, allow_logs=0, allow_stdin=1):
         if ssl_enabled:
             self.protocol = 'wss'
-            ssl_key, ssl_cert = self.ssl_credentials(cloud)
-            self.sslopt = {
-                'cert_reqs': ssl.CERT_NONE,
-                'keyfile': ssl_key,
-                'certfile': ssl_cert
-            }
+            ssl_key, ssl_cert, ssl_ca_cert = self.ssl_credentials(cloud)
+            if ssl_ca_cert:
+                self.sslopt = {
+                    'ca_certs': ssl_ca_cert.name,
+                }
+            else:
+                self.sslopt = {'cert_reqs': ssl.CERT_NONE}
+            self.sslopt['keyfile'] = ssl_key.name
+            self.sslopt['certfile'] = ssl_cert.name
             self.ws = websocket.WebSocket(sslopt=self.sslopt)
 
         if cloud and cloud.username and cloud.password:
@@ -512,21 +522,25 @@ class DockerShell(WebSocketWrapper):
 
         return uri
 
-    """
     @staticmethod
     def ssl_credentials(cloud=None):
-        if cloud:
-            _key, _cert = cloud.key_file, cloud.cert_file
-
-            tempkey = tempfile.NamedTemporaryFile(delete=False)
-            with open(tempkey.name, 'w') as f:
-                f.write(_key)
-            tempcert = tempfile.NamedTemporaryFile(delete=False)
-            with open(tempcert.name, 'w') as f:
-                f.write(_cert)
-
-            return tempkey.name, tempcert.name
-    """
+        if cloud is None:
+            tempkey = None
+            tempcert = None
+            tempca_cert = None
+            if config.DOCKER_TLS_KEY and config.DOCKER_TLS_CERT:
+                tempkey = tempfile.NamedTemporaryFile(delete=False)
+                with open(tempkey.name, 'w') as f:
+                    f.write(config.DOCKER_TLS_KEY)
+                tempcert = tempfile.NamedTemporaryFile(delete=False)
+                with open(tempcert.name, 'w') as f:
+                    f.write(config.DOCKER_TLS_CERT)
+            if config.DOCKER_TLS_CA:
+                tempca_cert = tempfile.NamedTemporaryFile(delete=False)
+                with open(tempca_cert.name, 'w') as f:
+                    f.write(config.DOCKER_TLS_CA)
+            return tempkey, tempcert, tempca_cert
+        return super(DockerShell, DockerShell).ssl_credentials(cloud=cloud)
 
 
 class LXDWebSocket(WebSocketWrapper):
@@ -562,10 +576,15 @@ class LXDWebSocket(WebSocketWrapper):
                   ssl_enabled=False, **kwargs):
 
         self.protocol = 'wss'
-        ssl_key, ssl_cert = self.ssl_credentials(cloud)
-        self.sslopt = {'cert_reqs': ssl.CERT_NONE,
-                       'keyfile': ssl_key, 'certfile': ssl_cert}
-
+        ssl_key, ssl_cert, ssl_ca_cert = self.ssl_credentials(cloud)
+        if ssl_ca_cert:
+            self.sslopt = {
+                'ca_certs': ssl_ca_cert.name,
+            }
+        else:
+            self.sslopt = {'cert_reqs': ssl.CERT_NONE}
+        self.sslopt['keyfile'] = ssl_key.name
+        self.sslopt['certfile'] = ssl_cert.name
         self.ws = websocket.WebSocket(sslopt=self.sslopt)
         self.cws = websocket.WebSocket(sslopt=self.sslopt)
 

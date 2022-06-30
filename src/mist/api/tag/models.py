@@ -20,12 +20,9 @@ class Tag(me.Document):
     resource_id = me.StringField()
 
     meta = {
-        'indexes': ['owner', 'resource_type', 'resource_id', 'key']
+        'indexes': ['owner', 'resource_type', 'resource_id', 'key'],
+        'queryset_class': TagQuerySet
     }
-
-    def __new__(cls, *args, **kwargs):
-        cls.objects = TagQuerySet(cls, cls._get_collection())
-        return super().__new__(cls)
 
     @property
     def resource(self):
@@ -33,7 +30,7 @@ class Tag(me.Document):
             resource_type = self.resource_type.rstrip('s')
             from mist.api.helpers import get_resource_model
             return get_resource_model(resource_type).objects.get(id=self.resource_id)   # noqa: E501
-        except AttributeError:
+        except (me.DoesNotExist, AttributeError):
             return None
 
     def validate(self, clean=False):

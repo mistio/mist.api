@@ -86,7 +86,7 @@ def ssh_command(owner, cloud_id, machine_id, host, command,
     return output
 
 
-def list_locations(owner, cloud_id, cached=False):
+def list_locations(owner, cloud_id, cached=False, extra=True):
     """List the locations of the specified cloud"""
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id)
@@ -96,14 +96,15 @@ def list_locations(owner, cloud_id, cached=False):
         locations = cloud.ctl.compute.list_cached_locations()
     else:
         locations = cloud.ctl.compute.list_locations()
-    return [location.as_dict() for location in locations]
+    return [location.as_dict(extra=extra) for location in locations]
 
 
 def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
-                          cached=False):
+                          cached=False, extra=True):
     """Filter the locations of the specific cloud based on RBAC policy"""
     if locations is None:
-        locations = list_locations(auth_context.owner, cloud_id, cached)
+        locations = list_locations(
+            auth_context.owner, cloud_id, cached, extra=extra)
     if not auth_context.is_owner():
         allowed_resources = auth_context.get_allowed_resources(perm)
         if cloud_id not in allowed_resources['clouds']:

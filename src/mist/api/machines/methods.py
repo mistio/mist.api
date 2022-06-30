@@ -57,7 +57,7 @@ from mist.api.auth.methods import auth_context_from_auth_token
 
 from mist.api.monitoring.methods import disable_monitoring
 
-from mist.api.tag.methods import resolve_id_and_set_tags
+from mist.api.tag.methods import add_tags_to_resource
 from mist.api.tag.methods import get_tags_for_resource
 from mist.api.tag.methods import remove_tags_from_resource
 
@@ -629,8 +629,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         machine.ctl.associate_key(key, username=username,
                                   port=ssh_port, no_connect=True)
     if tags:
-        resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
-                                cloud_id=cloud_id)
+        add_tags_to_resource(auth_context.owner,
+                             [{'resource_type': 'machine',
+                               'resource_id': machine.id}],
+                             tags)
+
     machine.reload()
     # The poller has already sent an add jsonpatch when the machine was
     # first found, without the fields (tags,key association,expiration etc.)
@@ -2412,7 +2415,11 @@ def machine_safe_expire(owner_id, machine):
     owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
     existing_tags = get_tags_for_resource(owner, machine)
     if existing_tags:
-        remove_tags_from_resource(owner, machine, existing_tags)
+        remove_tags_from_resource(owner,
+                                  [{'resource_type': 'machine'},
+                                   {'resource_id': machine.id}],
+                                  existing_tags)
+
     # unown machine
     machine.owned_by = None
 
@@ -2653,3 +2660,96 @@ def prepare_ssh_uri(auth_context, machine):
         encrypted_msg,
         mac)
     return ssh_uri
+
+
+def prepare_lxd_uri(auth_context, machine):
+    name = machine.name
+    cluster = machine.cloud.name
+    host = machine.cloud.host
+    port = machine.cloud.port
+    expiry = int(datetime.now().timestamp()) + 100
+    key_path = machine.cloud.key_file.secret.name
+    org = machine.owner
+    vault_token = org.vault_token if org.vault_token is not None else \
+        config.VAULT_TOKEN
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    vault_addr = org.vault_address if org.vault_address is not None else \
+        config.VAULT_ADDR
+    msg_to_encrypt = '%s,%s,%s,%s' % (
+        vault_token,
+        vault_addr,
+        vault_secret_engine_path,
+        key_path)
+    from mist.api.helpers import encrypt
+    # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
+    encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
+    msg = '%s,%s,%s,%s,%s,%s' % (
+        name,
+        cluster,
+        host,
+        port,
+        expiry,
+        encrypted_msg)
+    mac = hmac.new(
+        config.SIGN_KEY.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256).hexdigest()
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    exec_uri = '%s/lxd-exec/%s/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri,
+        name,
+        cluster,
+        host,
+        port,
+        expiry,
+        encrypted_msg,
+        mac)
+    return exec_uri
+
+
+def prepare_docker_attach_uri(machine):
+    name = machine.name
+    machine_id = machine.external_id
+    cluster = machine.cloud.name
+    host = machine.cloud.host
+    port = machine.cloud.port
+    expiry = int(datetime.now().timestamp()) + 100
+    key_path = machine.cloud.key_file.secret.name
+    org = machine.owner
+    vault_token = org.vault_token if org.vault_token is not None else \
+        config.VAULT_TOKEN
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    vault_addr = org.vault_address if org.vault_address is not None else \
+        config.VAULT_ADDR
+    msg_to_encrypt = '%s,%s,%s,%s' % (
+        vault_token,
+        vault_addr,
+        vault_secret_engine_path,
+        key_path)
+    from mist.api.helpers import encrypt
+    # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
+    encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
+    msg = '%s,%s,%s,%s,%s,%s,%s' % (
+        name,
+        cluster,
+        machine_id,
+        host,
+        port,
+        expiry,
+        encrypted_msg)
+    mac = hmac.new(
+        config.SIGN_KEY.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256).hexdigest()
+    base_ws_uri = config.CORE_URI.replace('http', 'ws')
+    attach_uri = '%s/docker-attach/%s/%s/%s/%s/%s/%s/%s/%s' % (
+        base_ws_uri,
+        name,
+        cluster,
+        machine_id,
+        host,
+        port,
+        expiry,
+        encrypted_msg,
+        mac)
+    return attach_uri

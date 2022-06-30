@@ -771,6 +771,9 @@ class Organization(Owner):
             elif config.VAULT_TOKEN:
                 client = hvac.Client(
                     url=config.VAULT_ADDR, token=config.VAULT_TOKEN)
+            else:
+                raise ServiceUnavailableError(
+                    "Insufficient vault credentials.")
             try:
                 is_authenticated = client.is_authenticated()
             except hvac.exceptions.VaultDown:

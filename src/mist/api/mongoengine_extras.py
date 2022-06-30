@@ -21,21 +21,18 @@ class TagQuerySet(me.QuerySet):
                signal_kwargs=None):
 
         if doc_or_docs:
-            update_tags.send(resource_type=doc_or_docs[0].resource_type,
-                             resource_id=doc_or_docs[0].resource_id,
-                             tag_dict={tag.key: tag.value
-                                       for tag in doc_or_docs}
-                             )
+            doc_as_dict = [x.as_dict() for x in doc_or_docs]
+            update_tags.send(doc_as_dict)
+
             return super().insert(doc_or_docs, load_bulk,
                                   write_concern, signal_kwargs)
 
     def delete(self, write_concern=None, _from_doc_delete=False,
                cascade_refs=None):
         if self:
-            delete_tags.send(resource_type=self[0].resource_type,
-                             resource_id=self[0].resource_id,
-                             key_list=[tag.key for tag in self]
-                             )
+            tag_objs = [x.as_dict() for x in self]
+            delete_tags.send(tag_objs)
+
         return super().delete(write_concern, _from_doc_delete, cascade_refs)
 
 
