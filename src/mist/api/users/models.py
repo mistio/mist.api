@@ -1,9 +1,7 @@
 """User entity model."""
 import logging
 import json
-import string
 import uuid
-import random
 import re
 import netaddr
 import datetime
@@ -741,16 +739,14 @@ class Organization(Owner):
         # If the org has a name but not a secret engine path we need to create
         # one in Vault
         if self.name and not self.vault_secret_engine_path:
-            secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
-                if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
-            # Add a random postfix if secret engine path not specified
-            # in settings.py
-            if not config.VAULT_SECRET_ENGINE_PATHS.get(self.name):
-                secret_engine_path = re.sub(
-                    '[^a-zA-Z0-9\.]', '-', secret_engine_path) + '-' + ''.join(
-                        random.SystemRandom().choice(
-                            string.ascii_lowercase +
-                            string.digits) for _ in range(6))
+            try:
+                secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[
+                    self.name]
+            except (KeyError, AttributeError):
+                # Add a random postfix if secret engine path not specified
+                # in settings.py
+                from mist.api.secrets.methods import generate_secrets_engine_path  # noqa: E501
+                secret_engine_path = generate_secrets_engine_path(self.name)
 
             self.vault_secret_engine_path = secret_engine_path
 
@@ -763,7 +759,7 @@ class Organization(Owner):
                 vault_portal_client.authenticate()
             except MistVaultError:
                 raise me.ValidationError(
-                    "Authentication to Vault failed")
+                    "Authentication to Vault failed") from None
 
             try:
                 self.vault_role_id, self.vault_secret_id = vault_portal_client.get_approle_credentials(  # noqa: E501
@@ -772,7 +768,7 @@ class Organization(Owner):
             except MistVaultError:
                 raise me.ValidationError(
                     "Failed to generate approle credentials"
-                )
+                ) from None
 
         super(Organization, self).clean()
 
