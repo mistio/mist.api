@@ -1,4 +1,5 @@
 from __future__ import annotations
+import time
 import logging
 from typing import TYPE_CHECKING, List, Dict, Any, Tuple
 
@@ -399,26 +400,40 @@ class KV2VaultSecretController(VaultSecretController):
           attributes(dict): The contents of the secret.
         """
         self.ensure_secrets_engine()
-        try:
-            self.client.secrets.kv.v2.patch(
-                mount_point=self.org.vault_secret_engine_path,
-                path=name,
-                secret=attributes,
-            )
-        except (hvac.exceptions.InvalidPath, KeyError):
-            # no existing data in this path
-            self.client.secrets.kv.v2.create_or_update_secret(
-                mount_point=self.org.vault_secret_engine_path,
-                path=name,
-                secret=attributes,
-            )
-        except hvac.exceptions.Forbidden:
-            raise BadRequestError(
-                "Make sure your Vault token has the "
-                "permissions to create a secret"
-            )
+        for _ in range(5):
+            try:
+                self.client.secrets.kv.v2.patch(
+                    mount_point=self.org.vault_secret_engine_path,
+                    path=name,
+                    secret=attributes,
+                )
+            except (hvac.exceptions.InvalidPath, KeyError):
+                # no existing data in this path
+                self.client.secrets.kv.v2.create_or_update_secret(
+                    mount_point=self.org.vault_secret_engine_path,
+                    path=name,
+                    secret=attributes,
+                )
 
-        # self.list_secrets(recursive=True)
+                return
+            except hvac.exceptions.Forbidden:
+                raise BadRequestError(
+                    "Make sure your Vault token has the "
+                    "permissions to create a secret")
+            except hvac.exceptions.InvalidRequest as exc:
+                # When a KV2 secrets engine is mounted, it starts as KV1 and
+                # immediately upgrades itself. During this time, requests to
+                # create or read secrets will result in 400, containing a
+                # message like the one below.
+                # See the following issue for more info:
+                # https://github.com/hashicorp/terraform-provider-vault/issues/677  # noqa: E501
+                if "Upgrading from non-versioned to versioned data" in str(exc):  # noqa: E501
+                    time.sleep(1)
+                    continue
+
+                raise
+            else:
+                return
 
     def read_secret(self, name: str) -> Dict[str, Any]:
         """
