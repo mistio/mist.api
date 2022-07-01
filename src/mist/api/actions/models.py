@@ -144,7 +144,7 @@ class NotificationAction(BaseAction):
 
     @property
     def task(self):
-        return ''
+        return 'mist.api.tasks.send_email'
     
     @property
     def args(self):
