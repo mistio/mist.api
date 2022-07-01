@@ -34,7 +34,11 @@ def schedule_to_actor(schedule):
             task_path = schedule_action.task.split('.')
     method = task_path[-1]
     module = '.'.join(task_path[:-1])
-    return getattr(importlib.import_module(module), method)
+    try:
+        return getattr(importlib.import_module(module), method)
+    except Exception as exc:
+        log.info(f'Failed to import module: {module} with method: {method} {exc}')
+        raise
 
 
 def add_job(scheduler, schedule, actor, first_run=False):
