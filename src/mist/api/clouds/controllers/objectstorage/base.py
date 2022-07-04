@@ -6,7 +6,6 @@ import mist.api.exceptions
 import json
 import mongoengine.errors
 
-from libcloud.common.types import LibcloudError
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.concurrency.models import PeriodicTaskInfo
 
@@ -111,23 +110,6 @@ class BaseObjectStorageController(BaseController):
 
             bucket.extra = copy.copy(libcloud_bucket.extra)
 
-            # Attach bucket content
-            try:
-                """
-                self._list_buckets__fetch_bucket returns all buckets
-                regardless their location whereas
-                self._list_buckets__fetch_bucket_content throws
-                an error when the location of the bucket
-                does not match the connection location. So skip this bucket
-                and do not show it in the list of the buckets
-                """
-                content = self._list_buckets__fetch_bucket_content(
-                    libcloud_bucket)
-                self._list_buckets__append_content(bucket, content)
-
-            except LibcloudError:
-                continue
-
             # Apply cloud-specific processing.
             try:
                 self._list_buckets__postparse_bucket(bucket, libcloud_bucket)
@@ -207,22 +189,3 @@ class BaseObjectStorageController(BaseController):
         :param libcloud_bucket: A libcloud bucket object.
         """
         return
-
-    def _list_buckets__append_content(self, bucket, content):
-        """Add bucket content to the bucket dict
-
-        Any subclass that wishes to specially handle its allowed actions, can
-        implement this internal method.
-
-        store: A storage mongoengine model. The model may not have yet
-            been saved in the database.
-        content: A list of a libcloud storage content, as
-            returned by libcloud's list_container_objects.
-        This method is expected to edit `store` in place and not return
-        anything.
-
-        Subclasses MAY extend this method.
-        """
-        from mist.api.objectstorage.models import BucketItem
-
-        bucket.content = [BucketItem(**item) for item in content]

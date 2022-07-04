@@ -34,24 +34,19 @@ def list_buckets(owner, cloud_id, cached=True):
     return [_bucket.as_dict() for _bucket in buckets]
 
 
-def list_bucket_content(owner, storage_id, path='', cached=True):
+def list_bucket_content(owner, storage_id, path=''):
     bucket = Bucket.objects.get(
         owner=owner,
         id=storage_id,
         missing_since=None)
+    content = bucket.cloud.ctl.objectstorage.list_bucket_content(
+        bucket.name,
+        path)
 
-    if cached:
-        content = bucket.get_content()
-    else:
-        libcloud_content = bucket.cloud.ctl.objectstorage.list_bucket_content(
-            bucket.name,
-            path)
-
-        bucket.update(content=libcloud_content)
-        bucket.reload()
-        content = bucket.get_content()
-
-    return content
+    return {
+        **bucket.as_dict(),
+        'content': {c['name']: c for c in content}
+    }
 
 
 def filter_list_buckets(auth_context,
@@ -65,7 +60,3 @@ def filter_list_buckets(auth_context,
             if buckets[i]['id'] not in allowed_resources['buckets']:
                 buckets.pop(i)
     return buckets
-
-
-def filter_list_bucket_content(auth_context, bucket_id, path='', cached=True):
-    return list_bucket_content(auth_context.owner, bucket_id, path, cached)

@@ -121,15 +121,13 @@ def list_bucket_content(request):
     auth_context = auth_context_from_request(request)
     bucket_id = request.matchdict.get('bucket')
     params = params_from_request(request)
-    cached = bool(params.get('cached', True))  # return cached by default
     path = bool(params.get('path', ''))  # return root by default
 
     try:
-        return methods.filter_list_bucket_content(
-            auth_context,
+        return methods.list_bucket_content(
+            auth_context.owner,
             bucket_id,
-            path,
-            cached
+            path
         )
     except me.DoesNotExist:
         raise NotFoundError('Bucket does not exist')
