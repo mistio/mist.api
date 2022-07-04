@@ -17,7 +17,7 @@ from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.tag.mixins import TagMixin
 from mist.api.actions.models import ActionClassMixin
 from mist.api.actions.models import BaseAction
-from mist.api.actions.models import NotificationAction
+from mist.api.actions.models import MachineAction
 from mist.api.when.models import BaseWhenType
 from mist.api.when.models import Crontab
 from mist.api.helpers import extract_selector_type
@@ -257,7 +257,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
     # Defines a list of actions to be executed whenever the schedule is triggered.
     # Defaults to just notifying the users.
     actions = me.EmbeddedDocumentListField(
-        BaseAction, required=False, default=lambda: [NotificationAction()]
+        BaseAction, required=False, default=lambda: [MachineAction()]
     )
 
     when = me.EmbeddedDocumentField(BaseWhenType, required=False)

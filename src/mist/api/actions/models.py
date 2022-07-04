@@ -141,10 +141,6 @@ class NotificationAction(BaseAction):
         for email in self.emails:
             if not is_email_valid(email):
                 raise me.ValidationError('Invalid e-mail address: %s' % email)
-
-    @property
-    def task(self):
-        return 'mist.api.tasks.send_email'
     
     @property
     def args(self):
@@ -184,10 +180,6 @@ class NoDataAction(NotificationAction):
             action = 'Alert'
         super(NoDataAction, self).run(machine, value, triggered, timestamp,
                                       incident_id, action)
-
-    @property
-    def task(self):
-        return ''
     
     @property
     def args(self):
@@ -349,9 +341,6 @@ class WebhookAction(BaseAction):
             notify_admin(title + ' ' + self._instance.id, body)
         return {'status_code': response.status_code}
 
-    @property
-    def task(self):
-        return ''
     
     @property
     def args(self):
