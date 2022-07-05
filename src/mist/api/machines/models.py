@@ -117,7 +117,7 @@ class Monitoring(me.EmbeddedDocument):
         from mist.api.rules.models import MachineMetricRule
         m = self._instance
         return {rule.id: rule.as_dict() for
-                rule in MachineMetricRule.objects(owner_id=m.owner.id) if
+                rule in MachineMetricRule.objects(org_id=m.owner.id) if
                 rule.ctl.includes_only(m)}
 
     def as_dict(self):

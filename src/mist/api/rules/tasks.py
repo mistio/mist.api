@@ -41,7 +41,7 @@ def add_nodata_rule(owner_id, backend='graphite'):
     """Idempotently setup a NoDataRule for the given Organization."""
     try:
         log.info('Adding %s no-data rule for Org %s', backend, owner_id)
-        NoDataRule.objects.get(owner_id=owner_id, title='NoData')
+        NoDataRule.objects.get(org_id=owner_id, title='NoData')
     except NoDataRule.DoesNotExist:
         NoDataRule(owner_id=owner_id).ctl.auto_setup(backend=backend)
 
