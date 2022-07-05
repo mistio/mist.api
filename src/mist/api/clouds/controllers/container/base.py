@@ -1001,3 +1001,14 @@ class BaseContainerController(BaseController):
             self._libcloud_ingress_to_ingress(libcloud_ingress)
             for libcloud_ingress in libcloud_ingresses
         ]
+
+    def get_credentials(self, cluster):
+        try:
+            libcloud_cluster = self._get_libcloud_cluster(cluster)
+            credentials = self.connection.get_cluster_credentials(
+                libcloud_cluster)
+        except Exception as exc:
+            log.error('Failed to fetch credentials for cluster: %s, %r',
+                      cluster, exc)
+            raise CloudUnavailableError(msg=str(exc)) from exc
+        return credentials
