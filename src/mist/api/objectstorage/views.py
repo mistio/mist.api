@@ -121,7 +121,7 @@ def list_bucket_content(request):
     auth_context = auth_context_from_request(request)
     bucket_id = request.matchdict.get('bucket')
     params = params_from_request(request)
-    path = bool(params.get('path', ''))  # return root by default
+    path = params.get('path', '')  # return root by default
 
     try:
         return methods.list_bucket_content(

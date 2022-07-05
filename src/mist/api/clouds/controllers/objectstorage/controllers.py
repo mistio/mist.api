@@ -8,8 +8,7 @@ import logging
 
 from libcloud.storage.providers import get_driver
 from libcloud.storage.types import Provider
-
-
+from boto3.session import Session
 from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
 
 from mist.api import config
@@ -42,8 +41,61 @@ class VexxhostObjectStorageController(OpenstackObjectStorageController):
 
 class AmazonS3ObjectStorageController(BaseObjectStorageController):
     def _connect(self, **kwargs):
-        return get_driver(Provider.S3)(
-            self.cloud.apikey,
-            self.cloud.apisecret,
-            region=self.cloud.region
+
+        return Session(
+            aws_access_key_id=self.cloud.apikey,
+            aws_secret_access_key=self.cloud.apisecret,
+            region_name=self.cloud.region
         )
+
+    def _list_buckets__fetch_buckets(self):
+        """Perform the actual libcloud call to get list of nodes"""
+        return self.connection.resource('s3').buckets.iterator()
+
+    def _list_buckets__fetch_bucket_content(self, name, prefix='', delimiter='',
+                                            maxkeys=100,
+                                            continuation_token=None):
+        kwargs = {}
+        if continuation_token:
+            kwargs['ContinuationToken'] = continuation_token
+        response = self.connection.client('s3').list_objects_v2(
+            Bucket=name,
+            Prefix=prefix,
+            Delimiter=delimiter,
+            MaxKeys=maxkeys,
+            **kwargs)
+
+        if response['ResponseMetadata']['HTTPStatusCode'] != 200:
+            raise Exception
+        content = response.get('Contents', []).copy()
+        content.extend(response.get('CommonPrefixes', []))
+        return self._to_object_list(content, name)
+
+    def _to_object_list(self, response, container):
+
+        objects = []
+        for obj in response:
+            try:
+                name = obj["Key"]
+                size = int(obj["Size"])
+                hash = obj["ETag"]
+                extra = {
+                    "StorageClass": obj.get("StorageClass"),
+                    "last_modified": obj["LastModified"].isoformat(),
+                }
+            except KeyError:
+                name = obj["Prefix"]
+                size = 0
+                hash = ''
+                extra = {}
+            objects.append(
+                dict(
+                    name=name,
+                    size=size,
+                    hash=hash,
+                    extra=extra,
+                    meta_data=None,
+                    container=container,
+                )
+            )
+        return objects

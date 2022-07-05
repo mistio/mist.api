@@ -34,18 +34,24 @@ def list_buckets(owner, cloud_id, cached=True):
     return [_bucket.as_dict() for _bucket in buckets]
 
 
-def list_bucket_content(owner, storage_id, path=''):
+def list_bucket_content(owner, storage_id, path='',
+                        delimiter='',
+                        maxkeys=100):
+
     bucket = Bucket.objects.get(
         owner=owner,
         id=storage_id,
         missing_since=None)
+
     content = bucket.cloud.ctl.objectstorage.list_bucket_content(
         bucket.name,
-        path)
+        path=path,
+        delimiter=delimiter,
+        maxkeys=maxkeys)
 
     return {
         **bucket.as_dict(),
-        'content': {c['name']: c for c in content}
+        'content': {c['name']: c for c in content if content},
     }
 
 
