@@ -54,7 +54,7 @@ class VictoriaMetricsBackendPlugin(base.BaseBackendPlugin):
 
         # The frequency should be at least 25% of the time window.
         window_seconds = rule.window.timedelta.total_seconds()
-        frequency_seconds = rule.frequency.timedelta.total_seconds()
+        frequency_seconds = rule.when.timedelta.total_seconds()
         assert round(frequency_seconds / (1. * window_seconds), 2) >= .25,\
             "The frequency should be at least 25% of the time window"
 
