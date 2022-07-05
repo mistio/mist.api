@@ -92,8 +92,10 @@ class Portal(me.Document):
 
     def get_unapplied_migrations(self):
         migrations = sorted(os.listdir('/mist.api/migrations'))
+        versions_to_apply = range(
+            self.database_version + 1, config.DATABASE_VERSION + 1)
         migrations = [mig for mig in migrations if
-                      int(mig.split('-')[0]) > self.database_version]
+                      int(mig.split('-')[0]) in versions_to_apply]
         if not migrations:
             log.info('No migrations to apply!')
         return migrations
