@@ -297,7 +297,6 @@ class BaseController(object):
 
                 if self.schedule.reminder:
                     self.schedule.reminder.delete()
-                import ipdb; ipdb.set_trace()
                 notify = kwargs.pop('notify', 0)
                 if notify:
                     _delta = datetime.timedelta(0, notify)
