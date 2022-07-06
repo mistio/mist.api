@@ -35,9 +35,6 @@ from mist.api.dns.models import RECORDS
 from mist.api.keys.models import Key
 from mist.api.tag.methods import add_tags_to_resource
 
-from mist.api.rules.models import NoDataRule
-
-from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
 from mist.api.poller.models import ListZonesPollingSchedule
@@ -78,7 +75,6 @@ __all__ = [
     'group_run_script',
     'run_script',
     'update_poller',
-    'gc_schedulers',
     'set_missing_since',
     'delete_periodic_tasks',
     'async_session_update'
@@ -1287,33 +1283,6 @@ def update_poller(org_id):
 
     org.poller_updated = datetime.datetime.now()
     org.save()
-
-
-@dramatiq.actor
-def gc_schedulers():
-    """Delete disabled schedules.
-
-    This takes care of:
-
-    1. Removing disabled list_machines polling schedules.
-    2. Removing ssh/ping probe schedules, whose machines are missing or
-       corresponding clouds have been deleted.
-    3. Removing inactive no-data rules. They are added idempotently the
-       first time get_stats receives data for a newly monitored machine.
-
-    Note that this task does not run GC on user-defined schedules.
-
-    """
-    for collection in (PollingSchedule, NoDataRule, ):
-        for entry in collection.objects():
-            try:
-                if not entry.enabled:
-                    log.warning('Removing %s', entry)
-                    entry.delete()
-            except me.DoesNotExist:
-                entry.delete()
-            except Exception as exc:
-                log.error(exc)
 
 
 @dramatiq.actor

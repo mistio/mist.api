@@ -247,7 +247,7 @@ def get_key_tags(request):
     """
     Tags: tags
     ---
-    Lists tags of an ssh key pair.
+    Lists tags of an ssh keypair.
     READ permission required on KEY
     ---
     key:
@@ -773,18 +773,18 @@ def delete_network_tag(request):
       in: path
       required: true
       type: string
-    cloud_id:
+    cloud:
       in: path
       required: true
       type: string
-    network_id:
+    network:
       in: path
       required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
-    cloud_id = request.matchdict["cloud_id"]
-    network_id = request.matchdict["network_id"]
+    cloud_id = request.matchdict["cloud"]
+    network_id = request.matchdict["network"]
     tag_key = request.matchdict["tag_key"]
 
     auth_context.check_perm('cloud', 'read', cloud_id)
