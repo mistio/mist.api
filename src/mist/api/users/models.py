@@ -1,9 +1,7 @@
 """User entity model."""
 import logging
 import json
-import string
 import uuid
-import random
 import re
 import netaddr
 import datetime
@@ -15,9 +13,7 @@ from uuid import uuid4
 
 from passlib.context import CryptContext
 
-from mist.api.exceptions import TeamNotFound, BadRequestError
-from mist.api.exceptions import UnauthorizedError, ServiceUnavailableError
-
+from mist.api.exceptions import TeamNotFound
 
 from mist.api import config
 
@@ -743,77 +739,36 @@ class Organization(Owner):
         # If the org has a name but not a secret engine path we need to create
         # one in Vault
         if self.name and not self.vault_secret_engine_path:
-            secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
-                if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
-            # Add a random postfix if secret engine path not specified
-            # in settings.py
-            if not config.VAULT_SECRET_ENGINE_PATHS.get(self.name):
-                secret_engine_path = re.sub(
-                    '[^a-zA-Z0-9\.]', '-', secret_engine_path) + '-' + ''.join(
-                        random.SystemRandom().choice(
-                            string.ascii_lowercase +
-                            string.digits) for _ in range(6))
+            try:
+                secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[
+                    self.name]
+            except (KeyError, AttributeError):
+                # Add a random postfix if secret engine path not specified
+                # in settings.py
+                from mist.api.secrets.methods import generate_secrets_engine_path  # noqa: E501
+                secret_engine_path = generate_secrets_engine_path(self.name)
 
             self.vault_secret_engine_path = secret_engine_path
 
         if self.name and not self.vault_address and not self.vault_role_id:
-            import hvac
-            if config.VAULT_ROLE_ID:
-                client = hvac.Client(url=config.VAULT_ADDR)
-                try:
-                    client.auth.approle.login(
-                        role_id=config.VAULT_ROLE_ID,
-                        secret_id=config.VAULT_SECRET_ID,
-                    )
-                except hvac.exceptions.InvalidRequest:
-                    raise BadRequestError(
-                        "Vault approle authentication failed.")
-            elif config.VAULT_TOKEN:
-                client = hvac.Client(
-                    url=config.VAULT_ADDR, token=config.VAULT_TOKEN)
-            else:
-                raise ServiceUnavailableError(
-                    "Insufficient vault credentials.")
+            from mist.api.secrets.controllers import MistVaultError
+            from mist.api.secrets.controllers import VaultPortalClient
+            vault_portal_client = VaultPortalClient()
+
             try:
-                is_authenticated = client.is_authenticated()
-            except hvac.exceptions.VaultDown:
-                raise ServiceUnavailableError("Vault is sealed.")
-            if not is_authenticated:
-                raise UnauthorizedError("Vault Authentication Failed")
-            policy = '''
-                path "sys" {
-                    capabilities = ["deny"]
-                }
-                path "sys/mounts/%s" {
-                    capabilities = [
-                        "create", "read", "update", "delete"]
-                }
-                path "%s*" {
-                    capabilities = [
-                        "create", "read", "update", "delete", "list"]
-                }
-            ''' % (self.vault_secret_engine_path,
-                   self.vault_secret_engine_path)
-            policy_name = '%s-policy' % self.vault_secret_engine_path
-            role_name = '%s-role' % self.vault_secret_engine_path
-            client.sys.create_or_update_policy(
-                name=policy_name,
-                policy=policy,
-            )
+                vault_portal_client.authenticate()
+            except MistVaultError:
+                raise me.ValidationError(
+                    "Authentication to Vault failed") from None
+
             try:
-                client.auth.approle.create_or_update_approle(
-                    role_name=role_name,
-                    token_policies=[policy_name],
-                    token_type='service',
+                self.vault_role_id, self.vault_secret_id = vault_portal_client.get_approle_credentials(  # noqa: E501
+                    secrets_engine_path=self.vault_secret_engine_path
                 )
-            except hvac.exceptions.InvalidPath:
-                raise me.ValidationError('Unsupported path')
-            self.vault_role_id = client.auth.approle.read_role_id(
-                role_name=role_name
-            )["data"]["role_id"]
-            self.vault_secret_id = client.auth.approle.generate_secret_id(
-                role_name=role_name,
-            )["data"]["secret_id"]
+            except MistVaultError:
+                raise me.ValidationError(
+                    "Failed to generate approle credentials"
+                ) from None
 
         super(Organization, self).clean()
 

@@ -1,3 +1,7 @@
+import re
+import random
+import string
+
 import mongoengine as me
 
 from mist.api.secrets.models import VaultSecret
@@ -47,3 +51,17 @@ def filter_list_secrets(auth_context, cached=True, path='.', perm='read'):
             if secrets[i]['id'] not in allowed_resources['secrets']:
                 secrets.pop(i)
     return secrets
+
+
+def generate_secrets_engine_path(name: str) -> str:
+    """
+    Create a string that will be used as the name for a secrets engine.
+
+    Replaces non alphanumeric characters except full stop with dash and
+    appends 6 random alphanumeric characters to avoid collisions.
+    """
+    converted_name = re.sub('[^a-zA-Z0-9\.]', '-', name)
+    append_string = ''.join(random.SystemRandom().choice(
+        string.ascii_lowercase + string.digits) for _ in range(6))
+
+    return f"{converted_name}-{append_string}"

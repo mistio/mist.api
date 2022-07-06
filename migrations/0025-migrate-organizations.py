@@ -1,9 +1,7 @@
-import re
-import random
-import string
 import traceback
 
 from mist.api.users.models import Organization
+from mist.api.secrets.methods import generate_secrets_engine_path
 from mist.api import config
 
 
@@ -20,13 +18,11 @@ def migrate_organizations():
             continue
         try:
             print('Updating org %s...' % org.id)
-            secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[org.name] \
-                if org.name in config.VAULT_SECRET_ENGINE_PATHS else org.name
-            secret_engine_path = re.sub(
-                '[^a-zA-Z0-9\.]', '-', secret_engine_path) + '-' + ''.join(
-                    random.SystemRandom().choice(
-                        string.ascii_lowercase +
-                        string.digits) for _ in range(6))
+            try:
+                secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[org.name]
+            except (KeyError, AttributeError):
+                secret_engine_path = generate_secrets_engine_path(org.name)
+
             org.vault_secret_engine_path = secret_engine_path
             org.save()
         except Exception:

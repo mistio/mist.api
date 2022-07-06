@@ -189,6 +189,25 @@ VAULT_KV_VERSION = 2  # 1 or 2
 VAULT_CLOUDS_PATH = 'mist/clouds/'
 VAULT_KEYS_PATH = 'mist/keys/'
 
+
+# Policy for Organization specific Vault client.
+VAULT_ORGANIZATION_POLICY = """
+    path "sys" {{
+        capabilities = ["deny"]
+    }}
+    path "sys/mounts/{secret_engine_path}" {{
+        capabilities = [
+            "create", "read", "update", "delete"]
+    }}
+    path "{secret_engine_path}/*" {{
+        capabilities = [
+            "create", "read", "update", "delete", "list"]
+    }}
+"""
+
+VAULT_ORGANIZATION_POLICY_NAME = "{secret_engine_path}-policy"
+VAULT_ORGANIZATION_ROLE_NAME = "{secret_engine_path}-role"
+
 # Default, built-in metrics.
 INFLUXDB_BUILTIN_METRICS = {
     'cpu.cpu=cpu-total.usage_user': {
