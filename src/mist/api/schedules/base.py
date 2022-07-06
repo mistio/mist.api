@@ -152,7 +152,7 @@ class BaseController(object):
                                                 'exist' % script_id)
                     # SEC require permission RUN on script
                     auth_context.check_perm('script', 'run', script_id)
-        elif len(actions) > 1:
+        elif  actions and len(actions) > 1:
             raise NotImplementedError()
 
         # for ui compatibility
@@ -229,13 +229,14 @@ class BaseController(object):
                         script=script_id, params=params)
             else:
                     self.schedule.actions[0] = globals()[f'{self.schedule.resource_model_name.title()}Action'](action=action)
-        elif len(actions) > 1:
+        elif actions and len(actions) > 1:
             raise NotImplementedError()
 
         when_type = kwargs.get('when').pop('schedule_type', '') if kwargs.get('when') else kwargs.pop('schedule_type','')
 
         if when_type == 'crontab':
             schedule_entry = kwargs.pop('when', {}) if kwargs.get('when') else kwargs.pop('schedule_entry', {})
+            schedule_entry = {x:y for x,y in schedule_entry.items() if y is not None}
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -247,7 +248,9 @@ class BaseController(object):
                     **schedule_entry)
 
         elif when_type == 'interval':
+            import ipdb; ipdb.set_trace()
             schedule_entry = kwargs.pop('when', {}) if kwargs.get('when') else kwargs.pop('schedule_entry', {})
+            schedule_entry = {x:y for x,y in schedule_entry.items() if y is not None}
 
             if schedule_entry:
                 for k in schedule_entry:
