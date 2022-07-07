@@ -120,6 +120,9 @@ class BaseController(object):
             selector_type = extract_selector_type(**kwargs)
         self.schedule.resource_model_name = selector_type
 
+        if kwargs.get('name', ''):
+            self.schedule.name = kwargs.pop('name')
+
         actions = kwargs.get('actions', [])
         act = kwargs.get('action', '')
         if  (actions and len(actions) == 1) or act:
