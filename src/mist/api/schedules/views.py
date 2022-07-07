@@ -248,6 +248,9 @@ def edit_schedule_entry(request):
     except me.DoesNotExist:
         raise ScheduleTaskNotFound()
 
+    if not params.get('name', ''):
+      params['name'] = schedule.name
+    
     schedule.ctl.set_auth_context(auth_context)
     schedule.ctl.update(**params)
 
