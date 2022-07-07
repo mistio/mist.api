@@ -303,7 +303,7 @@ class EmailNotification(Notification):
         params.update({'user_id': user_id, 'email': email})
         token = {'token': encrypt(json.dumps(params))}
         mac_sign(token)
-        return '%s/unsubscribe?%s' % (config.CORE_URI,
+        return '%s/unsubscribe?%s' % (config.PORTAL_URI,
                                       urllib.parse.urlencode(token))
 
 
