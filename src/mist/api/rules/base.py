@@ -317,8 +317,9 @@ class ResourceRuleController(BaseController):
         for key in kwargs.keys():
             if key not in ('selectors','actions'):
                 selectors_actions_kwargs.pop(key)
-        kwargs.pop('selectors')
-        if selectors_actions_kwargs['selectors'] and selectors_actions_kwargs['actions']:
+        if kwargs.get('selectors', []):
+            kwargs.pop('selectors')
+        if 'selectors' in selectors_actions_kwargs and 'actions' in selectors_actions_kwargs:
             _update__preparse_resources(self.rule, self.auth_context, selectors_actions_kwargs)
         super(ResourceRuleController, self).update(fail_on_error, **kwargs)
 
