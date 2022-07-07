@@ -211,7 +211,7 @@ class BaseScriptController(object):
         hmac_params = {'action': 'fetch_script', 'object_id': self.script.id}
         expires_in = 60 * 15
         mac_sign(hmac_params, expires_in)
-        url = "%s/api/v1/fetch" % config.CORE_URI
+        url = "%s/api/v1/fetch" % config.PORTAL_URI
         encode_params = urllib.parse.urlencode(hmac_params)
         return url + '?' + encode_params
 
@@ -221,7 +221,7 @@ class BaseScriptController(object):
         hmac_params = {'object_id': script_id}
         expires_in = 60 * 15
         mac_sign(hmac_params, expires_in)
-        url = f'{config.CORE_URI}/api/v2/scripts/{script_id}/file'
+        url = f'{config.PORTAL_URI}/api/v2/scripts/{script_id}/file'
         encode_params = urllib.parse.urlencode(hmac_params)
         return url + '?' + encode_params
 

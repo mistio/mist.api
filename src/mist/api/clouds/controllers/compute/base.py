@@ -3917,7 +3917,8 @@ class BaseComputeController(BaseController):
         try:
             response = requests_retry_session(retries=2).post(
                 config.METERING_NOTIFICATIONS_WEBHOOK,
-                data=json.dumps({'text': config.CORE_URI + ': ' + log_entry}),
+                data=json.dumps(
+                    {'text': config.PORTAL_URI + ': ' + log_entry}),
                 headers={'Content-Type': 'application/json'},
                 timeout=5
             )

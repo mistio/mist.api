@@ -7,7 +7,7 @@ from mist.api import config
 
 
 if __name__ == '__main__':
-    portal_host = config.CORE_URI.split('//')[1]
+    portal_host = config.PORTAL_URI.split('//')[1]
     argparser = argparse.ArgumentParser(
         description="List available backups"
     )

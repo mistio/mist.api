@@ -1,7 +1,7 @@
 """User defined settings"""
 
 ## Configure external url.
-# CORE_URI = "http://localhost"
+# PORTAL_URI = "http://localhost"
 
 ## Verify SSL outgoing SSL connections.
 # SSL_VERIFY = True

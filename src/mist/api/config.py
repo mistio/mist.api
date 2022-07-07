@@ -41,7 +41,8 @@ DESCRIPTION = "A secure cloud management platform for automation,\
  orchestration, cost and usage monitoring of public and private clouds,\
  hypervisors and container hosts. Provides multi-cloud RBAC. Enables\
  self service provisioning. Cost analytics and cloud spending optimization"
-CORE_URI = "http://localhost"
+PORTAL_URI = "http://localhost"
+CORE_URI = ""
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
@@ -3195,7 +3196,8 @@ for plugin in PLUGINS:
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
-    'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
+    'AMQP_URI', 'BROKER_URL', 'PORTAL_URI', 'CORE_URI',
+    'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
     'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY', 'AWS_ACCESS_KEY',
@@ -3261,14 +3263,17 @@ HAS_PRICING = 'pricing' in PLUGINS
 # enable backup feature if aws creds have been set
 ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
 
+if (not PORTAL_URI or PORTAL_URI == "http://localhost") and CORE_URI:
+    PORTAL_URI = CORE_URI
+
 # Update TELEGRAF_TARGET.
 
 if not TELEGRAF_TARGET:
-    if urllib.parse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
-                                                    '172.17.0.1'):
+    if urllib.parse.urlparse(PORTAL_URI).hostname in ('localhost', '127.0.0.1',
+                                                      '172.17.0.1'):
         TELEGRAF_TARGET = "http://traefik"
     else:
-        TELEGRAF_TARGET = CORE_URI + '/ingress'
+        TELEGRAF_TARGET = PORTAL_URI + '/ingress'
 
 
 _schedule = {}
@@ -3343,7 +3348,7 @@ else:
 
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
-    'portal_uri': CORE_URI,
+    'portal_uri': PORTAL_URI,
     'theme': THEME,
     'cta': CTA,
     'description': DESCRIPTION,
