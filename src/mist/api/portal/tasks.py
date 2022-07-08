@@ -153,7 +153,7 @@ def create_backup(
     start = datetime.datetime.now()
     dt = start.strftime('%Y%m%d%H%M')
     s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
-    portal_host = config.CORE_URI.split('//')[1]
+    portal_host = config.PORTAL_URI.split('//')[1]
 
     # Encrypt backup if GPG configured
     has_gpg = not all(
@@ -246,7 +246,7 @@ def create_backup(
 def restore_backup(backup, portal=None, until=False, databases=[
         'mongodb', 'influxdb', 'elasticsearch', 'victoriametrics', 'vault']):
     if not portal:
-        portal = config.CORE_URI.split('//')[1]
+        portal = config.PORTAL_URI.split('//')[1]
     portal_path = f"{portal}/" if portal else ""
     s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
     start = datetime.datetime.now()

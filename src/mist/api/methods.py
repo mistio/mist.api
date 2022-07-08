@@ -821,7 +821,7 @@ def get_console_proxy_uri(machine):
             config.SECRET.encode(),
             msg=msg.encode(),
             digestmod=hashlib.sha256).hexdigest()
-        base_ws_uri = config.CORE_URI.replace('http', 'ws')
+        base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
         proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
             base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
         return proxy_uri
@@ -829,7 +829,7 @@ def get_console_proxy_uri(machine):
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
         )
-        protocol, host = config.CORE_URI.split('://')
+        protocol, host = config.PORTAL_URI.split('://')
         protocol = protocol.replace('http', 'ws')
         params = urllib.parse.urlencode({'url': console_uri})
         proxy_uri = f"{protocol}://{host}/wsproxy/?{params}"
