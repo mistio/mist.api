@@ -37,13 +37,13 @@ def evaluate(rule_id):
 
 
 @dramatiq.actor
-def add_nodata_rule(owner_id, backend='graphite'):
+def add_nodata_rule(org_id, backend='graphite'):
     """Idempotently setup a NoDataRule for the given Organization."""
     try:
-        log.info('Adding %s no-data rule for Org %s', backend, owner_id)
-        NoDataRule.objects.get(org_id=owner_id, title='NoData')
+        log.info('Adding %s no-data rule for Org %s', backend, org_id)
+        NoDataRule.objects.get(org_id=org_id, title='NoData')
     except NoDataRule.DoesNotExist:
-        NoDataRule(owner_id=owner_id).ctl.auto_setup(backend=backend)
+        NoDataRule(org_id=org_id).ctl.auto_setup(backend=backend)
 
 
 @dramatiq.actor(max_retries=3, max_age=60_000, queue_name='dramatiq_rules')

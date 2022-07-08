@@ -88,7 +88,7 @@ class ActionClassMixin(object):
     actions = me.EmbeddedDocumentListField(BaseAction)
 
     def owner_query(self):
-        return me.Q(owner=self.owner_id)
+        return me.Q(owner=self.org_id)
 
 
 class NotificationAction(BaseAction):
@@ -110,22 +110,22 @@ class NotificationAction(BaseAction):
         # bound, otherwise None.
         if resource is not None:
             assert isinstance(resource, me.Document)
-            assert resource.owner == self._instance.owner
+            assert resource.org == self._instance.org
         else:
             assert self._instance.is_arbitrary()
 
         emails = set(self.emails)
         user_ids = set(self.users)
         if not (self.users or self.teams):
-            emails |= set(self._instance.owner.get_emails())
-            emails |= set(self._instance.owner.alerts_email)
+            emails |= set(self._instance.org.get_emails())
+            emails |= set(self._instance.org.alerts_email)
         if user_ids:
-            user_ids &= set([m.id for m in self._instance.owner.members])
+            user_ids &= set([m.id for m in self._instance.org.members])
         for user in User.objects(id__in=user_ids):
             emails.add(user.email)
         for team_id in self.teams:
             try:
-                team = self._instance.owner.teams.get(id=team_id)
+                team = self._instance.org.teams.get(id=team_id)
                 emails |= set([member.email for member in team.members])
             except me.DoesNotExist:
                 continue
@@ -337,7 +337,7 @@ class WebhookAction(BaseAction):
                     self.url, response.text)
             log.info("%s - %s - %s", title, self._instance.id, body)
             from mist.api.methods import notify_user, notify_admin
-            notify_user(self._instance.owner, title, message=body)
+            notify_user(self._instance.org, title, message=body)
             notify_admin(title + ' ' + self._instance.id, body)
         return {'status_code': response.status_code}
 
