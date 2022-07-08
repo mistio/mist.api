@@ -181,7 +181,7 @@ def create_token(request):
 
     body = config.CREATE_APITOKEN_BODY.format(
         fname=user.first_name, ip_addr=ip_from_request(request),
-        portal_uri=config.CORE_URI, support_email=config.EMAIL_SUPPORT,
+        portal_uri=config.PORTAL_URI, support_email=config.EMAIL_SUPPORT,
         portal_name=config.PORTAL_NAME)
     notification = EmailNotification(subject=subject, text_body=body,
                                      owner=org)
@@ -319,6 +319,6 @@ def su(request):
     # alert admins
     subject = "Some admin used su"
     body = "Admin: %s\nUser: %s\nServer: %s" % (real_email, user.email,
-                                                config.CORE_URI)
+                                                config.PORTAL_URI)
     send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
     return HTTPFound('/')

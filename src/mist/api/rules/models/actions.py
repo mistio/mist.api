@@ -228,12 +228,13 @@ class WebhookAction(BaseAlertAction):
                 )
 
     def run(self, resource, *args, **kwargs):
-        from mist.api.config import CORE_URI
+        from mist.api.config import PORTAL_URI
         resource_type = getattr(self._instance, 'resource_model_name', 'org')
         if resource_type == 'org':
-            resource_url = CORE_URI
+            resource_url = PORTAL_URI
         else:
-            resource_url = '%s/%ss/%s' % (CORE_URI, resource_type, resource.id)
+            resource_url = '%s/%ss/%s' % (
+                PORTAL_URI, resource_type, resource.id)
         if hasattr(resource, "name"):
             resource_name = resource.name
         elif hasattr(resource, "title"):
