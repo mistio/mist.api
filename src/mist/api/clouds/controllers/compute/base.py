@@ -522,18 +522,20 @@ class BaseComputeController(BaseController):
                          exc)
                 return None, is_new
 
-        try:
-            cluster = self._list_machines__get_machine_cluster(machine, node)
-        except Exception as exc:
-            log.error('Failed to get cluster for machine: %s, %r',
-                      machine, exc)
-        else:
-            if machine.cluster and machine.machine_type != 'node':
-                machine.machine_type = 'node'
-                updated = True
-            if machine.cluster != cluster:
-                machine.cluster = cluster
-                updated = True
+        if self.cloud.container_enabled:
+            try:
+                cluster = self._list_machines__get_machine_cluster(
+                    machine, node)
+            except Exception as exc:
+                log.error('Failed to get cluster for machine: %s, %r',
+                          machine, exc)
+            else:
+                if machine.cluster and machine.machine_type != 'node':
+                    machine.machine_type = 'node'
+                    updated = True
+                if machine.cluster != cluster:
+                    machine.cluster = cluster
+                    updated = True
 
         # Discover location of machine.
         try:
