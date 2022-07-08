@@ -163,7 +163,8 @@ class BaseDNSController(BaseController):
                 log.error("Zone %s not unique error: %s", zone, exc)
                 raise ZoneExistsError()
             zones.append(zone)
-        self.cloud.owner.mapper.update(new_zones)
+        if new_zones:
+            self.cloud.owner.mapper.update(new_zones)
 
         # Delete any zones in the DB that were not returned by the provider
         # meaning they were deleted otherwise.
@@ -277,7 +278,8 @@ class BaseDNSController(BaseController):
                     records.remove(rec)
                     break
             records.append(record)
-        self.cloud.owner.mapper.update(new_records)
+        if new_records:
+            self.cloud.owner.mapper.update(new_records)
 
         # Then delete any records that are in the DB for this zone but were not
         # returned by the list_records() method meaning the were deleted in the

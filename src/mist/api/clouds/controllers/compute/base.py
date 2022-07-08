@@ -457,7 +457,8 @@ class BaseComputeController(BaseController):
                             last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
-        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+        if new_machines:
+            self.cloud.owner.mapper.update(new_machines, asynchronous=False)
 
         # Update machine counts on cloud and org.
         # FIXME: resolve circular import issues
@@ -975,7 +976,9 @@ class BaseComputeController(BaseController):
                                         'images': images_dict})
 
         # Update RBAC Mappings given the list of new images.
-        self.cloud.owner.mapper.update(new_image_objects, asynchronous=False)
+        if new_image_objects:
+            self.cloud.owner.mapper.update(
+                new_image_objects, asynchronous=False)
         return images
 
     def _list_images(self, search=None):
@@ -1450,8 +1453,9 @@ class BaseComputeController(BaseController):
                                         'locations': locations_dict})
 
         # Update RBAC Mappings given the list of new locations.
-        self.cloud.owner.mapper.update(new_location_objects,
-                                       asynchronous=False)
+        if new_location_objects:
+            self.cloud.owner.mapper.update(new_location_objects,
+                                           asynchronous=False)
         return locations
 
     def _list_locations(self):

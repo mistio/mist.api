@@ -892,7 +892,8 @@ class BaseContainerController(BaseController):
                     new_pods.append(machine)
                 pods.append(machine)
 
-        self.cloud.owner.mapper.update(new_pods, asynchronous=False)
+        if new_pods:
+            self.cloud.owner.mapper.update(new_pods, asynchronous=False)
         self.produce_and_publish_pod_patch(cached_pods, pods)
 
         Machine.objects(cloud=self.cloud,
@@ -918,7 +919,8 @@ class BaseContainerController(BaseController):
         )
         # Update RBAC Mappings given the list of clusters seen for the first
         # time.
-        self.cloud.owner.mapper.update(new_clusters, asynchronous=False)
+        if new_clusters:
+            self.cloud.owner.mapper.update(new_clusters, asynchronous=False)
         # Update cluster counts on cloud and org.
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import Cloud

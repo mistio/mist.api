@@ -164,7 +164,8 @@ class BaseObjectStorageController(BaseController):
         ).update(missing_since=None)
 
         # Update RBAC Mappings given the list of new storage.
-        self.cloud.owner.mapper.update(new_buckets, asynchronous=False)
+        if new_buckets:
+            self.cloud.owner.mapper.update(new_buckets, asynchronous=False)
 
         return buckets
 

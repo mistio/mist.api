@@ -537,7 +537,8 @@ class LibvirtMainController(BaseMainController):
         self.cloud.save()
         new_machines = self.cloud.ctl.compute.list_machines()
         # Update RBAC Mappings given the list of nodes seen for the first time.
-        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+        if new_machines:
+            self.cloud.owner.mapper.update(new_machines, asynchronous=False)
 
         if amqp_owner_listening(self.cloud.owner.id):
             old_machines = []
@@ -780,7 +781,8 @@ class OtherMainController(BaseMainController):
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
         new_machines = self.cloud.ctl.compute.list_cached_machines()
-        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+        if new_machines:
+            self.cloud.owner.mapper.update(new_machines, asynchronous=False)
 
         if amqp_owner_listening(self.cloud.owner.id):
             self.cloud.ctl.compute.produce_and_publish_patch(
