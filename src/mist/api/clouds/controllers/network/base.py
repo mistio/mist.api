@@ -393,7 +393,8 @@ class BaseNetworkController(BaseController):
             last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of new networks.
-        self.cloud.owner.mapper.update(new_networks, asynchronous=False)
+        if new_networks:
+            self.cloud.owner.mapper.update(new_networks, asynchronous=False)
 
         return networks
 
