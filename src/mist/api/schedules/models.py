@@ -215,7 +215,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
     One can perform a query directly on Schedule to fetch all cloud types, like
     this:
 
-        Schedule.objects(owner=owner).count()
+        Schedule.objects(org=org).count()
 
     """
 
@@ -224,7 +224,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
         'allow_inheritance': True,
         'indexes': [
             {
-                'fields': ['owner', 'name', 'deleted'],
+                'fields': ['org', 'name', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -242,7 +242,11 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
     description = me.StringField()
     deleted = me.DateTimeField()
 
-    owner = me.ReferenceField(Organization, required=True,
+    # Deprecated
+    owner = me.ReferenceField(Organization, required=False,
+                              reverse_delete_rule=me.CASCADE)
+    
+    org = me.ReferenceField(Organization, required=False,
                               reverse_delete_rule=me.CASCADE)
 
     # celery periodic task specific fields
@@ -285,16 +289,12 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
         self.ctl = mist.api.schedules.base.BaseController(self)
 
     @property
-    def org(self):
-        return self.owner
-
-    @property
-    def owner_id(self):
-        # FIXME We should consider storing the owner id as a plain
+    def org_id(self):
+        # FIXME We should consider storing the org id as a plain
         # string, instead of using a ReferenceField, to minimize
         # unintentional dereferencing. This is already happending
         # in case of mist.api.rules.models.Rule.
-        return self.owner.id
+        return self.org.id
 
     @classmethod
     def add(cls, auth_context, name, **kwargs):
@@ -306,21 +306,21 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
         You're not meant to be calling this directly, but on a schedule class
         instead like this:
 
-            schedule = Schedule.add(owner=owner, **kwargs)
+            schedule = Schedule.add(org=org, **kwargs)
         """
-        owner = auth_context.owner
+        org = auth_context.owner
 
         if not name:
             raise RequiredParameterMissingError('name')
-        if not owner or not isinstance(owner, Organization):
-            raise BadRequestError('owner')
+        if not org or not isinstance(org, Organization):
+            raise BadRequestError('org')
         selector_type = extract_selector_type(**kwargs)
         if selector_type not in rtype_to_classpath:
             raise BadRequestError('selector_type')
         kwargs['selector_type'] = selector_type
-        if Schedule.objects(owner=owner, name=name, deleted=None):
+        if Schedule.objects(org=org, name=name, deleted=None):
             raise ScheduleNameExistsError()
-        schedule = cls(owner=owner, name=name,
+        schedule = cls(org=org, name=name,
                        resource_model_name=selector_type)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
@@ -343,7 +343,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
         else:
             ids = [resource.id for resource in self.get_resources()]
         fire_up = self.actions[0].args
-        return [self.owner.id, fire_up, self.name, ids]
+        return [self.org.id, fire_up, self.name, ids]
 
     @property
     def kwargs(self):
@@ -414,9 +414,9 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
             self.reminder.delete()
         super(Schedule, self).delete()
         Tag.objects(resource_id=self.id, resource_type='schedule').delete()
-        self.owner.mapper.remove(self)
+        self.org.mapper.remove(self)
         if self.owned_by:
-            self.owned_by.get_ownership_mapper(self.owner).remove(self)
+            self.owned_by.get_ownership_mapper(self.org).remove(self)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -480,7 +480,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
             ret['tags'] = {
                 tag.key: tag.value
                 for tag in Tag.objects(
-                    owner=self.owner,
+                    owner=self.org,
                     resource_id=self.id,
                     resource_type='schedule').only('key', 'value')
             }

@@ -69,7 +69,7 @@ class BaseController(object):
         """Add an entry to the database
 
         This is only to be called by `Schedule.add` classmethod to create
-        a schedule. Fields `owner` and `name` are already populated in
+        a schedule. Fields `org` and `name` are already populated in
         `self.schedule`. The `self.schedule` is not yet saved.
 
         """
@@ -104,7 +104,7 @@ class BaseController(object):
                       exc.to_dict())
             raise
         log.info("Added schedule with name '%s'", self.schedule.name)
-        self.schedule.owner.mapper.update(self.schedule)
+        self.schedule.org.mapper.update(self.schedule)
 
     def update(self, **kwargs):
         """Edit an existing Schedule"""
@@ -114,7 +114,7 @@ class BaseController(object):
         else:
             raise MistError("You are not authorized to update schedule")
 
-        owner = auth_context.owner
+        org = auth_context.owner
         selector_type = kwargs.get('selector_type', '')
         if not selector_type and kwargs.get('selectors'):
             selector_type = extract_selector_type(**kwargs)
@@ -138,7 +138,7 @@ class BaseController(object):
                     if script_id:
                         try:
                             # TODO List Resources insted of Script objects
-                            Script.objects.get(owner=owner, id=script_id,
+                            Script.objects.get(org=org, id=script_id,
                                             deleted=None)
                         except me.DoesNotExist:
                             raise ScriptNotFoundError('Script with id %s does not '
@@ -149,7 +149,7 @@ class BaseController(object):
                 script_id = kwargs.pop('script_id', '')
                 if script_id:
                     try:
-                        Script.objects.get(owner=owner, id=script_id, deleted=None)
+                        Script.objects.get(org=org, id=script_id, deleted=None)
                     except me.DoesNotExist:
                         raise ScriptNotFoundError('Script with id %s does not '
                                                 'exist' % script_id)
@@ -251,7 +251,6 @@ class BaseController(object):
                     **schedule_entry)
 
         elif when_type == 'interval':
-            import ipdb; ipdb.set_trace()
             schedule_entry = kwargs.pop('when', {}) if kwargs.get('when') else kwargs.pop('schedule_entry', {})
             schedule_entry = {x:y for x,y in schedule_entry.items() if y is not None}
 
@@ -354,4 +353,4 @@ class BaseController(object):
 
         self.schedule.deleted = datetime.datetime.utcnow()
         self.schedule.save()
-        trigger_session_update(self.schedule.owner, ['schedules'])
+        trigger_session_update(self.schedule.org, ['schedules'])
