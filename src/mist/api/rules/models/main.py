@@ -88,7 +88,7 @@ class Rule(me.Document):
 
     # Defines the frequency of each search.
     when = me.EmbeddedDocumentField(
-        Interval, required=False, default=lambda: Interval()
+        Interval, required=False, default=lambda: Interval(period='minutes')
     )
 
     # Deprecated
