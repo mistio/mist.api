@@ -13,7 +13,7 @@ class ElasticSearchBackendPlugin(base.BaseBackendPlugin):
 
     def execute(self, query, rid=None):
         # Instantiate a request handler bound to an Organization context.
-        handler = CountQueryHandler(self.rule.org, rid, self.rtype)
+        handler = CountQueryHandler(self.rule.org_id, rid, self.rtype)
 
         # Transform the list of a rule's conditions' filters into proper
         # term clauses that can be used by the query handler.
