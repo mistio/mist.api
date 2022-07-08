@@ -175,7 +175,8 @@ class BaseDNSController(BaseController):
                 log.error("Zone %s not unique error: %s", zone, exc)
                 raise ZoneExistsError()
             zones.append(zone)
-        self.cloud.owner.mapper.update(new_zones)
+        if new_zones:
+            self.cloud.owner.mapper.update(new_zones)
         now = datetime.datetime.utcnow()
         # Set missing_since on zones not returned by libcloud
         Zone.objects(
@@ -310,7 +311,8 @@ class BaseDNSController(BaseController):
                     records.remove(rec)
                     break
             records.append(record)
-        self.cloud.owner.mapper.update(new_records)
+        if new_records:
+            self.cloud.owner.mapper.update(new_records)
         now = datetime.datetime.utcnow()
         # Set missing_since on records not returned by libcloud
         Record.objects(

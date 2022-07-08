@@ -232,7 +232,8 @@ class BaseStorageController(BaseController):
         ).update(last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of new volumes.
-        self.cloud.owner.mapper.update(new_volumes, asynchronous=False)
+        if new_volumes:
+            self.cloud.owner.mapper.update(new_volumes, asynchronous=False)
 
         return volumes
 
