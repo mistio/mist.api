@@ -285,7 +285,15 @@ class User(Owner):
 
     meta = {
         'indexes': [
-            'email', 'first_name', 'last_name', 'username', 'last_login']
+            'first_name', 'last_name', 'last_login',
+            {
+                'fields': ['username'],
+                'unique': True,
+            },
+            {
+                'fields': ['email'],
+                'unique': True,
+            }]
     }
 
     def __str__(self):
@@ -660,14 +668,16 @@ class Organization(Owner):
             ret['created'] = ret['created'].isoformat()
         if ret.get('last_active'):
             ret['last_active'] = ret['last_active'].isoformat()
-        org_teams = [team.as_dict_v2() for team in self.teams]
-        org_members = [member.as_dict_v2() for member in self.members]
-        for invitation in MemberInvitation.objects(org=self):
-            pending_member = invitation.user.as_dict_v2()
-            pending_member['pending'] = True
-            org_members.append(pending_member)
-        ret['teams'] = org_teams
-        ret['members'] = org_members
+        if not only or 'teams' in only:
+            org_teams = [team.as_dict_v2() for team in self.teams]
+            ret['teams'] = org_teams
+        if not only or 'members' in only:
+            org_members = [member.as_dict_v2() for member in self.members]
+            for invitation in MemberInvitation.objects(org=self):
+                pending_member = invitation.user.as_dict_v2()
+                pending_member['pending'] = True
+                org_members.append(pending_member)
+            ret['members'] = org_members
         return ret
 
     def clean(self):
