@@ -132,7 +132,7 @@ def show_schedule_entry(request):
 
     try:
         schedule = Schedule.objects.get(id=schedule_id, deleted=None,
-                                        owner=auth_context.owner)
+                                        org=auth_context.owner)
     except me.DoesNotExist:
         raise ScheduleTaskNotFound()
 
@@ -243,7 +243,7 @@ def edit_schedule_entry(request):
 
     owner = auth_context.owner
     try:
-        schedule = Schedule.objects.get(id=schedule_id, owner=owner,
+        schedule = Schedule.objects.get(id=schedule_id, org=owner,
                                         deleted=None)
     except me.DoesNotExist:
         raise ScheduleTaskNotFound()
