@@ -978,7 +978,7 @@ def _update__preparse_resources(obj, auth_context, kwargs):
         if kwargs.get('selectors'):
             obj.selectors = []
         for selector in kwargs.get('selectors', []):
-            sel_cls_key = selector.get('type').rstrip('s')
+            sel_cls_key = selector.get('type') if selector.get('type') == 'tags' else selector.get('type').rstrip('s')
             if not sel_cls_key:
                 sel_cls_key = 'resource'
                 assert obj.resource_model_name in rtype_to_classpath
