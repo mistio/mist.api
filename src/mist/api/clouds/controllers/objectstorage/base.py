@@ -7,7 +7,7 @@ import mongoengine.errors
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.concurrency.models import PeriodicTaskInfo
 
-from mist.api.helpers import amqp_publish_user, bucket_to_dict
+from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
 log = logging.getLogger(__name__)
@@ -142,19 +142,14 @@ class BaseObjectStorageController(BaseController):
         return buckets
 
     def _list_buckets__fetch_buckets(self):
-        """Perform the actual libcloud call to get list of nodes"""
-        return self.connection.list_containers()
+        """Perform the actual API call to get list of buckets"""
+        raise NotImplementedError
 
-    def _list_buckets__fetch_bucket_content(self, name, prefix='', delimiter='',
+    def _list_buckets__fetch_bucket_content(self, name, prefix='',
+                                            delimiter='',
                                             maxkeys=100):
-        """Perform the actual libcloud call to get the content of the node"""
-        bucket = self.connection.get_container(name)
-        return [bucket_to_dict(bucket_content)
-                for bucket_content in self.connection.list_container_objects(
-                    bucket,
-                    prefix,
-                    ex_delimiter=delimiter,
-                    ex_maxkeys=maxkeys)]
+        """Perform the actual API call to get the content of the bucket"""
+        raise NotImplementedError
 
     def list_bucket_content(self, name, path, delimiter='', maxkeys=100):
         """

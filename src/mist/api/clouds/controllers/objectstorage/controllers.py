@@ -10,7 +10,7 @@ from libcloud.storage.providers import get_driver
 from libcloud.storage.types import Provider
 from boto3.session import Session
 from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
-
+from mist.api.helpers import bucket_to_dict
 from mist.api import config
 
 if config.HAS_VPN:
@@ -34,6 +34,22 @@ class OpenstackObjectStorageController(BaseObjectStorageController):
             ex_auth_url=url,
         )
 
+    def _list_buckets__fetch_buckets(self):
+        """Perform the actual API call to get list of buckets"""
+        return self.connection.list_containers()
+
+    def _list_buckets__fetch_bucket_content(self, name, prefix='',
+                                            delimiter='',
+                                            maxkeys=100):
+        """Perform the actual libcloud call to get the content of the bucket"""
+        bucket = self.connection.get_container(name)
+        return [bucket_to_dict(bucket_content)
+                for bucket_content in self.connection.list_container_objects(
+                    bucket,
+                    prefix,
+                    ex_delimiter=delimiter,
+                    ex_maxkeys=maxkeys)]
+
 
 class VexxhostObjectStorageController(OpenstackObjectStorageController):
     pass
@@ -52,7 +68,8 @@ class AmazonS3ObjectStorageController(BaseObjectStorageController):
         """Perform the actual libcloud call to get list of nodes"""
         return self.connection.resource('s3').buckets.iterator()
 
-    def _list_buckets__fetch_bucket_content(self, name, prefix='', delimiter='',
+    def _list_buckets__fetch_bucket_content(self, name, prefix='',
+                                            delimiter='',
                                             maxkeys=100,
                                             continuation_token=None):
         kwargs = {}
