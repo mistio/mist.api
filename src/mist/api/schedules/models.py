@@ -462,11 +462,11 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
         ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
                                         deref, only)
 
-        # if 'schedule_entry' in only or not only:
-        #     ret['schedule_entry'] = self.schedule_type.as_dict()
+        if 'schedule_entry' in only or not only:
+            ret['schedule_entry'] = self.when.as_dict()
 
-        # if 'schedule_type' in only or not only:
-        #     ret['schedule_type'] = self.schedule_type.type
+        if 'schedule_type' in only or not only:
+            ret['schedule_type'] = self.when.type
 
         ret['actions'] = self.actions[0].action
 
