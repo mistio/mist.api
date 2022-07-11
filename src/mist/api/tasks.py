@@ -809,7 +809,7 @@ def group_resources_actions(owner_id, action, name, resources_ids):
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
-        'schedule_type': str(schedule.schedule_type or ''),
+        'schedule_type': str(schedule.when or ''),
         'owner_id': owner_id,
         resources_match_key: schedule.get_ids(),
         resource_action_key: action,
@@ -984,16 +984,16 @@ def run_resource_action(owner_id, action, name, resource_id):
                             config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT.format(
                                 portal_name=config.PORTAL_NAME
                             )
-                        if schedule.schedule_type.type == 'reminder' and \
-                           schedule.schedule_type.message:
+                        if schedule.when.type == 'reminder' and \
+                           schedule.when.message:
                             custom_msg = '\n%s\n' % \
-                                schedule.schedule_type.message
+                                schedule.when.message
                         else:
                             custom_msg = ''
                         machine_uri = config.PORTAL_URI + \
                             '/machines/%s' % machine.id
                         main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
-                        sch_entry = machine.expiration.schedule_type.entry
+                        sch_entry = machine.expiration.when.entry
                         body = main_body.format(
                             fname=user.first_name,
                             machine_name=machine.name,
@@ -1098,7 +1098,7 @@ def group_run_script(auth_context_serialized, script_id, name, machine_ids,
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
-        'schedule_type': str(schedule.schedule_type or ''),
+        'schedule_type': str(schedule.when or ''),
         'owner_id': owner.id,
         'machines_match': schedule.get_ids(),
         'script_id': script_id,

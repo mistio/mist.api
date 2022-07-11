@@ -481,12 +481,12 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
                 try:
                     ret['expiration'] = {
                         'id': self.expiration.id,
-                        'action': self.expiration.task_type.action,
+                        'action': self.expiration.actions[0].action,
                         'date':
-                            self.expiration.schedule_type.entry.isoformat(),
+                            self.expiration.when.entry.isoformat(),
                         'notify': self.expiration.reminder and int((
-                            self.expiration.schedule_type.entry -
-                            self.expiration.reminder.schedule_type.entry
+                            self.expiration.when.entry -
+                            self.expiration.reminder.when.entry
                         ).total_seconds()) or 0,
                     }
                 except Exception as exc:
@@ -502,11 +502,11 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
             if self.expiration:
                 expiration = {
                     'id': self.expiration.id,
-                    'action': self.expiration.task_type.action,
-                    'date': self.expiration.schedule_type.entry.isoformat(),
+                    'action': self.expiration.actions[0].action,
+                    'date': self.expiration.when.entry.isoformat(),
                     'notify': self.expiration.reminder and int((
-                        self.expiration.schedule_type.entry -
-                        self.expiration.reminder.schedule_type.entry
+                        self.expiration.when.entry -
+                        self.expiration.reminder.when.entry
                     ).total_seconds()) or 0,
                 }
             else:
