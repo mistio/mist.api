@@ -117,8 +117,7 @@ class BaseController(object):
         org = auth_context.owner
         selector_type = kwargs.get('selector_type', '')
         if not selector_type and kwargs.get('selectors'):
-            selector_type = extract_selector_type(**kwargs)
-        self.schedule.resource_model_name = selector_type
+            self.schedule.resource_model_name = extract_selector_type(**kwargs)
 
         if kwargs.get('name', ''):
             self.schedule.name = kwargs.pop('name')
@@ -231,7 +230,7 @@ class BaseController(object):
                     self.schedule.actions[0] = acts.ScriptAction(
                         script=script_id, params=params)
             else:
-                    self.schedule.actions[0] = globals()[f'{self.schedule.resource_model_name.title()}Action'](action=action)
+                self.schedule.actions[0] = globals()[f'{self.schedule.resource_model_name.title()}Action'](action=action)
         elif actions and len(actions) > 1:
             raise NotImplementedError()
 
