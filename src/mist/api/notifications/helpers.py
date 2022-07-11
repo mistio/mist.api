@@ -106,7 +106,7 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
     # the current implementation.
     from mist.api.monitoring.methods import find_metrics
     assert cloud_id and external_id
-    rule = Rule.objects.get(org=owner.id, name=rule_id)
+    rule = Rule.objects.get(org_id=owner.id, name=rule_id)
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     machine = Machine.objects.get(cloud=cloud, external_id=external_id)
