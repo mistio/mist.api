@@ -3305,7 +3305,7 @@ class BaseComputeController(BaseController):
             return None
         ret_schedules = []
         for schedule in schedules:
-            schedule_type = schedule.get('schedule_type')
+            schedule_type = schedule.get('when')
             if schedule_type not in ['crontab', 'interval', 'one_off']:
                 raise BadRequestError('schedule type must be one of '
                                       'these (crontab, interval, one_off)]')
