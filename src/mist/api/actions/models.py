@@ -404,7 +404,8 @@ class MachineAction(BaseResourceAction):
     atype = 'machine_action'
 
     action = me.StringField(required=True, choices=('start', 'stop',
-                                                    'reboot', 'destroy'))
+                                                    'reboot', 'destroy',
+                                                    'notify'))
 
     def run(self, machine, *args, **kwargs):
         # FIXME Imported here due to circular dependency issues.

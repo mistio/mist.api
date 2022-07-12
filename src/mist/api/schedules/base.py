@@ -30,6 +30,10 @@ from mist.api.auth.methods import AuthContext
 
 log = logging.getLogger(__name__)
 
+TIME_UNIT = {'seconds': 1,
+             'minutes': 60,
+             'hours': 3600,
+             'days': 86400}
 
 class BaseController(object):
 
@@ -86,9 +90,9 @@ class BaseController(object):
             when_type = kwargs.get('schedule_type', '')
             entry = kwargs.get('schedule_entry', '')
 
-        if when_type not in ['crontab', 'interval', 'one_off']:
+        if when_type not in ['crontab', 'interval', 'one_off', 'reminder']:
             raise BadRequestError('schedule type must be one of these '
-                                  '(crontab, interval, one_off)]')
+                                  '(crontab, interval, one_off, reminder)]')
 
         if when_type in ['one_off', 'reminder'] and not entry:
             raise BadRequestError('one_off schedule '
@@ -127,7 +131,8 @@ class BaseController(object):
                 action = kwargs.get('actions')[0].get('action_type', '')
             else:
                 action = act
-            if action == 'notify':
+            if action == 'notify' and kwargs.get('schedule_type', '') != 'reminder':
+                import ipdb; ipdb.set_trace()
                 raise NotImplementedError()
             elif action == 'run_script':
                 script_type = kwargs.get('actions')[0].get('script_type')
@@ -218,7 +223,7 @@ class BaseController(object):
         act = kwargs.pop('action', '')
         if (actions and len(actions) == 1) or act:
             action = actions[0]['action_type'] if not act else act
-            if action == 'notify':
+            if action == 'notify' and kwargs.get('schedule_type', '') != 'reminder':
                 raise NotImplementedError()
             elif action == 'run_script':
                 script = ast.literal_eval(actions[0]['script'])
@@ -339,6 +344,30 @@ class BaseController(object):
                     from mist.api.schedules.models import Schedule
                     self.schedule.reminder = Schedule.add(
                         auth_context, name, **params)
+                reminder = kwargs.pop('reminder', {})
+                if reminder:
+                    if reminder.get('when', ''):
+                        value = reminder.get('when').get('value', '')
+                        unit = reminder.get('when').get('unit', '')
+                        _delta = datetime.timedelta(0, value * TIME_UNIT[unit])
+                        notify_at = future_date - _delta
+                        notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
+                        params = {
+                            'action': 'notify',
+                            'schedule_type': 'reminder',
+                            'description': 'Schedule expiration reminder',
+                            'task_enabled': True,
+                            'schedule_entry': notify_at,
+                            'selectors': kwargs.get('selectors'),
+                            'notify_msg': reminder.get('message')
+                        }
+                        name = self.schedule.name + '-reminder'
+                        from mist.api.schedules.models import Schedule
+                        self.schedule.reminder = Schedule.add(
+                            auth_context, name, **params)
+                    else:
+                        raise BadRequestError("You must provide when values "
+                                              "for reminder schedule")
 
         # set schedule attributes
         try:
