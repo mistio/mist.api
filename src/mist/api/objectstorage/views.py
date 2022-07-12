@@ -126,6 +126,7 @@ def get_bucket(request):
             bucket_id, e))
         raise MistNotImplementedError()
 
+
 @view_config(route_name='api_v1_bucket_content', request_method='GET',
              renderer='json')
 def list_bucket_content(request):

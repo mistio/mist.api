@@ -100,7 +100,7 @@ class AmazonS3ObjectStorageController(BaseObjectStorageController):
                 extra = {
                     "StorageClass": obj.get("StorageClass"),
                     "last_modified": obj.get("LastModified").isoformat()
-                    }
+                }
             except AttributeError:
                 extra = {}
 
