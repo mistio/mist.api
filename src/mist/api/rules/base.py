@@ -114,18 +114,30 @@ class BaseController(object):
         if 'actions' in kwargs:
             self.rule.actions = []
         for action in kwargs.pop('actions', []):
-            act_v1 = action.pop('type', '')
-            act_v2 = action.pop('action_type', '')
-            act = act_v2 if 'action_type' in action else act_v1
-            if act not in ['webhook', 'notification', 'notify',
-                           'run_script', 'resize']:
-                action['type'] = f'{self.rule.resource_model_name}_action'
-            else:
-                if act in ['notify', 'notification']:
+            # act_v1 = action.pop('type', '')
+            # act_v2 = action.pop('action_type', '')
+            # act = act_v2 if 'action_type' in action else act_v1
+            # if act not in ['webhook', 'notification', 'notify',
+            #                'run_script', 'resize']:
+            #     action['type'] = f'{self.rule.resource_model_name}_action'
+            # else:
+            #     if act in ['notify', 'notification']:
+            #         action['type'] = 'notification'
+            #     else:
+            #         action['type'] = act
+            if 'action_type' in action:
+                if action.get('action_type', '') not in ['webhook',
+                                                        'notification',
+                                                        'notify',
+                                                        'run_script',
+                                                        'resize']:
+                    action['action'] = action.pop('action_type', '')
+                    action['type'] = f'{self.rule.resource_model_name}_action'
+                elif action.get('action_type', '') == 'notify':
                     action['type'] = 'notification'
+                    action.pop('action_type')
                 else:
-                    action['type'] = act
-            import ipdb; ipdb.set_trace()
+                    action['type'] = action.pop('action_type', '')
             if action.get('type') not in ACTIONS:
                 raise BadRequestError('Action must be in %s' %
                                       list(ACTIONS.keys()))
