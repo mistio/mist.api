@@ -132,7 +132,6 @@ class BaseController(object):
             else:
                 action = act
             if action == 'notify' and kwargs.get('schedule_type', '') != 'reminder':
-                import ipdb; ipdb.set_trace()
                 raise NotImplementedError()
             elif action == 'run_script':
                 script_type = kwargs.get('actions')[0].get('script_type')
