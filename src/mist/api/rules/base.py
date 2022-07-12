@@ -127,10 +127,10 @@ class BaseController(object):
             #         action['type'] = act
             if 'action_type' in action:
                 if action.get('action_type', '') not in ['webhook',
-                                                        'notification',
-                                                        'notify',
-                                                        'run_script',
-                                                        'resize']:
+                                                         'notification',
+                                                         'notify',
+                                                         'run_script',
+                                                         'resize']:
                     action['action'] = action.pop('action_type', '')
                     action['type'] = f'{self.rule.resource_model_name}_action'
                 elif action.get('action_type', '') == 'notify':
@@ -335,8 +335,8 @@ class ResourceRuleController(BaseController):
         for key in kwargs.keys():
             if key not in ('selectors', 'actions'):
                 sel_acts_kwargs.pop(key)
-        if kwargs.get('selectors', []):
-            kwargs.pop('selectors')
+
+        kwargs.pop('selectors')
         if 'selectors' in sel_acts_kwargs and 'actions' in sel_acts_kwargs:
             _update__preparse_resources(self.rule, self.auth_context,
                                         sel_acts_kwargs)

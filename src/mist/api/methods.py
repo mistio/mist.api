@@ -1034,7 +1034,7 @@ def _update__preparse_resources(obj, auth_context, kwargs):
             elif selector.ctype == 'tags':
                 check_perm(auth_context, resource_type, action)
                 count += 1
-    if count < len(actions):
+    if count < len(actions) and count > 0:
         raise BadRequestError("Specify at least resource ids or tags")
 
     return
