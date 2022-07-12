@@ -119,13 +119,13 @@ class BaseController(object):
             act = act_v2 if 'action_type' in action else act_v1
             if act not in ['webhook', 'notification', 'notify',
                            'run_script', 'resize']:
-                action['action'] = act
                 action['type'] = f'{self.rule.resource_model_name}_action'
             else:
                 if act in ['notify', 'notification']:
                     action['type'] = 'notification'
                 else:
                     action['type'] = act
+            import ipdb; ipdb.set_trace()
             if action.get('type') not in ACTIONS:
                 raise BadRequestError('Action must be in %s' %
                                       list(ACTIONS.keys()))
