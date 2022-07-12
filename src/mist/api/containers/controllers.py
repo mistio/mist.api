@@ -22,6 +22,10 @@ class ClusterController(object):
         return self.cluster.cloud.ctl.container.list_ingresses(
             cluster=self.cluster, **kwargs)
 
+    def get_credentials(self, **kwargs):
+        return self.cluster.cloud.ctl.container.get_credentials(
+            cluster=self.cluster, **kwargs)
+
 
 class GoogleClusterController(ClusterController):
     def destroy(self):

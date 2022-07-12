@@ -170,7 +170,7 @@ def suppress_nodata_alert(rule):
                   'key': Portal.get_singleton().external_api_key}
         token = {'token': encrypt(json.dumps(params))}
         mac_sign(token)
-        return '%s/suppressed-alerts?%s' % (config.CORE_URI,
+        return '%s/suppressed-alerts?%s' % (config.PORTAL_URI,
                                             urllib.parse.urlencode(token))
 
     # Otherwise, suppress e-mail notification and notify the portal's admins.

@@ -232,7 +232,8 @@ class BaseStorageController(BaseController):
         ).update(last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of new volumes.
-        self.cloud.owner.mapper.update(new_volumes, asynchronous=False)
+        if new_volumes:
+            self.cloud.owner.mapper.update(new_volumes, asynchronous=False)
 
         return volumes
 
@@ -858,7 +859,8 @@ class BaseStorageController(BaseController):
         try:
             response = requests_retry_session(retries=2).post(
                 config.METERING_NOTIFICATIONS_WEBHOOK,
-                data=json.dumps({'text': config.CORE_URI + ': ' + log_entry}),
+                data=json.dumps(
+                    {'text': config.PORTAL_URI + ': ' + log_entry}),
                 headers={'Content-Type': 'application/json'},
                 timeout=5
             )

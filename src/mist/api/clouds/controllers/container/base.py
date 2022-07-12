@@ -893,7 +893,8 @@ class BaseContainerController(BaseController):
                     new_pods.append(machine)
                 pods.append(machine)
 
-        self.cloud.owner.mapper.update(new_pods, asynchronous=False)
+        if new_pods:
+            self.cloud.owner.mapper.update(new_pods, asynchronous=False)
         self.produce_and_publish_pod_patch(cached_pods, pods)
 
         Machine.objects(cloud=self.cloud,
@@ -919,7 +920,8 @@ class BaseContainerController(BaseController):
         )
         # Update RBAC Mappings given the list of clusters seen for the first
         # time.
-        self.cloud.owner.mapper.update(new_clusters, asynchronous=False)
+        if new_clusters:
+            self.cloud.owner.mapper.update(new_clusters, asynchronous=False)
         # Update cluster counts on cloud and org.
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import Cloud
@@ -999,3 +1001,14 @@ class BaseContainerController(BaseController):
             self._libcloud_ingress_to_ingress(libcloud_ingress)
             for libcloud_ingress in libcloud_ingresses
         ]
+
+    def get_credentials(self, cluster):
+        try:
+            libcloud_cluster = self._get_libcloud_cluster(cluster)
+            credentials = self.connection.get_cluster_credentials(
+                libcloud_cluster)
+        except Exception as exc:
+            log.error('Failed to fetch credentials for cluster: %s, %r',
+                      cluster, exc)
+            raise CloudUnavailableError(msg=str(exc)) from exc
+        return credentials

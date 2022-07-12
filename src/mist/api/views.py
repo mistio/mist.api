@@ -213,7 +213,7 @@ def home(request):
                         if images:
                             img_uri = images[0].get('content', '')
                             if not img_uri.startswith('http'):
-                                img_uri = config.CORE_URI + img_uri
+                                img_uri = config.PORTAL_URI + img_uri
                             template_inputs['image'] = img_uri
                         rss = soup.select('link[type="application/rss+xml"]')
                         if rss:
@@ -605,7 +605,7 @@ def register(request):
                 portal_name=config.PORTAL_NAME)
             body = config.CONFIRMATION_EMAIL_BODY.format(
                 fname=user.first_name, ip_addr=ip_from_request(request),
-                portal_uri=config.CORE_URI, follow_us=config.FOLLOW_US,
+                portal_uri=config.PORTAL_URI, follow_us=config.FOLLOW_US,
                 portal_name=config.PORTAL_NAME,
                 activation_key=user.activation_key)
 
@@ -745,7 +745,7 @@ def forgot_password(request):
         )
         body = config.CONFIRMATION_EMAIL_BODY.format(
             fname=user.first_name, ip_addr=ip_from_request(request),
-            portal_uri=config.CORE_URI, follow_us=config.FOLLOW_US,
+            portal_uri=config.PORTAL_URI, follow_us=config.FOLLOW_US,
             portal_name=config.PORTAL_NAME,
             activation_key=user.activation_key)
 
@@ -766,7 +766,7 @@ def forgot_password(request):
     )
     body = config.RESET_PASSWORD_EMAIL_BODY.format(
         fname=user.first_name, portal_name=config.PORTAL_NAME,
-        portal_uri=config.CORE_URI,
+        portal_uri=config.PORTAL_URI,
         ip_addr=user.password_reset_token_ip_addr,
         activation_key=encrypt("%s:%s" % (token, email), config.SECRET)
     )
@@ -872,7 +872,7 @@ def request_whitelist_ip(request):
         portal_name=config.PORTAL_NAME)
     body = config.WHITELIST_IP_EMAIL_BODY.format(
         fname=user.first_name, portal_name=config.PORTAL_NAME,
-        portal_uri=config.CORE_URI, confirmation_key=confirmation_key,
+        portal_uri=config.PORTAL_URI, confirmation_key=confirmation_key,
         ip_addr=user.whitelist_ip_token_ip_addr
     )
     if not send_email(subject, body, email):
@@ -2185,7 +2185,7 @@ def invite_member_to_team(request):
                     config.REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY.format(
                         fname=user.first_name, team=team_name, org=org.name,
                         invited_by=auth_context.user.get_nice_name(),
-                        portal_uri=config.CORE_URI,
+                        portal_uri=config.PORTAL_URI,
                         portal_name=config.PORTAL_NAME,
                         activation_key=user.activation_key,
                         invitoken=invitoken
@@ -2194,7 +2194,7 @@ def invite_member_to_team(request):
                 body = config.USER_CONFIRM_ORG_INVITATION_EMAIL_BODY.format(
                     fname=user.first_name,
                     invited_by=auth_context.user.get_nice_name(),
-                    org=org.name, team=team.name, portal_uri=config.CORE_URI,
+                    org=org.name, team=team.name, portal_uri=config.PORTAL_URI,
                     portal_name=config.PORTAL_NAME, invitoken=invitoken
                 )
             return_val['pending'] = True

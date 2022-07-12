@@ -456,7 +456,8 @@ class BaseComputeController(BaseController):
                             last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
-        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+        if new_machines:
+            self.cloud.owner.mapper.update(new_machines, asynchronous=False)
 
         # Update machine counts on cloud and org.
         # FIXME: resolve circular import issues
@@ -520,18 +521,20 @@ class BaseComputeController(BaseController):
                          exc)
                 return None, is_new
 
-        try:
-            cluster = self._list_machines__get_machine_cluster(machine, node)
-        except Exception as exc:
-            log.error('Failed to get cluster for machine: %s, %r',
-                      machine, exc)
-        else:
-            if machine.cluster and machine.machine_type != 'node':
-                machine.machine_type = 'node'
-                updated = True
-            if machine.cluster != cluster:
-                machine.cluster = cluster
-                updated = True
+        if self.cloud.container_enabled:
+            try:
+                cluster = self._list_machines__get_machine_cluster(
+                    machine, node)
+            except Exception as exc:
+                log.error('Failed to get cluster for machine: %s, %r',
+                          machine, exc)
+            else:
+                if machine.cluster and machine.machine_type != 'node':
+                    machine.machine_type = 'node'
+                    updated = True
+                if machine.cluster != cluster:
+                    machine.cluster = cluster
+                    updated = True
 
         # Discover location of machine.
         try:
@@ -975,7 +978,9 @@ class BaseComputeController(BaseController):
                                         'images': images_dict})
 
         # Update RBAC Mappings given the list of new images.
-        self.cloud.owner.mapper.update(new_image_objects, asynchronous=False)
+        if new_image_objects:
+            self.cloud.owner.mapper.update(
+                new_image_objects, asynchronous=False)
         return images
 
     def _list_images(self, search=None):
@@ -1491,8 +1496,9 @@ class BaseComputeController(BaseController):
                                         'locations': locations_dict})
 
         # Update RBAC Mappings given the list of new locations.
-        self.cloud.owner.mapper.update(new_location_objects,
-                                       asynchronous=False)
+        if new_location_objects:
+            self.cloud.owner.mapper.update(new_location_objects,
+                                           asynchronous=False)
         return locations
 
     def _list_locations(self):
@@ -3981,7 +3987,8 @@ class BaseComputeController(BaseController):
         try:
             response = requests_retry_session(retries=2).post(
                 config.METERING_NOTIFICATIONS_WEBHOOK,
-                data=json.dumps({'text': config.CORE_URI + ': ' + log_entry}),
+                data=json.dumps(
+                    {'text': config.PORTAL_URI + ': ' + log_entry}),
                 headers={'Content-Type': 'application/json'},
                 timeout=5
             )

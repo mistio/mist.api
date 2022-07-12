@@ -197,7 +197,7 @@ def request_unsubscription(request):
         log.critical("Got invalid/insufficient data: %s", decrypted_json)
         raise BadRequestError(ERROR_MSG)
 
-    inputs = {"uri": config.CORE_URI,
+    inputs = {"uri": config.PORTAL_URI,
               "csrf_token": get_csrf_token(request),
               "rid": rid,
               "rype": rtype,

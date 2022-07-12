@@ -989,7 +989,7 @@ def run_resource_action(owner_id, action, name, resource_id):
                                 schedule.when.message
                         else:
                             custom_msg = ''
-                        machine_uri = config.CORE_URI + \
+                        machine_uri = config.PORTAL_URI + \
                             '/machines/%s' % machine.id
                         main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
                         sch_entry = machine.expiration.when.entry
