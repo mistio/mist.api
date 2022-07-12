@@ -246,7 +246,7 @@ def add_rule(request):
 
     # Match with the new when field
     if kwargs.get('frequency', ''):
-      kwargs['when'] = kwargs.pop('frequency')
+        kwargs['when'] = kwargs.pop('frequency')
 
     # Add new rule.
     rule = rule_cls.add(auth_context, **kwargs)

@@ -33,8 +33,9 @@ def migrate_schedule_actions():
                 {'_id': schedule['_id']},
                 {'$set': {'actions': [action]}}
             )
-            print(update_unset_result.modified_count)
-            if update_unset_result.modified_count > 0 and update_set_result.modified_count > 0:
+            update_count_1 = update_unset_result.modified_count
+            update_count_2 = update_set_result.modified_count
+            if update_count_1 > 0 and update_count_2 > 0:
                 print(f'Successfully migrated schedule action: '
                       f'with id: {schedule["_id"]} ')
                 migrated += 1
