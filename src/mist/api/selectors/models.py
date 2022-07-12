@@ -110,7 +110,7 @@ class TaggingSelector(BaseSelector):
         ids = set()
         for key, value in self.include.items():
             query = {
-                'org': self._instance.org,
+                'owner': self._instance.org,
                 'resource_type': rtype,
                 'key': key,
             }
