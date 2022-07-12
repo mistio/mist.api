@@ -102,6 +102,30 @@ def list_cloud_buckets(request):
         raise MistNotImplementedError()
 
 
+@view_config(route_name='api_v1_bucket', request_method='GET',
+             renderer='json')
+def get_bucket(request):
+    """
+    Tags: buckets
+    ---
+    Get bucket content on .
+    Only supported for Openstack, EC2.
+    """
+    auth_context = auth_context_from_request(request)
+    bucket_id = request.matchdict.get('bucket')
+    try:
+        return methods.get_bucket(
+            auth_context.owner,
+            bucket_id,
+        )
+    except me.DoesNotExist:
+        raise NotFoundError('Bucket does not exist')
+
+    except Exception as e:
+        log.error("Could not list content for the bucket %s: %r" % (
+            bucket_id, e))
+        raise MistNotImplementedError()
+
 @view_config(route_name='api_v1_bucket_content', request_method='GET',
              renderer='json')
 def list_bucket_content(request):

@@ -34,6 +34,15 @@ def list_buckets(owner, cloud_id, cached=True):
     return [_bucket.as_dict() for _bucket in buckets]
 
 
+def get_bucket(owner, storage_id):
+    bucket = Bucket.objects.get(
+        owner=owner,
+        id=storage_id,
+        missing_since=None)
+
+    return bucket.as_dict()
+
+
 def list_bucket_content(owner, storage_id, path='',
                         delimiter='',
                         maxkeys=100):
@@ -50,7 +59,6 @@ def list_bucket_content(owner, storage_id, path='',
         maxkeys=maxkeys)
 
     return {
-        **bucket.as_dict(),
         'content': {c['name']: c for c in content if content},
     }
 
