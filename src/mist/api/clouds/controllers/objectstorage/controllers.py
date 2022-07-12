@@ -92,19 +92,18 @@ class AmazonS3ObjectStorageController(BaseObjectStorageController):
 
         objects = []
         for obj in response:
+            # if the object is a subdir, the other fields won't be populated
+            name = obj.get("Key", obj.get("Prefix"))
+            size = int(obj.get("Size", 0))
+            hash = obj.get("ETag", '')
             try:
-                name = obj["Key"]
-                size = int(obj["Size"])
-                hash = obj["ETag"]
                 extra = {
                     "StorageClass": obj.get("StorageClass"),
-                    "last_modified": obj["LastModified"].isoformat(),
-                }
-            except KeyError:
-                name = obj["Prefix"]
-                size = 0
-                hash = ''
+                    "last_modified": obj.get("LastModified").isoformat()
+                    }
+            except AttributeError:
                 extra = {}
+
             objects.append(
                 dict(
                     name=name,
