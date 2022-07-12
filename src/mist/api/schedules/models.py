@@ -4,7 +4,6 @@ import logging
 from uuid import uuid4
 
 import mongoengine as me
-import json
 
 from mist.api.helpers import rtype_to_classpath
 from mist.api.tag.models import Tag
@@ -203,7 +202,8 @@ class ScriptTask(BaseTaskType):
         }
 
 
-class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, ActionClassMixin):
+class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
+               ActionClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -245,9 +245,9 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
     # Deprecated
     owner = me.ReferenceField(Organization, required=False,
                               reverse_delete_rule=me.CASCADE)
-    
+
     org = me.ReferenceField(Organization, required=False,
-                              reverse_delete_rule=me.CASCADE)
+                            reverse_delete_rule=me.CASCADE)
 
     # celery periodic task specific fields
     queue = me.StringField()
@@ -258,7 +258,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
     schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=False)
     task_type = me.EmbeddedDocumentField(BaseTaskType, required=False)
 
-    # Defines a list of actions to be executed whenever the schedule is triggered.
+    # Defines a list of actions to be executed whenever
+    # the schedule is triggered.
     # Defaults to just notifying the users.
     actions = me.EmbeddedDocumentListField(
         BaseAction, required=False, default=lambda: [MachineAction()]
@@ -425,7 +426,10 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin, Action
 
         selectors = [selector.as_dict() for selector in self.selectors]
 
-        action = 'run script' if self.actions[0].__class__.__name__ == 'ScriptAction' else self.actions[0].action
+        if self.actions[0].__class__.__name__ == 'ScriptAction':
+            action = 'run script'
+        else:
+            action = self.actions[0].action
 
         sdict = {
             'id': self.id,

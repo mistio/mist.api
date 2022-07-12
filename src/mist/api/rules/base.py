@@ -21,7 +21,7 @@ from mist.api.when.models import Interval
 from mist.api.when.models import TriggerOffset
 
 from mist.api.selectors.models import FieldSelector
-from mist.api.selectors.models import TaggingSelector
+from mist.api.selectors.models import TaggingSelector # noqa
 from mist.api.selectors.models import ResourceSelector
 
 if config.HAS_RBAC:
@@ -114,12 +114,18 @@ class BaseController(object):
         if 'actions' in kwargs:
             self.rule.actions = []
         for action in kwargs.pop('actions', []):
-            act = action.pop('action_type') if 'action_type' in action else action.pop('type')
-            if act not in ['webhook', 'notification', 'notify', 'run_script', 'resize']:
+            act_v1 = action.pop('type', '')
+            act_v2 = action.pop('action_type', '')
+            act = act_v2 if 'action_type' in action else act_v1
+            if act not in ['webhook', 'notification', 'notify',
+                           'run_script', 'resize']:
                 action['action'] = act
-                action['type'] = self.rule.resource_model_name+'_action'
+                action['type'] = f'{self.rule.resource_model_name}_action'
             else:
-                action['type'] = 'notification' if (act == 'notify' or act == 'notification') else act
+                if act in ['notify', 'notification']:
+                    action['type'] = 'notification'
+                else:
+                    action['type'] = act
             if action.get('type') not in ACTIONS:
                 raise BadRequestError('Action must be in %s' %
                                       list(ACTIONS.keys()))
@@ -313,14 +319,15 @@ class ResourceRuleController(BaseController):
         super(ResourceRuleController, self).add(fail_on_error, **kwargs)
 
     def update(self, fail_on_error=True, **kwargs):
-        selectors_actions_kwargs = kwargs.copy()
+        sel_acts_kwargs = kwargs.copy()
         for key in kwargs.keys():
-            if key not in ('selectors','actions'):
-                selectors_actions_kwargs.pop(key)
+            if key not in ('selectors', 'actions'):
+                sel_acts_kwargs.pop(key)
         if kwargs.get('selectors', []):
             kwargs.pop('selectors')
-        if 'selectors' in selectors_actions_kwargs and 'actions' in selectors_actions_kwargs:
-            _update__preparse_resources(self.rule, self.auth_context, selectors_actions_kwargs)
+        if 'selectors' in sel_acts_kwargs and 'actions' in sel_acts_kwargs:
+            _update__preparse_resources(self.rule, self.auth_context,
+                                        sel_acts_kwargs)
         super(ResourceRuleController, self).update(fail_on_error, **kwargs)
 
     def maybe_remove(self, resource):

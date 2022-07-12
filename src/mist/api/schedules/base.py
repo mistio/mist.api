@@ -4,13 +4,11 @@ This currently contains only BaseController. It includes basic functionality
 for a given schedule.
 Cloud specific controllers are in `mist.api.schedules.controllers`.
 """
-import re
 import logging
 import datetime
 import ast
 import mongoengine as me
 
-from mist.api.helpers import rtype_to_classpath
 from mist.api.scripts.models import Script
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import extract_selector_type
@@ -22,16 +20,10 @@ from mist.api.exceptions import ScriptNotFoundError
 from mist.api.exceptions import ScheduleOperationError
 from mist.api.exceptions import ScheduleNameExistsError
 
-from mist.api.exceptions import NotFoundError
-
-from mist.api.selectors.models import FieldSelector, ResourceSelector
-from mist.api.selectors.models import TaggingSelector, AgeSelector
-
-import mist.api.schedules.models as schedules
 import mist.api.when.models as When
 import mist.api.actions.models as acts
-from mist.api.actions.models import MachineAction, VolumeAction
-from mist.api.actions.models import NetworkAction, ClusterAction
+from mist.api.actions.models import MachineAction, VolumeAction # noqa
+from mist.api.actions.models import NetworkAction, ClusterAction # noqa
 
 from mist.api.auth.methods import AuthContext
 
@@ -74,7 +66,10 @@ class BaseController(object):
 
         """
         # check if required variables exist.
-        if not (kwargs.get('actions', '')) and not (kwargs.get('script_id', '') or kwargs.get('action', '')):
+        actions = kwargs.get('actions', '')
+        script = kwargs.get('script_id', '')
+        action = kwargs.get('action', '')
+        if not (actions) and not script and not action:
             raise BadRequestError("You must provide resource's actions")
 
         if len(kwargs.get('actions', [])) > 1:
@@ -84,13 +79,16 @@ class BaseController(object):
             raise BadRequestError("You must provide a list of selectors, "
                                   "at least resource ids or tags")
 
-        when_type = kwargs.get('when').get('schedule_type') if kwargs.get('when') else kwargs.get('schedule_type')
+        if kwargs.get('when'):
+            when_type = kwargs.get('when').get('schedule_type', '')
+            entry = kwargs.get('when').get('datetime', '')
+        else:
+            when_type = kwargs.get('schedule_type', '')
+            entry = kwargs.get('schedule_entry', '')
 
         if when_type not in ['crontab', 'interval', 'one_off']:
             raise BadRequestError('schedule type must be one of these '
                                   '(crontab, interval, one_off)]')
-
-        entry = kwargs.get('when').get('datetime') if kwargs.get('when') else kwargs.get('schedule_entry')
 
         if when_type in ['one_off', 'reminder'] and not entry:
             raise BadRequestError('one_off schedule '
@@ -124,8 +122,11 @@ class BaseController(object):
 
         actions = kwargs.get('actions', [])
         act = kwargs.get('action', '')
-        if  (actions and len(actions) == 1) or act:
-            action = kwargs.get('actions')[0].get('action_type', '') if not act else act
+        if (actions and len(actions) == 1) or act:
+            if not act:
+                action = kwargs.get('actions')[0].get('action_type', '')
+            else:
+                action = act
             if action == 'notify':
                 raise NotImplementedError()
             elif action == 'run_script':
@@ -138,10 +139,10 @@ class BaseController(object):
                         try:
                             # TODO List Resources insted of Script objects
                             Script.objects.get(org=org, id=script_id,
-                                            deleted=None)
+                                               deleted=None)
                         except me.DoesNotExist:
-                            raise ScriptNotFoundError('Script with id %s does not '
-                                                    'exist' % script_id)
+                            raise ScriptNotFoundError('Script with id %s does '
+                                                      'not exist' % script_id)
                         # SEC require permission RUN on script
                         auth_context.check_perm('script', 'run', script_id)
             elif action == 'run script':
@@ -151,10 +152,10 @@ class BaseController(object):
                         Script.objects.get(org=org, id=script_id, deleted=None)
                     except me.DoesNotExist:
                         raise ScriptNotFoundError('Script with id %s does not '
-                                                'exist' % script_id)
+                                                  'exist' % script_id)
                     # SEC require permission RUN on script
                     auth_context.check_perm('script', 'run', script_id)
-        elif  actions and len(actions) > 1:
+        elif actions and len(actions) > 1:
             raise NotImplementedError()
 
         # for ui compatibility
@@ -202,7 +203,8 @@ class BaseController(object):
         # Schedule selectors pre-parsing.
         if kwargs.get('selectors'):
             try:
-                _update__preparse_resources(self.schedule, auth_context, kwargs)
+                _update__preparse_resources(self.schedule, auth_context,
+                                            kwargs)
             except MistError as exc:
                 log.error("Error while updating schedule %s: %r",
                           self.schedule.id, exc)
@@ -230,15 +232,25 @@ class BaseController(object):
                     self.schedule.actions[0] = acts.ScriptAction(
                         script=script_id, params=params)
             else:
-                self.schedule.actions[0] = globals()[f'{self.schedule.resource_model_name.title()}Action'](action=action)
+                act_name = f'{self.schedule.resource_model_name.title()}Action'
+                self.schedule.actions[0] = globals()[act_name](action=action)
         elif actions and len(actions) > 1:
             raise NotImplementedError()
 
-        when_type = kwargs.get('when').pop('schedule_type', '') if kwargs.get('when') else kwargs.pop('schedule_type','')
+        if kwargs.get('when'):
+            when_type = kwargs.get('when').pop('schedule_type', '')
+        else:
+            when_type = kwargs.pop('schedule_type', '')
 
         if when_type == 'crontab':
-            schedule_entry = kwargs.pop('when', {}) if kwargs.get('when') else kwargs.pop('schedule_entry', {})
-            schedule_entry = {x:y for x,y in schedule_entry.items() if y is not None}
+
+            if kwargs.get('when'):
+                schedule_entry = kwargs.pop('when', {})
+            else:
+                schedule_entry = kwargs.pop('schedule_entry', {})
+
+            schedule_entry = {x: y for x, y in schedule_entry.items()
+                              if y is not None}
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -250,8 +262,13 @@ class BaseController(object):
                     **schedule_entry)
 
         elif when_type == 'interval':
-            schedule_entry = kwargs.pop('when', {}) if kwargs.get('when') else kwargs.pop('schedule_entry', {})
-            schedule_entry = {x:y for x,y in schedule_entry.items() if y is not None}
+
+            if kwargs.get('when'):
+                schedule_entry = kwargs.pop('when', {})
+            else:
+                schedule_entry = kwargs.pop('schedule_entry', {})
+            schedule_entry = {x: y for x, y in schedule_entry.items()
+                              if y is not None}
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -263,7 +280,10 @@ class BaseController(object):
 
         elif when_type in ['one_off', 'reminder']:
             # implements Interval under the hood
-            future_date =  kwargs.pop('when').pop('datetime') if kwargs.get('when') else kwargs.pop('schedule_entry', '')
+            if kwargs.get('when'):
+                future_date = kwargs.pop('when').pop('datetime', '')
+            else:
+                future_date = kwargs.pop('schedule_entry', '')
 
             if future_date:
                 try:
@@ -340,7 +360,6 @@ class BaseController(object):
             raise ScheduleNameExistsError()
         except me.OperationError:
             raise ScheduleOperationError()
-
 
     def delete(self):
         """ Delete a schedule

@@ -935,100 +935,106 @@ def check_perm(auth_context, resource_type, action, resource=None):
 
 
 def _update__preparse_resources(obj, auth_context, kwargs):
-        """Preparse resource arguments to `self.update`
+    """Preparse resource arguments to `self.update`
 
-        This is called by `self.update` when adding a new schedule,
-        in order to apply pre processing to the given params. Any subclass
-        that requires any special pre processing of the params passed to
-        `self.update`, SHOULD override this method.
+    This is called by `self.update` when adding a new schedule,
+    in order to apply pre processing to the given params. Any subclass
+    that requires any special pre processing of the params passed to
+    `self.update`, SHOULD override this method.
 
-        Params:
-        kwargs: A dict of the keyword arguments that will be set as attributes
-            to the `Schedule` or `Rule` model instance stored in `obj`.
-            This method is expected to modify `kwargs` in place and set the
-            specific field of each scheduler.
+    Params:
+    kwargs: A dict of the keyword arguments that will be set as attributes
+        to the `Schedule` or `Rule` model instance stored in `obj`.
+        This method is expected to modify `kwargs` in place and set the
+        specific field of each scheduler.
 
-        Subclasses MAY override this method.
+    Subclasses MAY override this method.
 
-        """
-        if kwargs.get('selectors'):
-            obj.selectors = []
-        for selector in kwargs.get('selectors', []):
-            sel_cls_key = selector.get('type') if selector.get('type') == 'tags' else selector.get('type').rstrip('s')
-            if not sel_cls_key:
-                sel_cls_key = 'resource'
-                assert obj.resource_model_name in rtype_to_classpath
-                selector['type'] = obj.resource_model_name
-            elif sel_cls_key in rtype_to_classpath:
-                sel_cls_key = 'resource'
-            if sel_cls_key not in SELECTOR_CLS:
-                raise BadRequestError(
-                    f'Valid selector types: {list(SELECTOR_CLS)}')
-            if sel_cls_key == 'field':
-                if selector['field'] not in ('created', 'state',
-                                             'cost__monthly', 'name'):
-                    raise BadRequestError()
-                if selector.get('operator') == 'regex':
-                    if selector['field'] != 'name':
-                        raise BadRequestError(
-                            'Supported regex fields: `name`.')
+    """
+    if kwargs.get('selectors'):
+        obj.selectors = []
+    for selector in kwargs.get('selectors', []):
+        sel_type = selector.get('type')
+        sel_cls_key = sel_type if sel_type == 'tags' else sel_type.rstrip('s')
+        if not sel_cls_key:
+            sel_cls_key = 'resource'
+            assert obj.resource_model_name in rtype_to_classpath
+            selector['type'] = obj.resource_model_name
+        elif sel_cls_key in rtype_to_classpath:
+            sel_cls_key = 'resource'
+        if sel_cls_key not in SELECTOR_CLS:
+            raise BadRequestError(
+                f'Valid selector types: {list(SELECTOR_CLS)}')
+        if sel_cls_key == 'field':
+            if selector['field'] not in ('created', 'state',
+                                         'cost__monthly', 'name'):
+                raise BadRequestError()
+            if selector.get('operator') == 'regex':
+                if selector['field'] != 'name':
+                    raise BadRequestError(
+                        'Supported regex fields: `name`.')
+                try:
+                    re.compile(selector['value'])
+                except re.error:
+                    raise BadRequestError(
+                        f"{selector['value']} is not a valid regex.")
+        sel = SELECTOR_CLS[sel_cls_key]()
+        sel.update(**selector)
+        obj.selectors.append(sel)
+
+    actions = []
+    for act in kwargs.get('actions', []):
+        if 'action_type' in act and act['action_type'] not in ('notify',
+                                                               'run_script',
+                                                               'webhook',
+                                                               'resize'):
+            actions.append(act['action_type'])
+        if 'type' in act and act['type'] not in ('notify',
+                                                 'run_script',
+                                                 'webhook',
+                                                 'resize'):
+            actions.append(act['type'])
+
+    if kwargs.get('action'):
+        actions.append(kwargs.get('action'))
+
+    # check permissions
+    if len(actions) > 1:
+        raise NotImplementedError()
+    count = 0
+    for action in actions:
+        resource_cls = obj.selector_resource_cls
+        resource_type = obj.resource_model_name.rstrip('s')
+        for selector in obj.selectors:
+            if isinstance(selector, ResourceSelector):
+                if resource_type == 'machine':
+                    query = dict(state__ne='terminated')
+                    not_found_msg = 'Machine state is terminated.'
+                else:
+                    query = {}
+                    not_found_msg = f'{resource_type.capitalize()} not found.'
+                for rid in selector.ids:
                     try:
-                        re.compile(selector['value'])
-                    except re.error:
-                        raise BadRequestError(
-                            f"{selector['value']} is not a valid regex.")
-            sel = SELECTOR_CLS[sel_cls_key]()
-            sel.update(**selector)
-            obj.selectors.append(sel)
-
-        actions = []
-        for act in kwargs.get('actions', []):
-            if 'action_type' in act and act['action_type'] not in ('notify', 'run_script', 'webhook', 'resize'):
-                actions.append(act['action_type'])
-            if 'type' in act and act['type'] not in ('notify', 'run_script', 'webhook', 'resize'):
-                actions.append(act['type'])
-            
-        
-        if kwargs.get('action'):
-            actions.append(kwargs.get('action'))
-
-        # check permissions
-        if len(actions) > 1:
-            raise NotImplementedError()
-        count = 0
-        for action in actions:
-            resource_cls = obj.selector_resource_cls
-            resource_type = obj.resource_model_name.rstrip('s')
-            for selector in obj.selectors:
-                if isinstance(selector, ResourceSelector):
-                    if resource_type == 'machine':
-                        query = dict(state__ne='terminated')
-                        not_found_msg = 'Machine state is terminated.'
-                    else:
-                        query = {}
-                        not_found_msg = f'{resource_type.capitalize()} not found.'
-                    for rid in selector.ids:
-                        try:
-                            resource = resource_cls.objects.get(id=rid, **query)
-                        except me.DoesNotExist:
-                            raise NotFoundError(not_found_msg)
+                        resource = resource_cls.objects.get(id=rid, **query)
+                    except me.DoesNotExist:
+                        raise NotFoundError(not_found_msg)
+                    check_perm(
+                        auth_context, resource_type, action, resource=resource)
+                count += 1
+            elif selector.ctype == 'field':
+                if selector.operator == 'regex':
+                    resources = resource_cls.objects({
+                        selector.field: re.compile(selector.value),
+                        'state__ne': 'terminated'
+                    })
+                    for r in resources:
                         check_perm(
-                            auth_context, resource_type, action, resource=resource)
+                            auth_context, resource_type, action, resource=r)
                     count += 1
-                elif selector.ctype == 'field':
-                    if selector.operator == 'regex':
-                        resources = resource_cls.objects({
-                            selector.field: re.compile(selector.value),
-                            'state__ne': 'terminated'
-                        })
-                        for r in resources:
-                            check_perm(
-                                auth_context, resource_type, action, resource=r)
-                        count += 1
-                elif selector.ctype == 'tags':
-                    check_perm(auth_context, resource_type, action)
-                    count += 1
-        if count < len(actions):
-            raise BadRequestError("Specify at least resource ids or tags")
+            elif selector.ctype == 'tags':
+                check_perm(auth_context, resource_type, action)
+                count += 1
+    if count < len(actions):
+        raise BadRequestError("Specify at least resource ids or tags")
 
-        return
+    return
