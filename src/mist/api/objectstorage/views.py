@@ -113,6 +113,7 @@ def get_bucket(request):
     """
     auth_context = auth_context_from_request(request)
     bucket_id = request.matchdict.get('bucket')
+    auth_context.check_perm('bucket', 'read', bucket_id)
     try:
         return methods.get_bucket(
             auth_context.owner,
@@ -145,6 +146,8 @@ def list_bucket_content(request):
 
     auth_context = auth_context_from_request(request)
     bucket_id = request.matchdict.get('bucket')
+    auth_context.check_perm('bucket', 'read', bucket_id)
+
     params = params_from_request(request)
     path = params.get('path', '')  # return root by default
 
