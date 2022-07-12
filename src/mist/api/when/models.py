@@ -20,11 +20,11 @@ class BaseWhenType(me.EmbeddedDocument):
     @property
     def schedule(self):
         raise NotImplementedError()
-    
+
     @property
     def timedelta(self):
         raise NotImplementedError()
-    
+
     def update(self, fail_on_error=True, **kwargs):
         for key, value in kwargs.items():
             if key not in type(self)._fields:
@@ -45,7 +45,7 @@ class Interval(BaseWhenType):
     @property
     def period_singular(self):
         return self.period[:-1]
-    
+
     @property
     def timedelta(self):
         return datetime.timedelta(**{self.period: self.every})
@@ -154,7 +154,7 @@ class TriggerOffset(BaseWhenType):
     @property
     def timedelta(self):
         return datetime.timedelta(**{self.period: self.offset})
-    
+
     @property
     def period_singular(self):
         return self.period[:-1]

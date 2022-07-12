@@ -60,11 +60,11 @@ class BaseAction(me.EmbeddedDocument):
 
         """
         raise NotImplementedError()
-    
+
     @property
     def task(self):
         raise NotImplementedError()
-    
+
     @property
     def args(self):
         raise NotImplementedError()
@@ -141,12 +141,12 @@ class NotificationAction(BaseAction):
         for email in self.emails:
             if not is_email_valid(email):
                 raise me.ValidationError('Invalid e-mail address: %s' % email)
-    
+
     @property
     def args(self):
         return {'emails': self.emails, 'users': self.users,
                 'teams': self.teams, 'level': self.level}
-    
+
     @property
     def kwargs(self):
         return {'description': self.description}
@@ -180,11 +180,11 @@ class NoDataAction(NotificationAction):
             action = 'Alert'
         super(NoDataAction, self).run(machine, value, triggered, timestamp,
                                       incident_id, action)
-    
+
     @property
     def args(self):
         return {}
-    
+
     @property
     def kwargs(self):
         return {}
@@ -210,11 +210,11 @@ class CommandAction(BaseAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_run_script'
-    
+
     @property
     def args(self):
         return self.command
-    
+
     @property
     def kwargs(self):
         return {}
@@ -248,11 +248,11 @@ class ScriptAction(BaseAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_run_script'
-    
+
     @property
     def args(self):
         return self.script.id
-    
+
     @property
     def kwargs(self):
         return {'params': self.params}
@@ -342,11 +342,10 @@ class WebhookAction(BaseAction):
             notify_admin(title + ' ' + self._instance.id, body)
         return {'status_code': response.status_code}
 
-    
     @property
     def args(self):
         return {'method': self.method, 'url': self.url}
-    
+
     @property
     def kwargs(self):
         return {'params': self.params, 'json': self.json,
@@ -361,8 +360,8 @@ class WebhookAction(BaseAction):
 class BaseResourceAction(BaseAction):
     """The base class for resource actions.
 
-    This class serves as an intermediate level between BaseAction and Resource Action
-    implementations.
+    This class serves as an intermediate level between BaseAction
+    and Resource Action implementations.
 
     """
 
@@ -379,15 +378,15 @@ class BaseResourceAction(BaseAction):
 
         """
         raise NotImplementedError()
-    
+
     @property
     def task(self):
         raise NotImplementedError()
-    
+
     @property
     def args(self):
         raise NotImplementedError()
-    
+
     @property
     def kwargs(self):
         raise NotImplementedError()
@@ -404,7 +403,7 @@ class MachineAction(BaseResourceAction):
 
     atype = 'machine_action'
 
-    action = me.StringField(required=True, choices=('start', 'stop', 
+    action = me.StringField(required=True, choices=('start', 'stop',
                                                     'reboot', 'destroy'))
 
     def run(self, machine, *args, **kwargs):
@@ -426,11 +425,11 @@ class MachineAction(BaseResourceAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_resources_actions'
-    
+
     @property
     def args(self):
         return self.action
-    
+
     @property
     def kwargs(self):
         return {}
@@ -456,11 +455,11 @@ class VolumeAction(BaseResourceAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_resources_actions'
-    
+
     @property
     def args(self):
         return self.action
-    
+
     @property
     def kwargs(self):
         return {}
@@ -486,11 +485,11 @@ class ClusterAction(BaseResourceAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_resources_actions'
-    
+
     @property
     def args(self):
         return self.action
-    
+
     @property
     def kwargs(self):
         return {}
@@ -516,11 +515,11 @@ class NetworkAction(BaseResourceAction):
     @property
     def task(self):
         return 'mist.api.tasks.group_resources_actions'
-    
+
     @property
     def args(self):
         return self.action
-    
+
     @property
     def kwargs(self):
         return {}
