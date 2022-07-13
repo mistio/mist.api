@@ -17,7 +17,8 @@ from mist.api.metering.methods import get_current_portal_usage
 from mist.api.rules.models import NoDataRule
 from mist.api.poller.models import PollingSchedule
 from mist.api.auth.models import SessionToken, ApiToken
-
+from mist.api.portal.methods import check_task_threshold
+from mist.api.methods import notify_admin
 
 log = logging.getLogger(__name__)
 
@@ -380,3 +381,43 @@ def restore_backup(backup, portal=None, until=False, databases=[
             print('Unknown backup type')
 
     return
+
+
+@dramatiq.actor
+def check_periodic_tasks():
+    """ Check whether the periodic tasks for recently active organizations
+    are running as frequently as expected.
+    """
+    from mist.api.clouds.models import Cloud
+    from mist.api.users.models import Organization
+    # Check only recently active orgs
+    timedelta = datetime.timedelta(days=10)
+    orgs = Organization.objects(
+        last_active__gt=datetime.datetime.now() - timedelta
+    ).only("id")
+    clouds = Cloud.objects(enabled=True, deleted=None, owner__in=orgs)
+
+    tasks = {
+        "list_machines": datetime.timedelta(hours=1),
+        "list_locations": datetime.timedelta(days=1),
+        "list_images": datetime.timedelta(days=1),
+        "list_sizes": datetime.timedelta(days=1),
+        "list_clusters": datetime.timedelta(hours=1),
+        "list_networks": datetime.timedelta(hours=1),
+        "list_volumes": datetime.timedelta(hours=1),
+        "list_zones": datetime.timedelta(hours=1),
+        "list_buckets": datetime.timedelta(hours=1),
+    }
+
+    error_messages = []
+    for cloud in clouds:
+        for task, timedelta in tasks.items():
+            error_message = check_task_threshold(
+                cloud=cloud, task=task, acceptable_timedelta=timedelta)
+            if error_message:
+                error_messages.append(error_message)
+
+    if error_messages:
+        notify_admin(title="Periodic tasks that were not scheduled",
+                     message="\n".join(error_messages))
+    return error_messages
