@@ -12,6 +12,7 @@ from boto3.session import Session
 from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
 from mist.api.helpers import bucket_to_dict
 from mist.api import config
+from libcloud.storage.base import Container
 
 if config.HAS_VPN:
     from mist.vpn.methods import destination_nat as dnat
@@ -66,7 +67,17 @@ class AmazonS3ObjectStorageController(BaseObjectStorageController):
 
     def _list_buckets__fetch_buckets(self):
         """Perform the actual libcloud call to get list of nodes"""
-        return self.connection.resource('s3').buckets.iterator()
+        return [
+            Container(
+                name=bucket.name,
+                extra={
+                    'creation_date': bucket.creation_date.isoformat()
+                },
+                #  Dummy entry, won't actually be used
+                driver=get_driver(Provider.S3_AP_NORTHEAST)
+            )
+            for bucket in self.connection.resource('s3').buckets.iterator()
+        ]
 
     def _list_buckets__fetch_bucket_content(self, name, prefix='',
                                             delimiter='',
