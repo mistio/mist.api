@@ -59,6 +59,7 @@ ELASTICSEARCH_CLEANUP = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
+CHECK_PERIODIC_TASKS = True
 BACKUP_INTERVAL = 24
 LANDING_CDN_URI = ""
 BLOG_CDN_URI = ""
@@ -3210,6 +3211,7 @@ FROM_ENV_INTS = [
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
     'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
+    'CHECK_PERIODIC_TASKS',
 ] + PLUGIN_ENV_BOOLS
 FROM_ENV_ARRAYS = [
     'PLUGINS'
@@ -3325,6 +3327,11 @@ if ENABLE_BACKUPS:
         'schedule': datetime.timedelta(hours=BACKUP_INTERVAL),
     }
 
+if CHECK_PERIODIC_TASKS:
+    _schedule['check-periodic-tasks'] = {
+        'task': 'mist.api.portal.tasks.check_periodic_tasks',
+        'schedule': datetime.timedelta(hours=1),
+    }
 
 # Configure libcloud to not verify certain hosts.
 if NO_VERIFY_HOSTS:
