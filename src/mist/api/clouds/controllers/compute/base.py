@@ -1512,6 +1512,7 @@ class BaseComputeController(BaseController):
             _location.parent = self._list_locations__get_parent(_location, loc)
             _location.location_type = self._list_locations__get_type(
                 _location, loc)
+            _location.images_location = self._list_locations__get_images_location(loc)  # noqa: E501
             try:
                 available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
@@ -1580,6 +1581,13 @@ class BaseComputeController(BaseController):
         that consists of one or more "zones".
         """
         return 'zone'
+
+    def _list_locations__get_images_location(self, libcloud_location):
+        """Get the path where image files are stored.
+
+        This is only currently implemented on LibVirt.
+        """
+        return
 
     def _list_locations__get_available_sizes(self, location):
         """Find available sizes for NodeLocation.
