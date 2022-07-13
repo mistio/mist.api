@@ -346,6 +346,8 @@ class CloudLocation(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     first_seen = me.DateTimeField()
     extra = MistDictField()
+    images_location = me.StringField()
+
     parent = me.ReferenceField('CloudLocation',
                                required=False,
                                reverse_delete_rule=me.NULLIFY)
@@ -383,7 +385,7 @@ class CloudLocation(OwnershipMixin, me.Document):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
             'id', 'name', 'external_id', 'country', 'extra', 'last_seen',
-            'location_type', 'created']
+            'location_type', 'created', 'images_location']
         deref_map = {
             'cloud': 'name',
             'owned_by': 'email',
@@ -412,6 +414,7 @@ class CloudLocation(OwnershipMixin, me.Document):
             'last_seen': str(self.last_seen),
             'parent': self.parent.id if self.parent else None,
             'location_type': self.location_type,
+            'images_location': self.images_location,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
         }
