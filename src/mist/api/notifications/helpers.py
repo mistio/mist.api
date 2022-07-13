@@ -229,7 +229,7 @@ def _log_alert(resource, rule, value, triggered, timestamp, incident_id,
     info.pop('owner_id', None)
     # Log the alert.
     log_event(
-        owner_id=rule.org, event_type='incident', incident_id=incident_id,
+        owner_id=rule.org_id, event_type='incident', incident_id=incident_id,
         action='rule_triggered' if triggered else 'rule_untriggered', **info
     )
 
