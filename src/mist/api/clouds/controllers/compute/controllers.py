@@ -5134,6 +5134,9 @@ class LibvirtComputeController(BaseComputeController):
 
         return locations
 
+    def _list_locations__get_images_location(self, libcloud_location):
+        return libcloud_location.extra.get('images_location')
+
     def list_images_single_host(self, host):
         driver = self._get_host_driver(host)
         return driver.list_images(location=host.extra.get(
