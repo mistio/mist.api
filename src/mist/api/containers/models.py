@@ -70,7 +70,9 @@ class NodePool(me.EmbeddedDocument):
     def autoscaling(self):
         """Determine if the nodepool has autoscaling enabled
         """
-        return (self.min_nodes is not None and
+        # Use OR instead of AND because the GKE API does not return
+        # min_nodes when its value is 0.
+        return (self.min_nodes is not None or
                 self.max_nodes is not None)
 
 
