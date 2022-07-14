@@ -1588,6 +1588,10 @@ ALIBABA_VOLUME_TYPES = {
     'cloud_essd': (20, 32768),
 }
 
+# Possible capabilities for a CloudLocation.
+# Currently it is only used on Vexxhost
+LOCATION_CAPABILITIES = ('compute', 'storage', 'network')
+
 VULTR_DDOS_PROTECTION_PRICE = 10
 # Vultr automated backup per size
 # Dedicated Cloud and Bare Metal sizes do not support backup
