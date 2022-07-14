@@ -39,12 +39,14 @@ class OpenstackObjectStorageController(BaseObjectStorageController):
         """Perform the actual API call to get list of buckets"""
         return self.connection.list_containers()
 
-    def _list_buckets__fetch_bucket_content(self, name, prefix='',
+    def _list_buckets__fetch_bucket_content(self, name,
+                                            bucket_id,
+                                            prefix='',
                                             delimiter='',
                                             maxkeys=100):
         """Perform the actual libcloud call to get the content of the bucket"""
         bucket = self.connection.get_container(name)
-        return [bucket_to_dict(bucket_content)
+        return [bucket_to_dict(bucket_content, bucket_id)
                 for bucket_content in self.connection.list_container_objects(
                     bucket,
                     prefix,
@@ -79,7 +81,9 @@ class AmazonS3ObjectStorageController(BaseObjectStorageController):
             for bucket in self.connection.resource('s3').buckets.iterator()
         ]
 
-    def _list_buckets__fetch_bucket_content(self, name, prefix='',
+    def _list_buckets__fetch_bucket_content(self, name,
+                                            bucket_id,
+                                            prefix='',
                                             delimiter='',
                                             maxkeys=100,
                                             continuation_token=None):
@@ -97,9 +101,9 @@ class AmazonS3ObjectStorageController(BaseObjectStorageController):
             raise Exception
         content = response.get('Contents', []).copy()
         content.extend(response.get('CommonPrefixes', []))
-        return self._to_object_list(content, name)
+        return self._to_object_list(content, name, bucket_id)
 
-    def _to_object_list(self, response, container):
+    def _to_object_list(self, response, bucket_name, bucket_id):
 
         objects = []
         for obj in response:
@@ -122,7 +126,10 @@ class AmazonS3ObjectStorageController(BaseObjectStorageController):
                     hash=hash,
                     extra=extra,
                     meta_data=None,
-                    container=container,
+                    container={
+                        'name': bucket_name,
+                        'id': bucket_id
+                    },
                 )
             )
         return objects

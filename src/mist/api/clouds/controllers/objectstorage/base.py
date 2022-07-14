@@ -151,7 +151,8 @@ class BaseObjectStorageController(BaseController):
         """Perform the actual API call to get the content of the bucket"""
         raise NotImplementedError
 
-    def list_bucket_content(self, name, path, delimiter='', maxkeys=100):
+    def list_bucket_content(self, name, path, bucket_id,
+                            delimiter='', maxkeys=100):
         """
         Performs the  API call to list bucket content.
         :param name: The bucket's name
@@ -182,8 +183,10 @@ class BaseObjectStorageController(BaseController):
             # Don't add delim in case path='' (root)
             prefix = path
 
-        return self._list_buckets__fetch_bucket_content(name, prefix,
-                                                        delimiter,
+        return self._list_buckets__fetch_bucket_content(name=name,
+                                                        bucket_id=bucket_id,
+                                                        prefix=prefix,
+                                                        delimiter=delimiter,
                                                         maxkeys=maxkeys)
 
     def list_cached_buckets(self):

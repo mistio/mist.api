@@ -56,7 +56,8 @@ def list_bucket_content(owner, storage_id, path='',
         bucket.name,
         path=path,
         delimiter=delimiter,
-        maxkeys=maxkeys)
+        maxkeys=maxkeys,
+        bucket_id=storage_id)
 
     return {
         'content': {c['name']: c for c in content if content},
