@@ -3778,6 +3778,12 @@ class OpenStackComputeController(BaseComputeController):
     def _list_locations__fetch_locations(self):
         return self.connection.ex_list_availability_zones()
 
+    def _list_locations__get_capabilities(self, libcloud_location):
+        capabilities = [key for key, value in libcloud_location.extra.items()
+                        if key in config.LOCATION_CAPABILITIES and
+                        value is True]
+        return capabilities
+
     def _generate_plan__parse_location(self, auth_context, location_search):
         # If a location string is not given, let openstack set
         # the default location
