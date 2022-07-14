@@ -35,6 +35,7 @@ TIME_UNIT = {'seconds': 1,
              'hours': 3600,
              'days': 86400}
 
+
 class BaseController(object):
 
     def __init__(self, schedule, auth_context=None):
@@ -131,7 +132,8 @@ class BaseController(object):
                 action = kwargs.get('actions')[0].get('action_type', '')
             else:
                 action = act
-            if action == 'notify' and kwargs.get('schedule_type', '') != 'reminder':
+                sched_type = kwargs.get('schedule_type', '')
+            if action == 'notify' and sched_type != 'reminder':
                 raise NotImplementedError()
             elif action == 'run_script':
                 script_type = kwargs.get('actions')[0].get('script_type')
@@ -222,7 +224,8 @@ class BaseController(object):
         act = kwargs.pop('action', '')
         if (actions and len(actions) == 1) or act:
             action = actions[0]['action_type'] if not act else act
-            if action == 'notify' and kwargs.get('schedule_type', '') != 'reminder':
+            sched_type = kwargs.get('schedule_type', '')
+            if action == 'notify' and sched_type != 'reminder':
                 raise NotImplementedError()
             elif action == 'run_script':
                 script = ast.literal_eval(actions[0]['script'])
