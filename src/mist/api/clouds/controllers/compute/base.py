@@ -1514,6 +1514,13 @@ class BaseComputeController(BaseController):
                 _location, loc)
             _location.images_location = self._list_locations__get_images_location(loc)  # noqa: E501
             try:
+                capabilities = self._list_locations__get_capabilities(loc)
+            except Exception as exc:
+                log.error(
+                    "Failed to get location capabilities for cloud: %s",
+                    self.cloud.id)
+            _location.capabilities = capabilities
+            try:
                 available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
                 log.error('Error adding location-size constraint: %s'
@@ -1612,6 +1619,18 @@ class BaseComputeController(BaseController):
 
         Providers that return information about these constraints on locations,
         should override this method.
+        """
+        return
+
+    def _list_locations__get_capabilities(self, libcloud_location
+                                          ) -> List[str]:
+        """Get the capabilities for the given libcloud location.
+
+        The allowed values that can be returned are in:
+        `config.LOCATION_CAPABILITIES`.
+
+        If the provider does not have Location specific capabilities
+        the return value should be `None`.
         """
         return
 
