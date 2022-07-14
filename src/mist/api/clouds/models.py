@@ -339,6 +339,8 @@ class CloudLocation(OwnershipMixin, me.Document):
                                required=False,
                                reverse_delete_rule=me.NULLIFY)
     location_type = me.StringField(choices=('zone', 'region'))
+    capabilities = me.ListField(me.StringField(
+        choices=config.LOCATION_CAPABILITIES), default=None)
 
     available_sizes = me.ListField(
         me.ReferenceField('CloudSize')
