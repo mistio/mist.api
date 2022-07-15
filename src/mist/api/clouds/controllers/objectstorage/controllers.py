@@ -8,7 +8,6 @@ import logging
 
 from libcloud.storage.providers import get_driver
 from libcloud.storage.types import Provider
-from boto3.session import Session
 from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
 from mist.api.helpers import bucket_to_dict
 from mist.api import config
@@ -60,7 +59,7 @@ class VexxhostObjectStorageController(OpenstackObjectStorageController):
 
 class AmazonS3ObjectStorageController(BaseObjectStorageController):
     def _connect(self, **kwargs):
-
+        from boto3.session import Session
         return Session(
             aws_access_key_id=self.cloud.apikey,
             aws_secret_access_key=self.cloud.apisecret,
