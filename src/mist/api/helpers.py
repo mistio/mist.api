@@ -1630,7 +1630,7 @@ def check_size_constraint(cloud_id, size_constraint, sizes):
     return permitted_sizes
 
 
-def bucket_to_dict(node):
+def bucket_to_dict(node, bucket_id):
     if isinstance(node, str):
         return node
     elif isinstance(node, datetime.datetime):
@@ -1641,7 +1641,10 @@ def bucket_to_dict(node):
     if ret.get('driver'):
         ret.pop('driver')
     if ret.get('container'):
-        ret['container'] = bucket_to_dict(ret['container'])
+        ret['container'] = {
+            'name': ret['container'].name,
+            'id': bucket_id
+        }
     if ret.get('state'):
         ret['state'] = str(ret['state'])
     if 'extra' in ret:
