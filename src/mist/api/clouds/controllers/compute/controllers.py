@@ -5187,7 +5187,7 @@ class LibvirtComputeController(BaseComputeController):
                     locations.append(host.id)
                 except me.DoesNotExist:
                     pass
-        image.extra.update({'locations': locations})
+        image.locations = locations
 
     def _get_libcloud_node(self, machine, no_fail=False):
         assert self.cloud == machine.cloud
