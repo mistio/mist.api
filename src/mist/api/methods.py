@@ -1,8 +1,10 @@
+import base64
 import re
 import urllib
 import subprocess
 import distutils.util
 import json
+from mist.api.machines.methods import find_best_ssh_params
 
 import pingparsing
 
@@ -789,7 +791,7 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
     return result[start:start + limit], result.count()
 
 
-def get_console_proxy_uri(machine):
+def get_console_proxy_uri(auth_context, machine):
     if machine.cloud.ctl.provider == 'libvirt':
         import xml.etree.ElementTree as ET
         from html import unescape
@@ -798,11 +800,21 @@ def get_console_proxy_uri(machine):
         import hashlib
         xml_desc = unescape(machine.extra.get('xml_description', ''))
         root = ET.fromstring(xml_desc)
-        vnc_element = root.find('devices').find('graphics[@type="vnc"]')
-        if not vnc_element:
-            return 'Action not supported', 501
-        vnc_port = vnc_element.attrib.get('port')
-        vnc_host = vnc_element.attrib.get('listen')
+        # console type="pty" tty="/dev/pts/13">
+        # <graphics type="vnc" port="5900"
+        vnc_element_graphics = root.find('devices') \
+            .find('graphics[@type="vnc"]')
+        if vnc_element_graphics:
+            type = "vnc"
+            vnc_port = vnc_element_graphics.attrib.get('port')
+            vnc_host = vnc_element_graphics.attrib.get('listen')
+        if not vnc_element_graphics:
+            type = "serial"
+            vnc_element_serial = root.find('devices') \
+                .find('console[@type="pty"]').find('target[@type="serial"]')
+            if not vnc_element_serial:
+                return None, None, 'Action not supported', 501
+
         from mongoengine import Q
         from mist.api.machines.models import KeyMachineAssociation
         # Get key associations, prefer root or sudoer ones
@@ -822,9 +834,33 @@ def get_console_proxy_uri(machine):
             msg=msg.encode(),
             digestmod=hashlib.sha256).hexdigest()
         base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
-        proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
-            base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
-        return proxy_uri, 200
+        if type == 'vnc':
+            proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
+                base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
+
+        elif type == 'serial':
+            expiry = int(datetime.now().timestamp()) + 100
+            parent_machine = machine.parent
+            key_association_id, hostname, user, port = find_best_ssh_params(
+                parent_machine, auth_context=auth_context)
+            command = 'virsh console %s\r' % parent_machine.name
+            command_encoded = base64.b64encode(command.encode()).decode()
+            msg = '%s,%s,%s,%s,%s,%s' % (user,
+                                         hostname,
+                                         port, key_association_id, expiry,
+                                         command_encoded)
+            mac = hmac.new(
+                config.SECRET.encode(),
+                msg=msg.encode(),
+                digestmod=hashlib.sha256).hexdigest()
+
+            base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
+            proxy_uri = '%s/ssh/%s/%s/%s/%s/%s/%s/%s' % (
+                base_ws_uri, user,
+                hostname, port,
+                key_association_id, expiry, mac, command_encoded)
+        return proxy_uri, type, 200, None
+
     elif machine.cloud.ctl.provider == 'vsphere':
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id

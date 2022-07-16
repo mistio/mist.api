@@ -1086,17 +1086,22 @@ def machine_console(request):
             "VNC console only supported for vSphere, "
             "OpenStack, Vexxhost or KVM")
 
-    msg, retcode = get_console_proxy_uri(machine)
+    url, console_type, retcode, error = \
+        get_console_proxy_uri(auth_context, machine)
     if retcode != 200:
-        raise NotFoundError(msg)
+        raise NotFoundError(url)
     else:
-        proxy_uri = msg
+        proxy_uri = url
     if proxy_uri is None:
         console_url = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
         )
         raise RedirectError(console_url)
-    return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
+    if console_type == 'vnc':
+        return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
+    elif console_type == 'serial':
+        return render_to_response('../templates/xterm.html',
+                                  {'url': proxy_uri})
 
 
 @view_config(route_name='api_v1_machine_ssh',
