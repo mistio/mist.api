@@ -824,7 +824,7 @@ def get_console_proxy_uri(machine):
         base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
         proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
             base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
-        return proxy_uri
+        return proxy_uri, 200
     elif machine.cloud.ctl.provider == 'vsphere':
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
@@ -833,5 +833,5 @@ def get_console_proxy_uri(machine):
         protocol = protocol.replace('http', 'ws')
         params = urllib.parse.urlencode({'url': console_uri})
         proxy_uri = f"{protocol}://{host}/wsproxy/?{params}"
-        return proxy_uri
+        return proxy_uri, 200
     return None
