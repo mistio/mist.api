@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html xmlns:tal="http://xml.zope.org/namespaces/tal">
 
 <head>
     <style>
@@ -155,6 +155,7 @@
     </style>
     <script src="/ui/node_modules/xterm/lib/xterm.js"></script>
     <script src="/ui/node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+    <script tal:content="string: window.wsURL='${url}'" tal:condition="url"></script>
 </head>
 
 <body>
@@ -171,7 +172,7 @@
             fitAddon.fit();
             socket.send(
                 new TextEncoder().encode(
-                    `\x01${JSON.stringify({ height: term.rows, width: term.cols })}`
+                    `\x01$${JSON.stringify({ height: term.rows, width: term.cols })}`
                 )
             );
         }
@@ -188,7 +189,7 @@
                     window.close()
                 }, 1000);
             else {
-                term.write(`\n\n\nClosed with error code:${e.code}`);
+                term.write(`\n\n\nClosed with error code:$${e.code}`);
             }
         };
         let term;
@@ -208,7 +209,7 @@
             term.open(terminalContainer);
             terminalContainer.term = term;
             term.onData((data, _e) => {
-                const msg = new TextEncoder().encode(`\x00${data}`);
+                const msg = new TextEncoder().encode(`\x00$${data}`);
                 socket.send(msg);
             });
 
