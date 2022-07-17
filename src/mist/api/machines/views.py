@@ -1,8 +1,7 @@
-import os
 import uuid
 import logging
 
-from pyramid.response import Response, FileResponse
+from pyramid.response import Response
 from pyramid.renderers import render_to_response
 
 from mist.api.methods import get_console_proxy_uri
@@ -1085,18 +1084,22 @@ def machine_console(request):
         raise MistNotImplementedError(
             "VNC console only supported for vSphere, "
             "OpenStack, Vexxhost or KVM")
-
-    msg, retcode = get_console_proxy_uri(machine)
+    url, console_type, retcode, error = \
+        get_console_proxy_uri(auth_context, machine)
     if retcode != 200:
-        raise NotFoundError(msg)
+        raise NotFoundError(error)
     else:
-        proxy_uri = msg
+        proxy_uri = url
     if proxy_uri is None:
         console_url = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
         )
         raise RedirectError(console_url)
-    return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
+    if console_type == 'vnc':
+        return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
+    elif console_type == 'serial':
+        return render_to_response('../templates/xterm.pt',
+                                  {'url': proxy_uri})
 
 
 @view_config(route_name='api_v1_machine_ssh',
@@ -1155,7 +1158,4 @@ def machine_ssh(request):
 @view_config(route_name='api_v1_machine_ssh',
              request_method='GET', renderer='json')
 def render_machine_terminal(request):
-    here = os.path.dirname(__file__)
-    parent = os.path.abspath(os.path.join(here, os.pardir))
-    ssh = os.path.join(parent, "templates", "xterm.html")
-    return FileResponse(ssh, request=request)
+    return render_to_response('../templates/xterm.pt', {'url': ''})
