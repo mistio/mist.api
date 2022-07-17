@@ -402,6 +402,9 @@ class CloudLocation(OwnershipMixin, me.Document):
             ret['last_seen'] = str(ret['last_seen'])
         if 'created' in ret:
             ret['created'] = str(ret['created'])
+        if self.capabilities and len(self.capabilities) > 0:
+            ret["capabilities"] = self.capabilities
+
         return ret
 
     def as_dict(self, extra=True):
@@ -429,6 +432,8 @@ class CloudLocation(OwnershipMixin, me.Document):
             location_dict['available_sizes'] = {size.id: size.name for size
                                                 in self.available_sizes
                                                 if hasattr(size, 'name')}
+        if self.capabilities and len(self.capabilities) > 0:
+            location_dict["capabilities"] = self.capabilities
         return location_dict
 
     def clean(self):
