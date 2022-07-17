@@ -840,7 +840,7 @@ def get_console_proxy_uri(auth_context, machine):
             parent_machine = machine.parent
             key_association_id, hostname, user, port = find_best_ssh_params(
                 parent_machine, auth_context=auth_context)
-            command = 'virsh console %s\n' % parent_machine.name
+            command = 'virsh console %s\n' % machine.name
             command_encoded = base64.b64encode(command.encode()).decode()
             msg = '%s,%s,%s,%s,%s,%s' % (user,
                                          hostname,
