@@ -155,7 +155,7 @@
     </style>
     <script src="/ui/node_modules/xterm/lib/xterm.js"></script>
     <script src="/ui/node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
-    <script tal:content="string: window.wsURL='${url}'"></script>
+    <script tal:content="string: window.wsURL='${url}'" tal:condition="url"></script>
 </head>
 
 <body>

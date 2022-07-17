@@ -800,8 +800,6 @@ def get_console_proxy_uri(auth_context, machine):
         xml_desc = unescape(machine.extra.get('xml_description', ''))
         root = ET.fromstring(xml_desc)
         console_type = 'serial'
-        # console type="pty" tty="/dev/pts/13">
-        # <graphics type="vnc" port="5900"
         vnc_element_graphics = root.find('devices') \
             .find('graphics[@type="vnc"]')
         if vnc_element_graphics:
@@ -812,7 +810,7 @@ def get_console_proxy_uri(auth_context, machine):
             vnc_element_serial = root.find('devices') \
                 .find('console[@type="pty"]')
             if not vnc_element_serial:
-                return None, None, 'Action not supported', 501
+                return None, None, 501, 'Action not supported'
         from mongoengine import Q
         from mist.api.machines.models import KeyMachineAssociation
         # Get key associations, prefer root or sudoer ones
@@ -820,7 +818,8 @@ def get_console_proxy_uri(auth_context, machine):
             Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True))) \
             or KeyMachineAssociation.objects(machine=machine.parent)
         if not key_associations:
-            return 'You are not authorized to perform this action', 403
+            return None, None, 403,\
+                'You are not authorized to perform this action'
         key_id = key_associations[0].key.id
         host = '%s@%s:%d' % (key_associations[0].ssh_user,
                              machine.parent.hostname,
@@ -857,12 +856,13 @@ def get_console_proxy_uri(auth_context, machine):
         return proxy_uri, console_type, 200, None
 
     elif machine.cloud.ctl.provider == 'vsphere':
+        console_type = 'vnc'
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-            machine.machine_id
-        )
+            machine.machine_id)
         protocol, host = config.PORTAL_URI.split('://')
         protocol = protocol.replace('http', 'ws')
         params = urllib.parse.urlencode({'url': console_uri})
         proxy_uri = f"{protocol}://{host}/wsproxy/?{params}"
-        return proxy_uri, 200
-    return None
+        return proxy_uri, console_type, 200, None
+
+    raise NotImplementedError()
