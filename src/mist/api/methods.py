@@ -4,7 +4,6 @@ import urllib
 import subprocess
 import distutils.util
 import json
-from mist.api.machines.methods import find_best_ssh_params
 
 import pingparsing
 
@@ -800,21 +799,20 @@ def get_console_proxy_uri(auth_context, machine):
         import hashlib
         xml_desc = unescape(machine.extra.get('xml_description', ''))
         root = ET.fromstring(xml_desc)
+        console_type = 'serial'
         # console type="pty" tty="/dev/pts/13">
         # <graphics type="vnc" port="5900"
         vnc_element_graphics = root.find('devices') \
             .find('graphics[@type="vnc"]')
         if vnc_element_graphics:
-            type = "vnc"
+            console_type = "vnc"
             vnc_port = vnc_element_graphics.attrib.get('port')
             vnc_host = vnc_element_graphics.attrib.get('listen')
         if not vnc_element_graphics:
-            type = "serial"
             vnc_element_serial = root.find('devices') \
-                .find('console[@type="pty"]').find('target[@type="serial"]')
+                .find('console[@type="pty"]')
             if not vnc_element_serial:
                 return None, None, 'Action not supported', 501
-
         from mongoengine import Q
         from mist.api.machines.models import KeyMachineAssociation
         # Get key associations, prefer root or sudoer ones
@@ -828,22 +826,21 @@ def get_console_proxy_uri(auth_context, machine):
                              machine.parent.hostname,
                              key_associations[0].port)
         expiry = int(datetime.now().timestamp()) + 100
-        msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
-        mac = hmac.new(
-            config.SECRET.encode(),
-            msg=msg.encode(),
-            digestmod=hashlib.sha256).hexdigest()
         base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
-        if type == 'vnc':
+        if console_type == 'vnc':
+            msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
+            mac = hmac.new(
+                config.SECRET.encode(),
+                msg=msg.encode(),
+                digestmod=hashlib.sha256).hexdigest()
             proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
                 base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
-
-        elif type == 'serial':
-            expiry = int(datetime.now().timestamp()) + 100
+        elif console_type == 'serial':
+            from mist.api.machines.methods import find_best_ssh_params
             parent_machine = machine.parent
             key_association_id, hostname, user, port = find_best_ssh_params(
                 parent_machine, auth_context=auth_context)
-            command = 'virsh console %s\r' % parent_machine.name
+            command = 'virsh console %s\n' % parent_machine.name
             command_encoded = base64.b64encode(command.encode()).decode()
             msg = '%s,%s,%s,%s,%s,%s' % (user,
                                          hostname,
@@ -853,13 +850,11 @@ def get_console_proxy_uri(auth_context, machine):
                 config.SECRET.encode(),
                 msg=msg.encode(),
                 digestmod=hashlib.sha256).hexdigest()
-
-            base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
             proxy_uri = '%s/ssh/%s/%s/%s/%s/%s/%s/%s' % (
                 base_ws_uri, user,
                 hostname, port,
                 key_association_id, expiry, mac, command_encoded)
-        return proxy_uri, type, 200, None
+        return proxy_uri, console_type, 200, None
 
     elif machine.cloud.ctl.provider == 'vsphere':
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(

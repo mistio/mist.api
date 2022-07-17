@@ -1085,7 +1085,6 @@ def machine_console(request):
         raise MistNotImplementedError(
             "VNC console only supported for vSphere, "
             "OpenStack, Vexxhost or KVM")
-
     url, console_type, retcode, error = \
         get_console_proxy_uri(auth_context, machine)
     if retcode != 200:
@@ -1100,7 +1099,7 @@ def machine_console(request):
     if console_type == 'vnc':
         return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
     elif console_type == 'serial':
-        return render_to_response('../templates/xterm.html',
+        return render_to_response('../templates/xterm.pt',
                                   {'url': proxy_uri})
 
 
