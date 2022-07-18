@@ -189,11 +189,10 @@ class BaseObjectStorageController(BaseController):
             # Don't add delim in case path='' (root)
             prefix = path
 
-        return self._list_buckets__fetch_bucket_content(name=name,
-                                                        bucket_id=bucket_id,
-                                                        prefix=prefix,
-                                                        delimiter=delimiter,
-                                                        maxkeys=maxkeys)
+        return [obj for obj in self._list_buckets__fetch_bucket_content(
+            name=name, bucket_id=bucket_id, prefix=prefix,
+            delimiter=delimiter, maxkeys=maxkeys)
+            if obj['name'] != prefix]
 
     def list_cached_buckets(self):
         """Returns storage stored in database for a specific cloud"""
