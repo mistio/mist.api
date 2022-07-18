@@ -410,6 +410,7 @@ def check_periodic_tasks():
     }
 
     error_messages = []
+    title = f"[{config.PORTAL_NAME}] Periodic tasks that were not scheduled"
     for cloud in clouds:
         for task, timedelta in tasks.items():
             error_message = check_task_threshold(
@@ -418,6 +419,7 @@ def check_periodic_tasks():
                 error_messages.append(error_message)
 
     if error_messages:
-        notify_admin(title="Periodic tasks that were not scheduled",
-                     message="\n".join(error_messages))
+        notify_admin(title=title,
+                     message="\n".join(error_messages),
+                     team="ops",)
     return error_messages
