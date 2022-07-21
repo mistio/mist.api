@@ -5250,12 +5250,25 @@ class LibvirtComputeController(BaseComputeController):
 
     def remove_machine(self, machine):
         from mist.api.machines.models import KeyMachineAssociation
+        from mist.api.clouds.models import CloudLocation
         KeyMachineAssociation.objects(machine=machine).delete()
         machine.missing_since = datetime.datetime.now()
         machine.save()
         if machine.machine_type == 'hypervisor':
             self.cloud.hosts.remove(machine.id)
             self.cloud.save()
+            try:
+                location = CloudLocation.objects.get(
+                    external_id=machine.machine_id,
+                    cloud=self.cloud)
+                location.missing_since = datetime.datetime.now()
+                location.save()
+            except Exception as exc:
+                log.error(
+                    "Failed to set missing_since on LibVirt Location %s, %s",
+                    machine.machine_id,
+                    repr(exc))
+
         if amqp_owner_listening(self.cloud.owner.id):
             old_machines = [m.as_dict() for m in
                             self.cloud.ctl.compute.list_cached_machines()]
