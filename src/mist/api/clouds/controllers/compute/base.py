@@ -1569,7 +1569,9 @@ class BaseComputeController(BaseController):
                 log.error(
                     "Failed to get location capabilities for cloud: %s",
                     self.cloud.id)
-            _location.capabilities = capabilities
+            else:
+                _location.capabilities = capabilities
+
             try:
                 available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
