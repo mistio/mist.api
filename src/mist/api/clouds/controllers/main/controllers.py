@@ -535,22 +535,19 @@ class LibvirtMainController(BaseMainController):
                             % host)
         self.cloud.hosts.append(machine.id)
         self.cloud.save()
-        new_machines = self.cloud.ctl.compute.list_machines()
-        # Update RBAC Mappings given the list of nodes seen for the first time.
-        if new_machines:
-            self.cloud.owner.mapper.update(new_machines, asynchronous=False)
 
-        if amqp_owner_listening(self.cloud.owner.id):
-            old_machines = []
-            for cached_machine in \
-                    self.cloud.ctl.compute.list_cached_machines():
-                # make sure that host just added becomes visible
-                if cached_machine.id != machine.id:
-                    old_machines.append(cached_machine)
-            old_machines = [m.as_dict() for m in
-                            old_machines]
-            self.cloud.ctl.compute.produce_and_publish_patch(
-                old_machines, new_machines)
+        from mist.api.poller.models import ListMachinesPollingSchedule
+        try:
+            schedule = ListMachinesPollingSchedule.objects.get(
+                cloud=self.cloud)
+        except ListMachinesPollingSchedule.DoesNotExist:
+            log.error(
+                "List Machines Polling Schedule does not exist for cloud %s",
+                self.cloud)
+        else:
+            schedule.run_immediately = True
+            schedule.add_interval(10, ttl=180)
+            schedule.save()
 
         return machine
 
