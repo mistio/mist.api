@@ -239,7 +239,11 @@ class AmazonComputeController(BaseComputeController):
 
         size = self._list_machines__get_size(node_dict)
 
-        location = machine.location.name
+        try:
+            location = machine.location.name
+        except AttributeError:
+            return 0, 0
+
         # Remove last letter if it is there.
         # eg. remove last 'a' from 'ap-northeast-1a'
         if location[-1].isalpha():
