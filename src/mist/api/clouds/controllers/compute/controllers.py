@@ -1317,7 +1317,8 @@ class LinodeComputeController(BaseComputeController):
                 _size = CloudSize.objects.get(external_id=size,
                                               cloud=self.cloud)
             except CloudSize.DoesNotExist:
-                raise NotFoundError()
+                log.warn("Linode size %s not found", size)
+                return 0, 0
 
             price_per_month = _size.extra.get('monthly_price', 0.0)
             price_per_hour = _size.extra.get('price', 0.0)
@@ -2905,7 +2906,9 @@ class EquinixMetalComputeController(BaseComputeController):
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               name__contains=size)
             except CloudSize.DoesNotExist:
-                raise NotFoundError()
+                log.warn('EquinixMetal size %s not found', size)
+                return 0, 0
+
         price = _size.extra.get('price', 0.0)
         if machine.extra.get('billing_cycle') == 'hourly':
             return price, 0
