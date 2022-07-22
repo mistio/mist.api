@@ -1563,7 +1563,7 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.exception("Error finding creation date for %s in %s.\n%r",
                               self.cloud, _location, exc)
-
+            try:
                 capabilities = self._list_locations__get_capabilities(loc)
             except Exception as exc:
                 log.error(
