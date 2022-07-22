@@ -4950,15 +4950,22 @@ class LibvirtComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         from mist.api.machines.models import Machine
-        nodes = []
-        for machine in Machine.objects.filter(cloud=self.cloud,
-                                              missing_since=None):
-            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-                driver = self._get_host_driver(machine)
-                nodes += [node_to_dict(node)
-                          for node in driver.list_nodes()]
+        hosts = Machine.objects(cloud=self.cloud,
+                                parent=None,
+                                missing_since=None)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
 
-        return nodes
+        node_lists = loop.run_until_complete(
+            self.list_machines_all_hosts(hosts, loop))
+        return [node_to_dict(node)
+                for node_list in node_lists
+                for node in node_list]
 
     def _list_machines__fetch_generic_machines(self):
         machines = []
@@ -5243,12 +5250,25 @@ class LibvirtComputeController(BaseComputeController):
 
     def remove_machine(self, machine):
         from mist.api.machines.models import KeyMachineAssociation
+        from mist.api.clouds.models import CloudLocation
         KeyMachineAssociation.objects(machine=machine).delete()
         machine.missing_since = datetime.datetime.now()
         machine.save()
         if machine.machine_type == 'hypervisor':
             self.cloud.hosts.remove(machine.id)
             self.cloud.save()
+            try:
+                location = CloudLocation.objects.get(
+                    external_id=machine.machine_id,
+                    cloud=self.cloud)
+                location.missing_since = datetime.datetime.now()
+                location.save()
+            except Exception as exc:
+                log.error(
+                    "Failed to set missing_since on LibVirt Location %s, %s",
+                    machine.machine_id,
+                    repr(exc))
+
         if amqp_owner_listening(self.cloud.owner.id):
             old_machines = [m.as_dict() for m in
                             self.cloud.ctl.compute.list_cached_machines()]
