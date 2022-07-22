@@ -857,7 +857,8 @@ def get_console_proxy_uri(auth_context, machine):
             Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True))) \
             or KeyMachineAssociation.objects(machine=machine.parent)
         if not key_associations:
-            return 'You are not authorized to perform this action', 403
+            return None, None, 403, \
+                'You are not authorized to perform this action'
         key = key_associations[0].key
         key_path = key.private.secret.name
         host = '%s@%s:%d' % (key_associations[0].ssh_user,
@@ -890,7 +891,7 @@ def get_console_proxy_uri(auth_context, machine):
         base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
         proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
             base_ws_uri, host, vnc_host, vnc_port, expiry, encrypted_msg, mac)
-        return proxy_uri, 200
+        return proxy_uri, console_type, 200, None
     elif machine.cloud.ctl.provider == 'vsphere':
         console_type = 'vnc'
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
