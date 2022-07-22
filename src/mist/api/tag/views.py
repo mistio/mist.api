@@ -76,8 +76,6 @@ def tag_resources(request):
         elif resource_data['type'] in ['machine', 'image',
                                        'network', 'volume']:
             raise RequiredParameterMissingError("cloud_id")
-        else:
-            del resource_data['cloud_id']
 
         query = {}
         rtype = resource_data['type']
