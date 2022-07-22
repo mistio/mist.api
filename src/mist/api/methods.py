@@ -858,20 +858,13 @@ def get_console_proxy_uri(auth_context, machine):
             Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True))) \
             or KeyMachineAssociation.objects(machine=machine.parent)
         if not key_associations:
-<<<<<<< HEAD
             return 'You are not authorized to perform this action', 403
         key = key_associations[0].key
         key_path = key.private.secret.name
-=======
-            return None, None, 403,\
-                'You are not authorized to perform this action'
-        key_id = key_associations[0].key.id
->>>>>>> 9a6518dad (libvirt serial console scenario)
         host = '%s@%s:%d' % (key_associations[0].ssh_user,
                              machine.parent.hostname,
                              key_associations[0].port)
         expiry = int(datetime.now().timestamp()) + 100
-<<<<<<< HEAD
         org = machine.owner
         vault_token = org.vault_token if org.vault_token is not None else \
             config.VAULT_TOKEN
@@ -899,47 +892,11 @@ def get_console_proxy_uri(auth_context, machine):
         proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
             base_ws_uri, host, vnc_host, vnc_port, expiry, encrypted_msg, mac)
         return proxy_uri, 200
-=======
-        base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
-        if console_type == 'vnc':
-            msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
-            mac = hmac.new(
-                config.SECRET.encode(),
-                msg=msg.encode(),
-                digestmod=hashlib.sha256).hexdigest()
-            proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
-                base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
-        elif console_type == 'serial':
-            from mist.api.machines.methods import find_best_ssh_params
-            parent_machine = machine.parent
-            key_association_id, hostname, user, port = find_best_ssh_params(
-                parent_machine, auth_context=auth_context)
-            command = 'virsh console %s\n' % machine.name
-            command_encoded = base64.b64encode(command.encode()).decode()
-            msg = '%s,%s,%s,%s,%s,%s' % (user,
-                                         hostname,
-                                         port, key_association_id, expiry,
-                                         command_encoded)
-            mac = hmac.new(
-                config.SECRET.encode(),
-                msg=msg.encode(),
-                digestmod=hashlib.sha256).hexdigest()
-            proxy_uri = '%s/ssh/%s/%s/%s/%s/%s/%s/%s' % (
-                base_ws_uri, user,
-                hostname, port,
-                key_association_id, expiry, mac, command_encoded)
-        return proxy_uri, console_type, 200, None
-
->>>>>>> 9a6518dad (libvirt serial console scenario)
     elif machine.cloud.ctl.provider == 'vsphere':
         console_type = 'vnc'
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-<<<<<<< HEAD
             machine.external_id
         )
-=======
-            machine.machine_id)
->>>>>>> 9a6518dad (libvirt serial console scenario)
         protocol, host = config.PORTAL_URI.split('://')
         protocol = protocol.replace('http', 'ws')
         params = urllib.parse.urlencode({'url': console_uri})
