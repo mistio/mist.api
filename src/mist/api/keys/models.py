@@ -196,13 +196,20 @@ class SSHKey(Key):
         Random.atfork()
 
         # Generate public key from private key file.
+        private = self.private
         try:
-            key = RSAKey.from_private_key(io.StringIO(self.private))
+            key = RSAKey.from_private_key(io.StringIO(private))
             self.public = 'ssh-rsa ' + key.get_base64()
         except Exception:
             log.exception("Error while constructing public key "
                           "from private.")
             raise me.ValidationError("Private key is not a valid RSA key.")
+
+        # Strip characters after final dash
+        while not private.endswith('-') and len(private):
+            log.warning('Stripping char "%s" from key %s',
+                        private[-1], self.id)
+            self.private = self.private[:-1]
 
 
 class SignedSSHKey(SSHKey):

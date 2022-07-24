@@ -493,6 +493,7 @@ class LibvirtMainController(BaseMainController):
             machine.extra = extra
             machine.last_seen = datetime.datetime.utcnow()
             machine.missing_since = None
+            machine.machine_type = 'hypervisor'
         except me.DoesNotExist:
             machine = Machine(
                 cloud=self.cloud,
