@@ -291,6 +291,10 @@ class AmazonContainerController(BaseContainerController):
         cluster.credentials = libcloud_cluster.credentials
         cluster.total_cpus = libcloud_cluster.total_cpus
         cluster.total_memory = libcloud_cluster.total_memory
+        try:
+            cluster.total_nodes = len(libcloud_cluster.extra["nodes"])
+        except (KeyError, TypeError):
+            cluster.total_nodes = 0
         return updated
 
     def _list_clusters__cost_nodes(self, cluster, libcloud_cluster):
