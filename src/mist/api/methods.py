@@ -593,7 +593,8 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             query &= Q(enabled=True)
     elif resource_type in ['machine', 'cluster', 'network',
                            'volume', 'image', 'subnet',
-                           'location', 'size']:
+                           'location', 'size',
+                           'zone', 'record']:
         if at:
             query &= Q(missing_since=None) | Q(missing_since__gte=at)
         else:
