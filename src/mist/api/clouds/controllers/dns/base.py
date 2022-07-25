@@ -498,7 +498,8 @@ class BaseDNSController(BaseController):
             try:
                 return Record.objects.get(
                     owner=self.cloud.owner, zone=record.zone,
-                    external_id=libcloud_record.id)
+                    external_id=libcloud_record.id,
+                    missing_since=None)
             except Record.DoesNotExist:
                 time.sleep(1)
         raise mist.api.exceptions.RecordListingError()
