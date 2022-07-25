@@ -317,12 +317,11 @@ class BaseDNSController(BaseController):
         # Set missing_since on records not returned by libcloud
         Record.objects(
             owner=self.cloud.org, zone=zone, missing_since=None,
-            external_id__nin=[r.external_id for r in records]
+            id__nin=[r.id for r in records]
         ).update(missing_since=now)
         # Set last_seen on records we just saw
         Record.objects(owner=self.cloud.org, zone=zone,
-                       external_id__in=[
-                           r.external_id for r in records]).update(
+                       id__in=[r.id for r in records]).update(
             last_seen=now, missing_since=None)
 
         # Format zone information.
