@@ -426,6 +426,24 @@ class LibvirtMainController(BaseMainController):
                         self.cloud.delete()
                         raise MistError("Couldn't connect to host '%s'."
                                         % _host.get('host'))
+                # get host cores
+                from mist.api.methods import ssh_command
+                try:
+                    cmd = 'grep ^"core id" /proc/cpuinfo | sort -u | wc -l'
+                    output = ssh_command(owner=self.cloud.owner,
+                                         cloud_id=self.cloud.id,
+                                         machine_id=machine.id,
+                                         host=machine.hostname,
+                                         command=cmd)
+                    # clean output
+                    output = output.replace('\r', '').replace('\n', '')
+                    output = int(output)
+                    machine.cores = output
+                    machine.save()
+                except ValueError:
+                    # output is not a number
+                    log.error(f"Error while getting machine cores, "
+                              f"malformed ssh command output: {output}")
 
         # check if host was added successfully
         # if not, delete the cloud and raise
