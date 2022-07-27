@@ -579,9 +579,12 @@ class LXDWebSocket(WebSocketWrapper):
                   ssl_enabled=False, **kwargs):
 
         self.protocol = 'wss'
-        ssl_key, ssl_cert = self.ssl_credentials(cloud)
-        self.sslopt = {'cert_reqs': ssl.CERT_NONE,
-                       'keyfile': ssl_key, 'certfile': ssl_cert}
+
+        ssl_key, ssl_cert, ssl_ca_cert = self.ssl_credentials(cloud)
+
+        self.sslopt = {'cert_reqs': ssl.CERT_NONE}
+        self.sslopt['keyfile'] = ssl_key.name
+        self.sslopt['certfile'] = ssl_cert.name
 
         self.ws = websocket.WebSocket(sslopt=self.sslopt)
         self.cws = websocket.WebSocket(sslopt=self.sslopt)
