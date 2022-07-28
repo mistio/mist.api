@@ -427,6 +427,13 @@ class LibvirtMainController(BaseMainController):
                         raise MistError("Couldn't connect to host '%s'."
                                         % _host.get('host'))
 
+                # add ssh probe schedule
+                from mist.api.poller.models import (
+                    SSHProbeMachinePollingSchedule
+                )
+                SSHProbeMachinePollingSchedule.add(machine,
+                                                   interval=86400)
+
         # check if host was added successfully
         # if not, delete the cloud and raise
         if Machine.objects(cloud=self.cloud):
