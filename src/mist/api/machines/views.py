@@ -1165,6 +1165,9 @@ def machine_ssh(request):
     elif machine.machine_type == 'container' and \
             machine.cloud.provider == 'docker':
         exec_uri = methods.prepare_docker_attach_uri(machine)
+    elif machine.machine_type == 'container' and \
+            machine.cloud.provider in ['kubernetes', 'kubevirt']:
+        exec_uri = methods.prepare_kubernetes_uri(auth_context, machine)
     else:
         exec_uri = methods.prepare_ssh_uri(auth_context, machine)
     return {"location": exec_uri}
