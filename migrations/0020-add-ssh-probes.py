@@ -38,7 +38,7 @@ def add_machine_probes():
                 machine_id=machine.id).delete()
 
             # check for keys
-            if len(KeyMachineAssociation.objects(machine=machine)) == 0:
+            if KeyMachineAssociation.objects(machine=machine).count() == 0:
                 skipped += 1
                 continue
 
