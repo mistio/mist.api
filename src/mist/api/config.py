@@ -1328,6 +1328,7 @@ ALLOW_CONNECT_PRIVATE = True
 
 # allow mist.io to connect to KVM hypervisor running on the same server
 ALLOW_LIBVIRT_LOCALHOST = False
+LIBVIRT_PARSE_ARP_TABLES = False
 
 # Docker related
 DOCKER_IP = "socat"
