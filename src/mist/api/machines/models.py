@@ -393,6 +393,11 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
     def delete(self):
         if self.expiration:
             self.expiration.delete()
+
+        # remove Schedules
+        from mist.api.poller.models import MachinePollingSchedule
+        MachinePollingSchedule.objects(machine_id=self.id).delete()
+
         super(Machine, self).delete()
         Tag.objects(
             resource_id=self.id, resource_type='machine').delete()
