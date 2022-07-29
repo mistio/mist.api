@@ -8,7 +8,7 @@ from mist.api.portal.tasks import restore_backup
 
 
 def main():
-    portal_host = config.CORE_URI.split('//')[1]
+    portal_host = config.PORTAL_URI.split('//')[1]
     argparser = argparse.ArgumentParser(
         description="Restore a Mist backup"
     )

@@ -348,7 +348,8 @@ class BaseComputeController(BaseController):
         # a node's metadata in order to associate VM instances to their region.
         from mist.api.clouds.models import CloudLocation
         locations_map = {}
-        for location in CloudLocation.objects(cloud=self.cloud):
+        for location in CloudLocation.objects(
+                cloud=self.cloud).only('id', 'external_id', 'name'):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
 
@@ -357,7 +358,8 @@ class BaseComputeController(BaseController):
         # a node's metadata in order to associate VM instances to their size.
         from mist.api.clouds.models import CloudSize
         sizes_map = {}
-        for size in CloudSize.objects(cloud=self.cloud):
+        for size in CloudSize.objects(
+                cloud=self.cloud).only('id', 'external_id', 'name'):
             sizes_map[size.external_id] = size
             sizes_map[size.name] = size
 
@@ -366,7 +368,8 @@ class BaseComputeController(BaseController):
         # a node's metadata in order to associate VM instances to their image.
         from mist.api.images.models import CloudImage
         images_map = {}
-        for image in CloudImage.objects(cloud=self.cloud):
+        for image in CloudImage.objects(
+                cloud=self.cloud).only('id', 'external_id', 'name'):
             images_map[image.external_id] = image
             images_map[image.name] = image
 
@@ -453,7 +456,8 @@ class BaseComputeController(BaseController):
                             last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
-        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+        if new_machines:
+            self.cloud.owner.mapper.update(new_machines, asynchronous=False)
 
         # Update machine counts on cloud and org.
         # FIXME: resolve circular import issues
@@ -517,18 +521,20 @@ class BaseComputeController(BaseController):
                          exc)
                 return None, is_new
 
-        try:
-            cluster = self._list_machines__get_machine_cluster(machine, node)
-        except Exception as exc:
-            log.error('Failed to get cluster for machine: %s, %r',
-                      machine, exc)
-        else:
-            if machine.cluster and machine.machine_type != 'node':
-                machine.machine_type = 'node'
-                updated = True
-            if machine.cluster != cluster:
-                machine.cluster = cluster
-                updated = True
+        if self.cloud.container_enabled:
+            try:
+                cluster = self._list_machines__get_machine_cluster(
+                    machine, node)
+            except Exception as exc:
+                log.error('Failed to get cluster for machine: %s, %r',
+                          machine, exc)
+            else:
+                if machine.cluster and machine.machine_type != 'node':
+                    machine.machine_type = 'node'
+                    updated = True
+                if machine.cluster != cluster:
+                    machine.cluster = cluster
+                    updated = True
 
         # Discover location of machine.
         try:
@@ -972,7 +978,9 @@ class BaseComputeController(BaseController):
                                         'images': images_dict})
 
         # Update RBAC Mappings given the list of new images.
-        self.cloud.owner.mapper.update(new_image_objects, asynchronous=False)
+        if new_image_objects:
+            self.cloud.owner.mapper.update(
+                new_image_objects, asynchronous=False)
         return images
 
     def _list_images(self, search=None):
@@ -1488,8 +1496,9 @@ class BaseComputeController(BaseController):
                                         'locations': locations_dict})
 
         # Update RBAC Mappings given the list of new locations.
-        self.cloud.owner.mapper.update(new_location_objects,
-                                       asynchronous=False)
+        if new_location_objects:
+            self.cloud.owner.mapper.update(new_location_objects,
+                                           asynchronous=False)
         return locations
 
     def _list_locations(self):
@@ -1544,6 +1553,7 @@ class BaseComputeController(BaseController):
             _location.parent = self._list_locations__get_parent(_location, loc)
             _location.location_type = self._list_locations__get_type(
                 _location, loc)
+            _location.images_location = self._list_locations__get_images_location(loc)  # noqa: E501
             try:
                 created = self._list_locations__location_creation_date(loc)
                 if created:
@@ -1553,6 +1563,15 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.exception("Error finding creation date for %s in %s.\n%r",
                               self.cloud, _location, exc)
+            try:
+                capabilities = self._list_locations__get_capabilities(loc)
+            except Exception as exc:
+                log.error(
+                    "Failed to get location capabilities for cloud: %s",
+                    self.cloud.id)
+            else:
+                _location.capabilities = capabilities
+
             try:
                 available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
@@ -1633,6 +1652,13 @@ class BaseComputeController(BaseController):
         """
         return 'zone'
 
+    def _list_locations__get_images_location(self, libcloud_location):
+        """Get the path where image files are stored.
+
+        This is only currently implemented on LibVirt.
+        """
+        return
+
     def _list_locations__get_available_sizes(self, location):
         """Find available sizes for NodeLocation.
         Return a list of CloudSize objects.
@@ -1661,6 +1687,18 @@ class BaseComputeController(BaseController):
 
     def _list_locations__location_creation_date(self, libcloud_location):
         return libcloud_location.extra.get('created_at')
+
+    def _list_locations__get_capabilities(self, libcloud_location
+                                          ) -> List[str]:
+        """Get the capabilities for the given libcloud location.
+
+        The allowed values that can be returned are in:
+        `config.LOCATION_CAPABILITIES`.
+
+        If the provider does not have Location specific capabilities
+        the return value should be `None`.
+        """
+        return
 
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""
@@ -3978,7 +4016,8 @@ class BaseComputeController(BaseController):
         try:
             response = requests_retry_session(retries=2).post(
                 config.METERING_NOTIFICATIONS_WEBHOOK,
-                data=json.dumps({'text': config.CORE_URI + ': ' + log_entry}),
+                data=json.dumps(
+                    {'text': config.PORTAL_URI + ': ' + log_entry}),
                 headers={'Content-Type': 'application/json'},
                 timeout=5
             )

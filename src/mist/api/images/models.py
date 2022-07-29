@@ -29,6 +29,8 @@ class CloudImage(OwnershipMixin, me.Document, TagMixin):
                                 null=False, default=lambda: ['x86'])
     min_disk_size = me.FloatField()  # min disk size in GBs
     min_memory_size = me.IntField()  # min ram size in MBs
+    # needed by KVM
+    locations = me.ListField(me.StringField(), required=False)
     origin = me.StringField(default='system', null=False,
                             choices=('system',
                                      'marketplace',
@@ -66,7 +68,7 @@ class CloudImage(OwnershipMixin, me.Document, TagMixin):
         return name
 
     def as_dict(self, extra=True):
-        return {
+        ret = {
             'id': self.id,
             'cloud': self.cloud.id if self.cloud else None,  # same as above
             'external_id': self.external_id,
@@ -90,13 +92,16 @@ class CloudImage(OwnershipMixin, me.Document, TagMixin):
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
+        if self.locations:
+            ret['locations'] = self.locations
+        return ret
 
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
             'id', 'name', 'external_id', 'starred', 'os_type', 'os_distro',
             'architecture', 'min_disk_size', 'min_memory_size', 'extra',
-            'last_seen', 'created']
+            'locations']
         deref_map = {
             'cloud': 'name',
             'owned_by': 'email',

@@ -41,7 +41,8 @@ DESCRIPTION = "A secure cloud management platform for automation,\
  orchestration, cost and usage monitoring of public and private clouds,\
  hypervisors and container hosts. Provides multi-cloud RBAC. Enables\
  self service provisioning. Cost analytics and cloud spending optimization"
-CORE_URI = "http://localhost"
+PORTAL_URI = "http://localhost"
+CORE_URI = ""
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
@@ -58,6 +59,7 @@ ELASTICSEARCH_CLEANUP = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
+CHECK_PERIODIC_TASKS = True
 BACKUP_INTERVAL = 24
 LANDING_CDN_URI = ""
 BLOG_CDN_URI = ""
@@ -131,7 +133,7 @@ SENTRY_CONFIG = {
     'ENVIRONMENT': '',
 }
 
-DATABASE_VERSION = 33
+DATABASE_VERSION = 43
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -188,6 +190,25 @@ VAULT_SECRET_ENGINE_PATHS = {}
 VAULT_KV_VERSION = 2  # 1 or 2
 VAULT_CLOUDS_PATH = 'mist/clouds/'
 VAULT_KEYS_PATH = 'mist/keys/'
+
+
+# Policy for Organization specific Vault client.
+VAULT_ORGANIZATION_POLICY = """
+    path "sys" {{
+        capabilities = ["deny"]
+    }}
+    path "sys/mounts/{secret_engine_path}" {{
+        capabilities = [
+            "create", "read", "update", "delete"]
+    }}
+    path "{secret_engine_path}/*" {{
+        capabilities = [
+            "create", "read", "update", "delete", "list"]
+    }}
+"""
+
+VAULT_ORGANIZATION_POLICY_NAME = "{secret_engine_path}-policy"
+VAULT_ORGANIZATION_ROLE_NAME = "{secret_engine_path}-role"
 
 # Default, built-in metrics.
 INFLUXDB_BUILTIN_METRICS = {
@@ -1307,6 +1328,7 @@ ALLOW_CONNECT_PRIVATE = True
 
 # allow mist.io to connect to KVM hypervisor running on the same server
 ALLOW_LIBVIRT_LOCALHOST = False
+LIBVIRT_PARSE_ARP_TABLES = False
 
 # Docker related
 DOCKER_IP = "socat"
@@ -1566,6 +1588,10 @@ ALIBABA_VOLUME_TYPES = {
     'cloud_ssd': (20, 32768),
     'cloud_essd': (20, 32768),
 }
+
+# Possible capabilities for a CloudLocation.
+# Currently it is only used on Vexxhost
+LOCATION_CAPABILITIES = ('compute', 'storage', 'network')
 
 VULTR_DDOS_PROTECTION_PRICE = 10
 # Vultr automated backup per size
@@ -3220,7 +3246,8 @@ for plugin in PLUGINS:
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
-    'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
+    'AMQP_URI', 'BROKER_URL', 'PORTAL_URI', 'CORE_URI',
+    'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
     'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY', 'AWS_ACCESS_KEY',
@@ -3233,6 +3260,7 @@ FROM_ENV_INTS = [
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
     'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
+    'CHECK_PERIODIC_TASKS',
 ] + PLUGIN_ENV_BOOLS
 FROM_ENV_ARRAYS = [
     'PLUGINS'
@@ -3286,14 +3314,17 @@ HAS_PRICING = 'pricing' in PLUGINS
 # enable backup feature if aws creds have been set
 ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
 
+if (not PORTAL_URI or PORTAL_URI == "http://localhost") and CORE_URI:
+    PORTAL_URI = CORE_URI
+
 # Update TELEGRAF_TARGET.
 
 if not TELEGRAF_TARGET:
-    if urllib.parse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
-                                                    '172.17.0.1'):
+    if urllib.parse.urlparse(PORTAL_URI).hostname in ('localhost', '127.0.0.1',
+                                                      '172.17.0.1'):
         TELEGRAF_TARGET = "http://traefik"
     else:
-        TELEGRAF_TARGET = CORE_URI + '/ingress'
+        TELEGRAF_TARGET = PORTAL_URI + '/ingress'
 
 
 _schedule = {}
@@ -3345,6 +3376,11 @@ if ENABLE_BACKUPS:
         'schedule': datetime.timedelta(hours=BACKUP_INTERVAL),
     }
 
+if CHECK_PERIODIC_TASKS:
+    _schedule['check-periodic-tasks'] = {
+        'task': 'mist.api.portal.tasks.check_periodic_tasks',
+        'schedule': datetime.timedelta(hours=1),
+    }
 
 # Configure libcloud to not verify certain hosts.
 if NO_VERIFY_HOSTS:
@@ -3368,7 +3404,7 @@ else:
 
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
-    'portal_uri': CORE_URI,
+    'portal_uri': PORTAL_URI,
     'theme': THEME,
     'cta': CTA,
     'description': DESCRIPTION,

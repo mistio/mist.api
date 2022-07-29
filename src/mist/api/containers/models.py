@@ -70,7 +70,9 @@ class NodePool(me.EmbeddedDocument):
     def autoscaling(self):
         """Determine if the nodepool has autoscaling enabled
         """
-        return (self.min_nodes is not None and
+        # Use OR instead of AND because the GKE API does not return
+        # min_nodes when its value is 0.
+        return (self.min_nodes is not None or
                 self.max_nodes is not None)
 
 
@@ -129,6 +131,7 @@ class Cluster(OwnershipMixin, me.Document, TagMixin):
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     total_cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     first_seen = me.DateTimeField()
+    include_pods = me.BooleanField(default=False)
 
     meta = {
         'strict': False,
@@ -212,6 +215,7 @@ class Cluster(OwnershipMixin, me.Document, TagMixin):
             'created_by': self.created_by.email if self.created_by else '',
             'nodepools': [nodepool.as_dict()
                           for nodepool in self.nodepools],
+            'include_pods': self.include_pods,
         }
         return cdict
 
@@ -233,6 +237,8 @@ class Cluster(OwnershipMixin, me.Document, TagMixin):
             'last_seen',
             'missing_since',
             'created',
+            'tags',
+            'include_pods',
         ]
         deref_map = {
             'cloud': 'id',

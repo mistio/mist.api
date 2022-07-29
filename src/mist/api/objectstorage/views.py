@@ -102,6 +102,32 @@ def list_cloud_buckets(request):
         raise MistNotImplementedError()
 
 
+@view_config(route_name='api_v1_bucket', request_method='GET',
+             renderer='json')
+def get_bucket(request):
+    """
+    Tags: buckets
+    ---
+    Get bucket content on .
+    Only supported for Openstack, EC2.
+    """
+    auth_context = auth_context_from_request(request)
+    bucket_id = request.matchdict.get('bucket')
+    auth_context.check_perm('bucket', 'read', bucket_id)
+    try:
+        return methods.get_bucket(
+            auth_context.owner,
+            bucket_id,
+        )
+    except me.DoesNotExist:
+        raise NotFoundError('Bucket does not exist')
+
+    except Exception as e:
+        log.error("Could not list content for the bucket %s: %r" % (
+            bucket_id, e))
+        raise MistNotImplementedError()
+
+
 @view_config(route_name='api_v1_bucket_content', request_method='GET',
              renderer='json')
 def list_bucket_content(request):
@@ -120,16 +146,16 @@ def list_bucket_content(request):
 
     auth_context = auth_context_from_request(request)
     bucket_id = request.matchdict.get('bucket')
+    auth_context.check_perm('bucket', 'read', bucket_id)
+
     params = params_from_request(request)
-    cached = bool(params.get('cached', True))  # return cached by default
-    path = bool(params.get('path', ''))  # return root by default
+    path = params.get('path', '')  # return root by default
 
     try:
-        return methods.filter_list_bucket_content(
-            auth_context,
+        return methods.list_bucket_content(
+            auth_context.owner,
             bucket_id,
-            path,
-            cached
+            path
         )
     except me.DoesNotExist:
         raise NotFoundError('Bucket does not exist')

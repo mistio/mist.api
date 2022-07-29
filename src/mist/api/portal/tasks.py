@@ -17,7 +17,8 @@ from mist.api.metering.methods import get_current_portal_usage
 from mist.api.rules.models import NoDataRule
 from mist.api.poller.models import PollingSchedule
 from mist.api.auth.models import SessionToken, ApiToken
-
+from mist.api.portal.methods import check_task_threshold
+from mist.api.methods import notify_admin
 
 log = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ def create_backup(
     start = datetime.datetime.now()
     dt = start.strftime('%Y%m%d%H%M')
     s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
-    portal_host = config.CORE_URI.split('//')[1]
+    portal_host = config.PORTAL_URI.split('//')[1]
 
     # Encrypt backup if GPG configured
     has_gpg = not all(
@@ -246,7 +247,7 @@ def create_backup(
 def restore_backup(backup, portal=None, until=False, databases=[
         'mongodb', 'influxdb', 'elasticsearch', 'victoriametrics', 'vault']):
     if not portal:
-        portal = config.CORE_URI.split('//')[1]
+        portal = config.PORTAL_URI.split('//')[1]
     portal_path = f"{portal}/" if portal else ""
     s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
     start = datetime.datetime.now()
@@ -380,3 +381,45 @@ def restore_backup(backup, portal=None, until=False, databases=[
             print('Unknown backup type')
 
     return
+
+
+@dramatiq.actor
+def check_periodic_tasks():
+    """ Check whether the periodic tasks for recently active organizations
+    are running as frequently as expected.
+    """
+    from mist.api.clouds.models import Cloud
+    from mist.api.users.models import Organization
+    # Check only recently active orgs
+    timedelta = datetime.timedelta(days=10)
+    orgs = Organization.objects(
+        last_active__gt=datetime.datetime.now() - timedelta
+    ).only("id")
+    clouds = Cloud.objects(enabled=True, deleted=None, owner__in=orgs)
+
+    tasks = {
+        "list_machines": datetime.timedelta(hours=1),
+        "list_locations": datetime.timedelta(days=1),
+        "list_images": datetime.timedelta(days=1),
+        "list_sizes": datetime.timedelta(days=1),
+        "list_clusters": datetime.timedelta(hours=1),
+        "list_networks": datetime.timedelta(hours=1),
+        "list_volumes": datetime.timedelta(hours=1),
+        "list_zones": datetime.timedelta(hours=1),
+        "list_buckets": datetime.timedelta(hours=1),
+    }
+
+    error_messages = []
+    title = f"[{config.PORTAL_NAME}] Periodic tasks that were not scheduled"
+    for cloud in clouds:
+        for task, timedelta in tasks.items():
+            error_message = check_task_threshold(
+                cloud=cloud, task=task, acceptable_timedelta=timedelta)
+            if error_message:
+                error_messages.append(error_message)
+
+    if error_messages:
+        notify_admin(title=title,
+                     message="\n".join(error_messages),
+                     team="ops",)
+    return error_messages

@@ -341,8 +341,8 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
     # eliminate results with su
     if not is_admin:
         query["query"]["bool"]["must_not"] = {
-            'exists': {
-                "field": "su"
+            'term': {
+                "su": "True"
             }
         }
 

@@ -767,7 +767,8 @@ class BaseContainerController(BaseController):
         from mist.api.clouds.models import CloudLocation
 
         locations_map = {}
-        for location in CloudLocation.objects(cloud=self.cloud):
+        for location in CloudLocation.objects(
+                cloud=self.cloud).only('id', 'external_id', 'name'):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
         from mist.api.containers.models import Cluster
@@ -789,12 +790,16 @@ class BaseContainerController(BaseController):
                 new_clusters.append(cluster)
             clusters.append(cluster)
 
-            try:
-                libcloud_pods = libcloud_cluster.driver.ex_list_pods(
-                    fetch_metrics=True)
-            except Exception as exc:
-                log.error('Failed to fetch pods/metrics for cluster: %s, %r',
-                          cluster, exc)
+            if cluster.include_pods:
+                try:
+                    libcloud_pods = libcloud_cluster.driver.ex_list_pods(
+                        fetch_metrics=True)
+                except Exception as exc:
+                    log.error(
+                        'Failed to fetch pods/metrics for cluster: %s, %r',
+                        cluster, exc)
+                    continue
+            else:
                 continue
 
             for libcloud_pod in libcloud_pods:
@@ -888,7 +893,8 @@ class BaseContainerController(BaseController):
                     new_pods.append(machine)
                 pods.append(machine)
 
-        self.cloud.owner.mapper.update(new_pods, asynchronous=False)
+        if new_pods:
+            self.cloud.owner.mapper.update(new_pods, asynchronous=False)
         self.produce_and_publish_pod_patch(cached_pods, pods)
 
         Machine.objects(cloud=self.cloud,
@@ -914,7 +920,8 @@ class BaseContainerController(BaseController):
         )
         # Update RBAC Mappings given the list of clusters seen for the first
         # time.
-        self.cloud.owner.mapper.update(new_clusters, asynchronous=False)
+        if new_clusters:
+            self.cloud.owner.mapper.update(new_clusters, asynchronous=False)
         # Update cluster counts on cloud and org.
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import Cloud
@@ -994,3 +1001,14 @@ class BaseContainerController(BaseController):
             self._libcloud_ingress_to_ingress(libcloud_ingress)
             for libcloud_ingress in libcloud_ingresses
         ]
+
+    def get_credentials(self, cluster):
+        try:
+            libcloud_cluster = self._get_libcloud_cluster(cluster)
+            credentials = self.connection.get_cluster_credentials(
+                libcloud_cluster)
+        except Exception as exc:
+            log.error('Failed to fetch credentials for cluster: %s, %r',
+                      cluster, exc)
+            raise CloudUnavailableError(msg=str(exc)) from exc
+        return credentials

@@ -66,7 +66,7 @@ def _get_alert_details(resource, rule, incident_id,
         'state': state,
         'since': _get_time_diff_to_now(timestamp),
         'time': _get_current_local_time(),
-        'uri': config.CORE_URI,
+        'uri': config.PORTAL_URI,
         'portal_name': config.PORTAL_NAME,
         'email_logo': config.EMAIL_LOGO
     }
@@ -78,10 +78,10 @@ def _get_alert_details(resource, rule, incident_id,
     if isinstance(rule, ArbitraryLogsRule):
         resource = rule.owner
         resource_type = 'organization'
-        resource_link = config.CORE_URI
+        resource_link = config.PORTAL_URI
     elif isinstance(rule, ResourceLogsRule):
         resource_type = resource._get_collection_name().rstrip('s')
-        resource_link = '%s/%ss/%s' % (config.CORE_URI,
+        resource_link = '%s/%ss/%s' % (config.PORTAL_URI,
                                        resource_type, resource.id)
     host = _get_nice_machine_host_label(resource) if resource_type in \
         ['machine'] else ''
@@ -178,9 +178,9 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
         'metric_name': label,  # cpu or my_metric or Mon Data
         'curr_value': fval,  # current metric value
         'since': _get_time_diff_to_now(timestamp),  # relative time of trigger
-        'machine_link': '%s/machines/%s' % (config.CORE_URI, machine.id),
-        'resource_link': '%s/machines/%s' % (config.CORE_URI, machine.id),
-        'uri': config.CORE_URI,
+        'machine_link': '%s/machines/%s' % (config.PORTAL_URI, machine.id),
+        'resource_link': '%s/machines/%s' % (config.PORTAL_URI, machine.id),
+        'uri': config.PORTAL_URI,
         'resource_type': 'machine',
         'rule_data_type': 'metrics',
         'rule_arbitrary': False,
