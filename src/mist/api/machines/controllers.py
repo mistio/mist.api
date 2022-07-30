@@ -141,18 +141,8 @@ class MachineController(object):
 
     def associate_key(self, key, username=None, port=22, no_connect=False):
         """Associate an sshkey with a machine"""
-        key_assoc = key.ctl.associate(self.machine, username=username,
-                                      port=port, no_connect=no_connect)
-        # since association was successful check probes
-        from mist.api.poller.models import SSHProbeMachinePollingSchedule
-
-        # add new schedule
-        SSHProbeMachinePollingSchedule.add(
-            self.machine,
-            interval=config.MACHINE_SSH_PROBE_INTERVAL
-        )
-
-        return key_assoc
+        return key.ctl.associate(self.machine, username=username,
+                                 port=port, no_connect=no_connect)
 
     def get_host(self):
         if self.machine.hostname:
@@ -324,9 +314,6 @@ class MachineController(object):
             finally:
                 self.machine.ssh_probe = probe
                 self.machine.save()
-                if self.machine.cores != self.machine.ssh_probe.cores:
-                    from mist.api.metering.tasks import find_machine_cores
-                    find_machine_cores.send(self.machine.id)
                 new_probe_data = _get_probe_dict()
                 patch = jsonpatch.JsonPatch.from_diff(old_probe_data,
                                                       new_probe_data).patch
