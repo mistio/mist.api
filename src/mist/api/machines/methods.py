@@ -2619,7 +2619,9 @@ def find_best_ssh_params(machine, auth_context=None):
 
 
 # SEC
-def prepare_ssh_uri(auth_context, machine):
+def prepare_ssh_uri(auth_context, machine,
+                    command=config.DEFAULT_EXEC_TERMINAL,
+                    job_id=None):
     key_association_id, hostname, user, port = find_best_ssh_params(
         machine, auth_context=auth_context)
     association = KeyMachineAssociation.objects.get(id=key_association_id)
@@ -2640,26 +2642,36 @@ def prepare_ssh_uri(auth_context, machine):
     from mist.api.helpers import encrypt
     # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
     encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
-    msg = '%s,%s,%s,%s,%s' % (
+    command_encoded = base64.urlsafe_b64encode(
+        command.encode()).decode()
+    msg = '%s,%s,%s,%s,%s,%s' % (
         user,
         hostname,
         port,
         expiry,
+        command_encoded,
         encrypted_msg)
     mac = hmac.new(
         config.SIGN_KEY.encode(),
         msg=msg.encode(),
         digestmod=hashlib.sha256).hexdigest()
     base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
-    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s' % (
+    ssh_uri = '%s/ssh/%s/%s/%s/%s/%s/%s/%s' % (
         base_ws_uri,
         user,
         hostname,
         port,
         expiry,
+        command_encoded,
         encrypted_msg,
         mac)
-    return ssh_uri
+    # non-interactive case: job_id is not None
+    if job_id is not None:
+        ssh_uri = ssh_uri + "/" + job_id
+        key_name = key.name
+        return user, key_name, ssh_uri
+    else:
+        return ssh_uri
 
 
 def prepare_lxd_uri(auth_context, machine):

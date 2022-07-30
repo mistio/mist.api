@@ -16,6 +16,7 @@ import calendar
 from typing import Any, Dict, List, Tuple, Union
 import requests
 import re
+import asyncio
 
 from bson import json_util
 
@@ -50,12 +51,14 @@ from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
+from mist.api.helpers import requests_retry_session
+from mist.api.helpers import get_victoriametrics_write_uri
+from mist.api.helpers import get_victoriametrics_uri
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
 from mist.api.clouds.controllers.base import BaseController
-from mist.api.clouds.controllers.metering import update_metering_data
 from mist.api.tag.models import Tag
 
 
@@ -263,12 +266,7 @@ class BaseComputeController(BaseController):
                          auto_delete=False, data=data, ex_declare=True)
 
         if config.ENABLE_METERING:
-            machines_map = {machine.id: machine for machine in machines}
-            cached_machines_map = {
-                machine["id"]: machine for machine in cached_machines
-            }
-            update_metering_data(self.cloud, "machine",
-                                 cached_machines_map, machines_map)
+            self._update_metering_data(cached_machines, machines)
 
         return machines
 
@@ -3666,3 +3664,373 @@ class BaseComputeController(BaseController):
                                 extra=cloud_size.extra,
                                 driver=self.connection)
             return size_obj
+
+    def _update_metering_data(self, cached_machines, machines):
+        machines_map = {machine.id: machine for machine in machines}
+        cached_machines_map = {
+            machine["id"]: machine for machine in cached_machines}
+
+        read_queries, metering_metrics = self._generate_metering_queries(
+            cached_machines_map, machines_map)
+
+        last_metering_data = self._fetch_metering_data(
+            read_queries, machines_map)
+
+        fresh_metering_data = self._generate_fresh_metering_data(
+            cached_machines_map, machines_map, last_metering_data,
+            metering_metrics)
+
+        self._send_metering_data(fresh_metering_data)
+
+    def _get_machine_metering_metrics(
+            self, machine_id, machines_map, metering_metrics):
+        if metering_metrics.get(machines_map[machine_id].owner.id):
+            return metering_metrics[machines_map[machine_id].owner.id]
+        if metering_metrics.get(machines_map[machine_id].cloud.provider):
+            return metering_metrics[machines_map[machine_id].cloud.provider]
+        if metering_metrics.get("default"):
+            return metering_metrics["default"]
+        return {}
+
+    def _update_metering_metrics_map(self, machines_map):
+        """
+        Populates a dict where it maps owner.id, cloud.provider
+        or default to the appropriate metering metrics
+        """
+        if not config.METERING_METRICS.get("machine"):
+            return {}
+        metering_metrics = {}
+        for machine_id, _ in machines_map.items():
+            if config.METERING_METRICS["machine"].get(
+                    machines_map[machine_id].owner.id) and \
+                    not metering_metrics.get(
+                        machines_map[machine_id].owner.id):
+                metering_metrics[machines_map[machine_id].owner.id] = \
+                    config.METERING_METRICS["machine"].get("default", {})
+                metering_metrics[machines_map[
+                    machine_id].owner.id].update(
+                        config.METERING_METRICS["machine"].get(
+                            machines_map[machine_id].cloud.provider, {}))
+                metering_metrics[machines_map[machine_id].owner.id].update(
+                    config.METERING_METRICS["machine"].get(machines_map[
+                        machine_id].owner.id, {}))
+            if config.METERING_METRICS["machine"].get(
+                machines_map[machine_id].cloud.provider) and \
+                    not metering_metrics.get(
+                        machines_map[machine_id].cloud.provider):
+                metering_metrics[machines_map[
+                    machine_id].cloud.provider] = config.METERING_METRICS[
+                        "machine"].get("default", {})
+                metering_metrics[machines_map[
+                    machine_id].cloud.provider].update(
+                        config.METERING_METRICS["machine"].get(
+                            machines_map[machine_id].cloud.provider, {}))
+            if config.METERING_METRICS["machine"].get("default") and \
+                    not metering_metrics.get("default"):
+                metering_metrics["default"] = config.METERING_METRICS[
+                    "machine"]["default"]
+        return metering_metrics
+
+    def _generate_metering_queries(self, cached_machines_map, machines_map):
+        """
+        Generate metering promql queries while grouping machines together
+        to limit the number of requests to the DB
+        """
+        # Group the machines per timestamp
+        last_metering_dt_machines_map = {}
+        for machine_id, _ in machines_map.items():
+            if not cached_machines_map.get(machine_id):
+                continue
+            dt = None
+            if cached_machines_map[machine_id]["last_seen"]:
+                dt = cached_machines_map[machine_id]["last_seen"]
+            elif cached_machines_map[machine_id]["missing_since"]:
+                dt = cached_machines_map[machine_id]["missing_since"]
+            if not dt:
+                continue
+            if not last_metering_dt_machines_map.get(dt):
+                last_metering_dt_machines_map[dt] = []
+            last_metering_dt_machines_map[dt].append(machine_id)
+
+        metering_metrics = self._update_metering_metrics_map(machines_map)
+
+        if not metering_metrics or not machines_map:
+            return {}, {}
+
+        # Further group down the machines into metric categories
+        # (owner.id, cloud.provider or default)
+        read_queries = {}
+        machine_metrics_category_map = {}
+
+        for dt, machine_ids in last_metering_dt_machines_map.items():
+            for machine_id in machine_ids:
+                if config.METERING_METRICS["machine"].get(machines_map[
+                        machine_id].owner.id):
+                    if not machine_metrics_category_map.get(
+                            (dt, machines_map[machine_id].owner.id)):
+                        machine_metrics_category_map[(
+                            dt, machines_map[machine_id].owner.id)] = []
+                    machine_metrics_category_map[(dt, machines_map[
+                        machine_id].owner.id)].append(
+                        machine_id)
+                elif config.METERING_METRICS["machine"].get(machines_map[
+                        machine_id].cloud.provider):
+                    if not machine_metrics_category_map.get(
+                            (dt, machines_map[machine_id].cloud.provider)):
+                        machine_metrics_category_map[(
+                            dt, machines_map[machine_id].cloud.provider)] = []
+                    machine_metrics_category_map[(dt, machines_map[
+                        machine_id].cloud.provider)].append(
+                        machine_id)
+                elif config.METERING_METRICS["machine"].get("default"):
+                    if not machine_metrics_category_map.get((dt, "default")):
+                        machine_metrics_category_map[(dt, "default")] = []
+                    machine_metrics_category_map[(dt, "default")].append(
+                        machine_id)
+
+        # Generate queries which fetch metering data for multiple machines
+        # at once when they share the same timestamp and metrics
+        for key, machine_ids in machine_metrics_category_map.items():
+            dt, metrics_category = key
+            metering_metrics_list = "|".join(
+                metric_name
+                for metric_name, properties in metering_metrics[
+                    metrics_category].items()
+                if properties['type'] == "counter")
+            machines_ids_list = "|".join(machine_ids)
+            read_queries[(dt, metrics_category)] = (
+                f"{{__name__=~\"{metering_metrics_list}\""
+                f",org=\"{self.cloud.owner.id}\","
+                f"machine_id=~\"{machines_ids_list}\",metering=\"true\"}}")
+        return read_queries, metering_metrics
+
+    def _fetch_query(self, dt, query):
+        read_uri = get_victoriametrics_uri(self.cloud.owner)
+        dt = int(datetime.datetime.timestamp(
+            datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S.%f')))
+        error_msg = f"Could not fetch metering data with query: {query}"
+        try:
+            data = requests_retry_session(retries=1).post(
+                f"{read_uri}/api/v1/query",
+                data={"query": query, "time": dt},
+                timeout=10
+            )
+        except requests.exceptions.RequestException as e:
+            error_details = str(e)
+            self._report_metering_error(error_msg, error_details)
+            return {}
+        if data and not data.ok:
+            error_details = (f"code: {data.status_code}"
+                             f" response: {data.text}")
+            self._report_metering_error(error_msg, error_details)
+            return {}
+
+        data = data.json()
+
+        last_metering_data = {}
+
+        for result in data.get("data", {}).get("result", []):
+            metric_name = result["metric"]["__name__"]
+            machine_id = result["metric"]["machine_id"]
+            value = result["value"][1]
+            if not last_metering_data.get(machine_id):
+                last_metering_data[machine_id] = {}
+            last_metering_data[machine_id].update({metric_name: value})
+        return last_metering_data
+
+    async def _async_fetch_metering_data(self, read_queries, loop):
+        metering_data_list = [loop.run_in_executor(
+            None, self._fetch_query, key[0], query)
+            for key, query in read_queries.items()]
+
+        return await asyncio.gather(*metering_data_list)
+
+    def _fetch_metering_data(self, read_queries, machines_map):
+        if not read_queries or not machines_map:
+            return {}
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        asyncio.set_event_loop(loop)
+        metering_data_list = loop.run_until_complete(
+            self._async_fetch_metering_data(read_queries, loop))
+        loop.close()
+        last_metering_data = {}
+        for machine_id, _ in machines_map.items():
+            last_metering_data[machine_id] = {}
+            for metering_data in metering_data_list:
+                if not metering_data.get(machine_id):
+                    continue
+                last_metering_data[machine_id].update(
+                    metering_data[machine_id])
+        return last_metering_data
+
+    def _find_old_counter_value(self, metric_name, machine_id, properties):
+        read_uri = get_victoriametrics_uri(self.cloud.owner)
+        query = (
+            f"last_over_time("
+            f"{metric_name}{{org=\"{self.cloud.owner.id}\""
+            f",machine_id=\"{machine_id}\",metering=\"true\""
+            f",value_type=\"{properties['type']}\"}}"
+            f"[{config.METERING_PROMQL_LOOKBACK}])"
+        )
+        error_msg = f"Could not fetch old counter value with query: {query}"
+        try:
+            data = requests_retry_session(retries=1).post(
+                f"{read_uri}/api/v1/query", data={"query": query}, timeout=10)
+        except requests.exceptions.RequestException as e:
+            error_details = str(e)
+            self._report_metering_error(error_msg, error_details)
+            return None
+        if data and not data.ok:
+            error_details = f"code: {data.status_code} response: {data.text}"
+            self._report_metering_error(error_msg, error_details)
+            return None
+
+        data = data.json()
+        results = data.get("data", {}).get("result", [])
+        if len(results) > 1:
+            log.warning("Returned more series than expected")
+        if len(results) == 0:
+            return 0
+        return results[0]["value"][1]
+
+    def _calculate_metering_data(self, machine_id, machine,
+                                 new_dt, old_dt, metric_name,
+                                 properties, last_metering_data):
+        current_value = None
+        if properties["type"] == "counter":
+            old_value = last_metering_data.get(
+                machine_id, {}).get(metric_name)
+            if old_value:
+                current_value = float(old_value)
+                # Take into account the time range only
+                # if the machine was not missing
+                if old_dt:
+                    delta_in_hours = (
+                        new_dt - old_dt).total_seconds() / (60 * 60)
+                    current_value += properties["value"](
+                        machine, delta_in_hours)
+            else:
+                # In order to avoid counter resets, we check
+                # for the last counter up to
+                # METERING_PROMQL_LOOKBACK time in the past
+                current_value = self._find_old_counter_value(
+                    metric_name, machine_id, properties)
+        elif properties["type"] == "gauge":
+            current_value = properties["value"](machine)
+        else:
+            log.warning(
+                f"Unknown metric type: {properties['type']}"
+                f" on metric: {metric_name}"
+                f" with machine_id: {machine_id}")
+        if current_value is not None:
+            return (
+                f"{metric_name}{{org=\"{self.cloud.owner.id}\""
+                f",machine_id=\"{machine_id}\",metering=\"true\""
+                f",value_type=\"{properties['type']}\"}}"
+                f" {current_value} "
+                f"{int(datetime.datetime.timestamp(new_dt))}\n")
+        else:
+            log.warning(
+                f"None value on metric: "
+                f"{metric_name} with machine_id: {machine_id}")
+        return ""
+
+    async def _async_generate_fresh_metering_data(self, machines_map,
+                                                  cached_machines_map,
+                                                  metering_metrics,
+                                                  last_metering_data, loop):
+        metering_data_list = []
+        for machine_id, machine in machines_map.items():
+            if not machine.last_seen:
+                continue
+            new_dt = machine.last_seen
+            old_dt = None
+            if cached_machines_map.get(machine_id) and \
+                    cached_machines_map[machine_id]["last_seen"]:
+                old_dt = datetime.datetime.strptime(
+                    cached_machines_map[machine_id]["last_seen"],
+                    '%Y-%m-%d %H:%M:%S.%f')
+            for metric_name, properties in self._get_machine_metering_metrics(
+                    machine_id, machines_map, metering_metrics).items():
+                metering_data_list.append(
+                    loop.run_in_executor(None,
+                                         self._calculate_metering_data,
+                                         machine_id, machine,
+                                         new_dt, old_dt, metric_name,
+                                         properties, last_metering_data))
+        return await asyncio.gather(*metering_data_list)
+
+    def _generate_fresh_metering_data(
+            self, cached_machines_map, machines_map,
+            last_metering_data, metering_metrics):
+        if not machines_map or not metering_metrics:
+            return ""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        asyncio.set_event_loop(loop)
+        metering_data_list = loop.run_until_complete(
+            self._async_generate_fresh_metering_data(machines_map,
+                                                     cached_machines_map,
+                                                     metering_metrics,
+                                                     last_metering_data,
+                                                     loop))
+        loop.close()
+        return "".join(metering_data_list)
+
+    def _send_metering_data(self, fresh_metering_data):
+        if not fresh_metering_data:
+            return
+        error_msg = "Could not send metering data"
+        result = None
+        uri = get_victoriametrics_write_uri(self.cloud.owner)
+        try:
+            result = requests_retry_session(retries=1).post(
+                f"{uri}/api/v1/import/prometheus",
+                data=fresh_metering_data, timeout=10)
+        except requests.exceptions.RequestException as e:
+            error_details = str(e)
+            self._report_metering_error(error_msg, error_details)
+        if result and not result.ok:
+            error_details = (f"code: {result.status_code}"
+                             f" response: {result.text}")
+            self._report_metering_error(error_msg, error_details)
+
+    def _report_metering_error(self, error_msg, error_details):
+        from mist.api.methods import notify_admin
+        log_entry = error_msg + ", " + error_details
+        log.warning(log_entry)
+        if not config.METERING_NOTIFICATIONS_WEBHOOK:
+            notify_admin(error_msg, message=error_details)
+            return
+        try:
+            response = requests_retry_session(retries=2).post(
+                config.METERING_NOTIFICATIONS_WEBHOOK,
+                data=json.dumps(
+                    {'text': config.PORTAL_URI + ': ' + log_entry}),
+                headers={'Content-Type': 'application/json'},
+                timeout=5
+            )
+        except requests.exceptions.RequestException as e:
+            log.error(
+                'Request to slack returned an error %s'
+                % (str(e))
+            )
+            notify_admin(error_msg, message=error_details)
+            return
+        if response and response.status_code not in (200, 429):
+            log.error(
+                'Request to slack returned an error %s, the response is:'
+                '\n%s' % (response.status_code, response.text)
+            )
+            notify_admin(error_msg, message=error_details)
