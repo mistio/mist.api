@@ -857,46 +857,57 @@ def get_console_proxy_uri(auth_context, machine):
             Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True))) \
             or KeyMachineAssociation.objects(machine=machine.parent)
         if not key_associations:
-            return None, None, 403, \
+            return None, None, 403,\
                 'You are not authorized to perform this action'
-        key = key_associations[0].key
-        key_path = key.private.secret.name
-        host = '%s@%s:%d' % (key_associations[0].ssh_user,
-                             machine.parent.hostname,
-                             key_associations[0].port)
         expiry = int(datetime.now().timestamp()) + 100
-        org = machine.owner
-        vault_token = org.vault_token if org.vault_token is not None else \
-            config.VAULT_TOKEN
-        vault_secret_engine_path = machine.owner.vault_secret_engine_path
-        vault_addr = org.vault_address if org.vault_address is not None else \
-            config.VAULT_ADDR
-        msg_to_encrypt = '%s,%s,%s,%s' % (
-            vault_token,
-            vault_addr,
-            vault_secret_engine_path,
-            key_path)
-        from mist.api.helpers import encrypt
-        encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
-        msg = '%s,%s,%s,%s,%s' % (
-            host,
-            vnc_host,
-            vnc_port,
-            expiry,
-            encrypted_msg)
-        mac = hmac.new(
-            config.SIGN_KEY.encode(),
-            msg=msg.encode(),
-            digestmod=hashlib.sha256).hexdigest()
-        base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
-        proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
-            base_ws_uri, host, vnc_host, vnc_port, expiry, encrypted_msg, mac)
+        if console_type == 'vnc':
+            key = key_associations[0].key
+            key_path = key.private.secret.name
+            host = '%s@%s:%d' % (key_associations[0].ssh_user,
+                                 machine.parent.hostname,
+                                 key_associations[0].port)
+            expiry = int(datetime.now().timestamp()) + 100
+            org = machine.owner
+            vault_token = org.vault_token if org.vault_token is not None else \
+                config.VAULT_TOKEN
+            vault_secret_engine_path = machine.owner.vault_secret_engine_path
+            vault_addr = org.vault_address if org.vault_address is not None \
+                else config.VAULT_ADDR
+            msg_to_encrypt = '%s,%s,%s,%s' % (
+                vault_token,
+                vault_addr,
+                vault_secret_engine_path,
+                key_path)
+            from mist.api.helpers import encrypt
+            encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
+            msg = '%s,%s,%s,%s,%s' % (
+                host,
+                vnc_host,
+                vnc_port,
+                expiry,
+                encrypted_msg)
+            mac = hmac.new(
+                config.SIGN_KEY.encode(),
+                msg=msg.encode(),
+                digestmod=hashlib.sha256).hexdigest()
+            base_ws_uri = config.PORTAL_URI.replace('http', 'ws')
+            proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
+                base_ws_uri, host, vnc_host, vnc_port, expiry,
+                encrypted_msg, mac)
+
+        elif console_type == 'serial':
+            parent_machine = machine.parent
+            command = 'virsh console %s\n' % machine.name
+            from mist.api.machines.methods import prepare_ssh_uri
+            proxy_uri = prepare_ssh_uri(auth_context, parent_machine,
+                                        command=command)
+
         return proxy_uri, console_type, 200, None
+
     elif machine.cloud.ctl.provider == 'vsphere':
         console_type = 'vnc'
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-            machine.external_id
-        )
+            machine.machine_id)
         protocol, host = config.PORTAL_URI.split('://')
         protocol = protocol.replace('http', 'ws')
         params = urllib.parse.urlencode({'url': console_uri})

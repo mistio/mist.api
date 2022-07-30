@@ -210,12 +210,4 @@ class BaseKeyController(object):
         # removing key association
         KeyMachineAssociation.objects(key=self.key,
                                       machine=machine).delete()
-
-        # if machine has no key associations then delete SSH probe Schedules
-        count = KeyMachineAssociation.objects(machine=machine).count()
-        if count == 0:
-            from mist.api.poller.models import SSHProbeMachinePollingSchedule
-            SSHProbeMachinePollingSchedule.objects(
-                machine_id=machine.id).delete()
-
         trigger_session_update(self.key.owner, ['keys'])
