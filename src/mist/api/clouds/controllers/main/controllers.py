@@ -481,7 +481,8 @@ class LibvirtMainController(BaseMainController):
             'tags': {'type': 'hypervisor'},
             'username': ssh_user
         }
-
+        old_machines = [m.as_dict() for m in
+                        self.cloud.ctl.compute.list_cached_machines()]
         from mist.api.machines.models import Machine
         # Create and save machine entry to database.
         # first check if the host has already been added to the cloud
@@ -536,6 +537,15 @@ class LibvirtMainController(BaseMainController):
                             % host)
         self.cloud.hosts.append(machine.id)
         self.cloud.save()
+
+        # Update RBAC Mappings given the list of nodes seen for the first time.
+        new_machines = self.cloud.ctl.compute.list_cached_machines()
+        if new_machines:
+            self.cloud.owner.mapper.update(new_machines, asynchronous=False)
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            self.cloud.ctl.compute.produce_and_publish_patch(
+                old_machines, new_machines)
 
         from mist.api.poller.models import ListMachinesPollingSchedule
         try:
