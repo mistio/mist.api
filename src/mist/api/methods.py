@@ -593,16 +593,19 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
             query &= Q(enabled=True)
     elif resource_type in ['machine', 'cluster', 'network',
                            'volume', 'image', 'subnet',
-                           'location', 'size']:
+                           'location', 'size',
+                           'zone', 'record']:
         if at:
             query &= Q(missing_since=None) | Q(missing_since__gte=at)
         else:
             query &= Q(missing_since=None)
 
-    if cloud:
+    if cloud and hasattr(resource_model, "zone"):
+        zones, _ = list_resources(auth_context, 'zone', cloud=cloud, only='id')
+        query &= Q(zone__in=zones)
+    elif cloud:
         clouds, _ = list_resources(
-            auth_context, 'cloud', search=cloud, only='id'
-        )
+            auth_context, 'cloud', search=cloud, only='id')
         query &= Q(cloud__in=clouds)
 
     # filter organizations
