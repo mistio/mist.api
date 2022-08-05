@@ -11,7 +11,7 @@ import mongoengine as me
 
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import trigger_session_update, mac_sign
-from mist.api.helpers import WebSocketApp
+from mist.api.helpers import websocket_for_scripts
 from mist.api.exceptions import ScriptNameExistsError
 
 from mist.api import config
@@ -233,7 +233,7 @@ class BaseScriptController(object):
             env='', owner=None):
         from mist.api.users.models import Organization
         from mist.api.machines.methods import prepare_ssh_uri
-
+        import re
         if auth_context:
             owner = auth_context.owner
 
@@ -262,23 +262,26 @@ class BaseScriptController(object):
             f'   {sudo} ./*/{entrypoint} {params}) ||'
             f'  (chmod +x ./script && '
             f'   {sudo} ./script {params});'
-            f'  retval="$?"; echo $retval;'
+            f'  retval="$?";'
             f'  rm -rf $TMP_DIR; echo retval:$retval;'
             f'  cd - > /dev/null 2>&1;'
             f'  return "$retval";'
             '} && fetchrun'
         )
         ssh_user, key_name, ws_uri = prepare_ssh_uri(
-            auth_context=auth_context, machine=machine, job_id=job_id)
-        exit_code, stdout = WebSocketApp(ws_uri).command(command)
-        result = {
+            auth_context=auth_context, machine=machine, job_id=job_id,
+            command=command)
+        exit_code, stdout = websocket_for_scripts(
+            ws_uri).wait_command_to_finish()
+
+        return {
             'command': command,
             'exit_code': exit_code,
-            'stdout': stdout.replace('\r\n', '\n').replace('\r', '\n'),
+            'stdout': re.sub(r"(\n)\1+", r"\1", stdout.replace(
+                '\r\n', '\n').replace('\r', '\n')),
             'key_name': key_name,
             'ssh_user': ssh_user
         }
-        return result
 
     def _preparse_file(self):
         return
