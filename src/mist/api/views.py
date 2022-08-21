@@ -238,10 +238,10 @@ def home(request):
         user.save()
 
     auth_context = auth_context_from_request(request)
-    if not auth_context.owner.last_active or \
-       datetime.now() - auth_context.owner.last_active > timedelta(0, 300):
-        auth_context.owner.last_active = datetime.now()
-        auth_context.owner.save()
+    if auth_context.org and (not auth_context.org.last_active or
+       datetime.now() - auth_context.org.last_active > timedelta(0, 300)):
+        auth_context.org.last_active = datetime.now()
+        auth_context.org.save()
 
     get_ui_template(build_path)
     template_inputs['ugly_rbac'] = config.UGLY_RBAC
@@ -1087,7 +1087,7 @@ def confirm_invitation(request):
         })
     reissue_cookie_session(**args)
 
-    trigger_session_update(auth_context.owner, ['org'])
+    trigger_session_update(auth_context.org, ['org'])
 
     return HTTPFound('/')
 

@@ -268,30 +268,14 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
                 user_for_session = User.objects.get(id=user_for_session)
 
         session.set_user(user_for_session, effective=user_is_effective)
+        session.orgs = Organization.objects(members=user_for_session)
+        if org:
+            org_index = session.orgs.index(org)
+            # Bring selected org first if necessary
+            if org_index > 0:
+                session.orgs[org_index] = session.orgs[0]
+                session.orgs[0] = org
 
-        if not org:
-            # If no org is provided then get the org from the last session
-            old_session = SessionToken.objects(
-                user_id=user_for_session.id
-            ).first()
-            if old_session and old_session.org and \
-                    user_for_session in old_session.org.members:
-                # if the old session has an organization and user is still a
-                # member of that organization then use that context
-                org = old_session.org
-            else:
-                # If there is no previous session just get the first
-                # organization that the user is a member of.
-                orgs = Organization.objects(members=user_for_session)
-                if len(orgs) > 0:
-                    org = orgs.first()
-                else:
-                    # if for some reason the user is not a member of any
-                    # existing organization then create an anonymous one now
-                    from mist.api.users.methods import create_org_for_user
-                    org = create_org_for_user(user_for_session)
-
-    session.org = org
     session.su = su
     session.save()
     request.environ['session'] = session

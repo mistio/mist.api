@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 
 class AuthContext(object):
-    def __init__(self, user, token):
+    def __init__(self, user, token, org=None):
 
         assert isinstance(user, mist.api.users.models.User)
         self.user = user
@@ -17,11 +17,17 @@ class AuthContext(object):
         assert isinstance(token, mist.api.auth.models.AuthToken)
         self.token = token
 
-        assert (
-            hasattr(token, 'org') and
-            isinstance(token.org, mist.api.users.models.Organization)
-        )
-        self.org = token.org
+        if not token.orgs:
+            self.org = None
+        elif org in token.orgs:
+            self.org = org
+        else:
+            for o in token.orgs:
+                if org == o.id or org == o.name:
+                    self.org = o
+                    break
+            else:
+                self.org = token.orgs[0]
 
         # For backwards compatibility.
         self.owner = self.org

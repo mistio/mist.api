@@ -1,4 +1,5 @@
 import logging
+import re
 from uuid import uuid4
 from typing import Any, Dict
 
@@ -74,13 +75,27 @@ class VaultSecret(Secret):
         return data
 
     def create_or_update(self, attributes: Dict[str, Any]) -> None:
+        path = self.name.split('/')
+        for i in range(0, len(path)):
+            subpath = '/'.join(path[:-i]) + '/'
+            try:
+                VaultSecret.objects.get(owner=self.owner, name=subpath)
+            except VaultSecret.DoesNotExist:
+                VaultSecret(owner=self.owner, name=subpath).save()
         return self.owner.secrets_ctl.create_or_update_secret(
             self.name,
             attributes)
 
     def delete(self, delete_from_engine: bool = False) -> None:
+        path = self.name.split('/')
+        for i in range(0, len(path)):
+            subpath = '/'.join(path[:-i]) + '/'
+            subsecrets = VaultSecret.objects(
+                owner=self.owner, name=re.compile(subpath + '.*'))
+            if subsecrets.count() == 1:
+                subsecrets.delete()
         super().delete()
-        if delete_from_engine:
+        if delete_from_engine and not self.name.endswith('/'):
             self.owner.secrets_ctl.delete_secret(self.name)
 
     def as_dict(self) -> Dict[str, Any]:
@@ -95,6 +110,27 @@ class VaultSecret(Secret):
             'created_by': self.created_by.id if self.created_by else '',
         }
         return s_dict
+
+    def as_dict_v2(self, deref='auto', only='') -> Dict[str, Any]:
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['id', 'name']
+        deref_map = {
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
+            }
+
+        return ret
 
 
 class SecretValue(me.EmbeddedDocument):

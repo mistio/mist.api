@@ -593,6 +593,8 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         query = Q(org=auth_context.org)
     elif hasattr(resource_model, 'owner'):
         query = Q(owner=auth_context.org)
+    elif hasattr(resource_model, 'org'):
+        query = Q(owner=auth_context.org)
     else:
         query = Q()
 
@@ -613,13 +615,14 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         else:
             query &= Q(missing_since=None)
 
-    if cloud and hasattr(resource_model, "zone"):
-        zones, _ = list_resources(auth_context, 'zone', cloud=cloud, only='id')
-        query &= Q(zone__in=zones)
-    elif cloud:
-        clouds, _ = list_resources(
-            auth_context, 'cloud', search=cloud, only='id')
-        query &= Q(cloud__in=clouds)
+        if cloud and hasattr(resource_model, "zone"):
+            zones, _ = list_resources(
+                auth_context, 'zone', cloud=cloud, only='id')
+            query &= Q(zone__in=zones)
+        else:
+            clouds, _ = list_resources(
+                auth_context, 'cloud', search=cloud, only='id')
+            query &= Q(cloud__in=clouds)
 
     # filter organizations
     # if user is not an admin

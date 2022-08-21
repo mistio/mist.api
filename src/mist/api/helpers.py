@@ -1005,7 +1005,8 @@ def logging_view_decorator(func):
                 log_dict['sudoer_id'] = sudoer.id
             auth_context = mist.api.auth.methods.auth_context_from_request(
                 request)
-            log_dict['owner_id'] = auth_context.owner.id
+            if auth_context.org:
+                log_dict['owner_id'] = auth_context.org.id
         else:
             log_dict['user_id'] = None
             log_dict['owner_id'] = None

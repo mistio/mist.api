@@ -52,7 +52,7 @@ def main():
             return
         api_token = ApiToken()
         api_token.name = "auto-created"
-        api_token.org = org
+        api_token.orgs = [org]
         api_token.set_user(user)
         api_token.token = token
         try:

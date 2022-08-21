@@ -167,7 +167,7 @@ def create_token(request):
     if tokens_num < config.ACTIVE_APITOKEN_NUM:
         new_api_token = ApiToken()
         new_api_token.name = api_token_name
-        new_api_token.org = org
+        new_api_token.orgs = [org]
         new_api_token.ttl = ttl
         new_api_token.set_user(user)
         new_api_token.ip_address = ip_from_request(request)

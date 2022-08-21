@@ -285,15 +285,7 @@ class User(Owner):
 
     meta = {
         'indexes': [
-            'first_name', 'last_name', 'last_login',
-            {
-                'fields': ['username'],
-                'unique': True,
-            },
-            {
-                'fields': ['email'],
-                'unique': True,
-            }]
+            'first_name', 'last_name', 'last_login', 'username', 'email']
     }
 
     def __str__(self):

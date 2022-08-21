@@ -208,7 +208,7 @@ def add_cloud(request):
     """
     auth_context = auth_context_from_request(request)
     cloud_tags, _ = auth_context.check_perm("cloud", "add", None)
-    owner = auth_context.owner
+    owner = auth_context.org
     user = auth_context.user
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
