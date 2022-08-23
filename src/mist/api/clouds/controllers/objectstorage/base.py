@@ -1,17 +1,12 @@
-import copy
 import logging
 import jsonpatch
 import datetime
 import mist.api.exceptions
-import json
 import mongoengine.errors
 
-from libcloud.common.types import LibcloudError
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.concurrency.models import PeriodicTaskInfo
 
-from mist.api.helpers import get_datetime
-from mist.api.helpers import bucket_to_dict
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
@@ -90,7 +85,7 @@ class BaseObjectStorageController(BaseController):
         from mist.api.objectstorage.models import Bucket
 
         try:
-            libcloud_buckets = self._list_buckets__fetch_buckets()
+            provider_buckets = self._list_buckets__fetch_buckets()
         except ConnectionError as e:
             raise mist.api.exceptions.CloudUnavailableError(e)
         except Exception as exc:
@@ -99,69 +94,35 @@ class BaseObjectStorageController(BaseController):
             raise mist.api.exceptions.CloudUnavailableError(exc)
 
         buckets, new_buckets = [], []
-        for libcloud_bucket in libcloud_buckets:
+        for provider_bucket in provider_buckets:
             try:
                 bucket = Bucket.objects.get(
                     cloud=self.cloud,
-                    name=libcloud_bucket.name)
+                    name=provider_bucket.name)
             except Bucket.DoesNotExist:
                 bucket = Bucket(
                     cloud=self.cloud,
-                    name=libcloud_bucket.name)
-                bucket.first_seen = datetime.datetime.utcnow()
+                    name=provider_bucket.name,
+                    extra=provider_bucket.extra
+                )
+                try:
+                    bucket.save()
+                except mongoengine.errors.ValidationError as exc:
+                    log.error("Error updating %s: %s", bucket, exc.to_dict())
+                    raise mist.api.exceptions.BadRequestError(
+                        {"msg": str(exc), "errors": exc.to_dict()}
+                    )
+                except mongoengine.errors.NotUniqueError as exc:
+                    log.error("Bucket %s is not unique: %s", bucket.name, exc)
+                    raise mist.api.exceptions.BucketExistsError()
+
                 new_buckets.append(bucket)
-
-            bucket.extra = copy.copy(libcloud_bucket.extra)
-            try:
-                created = self._list_buckets__bucket_creation_date(
-                    libcloud_bucket)
-                if created:
-                    created = get_datetime(created)
-                    if bucket.created != created:
-                        bucket.created = created
-            except Exception as exc:
-                log.exception("Error finding creation date for %s in %s.\n%r",
-                              self.cloud, bucket, exc)
-            # Attach bucket content
-            try:
-                """
-                self._list_buckets__fetch_bucket returns all buckets
-                regardless their location whereas
-                self._list_buckets__fetch_bucket_content throws
-                an error when the location of the bucket
-                does not match the connection location. So skip this bucket
-                and do not show it in the list of the buckets
-                """
-                content = self._list_buckets__fetch_bucket_content(
-                    libcloud_bucket)
-                self._list_buckets__append_content(bucket, content)
-
-            except LibcloudError:
-                continue
 
             # Apply cloud-specific processing.
             try:
-                self._list_buckets__postparse_bucket(bucket, libcloud_bucket)
+                self._list_buckets__postparse_bucket(bucket, provider_bucket)
             except Exception as exc:
                 log.exception('Error post-parsing %s: %s', bucket, exc)
-
-            # Ensure JSON-encoding.
-            for key, value in bucket.extra.items():
-                try:
-                    json.dumps(value)
-                except TypeError:
-                    bucket.extra[key] = str(value)
-
-            try:
-                bucket.save()
-            except mongoengine.errors.ValidationError as exc:
-                log.error("Error updating %s: %s", bucket, exc.to_dict())
-                raise mist.api.exceptions.BadRequestError(
-                    {"msg": str(exc), "errors": exc.to_dict()}
-                )
-            except mongoengine.errors.NotUniqueError as exc:
-                log.error("Bucket %s is not unique: %s", bucket.name, exc)
-                raise mist.api.exceptions.BucketExistsError()
 
             buckets.append(bucket)
         now = datetime.datetime.utcnow()
@@ -169,10 +130,16 @@ class BaseObjectStorageController(BaseController):
         Bucket.objects(
             cloud=self.cloud, name__nin=[b.name for b in buckets],
             missing_since=None
-        ).update(missing_since=now)
+        ).update(
+            missing_since=datetime.datetime.utcnow(),
+            content=[]
+        )
         Bucket.objects(
             cloud=self.cloud, name__in=[b.name for b in buckets]
-        ).update(last_seen=now, missing_since=None)
+        ).update(
+            missing_since=None,
+            content=[]
+        )
 
         # Update RBAC Mappings given the list of new storage.
         if new_buckets:
@@ -181,15 +148,51 @@ class BaseObjectStorageController(BaseController):
         return buckets
 
     def _list_buckets__fetch_buckets(self):
-        """Perform the actual libcloud call to get list of nodes"""
-        return self.connection.list_containers()
+        """Perform the actual API call to get list of buckets"""
+        raise NotImplementedError
 
-    def _list_buckets__fetch_bucket_content(self, bucket, path=''):
-        """Perform the actual libcloud call to get the content of the node"""
-        return [bucket_to_dict(bucket_content)
-                for bucket_content in self.connection.list_container_objects(
-                    bucket,
-                    path)]
+    def _list_buckets__fetch_bucket_content(self, name, prefix='',
+                                            delimiter='',
+                                            maxkeys=100):
+        """Perform the actual API call to get the content of the bucket"""
+        raise NotImplementedError
+
+    def list_bucket_content(self, name, path, bucket_id,
+                            delimiter='', maxkeys=100):
+        """
+        Performs the  API call to list bucket content.
+        :param name: The bucket's name
+        :type name: str
+
+        :param path: The bucket path to show. In each call the response will
+                     include the current level and NOT deeper levels.
+        :type path: str
+
+        :param delimiter: The character that defines the tree-like structure.
+                          By default forward slash /
+        :type delimiter: str
+
+        :param maxkeys:   Sets the maximum number of keys returned in the
+                          response. By default the action returns up to 1,000
+                          key names. The response might contain fewer keys but
+                          will never contain more.
+        :type maxkeys: int
+        """
+
+        if not delimiter:
+            delimiter = '/'  # Default delim is fwd slash
+        # path should be of the form lvl/lvl2/..
+        if path:
+            # ensure prefix ends with delim,
+            prefix = path.rstrip(delimiter) + delimiter
+        else:
+            # Don't add delim in case path='' (root)
+            prefix = path
+
+        return [obj for obj in self._list_buckets__fetch_bucket_content(
+            name=name, bucket_id=bucket_id, prefix=prefix,
+            delimiter=delimiter, maxkeys=maxkeys)
+            if obj['name'] != prefix]
 
     def list_cached_buckets(self):
         """Returns storage stored in database for a specific cloud"""
@@ -197,10 +200,6 @@ class BaseObjectStorageController(BaseController):
         # import issues are resolved
         from mist.api.objectstorage.models import Bucket
         return Bucket.objects(cloud=self.cloud, missing_since=None)
-
-    def list_bucket_content(self, name, path):
-        container = self.connection.get_container(name)
-        return self._list_buckets__fetch_bucket_content(container, path)
 
     def _list_buckets__postparse_bucket(self, bucket, libcloud_bucket):
         """Parses a libcloud storage object on behalf of `self._list_storage`.
@@ -218,25 +217,3 @@ class BaseObjectStorageController(BaseController):
         :param libcloud_bucket: A libcloud bucket object.
         """
         return
-
-    def _list_buckets__append_content(self, bucket, content):
-        """Add bucket content to the bucket dict
-
-        Any subclass that wishes to specially handle its allowed actions, can
-        implement this internal method.
-
-        store: A storage mongoengine model. The model may not have yet
-            been saved in the database.
-        content: A list of a libcloud storage content, as
-            returned by libcloud's list_container_objects.
-        This method is expected to edit `store` in place and not return
-        anything.
-
-        Subclasses MAY extend this method.
-        """
-        from mist.api.objectstorage.models import BucketItem
-
-        bucket.content = [BucketItem(**item) for item in content]
-
-    def _list_buckets__bucket_creation_date(self, libcloud_bucket):
-        return libcloud_bucket.extra.get('created_at')

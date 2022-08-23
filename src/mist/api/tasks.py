@@ -726,6 +726,7 @@ def create_machine_async(
              'post_script_params': post_script_params,
              'azure_port_bindings': azure_port_bindings,
              'associate_floating_ip': associate_floating_ip,
+             'subnet_id': subnet_id,
              'cloud_init': cloud_init,
              'disk_size': disk_size,
              'disk_path': disk_path,
@@ -1153,7 +1154,6 @@ def run_script(auth_context_serialized, script_id, machine_id, params='',
                job_id='', job='', action_prefix='', su=False, env="",
                owner_id=None):
     from mist.api.methods import notify_admin, notify_user
-
     if auth_context_serialized:
         try:
             auth_context = AuthContext.deserialize(auth_context_serialized)
@@ -1165,7 +1165,10 @@ def run_script(auth_context_serialized, script_id, machine_id, params='',
     else:
         owner = Organization.objects.get(id=owner_id)
         auth_context = None
-
+    # ssh_user should be removed in the future
+    # as we are going to support all types of
+    # machines: docker,lxd containers,k8s pods
+    # etc...
     ret = {
         'owner_id': owner.id,
         'job_id': job_id or uuid.uuid4().hex,
@@ -1215,6 +1218,7 @@ def run_script(auth_context_serialized, script_id, machine_id, params='',
             password=password, su=su, key_id=key_id, params=params,
             job_id=job_id, env=env, owner=owner
         )
+
         ret.update(result)
     except Exception as exc:
         ret['error'] = str(exc)

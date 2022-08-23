@@ -800,3 +800,13 @@ def delete_story(owner_id, story_id):
     if result['failures']:
         msg += ' Finished with failures: %s' % result['failures']
     log.warn(msg)
+
+
+def get_stream_uri(job_id):
+    stream_uri = config.PORTAL_URI.replace('http', 'ws')
+    stream_uri = '%s/stream/%s' % (
+        stream_uri,
+        job_id
+    )
+    log.info(stream_uri)
+    return stream_uri

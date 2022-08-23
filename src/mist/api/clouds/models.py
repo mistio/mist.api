@@ -346,10 +346,14 @@ class CloudLocation(OwnershipMixin, me.Document):
     missing_since = me.DateTimeField()
     first_seen = me.DateTimeField()
     extra = MistDictField()
+    images_location = me.StringField()
+
     parent = me.ReferenceField('CloudLocation',
                                required=False,
                                reverse_delete_rule=me.NULLIFY)
     location_type = me.StringField(choices=('zone', 'region'))
+    capabilities = me.ListField(me.StringField(
+        choices=config.LOCATION_CAPABILITIES), default=None)
 
     available_sizes = me.ListField(
         me.ReferenceField('CloudSize')
@@ -383,7 +387,7 @@ class CloudLocation(OwnershipMixin, me.Document):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
             'id', 'name', 'external_id', 'country', 'extra', 'last_seen',
-            'location_type', 'created']
+            'location_type', 'created', 'images_location']
         deref_map = {
             'cloud': 'name',
             'owned_by': 'email',
@@ -398,6 +402,9 @@ class CloudLocation(OwnershipMixin, me.Document):
             ret['last_seen'] = str(ret['last_seen'])
         if 'created' in ret:
             ret['created'] = str(ret['created'])
+        if self.capabilities and len(self.capabilities) > 0:
+            ret["capabilities"] = self.capabilities
+
         return ret
 
     def as_dict(self, extra=True):
@@ -412,6 +419,7 @@ class CloudLocation(OwnershipMixin, me.Document):
             'last_seen': str(self.last_seen),
             'parent': self.parent.id if self.parent else None,
             'location_type': self.location_type,
+            'images_location': self.images_location,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
         }
@@ -424,6 +432,8 @@ class CloudLocation(OwnershipMixin, me.Document):
             location_dict['available_sizes'] = {size.id: size.name for size
                                                 in self.available_sizes
                                                 if hasattr(size, 'name')}
+        if self.capabilities and len(self.capabilities) > 0:
+            location_dict["capabilities"] = self.capabilities
         return location_dict
 
     def clean(self):

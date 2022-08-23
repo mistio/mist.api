@@ -59,6 +59,7 @@ ELASTICSEARCH_CLEANUP = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
+CHECK_PERIODIC_TASKS = True
 BACKUP_INTERVAL = 24
 LANDING_CDN_URI = ""
 BLOG_CDN_URI = ""
@@ -132,7 +133,7 @@ SENTRY_CONFIG = {
     'ENVIRONMENT': '',
 }
 
-DATABASE_VERSION = 38
+DATABASE_VERSION = 43
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -1327,6 +1328,7 @@ ALLOW_CONNECT_PRIVATE = True
 
 # allow mist.io to connect to KVM hypervisor running on the same server
 ALLOW_LIBVIRT_LOCALHOST = False
+LIBVIRT_PARSE_ARP_TABLES = False
 
 # Docker related
 DOCKER_IP = "socat"
@@ -1586,6 +1588,10 @@ ALIBABA_VOLUME_TYPES = {
     'cloud_ssd': (20, 32768),
     'cloud_essd': (20, 32768),
 }
+
+# Possible capabilities for a CloudLocation.
+# Currently it is only used on Vexxhost
+LOCATION_CAPABILITIES = ('compute', 'storage', 'network')
 
 VULTR_DDOS_PROTECTION_PRICE = 10
 # Vultr automated backup per size
@@ -3254,6 +3260,7 @@ FROM_ENV_INTS = [
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
     'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
+    'CHECK_PERIODIC_TASKS',
 ] + PLUGIN_ENV_BOOLS
 FROM_ENV_ARRAYS = [
     'PLUGINS'
@@ -3369,6 +3376,11 @@ if ENABLE_BACKUPS:
         'schedule': datetime.timedelta(hours=BACKUP_INTERVAL),
     }
 
+if CHECK_PERIODIC_TASKS:
+    _schedule['check-periodic-tasks'] = {
+        'task': 'mist.api.portal.tasks.check_periodic_tasks',
+        'schedule': datetime.timedelta(hours=1),
+    }
 
 # Configure libcloud to not verify certain hosts.
 if NO_VERIFY_HOSTS:
@@ -3448,6 +3460,7 @@ if not VAULT_ROLE_ID:
     except FileNotFoundError:
         pass
 
+DEFAULT_EXEC_TERMINAL = "default"
 # DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
 
 # Read version info

@@ -1553,6 +1553,7 @@ class BaseComputeController(BaseController):
             _location.parent = self._list_locations__get_parent(_location, loc)
             _location.location_type = self._list_locations__get_type(
                 _location, loc)
+            _location.images_location = self._list_locations__get_images_location(loc)  # noqa: E501
             try:
                 created = self._list_locations__location_creation_date(loc)
                 if created:
@@ -1562,6 +1563,15 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.exception("Error finding creation date for %s in %s.\n%r",
                               self.cloud, _location, exc)
+            try:
+                capabilities = self._list_locations__get_capabilities(loc)
+            except Exception as exc:
+                log.error(
+                    "Failed to get location capabilities for cloud: %s",
+                    self.cloud.id)
+            else:
+                _location.capabilities = capabilities
+
             try:
                 available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
             except Exception as exc:
@@ -1642,6 +1652,13 @@ class BaseComputeController(BaseController):
         """
         return 'zone'
 
+    def _list_locations__get_images_location(self, libcloud_location):
+        """Get the path where image files are stored.
+
+        This is only currently implemented on LibVirt.
+        """
+        return
+
     def _list_locations__get_available_sizes(self, location):
         """Find available sizes for NodeLocation.
         Return a list of CloudSize objects.
@@ -1670,6 +1687,18 @@ class BaseComputeController(BaseController):
 
     def _list_locations__location_creation_date(self, libcloud_location):
         return libcloud_location.extra.get('created_at')
+
+    def _list_locations__get_capabilities(self, libcloud_location
+                                          ) -> List[str]:
+        """Get the capabilities for the given libcloud location.
+
+        The allowed values that can be returned are in:
+        `config.LOCATION_CAPABILITIES`.
+
+        If the provider does not have Location specific capabilities
+        the return value should be `None`.
+        """
+        return
 
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""

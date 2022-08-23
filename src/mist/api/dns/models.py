@@ -302,6 +302,46 @@ class Record(OwnershipMixin, me.Document, TagMixin):
             }
         }
 
+    def as_dict_v2(self, deref='auto', only=''):
+        """ Return a dict with the model values."""
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id',
+            'external_id',
+            'name',
+            'type',
+            'rdata',
+            'ttl',
+            'extra',
+            'zone',
+            'created',
+            'last_seen',
+            'missing_since',
+            'owned_by',
+            'created_by',
+        ]
+        deref_map = {
+            'zone': 'name',
+            'owned_by': 'email',
+            'created_by': 'email',
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+        if 'last_seen' in ret:
+            ret['last_seen'] = str(ret['last_seen'])
+        if 'missing_since' in ret:
+            ret['missing_since'] = str(ret['missing_since'])
+        if 'created' in ret:
+            ret['created'] = str(ret['created'])
+        if 'tags' in only or not only:
+            ret['tags'] = {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id,
+                    resource_type='record').only('key', 'value')
+            }
+        return ret
+
 
 class ARecord(Record):
 

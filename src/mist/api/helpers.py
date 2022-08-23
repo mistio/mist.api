@@ -24,6 +24,8 @@ import logging
 import codecs
 import secrets
 import operator
+import websocket
+import _thread
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -1637,7 +1639,7 @@ def check_size_constraint(cloud_id, size_constraint, sizes):
     return permitted_sizes
 
 
-def bucket_to_dict(node):
+def bucket_to_dict(node, bucket_id):
     if isinstance(node, str):
         return node
     elif isinstance(node, datetime.datetime):
@@ -1648,7 +1650,10 @@ def bucket_to_dict(node):
     if ret.get('driver'):
         ret.pop('driver')
     if ret.get('container'):
-        ret['container'] = bucket_to_dict(ret['container'])
+        ret['container'] = {
+            'name': ret['container'].name,
+            'id': bucket_id
+        }
     if ret.get('state'):
         ret['state'] = str(ret['state'])
     if 'extra' in ret:
@@ -2020,6 +2025,52 @@ def create_helm_command(repo_url, release_name, chart_name, host, port, token,
 
     # The docker image used defines container entrypoint
     return helm_install_command
+
+
+class WebSocketApp(object):
+    """
+    WebSocketWrapper class that wraps websocket.WebSocketApp
+    """
+
+    def __init__(self, uri):
+        self.uri = uri
+        ws = websocket.WebSocketApp(self.uri,
+                                    on_message=self.on_message,
+                                    on_error=self.on_error,
+                                    on_close=self.on_close)
+        self.ws = ws
+        self.ws.on_open = self.on_open
+        self.buffer = ""
+
+    def on_message(self, message):
+        message = message.decode('utf-8')
+        if message.startswith('retval:'):
+            self.retval = message.replace('retval:', '', 1)
+        self.buffer = self.buffer + message
+
+    def on_close(self):
+        self.ws.close()
+
+    def on_error(self, error):
+        self.ws.close()
+        log.error("Got Websocket error: %s" % error)
+
+    def on_open(self):
+        def run(*args):
+            self.ws.send(bytearray(self.cmd, encoding='utf-8'), opcode=2)
+        _thread.start_new_thread(run, ())
+
+    def _wrap_command(self, cmd):
+        if cmd[-1] is not "\n":
+            cmd = cmd + "\n"
+        return cmd
+
+    def command(self, cmd):
+        self.cmd = self._wrap_command(cmd)
+        self.ws.run_forever(ping_interval=9, ping_timeout=8)
+        self.retval = 0
+        output = self.buffer.split("\n")[0:-1]
+        return self.retval, "\n".join(output)
 
 
 def extract_selector_type(**kwargs):

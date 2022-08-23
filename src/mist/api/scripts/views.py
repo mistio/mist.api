@@ -1,5 +1,6 @@
 import uuid
 import json
+import logging
 
 import mongoengine as me
 from pyramid.response import Response
@@ -29,6 +30,7 @@ from mist.api.tag.methods import add_tags_to_resource
 from mist.api import config
 
 OK = Response("OK", 200)
+log = logging.getLogger(__name__)
 
 
 @view_config(route_name='api_v1_scripts', request_method='GET',

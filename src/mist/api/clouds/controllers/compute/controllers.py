@@ -239,7 +239,11 @@ class AmazonComputeController(BaseComputeController):
 
         size = self._list_machines__get_size(node_dict)
 
-        location = machine.location.name
+        try:
+            location = machine.location.name
+        except AttributeError:
+            return 0, 0
+
         # Remove last letter if it is there.
         # eg. remove last 'a' from 'ap-northeast-1a'
         if location[-1].isalpha():
@@ -1317,7 +1321,8 @@ class LinodeComputeController(BaseComputeController):
                 _size = CloudSize.objects.get(external_id=size,
                                               cloud=self.cloud)
             except CloudSize.DoesNotExist:
-                raise NotFoundError()
+                log.warn("Linode size %s not found", size)
+                return 0, 0
 
             price_per_month = _size.extra.get('monthly_price', 0.0)
             price_per_hour = _size.extra.get('price', 0.0)
@@ -2905,7 +2910,9 @@ class EquinixMetalComputeController(BaseComputeController):
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               name__contains=size)
             except CloudSize.DoesNotExist:
-                raise NotFoundError()
+                log.warn('EquinixMetal size %s not found', size)
+                return 0, 0
+
         price = _size.extra.get('price', 0.0)
         if machine.extra.get('billing_cycle') == 'hourly':
             return price, 0
@@ -3777,6 +3784,12 @@ class OpenStackComputeController(BaseComputeController):
 
     def _list_locations__fetch_locations(self):
         return self.connection.ex_list_availability_zones()
+
+    def _list_locations__get_capabilities(self, libcloud_location):
+        capabilities = [key for key, value in libcloud_location.extra.items()
+                        if key in config.LOCATION_CAPABILITIES and
+                        value is True]
+        return capabilities
 
     def _generate_plan__parse_location(self, auth_context, location_search):
         # If a location string is not given, let openstack set
@@ -4941,7 +4954,8 @@ class LibvirtComputeController(BaseComputeController):
 
     def list_machines_single_host(self, host):
         driver = self._get_host_driver(host)
-        return driver.list_nodes()
+        return driver.list_nodes(
+            parse_arp_table=config.LIBVIRT_PARSE_ARP_TABLES)
 
     async def list_machines_all_hosts(self, hosts, loop):
         vms = [
@@ -4952,15 +4966,22 @@ class LibvirtComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         from mist.api.machines.models import Machine
-        nodes = []
-        for machine in Machine.objects.filter(cloud=self.cloud,
-                                              missing_since=None):
-            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-                driver = self._get_host_driver(machine)
-                nodes += [node_to_dict(node)
-                          for node in driver.list_nodes()]
+        hosts = Machine.objects(cloud=self.cloud,
+                                parent=None,
+                                missing_since=None)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
 
-        return nodes
+        node_lists = loop.run_until_complete(
+            self.list_machines_all_hosts(hosts, loop))
+        return [node_to_dict(node)
+                for node_list in node_lists
+                for node in node_list]
 
     def _list_machines__fetch_generic_machines(self):
         machines = []
@@ -5142,6 +5163,9 @@ class LibvirtComputeController(BaseComputeController):
 
         return locations
 
+    def _list_locations__get_images_location(self, libcloud_location):
+        return libcloud_location.extra.get('images_location')
+
     def list_images_single_host(self, host):
         driver = self._get_host_driver(host)
         return driver.list_images(location=host.extra.get(
@@ -5186,7 +5210,7 @@ class LibvirtComputeController(BaseComputeController):
                     locations.append(host.id)
                 except me.DoesNotExist:
                     pass
-        image.extra.update({'locations': locations})
+        image.locations = locations
 
     def _get_libcloud_node(self, machine, no_fail=False):
         assert self.cloud == machine.cloud
@@ -5242,12 +5266,25 @@ class LibvirtComputeController(BaseComputeController):
 
     def remove_machine(self, machine):
         from mist.api.machines.models import KeyMachineAssociation
+        from mist.api.clouds.models import CloudLocation
         KeyMachineAssociation.objects(machine=machine).delete()
         machine.missing_since = datetime.datetime.now()
         machine.save()
         if machine.machine_type == 'hypervisor':
             self.cloud.hosts.remove(machine.id)
             self.cloud.save()
+            try:
+                location = CloudLocation.objects.get(
+                    external_id=machine.machine_id,
+                    cloud=self.cloud)
+                location.missing_since = datetime.datetime.now()
+                location.save()
+            except Exception as exc:
+                log.error(
+                    "Failed to set missing_since on LibVirt Location %s, %s",
+                    machine.machine_id,
+                    repr(exc))
+
         if amqp_owner_listening(self.cloud.owner.id):
             old_machines = [m.as_dict() for m in
                             self.cloud.ctl.compute.list_cached_machines()]
