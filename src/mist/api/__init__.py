@@ -1,6 +1,7 @@
 """Routes and wsgi app creation"""
 
 import os
+import sys
 import time
 import logging
 import importlib
@@ -17,6 +18,7 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 
 
+sys.path.append('/mist.api/libcloud')
 log = logging.getLogger(__name__)
 
 
