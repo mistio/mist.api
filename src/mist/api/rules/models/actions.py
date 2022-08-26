@@ -132,6 +132,7 @@ class NoDataAction(NotificationAction):
     atype = 'no_data'
 
     def run(self, machine, value, triggered, timestamp, incident_id, **kwargs):
+        log.warn(f'NODATA action: ${machine}, ${value}, ${triggered}, ${timestamp}, ${kwargs}')
         if timestamp + 60 * 60 * 24 < time.time():
             # FIXME Imported here due to circular dependency issues.
             from mist.api.monitoring.methods import disable_monitoring
@@ -148,7 +149,7 @@ class NoDataAction(NotificationAction):
         else:
             action = 'Alert'
         super(NoDataAction, self).run(machine, value, triggered, timestamp,
-                                      incident_id, action)
+                                      incident_id, action=action)
 
 
 class CommandAction(BaseAlertAction):
