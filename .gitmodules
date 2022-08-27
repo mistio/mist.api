@@ -1,5 +1,5 @@
 [submodule "libcloud"]
-	path = libcloud
+	path = lc
 	url = ../../mistio/libcloud.git
 [submodule "paramiko"]
 	path = paramiko
