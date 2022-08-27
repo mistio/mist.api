@@ -729,13 +729,6 @@ class Organization(Owner):
         self.members_count = len(self.members)
         self.teams_count = len(self.teams)
 
-        # Add schedule for metering.
-        try:
-            from mist.api.poller.models import MeteringPollingSchedule
-            MeteringPollingSchedule.add(self, run_immediately=False)
-        except Exception as exc:
-            log.error('Error adding metering schedule for %s: %r', self, exc)
-
         # If the org has a name but not a secret engine path we need to create
         # one in Vault
         if self.name and not self.vault_secret_engine_path:
@@ -769,6 +762,13 @@ class Organization(Owner):
                 raise me.ValidationError(
                     "Failed to generate approle credentials"
                 ) from None
+
+        # Add schedule for metering.
+        try:
+            from mist.api.poller.models import MeteringPollingSchedule
+            MeteringPollingSchedule.add(self, run_immediately=False)
+        except Exception as exc:
+            log.error('Error adding metering schedule for %s: %r', self, exc)
 
         super(Organization, self).clean()
 
