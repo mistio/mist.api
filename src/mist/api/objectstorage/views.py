@@ -80,7 +80,7 @@ def list_cloud_buckets(request):
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
     cloud_id = request.matchdict.get('cloud')
-    cached = bool(params.get('cached', True))  # return cached by default
+    cached = bool(params.get('cached', False))
 
     auth_context.check_perm('cloud', 'read', cloud_id)
 
