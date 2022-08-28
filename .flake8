@@ -15,6 +15,6 @@ exclude =
     settings.py,
 
     # Submodules we don't want to test.
-    ./libcloud/,
+    ./lc/,
     ./paramiko/,
     ./run_script/,
