@@ -62,7 +62,7 @@ class AmazonS3ObjectStorageController(BaseObjectStorageController):
         from boto3.session import Session
         return Session(
             aws_access_key_id=self.cloud.apikey,
-            aws_secret_access_key=self.cloud.apisecret,
+            aws_secret_access_key=self.cloud.apisecret.value,
             region_name=self.cloud.region
         )
 
