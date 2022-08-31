@@ -78,6 +78,7 @@ class BaseController(object):
             raise BadRequestError("You must provide resource's actions")
 
         if len(kwargs.get('actions', [])) > 1:
+            # TODO Make possible to have more than one action
             raise NotImplementedError()
 
         if not kwargs.get('selectors'):
@@ -127,6 +128,7 @@ class BaseController(object):
 
         actions = kwargs.get('actions', [])
         act = kwargs.get('action', '')
+        # Action checking and parsing.
         if (actions and len(actions) == 1) or act:
             if not act:
                 action = kwargs.get('actions')[0].get('action_type', '')
@@ -134,6 +136,7 @@ class BaseController(object):
                 action = act
                 sched_type = kwargs.get('schedule_type', '')
             if action == 'notify' and sched_type != 'reminder':
+                # TODO Make possible to have notification actions on schedules
                 raise NotImplementedError()
             elif action == 'run_script':
                 script_type = kwargs.get('actions')[0].get('script_type')
@@ -162,6 +165,7 @@ class BaseController(object):
                     # SEC require permission RUN on script
                     auth_context.check_perm('script', 'run', script_id)
         elif actions and len(actions) > 1:
+            # TODO Make possible to have more than one action
             raise NotImplementedError()
 
         # for ui compatibility
@@ -222,10 +226,13 @@ class BaseController(object):
 
         actions = kwargs.pop('actions', [])
         act = kwargs.pop('action', '')
+        
+        # Action checking and setting.
         if (actions and len(actions) == 1) or act:
             action = actions[0]['action_type'] if not act else act
             sched_type = kwargs.get('schedule_type', '')
             if action == 'notify' and sched_type != 'reminder':
+                # TODO Make possible to have notification actions on schedules
                 raise NotImplementedError()
             elif action == 'run_script':
                 script = ast.literal_eval(actions[0]['script'])
@@ -242,6 +249,7 @@ class BaseController(object):
                 act_name = f'{self.schedule.resource_model_name.title()}Action'
                 self.schedule.actions[0] = globals()[act_name](action=action)
         elif actions and len(actions) > 1:
+            # TODO Make possible to have more than one action
             raise NotImplementedError()
 
         if kwargs.get('when'):
