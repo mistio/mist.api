@@ -271,7 +271,7 @@ def revoke_session(request):
 
     try:
         if auth_context.is_owner():
-            auth_token = AuthToken.objects.get(org=auth_context.org,
+            auth_token = AuthToken.objects.get(orgs=auth_context.org,
                                                id=auth_token_id)
         else:
             auth_token = AuthToken.objects.get(
