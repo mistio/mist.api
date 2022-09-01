@@ -462,10 +462,10 @@ class Organization(Owner):
     name = me.StringField(required=True)
     members = me.ListField(
         me.ReferenceField(User, reverse_delete_rule=me.PULL), required=True)
-    members_count = me.IntField(default=0)
+    members_count = me.IntField(default=0)  # Deprecated
     teams = me.EmbeddedDocumentListField(Team, default=_get_default_org_teams)
-    teams_count = me.IntField(default=0)
-    clouds_count = me.IntField(default=0)
+    teams_count = me.IntField(default=0)  # Deprecated
+    clouds_count = me.IntField(default=0)  # Deprecated
     # These are assigned only to organization from now on
     promo_codes = me.ListField()
     selected_plan = me.StringField()
@@ -650,8 +650,7 @@ class Organization(Owner):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
 
-        standard_fields = ['id', 'name', 'clouds_count', 'members_count',
-                           'teams_count', 'created', 'total_machine_count',
+        standard_fields = ['id', 'name', 'created', 'total_machine_count',
                            'enterprise_plan', 'selected_plan', 'enable_r12ns',
                            'default_monitoring_method', 'insights_enabled',
                            'ownership_enabled', 'last_active']
@@ -727,9 +726,6 @@ class Organization(Owner):
                                         id__ne=self.id):
             raise me.ValidationError("Organization with name '%s' "
                                      "already exists." % self.name)
-
-        self.members_count = len(self.members)
-        self.teams_count = len(self.teams)
 
         # If the org has a name but not a secret engine path we need to create
         # one in Vault

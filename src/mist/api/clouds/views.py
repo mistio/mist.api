@@ -14,7 +14,8 @@ from mist.api.decorators import require_cc
 from mist.api.exceptions import BadRequestError, MistNotImplementedError
 from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 
-from mist.api.clouds.methods import filter_list_clouds, add_cloud_v_2
+from mist.api.clouds.methods import filter_list_clouds
+from mist.api.clouds.methods import add_cloud as m_add_cloud
 from mist.api.clouds.methods import rename_cloud as m_rename_cloud
 from mist.api.clouds.methods import remove_cloud as m_remove_cloud
 
@@ -226,7 +227,7 @@ def add_cloud(request):
         raise RequiredParameterMissingError('provider')
 
     monitoring = None
-    result = add_cloud_v_2(owner, name, provider, user, params)
+    result = m_add_cloud(owner, name, provider, user, params)
     cloud_id = result['cloud_id']
     monitoring = result.get('monitoring')
     errors = result.get('errors')
