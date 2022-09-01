@@ -2454,6 +2454,17 @@ def machine_safe_expire(owner_id, machine):
 
 
 def find_best_ssh_params(machine, auth_context=None):
+    # Get target host
+    host = machine.hostname
+    if host == 'socat':  # Local Docker host, used mainly for testing
+        host = config.PORTAL_URI.split('://')[1].rstrip('/')
+    if not host:
+        ips = [ip for ip in machine.public_ips
+               if ip and ':' not in ip]
+        ips += [ip for ip in machine.private_ips
+                if ip and ':' not in ip]
+        host = ips[0]
+
     # Get key associations, prefer root or sudoer ones
     key_associations = KeyMachineAssociation.objects(
         Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
@@ -2485,10 +2496,14 @@ def find_best_ssh_params(machine, auth_context=None):
             int(datetime.now().timestamp()) - key_association.last_used \
                 <= 30 * 24 * 60 * 60:
             hostname, port = dnat(
-                machine.owner, machine.hostname, key_association.port)
+                machine.owner, host, key_association.port)
             key_association.last_used = int(
                 datetime.now().timestamp())
             key_association.save()
+            for pm in machine.extra.get('ports', []):
+                if pm['PrivatePort'] == port:
+                    port = pm['PublicPort']
+                    break
             return key_association.id, \
                 hostname, \
                 key_association.ssh_user, \
@@ -2549,27 +2564,24 @@ def find_best_ssh_params(machine, auth_context=None):
     for key_association in key_associations:
         for ssh_user in users:
             for port in ports:
-                shell = ParamikoShell(machine.hostname)
                 key = key_association.key
-                try:
-                    # store the original ssh port in case of NAT
-                    # by the OpenVPN server
-                    ssh_port = port
-                    if machine.hostname:
-                        host = machine.hostname
-                    else:
-                        ips = [ip for ip in machine.public_ips
-                               if ip and ':' not in ip]
-                        ips += [ip for ip in machine.private_ips
-                                if ip and ':' not in ip]
-                        host = ips[0]
-                    host, port = dnat(machine.owner, host, port)
-                    log.info("ssh -i %s %s@%s:%s",
-                             key.name, ssh_user, host, port)
-                    cert_file = ''
-                    if isinstance(key, SignedSSHKey):
-                        cert_file = key.certificate
+                port_mappings = machine.extra.get('ports', [])
+                for pm in port_mappings:
+                    if pm['PrivatePort'] == port:
+                        port = pm['PublicPort']
+                        break
 
+                # store the original ssh port in case of NAT
+                # by the OpenVPN server
+                ssh_port = port
+                host, port = dnat(machine.owner, host, port)
+                log.info("ssh -i %s %s@%s:%s",
+                         key.name, ssh_user, host, port)
+                cert_file = ''
+                if isinstance(key, SignedSSHKey):
+                    cert_file = key.certificate
+                try:
+                    shell = ParamikoShell(host)
                     shell.connect(ssh_user, key=key, port=port)
                 except MachineUnauthorizedError:
                     continue
