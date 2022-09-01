@@ -52,7 +52,7 @@ def list_tokens(request):
     # If user is owner also include all active tokens in the current org
     # context
     if auth_context.is_owner():
-        org_tokens = ApiToken.objects(org=auth_context.org, revoked=False)
+        org_tokens = ApiToken.objects(orgs=auth_context.org, revoked=False)
         for token in org_tokens:
             if token.is_valid():
                 token_view = token.get_public_view()
@@ -219,7 +219,7 @@ def list_sessions(request):
 
     # If user is owner include all active sessions in the org context
     if auth_context.is_owner():
-        org_tokens = SessionToken.objects(org=auth_context.org, revoked=False)
+        org_tokens = SessionToken.objects(orgs=auth_context.org, revoked=False)
         for token in org_tokens:
             if token.is_valid():
                 public_view = token.get_public_view()
