@@ -77,6 +77,8 @@ class VaultSecret(Secret):
     def create_or_update(self, attributes: Dict[str, Any]) -> None:
         path = self.name.split('/')
         for i in range(0, len(path)):
+            if not path[:-i]:
+                continue
             subpath = '/'.join(path[:-i]) + '/'
             try:
                 VaultSecret.objects.get(owner=self.owner, name=subpath)
