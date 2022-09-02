@@ -4,6 +4,8 @@ import urllib.request
 import urllib.parse
 import urllib.error
 
+from datetime import datetime
+
 from future.utils import string_types
 
 from mongoengine import DoesNotExist
@@ -268,13 +270,16 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
                 user_for_session = User.objects.get(id=user_for_session)
 
         session.set_user(user_for_session, effective=user_is_effective)
-        session.orgs = Organization.objects(members=user_for_session)
+        session.orgs = Organization.objects(
+            members=user_for_session).order_by('-last_active')
         if org:
             org_index = session.orgs.index(org)
             # Bring selected org first if necessary
             if org_index > 0:
                 session.orgs[org_index] = session.orgs[0]
                 session.orgs[0] = org
+                org.last_active = datetime.now()
+                org.save()
 
     session.su = su
     session.save()
