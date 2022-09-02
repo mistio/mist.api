@@ -226,7 +226,7 @@ class BaseController(object):
 
         actions = kwargs.pop('actions', [])
         act = kwargs.pop('action', '')
-        
+
         # Action checking and setting.
         if (actions and len(actions) == 1) or act:
             action = actions[0]['action_type'] if not act else act
