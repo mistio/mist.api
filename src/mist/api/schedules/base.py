@@ -146,7 +146,7 @@ class BaseController(object):
                     script_id = script['script']
                     if script_id:
                         try:
-                            # TODO List Resources using list_resources method 
+                            # TODO List Resources using list_resources method
                             # instead of Script objects
                             Script.objects.get(org=org, id=script_id,
                                                deleted=None)
