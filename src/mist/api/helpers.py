@@ -989,6 +989,8 @@ def logging_view_decorator(func):
                 request)
             if auth_context.org:
                 log_dict['owner_id'] = auth_context.org.id
+            else:
+                log_dict['owner_id'] = ''
         else:
             log_dict['user_id'] = None
             log_dict['owner_id'] = None
@@ -2038,7 +2040,7 @@ class websocket_for_scripts(object):
 
     def on_open(self):
         def run(*args):
-            self.ws.send(bytearray(self.cmd, encoding='utf-8'), opcode=2)
+            self.ws.wait_command_to_finish()
         _thread.start_new_thread(run, ())
 
     def wait_command_to_finish(self):
