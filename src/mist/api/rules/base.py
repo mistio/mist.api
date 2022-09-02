@@ -114,17 +114,6 @@ class BaseController(object):
         if 'actions' in kwargs:
             self.rule.actions = []
         for action in kwargs.pop('actions', []):
-            # act_v1 = action.pop('type', '')
-            # act_v2 = action.pop('action_type', '')
-            # act = act_v2 if 'action_type' in action else act_v1
-            # if act not in ['webhook', 'notification', 'notify',
-            #                'run_script', 'resize']:
-            #     action['type'] = f'{self.rule.resource_model_name}_action'
-            # else:
-            #     if act in ['notify', 'notification']:
-            #         action['type'] = 'notification'
-            #     else:
-            #         action['type'] = act
             if 'action_type' in action:
                 if action.get('action_type', '') not in ['webhook',
                                                          'notification',

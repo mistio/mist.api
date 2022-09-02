@@ -146,7 +146,8 @@ class BaseController(object):
                     script_id = script['script']
                     if script_id:
                         try:
-                            # TODO List Resources insted of Script objects
+                            # TODO List Resources using list_resources method 
+                            # instead of Script objects
                             Script.objects.get(org=org, id=script_id,
                                                deleted=None)
                         except me.DoesNotExist:
@@ -154,6 +155,8 @@ class BaseController(object):
                                                       'not exist' % script_id)
                         # SEC require permission RUN on script
                         auth_context.check_perm('script', 'run', script_id)
+            # Uses old schedule scripts logic (API v1).
+            # TODO Deprecate
             elif action == 'run script':
                 script_id = kwargs.pop('script_id', '')
                 if script_id:
@@ -241,6 +244,8 @@ class BaseController(object):
                 if script_id:
                     self.schedule.actions[0] = acts.ScriptAction(
                         script=script_id, params=params)
+            # Uses old schedule scripts logic (API v1).
+            # TODO Deprecate
             elif action == 'run script':
                 if script_id:
                     self.schedule.actions[0] = acts.ScriptAction(
