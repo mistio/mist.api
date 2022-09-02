@@ -357,6 +357,8 @@ class WebhookAction(BaseAction):
                 'headers': self.headers}
 
 
+# Base Resource Action for better abstraction
+# Machine, Cluster, Volume and Network actions inherit from this class
 class BaseResourceAction(BaseAction):
     """The base class for resource actions.
 
