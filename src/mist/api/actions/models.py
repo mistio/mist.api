@@ -202,7 +202,7 @@ class CommandAction(BaseAction):
         from mist.api.methods import ssh_command
         from mist.api.machines.models import Machine
         assert isinstance(machine, Machine)
-        assert machine.owner == self._instance.owner
+        assert machine.owner == self._instance.org
         return ssh_command(machine.owner, machine.cloud.id,
                            machine.external_id,
                            machine.hostname, self.command)
@@ -236,7 +236,7 @@ class ScriptAction(BaseAction):
         from mist.api import tasks
         from mist.api.machines.models import Machine
         assert isinstance(machine, Machine)
-        assert machine.owner == self._instance.owner
+        assert machine.owner == self._instance.org
         job_id = uuid.uuid4().hex
         job = 'run_script'
         tasks.run_script(None, self.script.id,
@@ -411,7 +411,7 @@ class MachineAction(BaseResourceAction):
         # FIXME Imported here due to circular dependency issues.
         from mist.api.machines.models import Machine
         assert isinstance(machine, Machine)
-        assert machine.owner == self._instance.owner
+        assert machine.owner == self._instance.org
         getattr(machine.ctl, self.action)()
         if self.action == 'destroy':  # If destroy, disable monitoring, too.
             # FIXME Imported here due to circular dependency issues.
@@ -450,7 +450,7 @@ class VolumeAction(BaseResourceAction):
         # FIXME Imported here due to circular dependency issues.
         from mist.api.volumes.models import Volume
         assert isinstance(volume, Volume)
-        assert volume.owner == self._instance.owner
+        assert volume.owner == self._instance.org
         getattr(volume.ctl, self.action)()
 
     @property
@@ -480,7 +480,7 @@ class ClusterAction(BaseResourceAction):
         # FIXME Imported here due to circular dependency issues.
         from mist.api.containers.models.Cluster import Cluster
         assert isinstance(cluster, Cluster)
-        assert cluster.owner == self._instance.owner
+        assert cluster.owner == self._instance.org
         getattr(cluster.ctl, self.action)()
 
     @property
@@ -510,7 +510,7 @@ class NetworkAction(BaseResourceAction):
         # FIXME Imported here due to circular dependency issues.
         from mist.api.networks.models import Network
         assert isinstance(network, Network)
-        assert network.owner == self._instance.owner
+        assert network.owner == self._instance.org
         getattr(network.ctl, self.action)()
 
     @property
