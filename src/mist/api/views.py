@@ -1087,7 +1087,7 @@ def confirm_invitation(request):
         })
     reissue_cookie_session(**args)
 
-    trigger_session_update(auth_context.org, ['org'])
+    trigger_session_update(org, ['org'])
 
     return HTTPFound('/')
 
@@ -1109,7 +1109,8 @@ def whitelist_ip(request):
 
     update_whitelist_ips(auth_context, ips)
 
-    trigger_session_update(auth_context.org, ['user'])
+    if auth_context.org:
+        trigger_session_update(auth_context.org, ['user'])
     return OK
 
 
@@ -2219,13 +2220,16 @@ def invite_member_to_team(request):
 
             # if one of the org owners adds himself to team don't send email
             if user == auth_context.user:
-                trigger_session_update(auth_context.owner, ['org'])
+                if auth_context.org:
+                    trigger_session_update(auth_context.org, ['org'])
                 return return_val
 
         tasks.send_email.send(subject, body, user.email)
         ret.append(return_val)
 
-    trigger_session_update(auth_context.owner, ['org'])
+    if auth_context.org:
+        trigger_session_update(auth_context.org, ['org'])
+
     return ret
 
 
