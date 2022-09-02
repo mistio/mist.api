@@ -38,7 +38,7 @@ def _get_alert_details(resource, rule, incident_id,
     # Use the old way for monitoring data for now..
     if isinstance(rule, MachineMetricRule):
         return _alert_pretty_machine_details(
-            rule.owner, rule.title, value, triggered, timestamp,
+            rule.org, rule.name, value, triggered, timestamp,
             resource.cloud.id, resource.external_id, action, level, description
         )
 
@@ -56,7 +56,7 @@ def _get_alert_details(resource, rule, incident_id,
     d = {
         'description': description,
         'rule_id': rule.id,
-        'rule_title': rule.title,
+        'rule_name': rule.name,
         'rule_data_type': rule._data_type_str,
         'rule_arbitrary': rule.is_arbitrary(),
         'metric_name': label,
@@ -76,7 +76,7 @@ def _get_alert_details(resource, rule, incident_id,
     d.update({'name': '', 'machine_link': ''})
 
     if isinstance(rule, ArbitraryLogsRule):
-        resource = rule.owner
+        resource = rule.org
         resource_type = 'organization'
         resource_link = config.PORTAL_URI
     elif isinstance(rule, ResourceLogsRule):
@@ -106,7 +106,7 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
     # the current implementation.
     from mist.api.monitoring.methods import find_metrics
     assert cloud_id and external_id
-    rule = Rule.objects.get(owner_id=owner.id, title=rule_id)
+    rule = Rule.objects.get(org_id=owner.id, name=rule_id)
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     machine = Machine.objects.get(cloud=cloud, external_id=external_id)
@@ -163,7 +163,7 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
     return {
         'description': description,
         'rule_id': rule.id,
-        'rule_title': rule.title,
+        'rule_name': rule.name,
         'cloud_id': cloud_id,
         'machine_id': machine.id,
         'external_id': external_id,
@@ -229,7 +229,7 @@ def _log_alert(resource, rule, value, triggered, timestamp, incident_id,
     info.pop('owner_id', None)
     # Log the alert.
     log_event(
-        owner_id=rule.owner_id, event_type='incident', incident_id=incident_id,
+        owner_id=rule.org_id, event_type='incident', incident_id=incident_id,
         action='rule_triggered' if triggered else 'rule_untriggered', **info
     )
 
@@ -262,7 +262,7 @@ def _get_time_diff_to_now(ts):
 def _get_resource_name(resource):
     """Return the name identifier of the `resource` as stored in the db"""
     return (getattr(resource, 'name', '') or
-            getattr(resource, 'title', '') or
+            getattr(resource, 'name', '') or
             getattr(resource, 'domain', '') or '')
 
 

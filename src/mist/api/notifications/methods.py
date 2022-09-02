@@ -74,12 +74,12 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
 
     # Create a new EmailAlert if the alert has just been triggered.
     try:
-        alert = EmailAlert.objects.get(owner=rule.owner_id,
+        alert = EmailAlert.objects.get(owner=rule.org,
                                        incident_id=incident_id)
     except EmailAlert.DoesNotExist:
         if not triggered:
             return
-        alert = EmailAlert(owner=rule.owner, incident_id=incident_id)
+        alert = EmailAlert(owner=rule.org, incident_id=incident_id)
         # Allows unsubscription from alerts on a per-rule basis.
         alert.rid = rule.id
         alert.rtype = 'rule'

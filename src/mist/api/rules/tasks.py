@@ -37,13 +37,13 @@ def evaluate(rule_id):
 
 
 @dramatiq.actor
-def add_nodata_rule(owner_id, backend='graphite'):
+def add_nodata_rule(org_id, backend='graphite'):
     """Idempotently setup a NoDataRule for the given Organization."""
     try:
-        log.info('Adding %s no-data rule for Org %s', backend, owner_id)
-        NoDataRule.objects.get(owner_id=owner_id, title='NoData')
+        log.info('Adding %s no-data rule for Org %s', backend, org_id)
+        NoDataRule.objects.get(org_id=org_id, title='NoData')
     except NoDataRule.DoesNotExist:
-        NoDataRule(owner_id=owner_id).ctl.auto_setup(backend=backend)
+        NoDataRule(org_id=org_id).ctl.auto_setup(backend=backend)
 
 
 @dramatiq.actor(max_retries=3, max_age=60_000, queue_name='dramatiq_rules')
@@ -74,7 +74,7 @@ def run_action_by_id(rule_id, incident_id, action_id,
     else:
         assert resource_type in rtype_to_classpath, resource_type
         Model = get_resource_model(resource_type)
-        resource = Model.objects.get(id=resource_id, owner=rule.owner_id)
+        resource = Model.objects.get(id=resource_id, owner=rule.org_id)
 
     try:
         action.run(resource, value, triggered, timestamp, incident_id)

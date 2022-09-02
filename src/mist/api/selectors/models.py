@@ -53,11 +53,11 @@ class SelectorClassMixin(object):
     def selector_resource_cls(self):
         return get_resource_model(self.resource_model_name)
 
-    def owner_query(self):
-        return me.Q(owner=self.owner_id)
+    def org_query(self):
+        return me.Q(owner=self.org_id)
 
     def get_resources(self):
-        query = self.owner_query()
+        query = self.org_query()
         for selector in self.selectors:
             query &= selector.q
         if 'deleted' in self.selector_resource_cls._fields:
@@ -110,7 +110,7 @@ class TaggingSelector(BaseSelector):
         ids = set()
         for key, value in self.include.items():
             query = {
-                'owner': self._instance.owner,
+                'owner': self._instance.org,
                 'resource_type': rtype,
                 'key': key,
             }

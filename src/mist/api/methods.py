@@ -23,16 +23,22 @@ from mist.api.shell import Shell
 from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import CloudNotFoundError
+from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import BadRequestError
 
 from mist.api.helpers import amqp_publish_user, search_parser
 from mist.api.helpers import startsandendswith
 from mist.api.helpers import dirty_cow, parse_os_release
+from mist.api.helpers import rtype_to_classpath
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.users.models import User
 
 from mist.api.tag.methods import get_tags_for_resource
+
+from mist.api.selectors.models import FieldSelector, ResourceSelector
+from mist.api.selectors.models import TaggingSelector, AgeSelector
 
 from mist.api import config
 
@@ -44,6 +50,11 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 log = logging.getLogger(__name__)
+
+SELECTOR_CLS = {'tags': TaggingSelector,
+                'resource': ResourceSelector,
+                'field': FieldSelector,
+                'age': AgeSelector}
 
 
 def connect_provider(cloud, **kwargs):
@@ -577,7 +588,9 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
 
     # Init query object
     if resource_type == 'rule':
-        query = Q(owner_id=auth_context.org.id)
+        query = Q(org_id=auth_context.org.id)
+    elif resource_type == 'schedule':
+        query = Q(org=auth_context.org)
     elif hasattr(resource_model, 'owner'):
         query = Q(owner=auth_context.org)
     else:
@@ -915,6 +928,136 @@ def get_console_proxy_uri(auth_context, machine):
         protocol = protocol.replace('http', 'ws')
         params = urllib.parse.urlencode({'url': console_uri})
         proxy_uri = f"{protocol}://{host}/wsproxy/?{params}"
-        return proxy_uri, console_type, 200, None
+        return proxy_uri
+    return None
 
-    raise NotImplementedError()
+
+def check_perm(auth_context, resource_type, action, resource=None):
+    assert resource_type in rtype_to_classpath
+    rid = resource.id if resource else None
+    if hasattr(resource, 'cloud'):
+        # SEC require permission READ on cloud
+        auth_context.check_perm("cloud", "read", resource.cloud.id)
+    if resource_type == 'machine':
+        if action and action not in ['notify']:
+            # SEC require permission ACTION on machine
+            auth_context.check_perm(resource_type, action, rid)
+        else:
+            # SEC require permission RUN_SCRIPT on machine
+            auth_context.check_perm(resource_type, "run_script", rid)
+    elif resource_type == 'cluster':
+        # SEC require permission ACTION on machine
+        auth_context.check_perm(resource_type, action, rid)
+    elif resource_type in ['network', 'volume']:
+        auth_context.check_perm(resource_type, 'read', rid)
+        if action == 'delete':
+            action = 'remove'
+        auth_context.check_perm(resource_type, action, rid)
+    else:
+        raise NotImplementedError(resource_type)
+
+
+def _update__preparse_resources(obj, auth_context, kwargs):
+    """Preparse resource arguments to `self.update`
+
+    This is called by `self.update` when adding a new schedule,
+    in order to apply pre processing to the given params. Any subclass
+    that requires any special pre processing of the params passed to
+    `self.update`, SHOULD override this method.
+
+    Params:
+    kwargs: A dict of the keyword arguments that will be set as attributes
+        to the `Schedule` or `Rule` model instance stored in `obj`.
+        This method is expected to modify `kwargs` in place and set the
+        specific field of each scheduler.
+
+    Subclasses MAY override this method.
+
+    """
+    if kwargs.get('selectors'):
+        obj.selectors = []
+    for selector in kwargs.get('selectors', []):
+        sel_type = selector.get('type')
+        sel_cls_key = sel_type if sel_type == 'tags' else sel_type.rstrip('s')
+        if not sel_cls_key:
+            sel_cls_key = 'resource'
+            assert obj.resource_model_name in rtype_to_classpath
+            selector['type'] = obj.resource_model_name
+        elif sel_cls_key in rtype_to_classpath:
+            sel_cls_key = 'resource'
+        if sel_cls_key not in SELECTOR_CLS:
+            raise BadRequestError(
+                f'Valid selector types: {list(SELECTOR_CLS)}')
+        if sel_cls_key == 'field':
+            if selector['field'] not in ('created', 'state',
+                                         'cost__monthly', 'name'):
+                raise BadRequestError()
+            if selector.get('operator') == 'regex':
+                if selector['field'] != 'name':
+                    raise BadRequestError(
+                        'Supported regex fields: `name`.')
+                try:
+                    re.compile(selector['value'])
+                except re.error:
+                    raise BadRequestError(
+                        f"{selector['value']} is not a valid regex.")
+        sel = SELECTOR_CLS[sel_cls_key]()
+        sel.update(**selector)
+        obj.selectors.append(sel)
+
+    actions = []
+    for act in kwargs.get('actions', []):
+        if 'action_type' in act and act['action_type'] not in ('notify',
+                                                               'run_script',
+                                                               'webhook',
+                                                               'resize'):
+            actions.append(act['action_type'])
+        if 'type' in act and act['type'] not in ('notify',
+                                                 'run_script',
+                                                 'webhook',
+                                                 'resize'):
+            actions.append(act['type'])
+
+    if kwargs.get('action'):
+        actions.append(kwargs.get('action'))
+
+    # check permissions
+    if len(actions) > 1:
+        raise NotImplementedError()
+    count = 0
+    for action in actions:
+        resource_cls = obj.selector_resource_cls
+        resource_type = obj.resource_model_name.rstrip('s')
+        for selector in obj.selectors:
+            if isinstance(selector, ResourceSelector):
+                if resource_type == 'machine':
+                    query = dict(state__ne='terminated')
+                    not_found_msg = 'Machine state is terminated.'
+                else:
+                    query = {}
+                    not_found_msg = f'{resource_type.capitalize()} not found.'
+                for rid in selector.ids:
+                    try:
+                        resource = resource_cls.objects.get(id=rid, **query)
+                    except me.DoesNotExist:
+                        raise NotFoundError(not_found_msg)
+                    check_perm(
+                        auth_context, resource_type, action, resource=resource)
+                count += 1
+            elif selector.ctype == 'field':
+                if selector.operator == 'regex':
+                    resources = resource_cls.objects({
+                        selector.field: re.compile(selector.value),
+                        'state__ne': 'terminated'
+                    })
+                    for r in resources:
+                        check_perm(
+                            auth_context, resource_type, action, resource=r)
+                    count += 1
+            elif selector.ctype == 'tags':
+                check_perm(auth_context, resource_type, action)
+                count += 1
+    if count < len(actions) and count > 0:
+        raise BadRequestError("Specify at least resource ids or tags")
+
+    return

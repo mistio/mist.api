@@ -3,13 +3,13 @@ from mist.api.tag.methods import get_tags_for_resource
 
 
 def list_schedules(owner):
-    schedules = Schedule.objects(owner=owner, deleted=None).order_by('-_id')
+    schedules = Schedule.objects(org=owner, deleted=None).order_by('-_id')
     schedule_objects = []
     for schedule in schedules:
         schedule_object = schedule.as_dict()
         schedule_object["tags"] = get_tags_for_resource(owner, schedule)
         # no need to for remnder schedules to be visible
-        if schedule.schedule_type.type != 'reminder':
+        if schedule.when.type != 'reminder':
             schedule_objects.append(schedule_object)
     return schedule_objects
 
