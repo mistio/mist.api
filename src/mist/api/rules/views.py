@@ -40,7 +40,7 @@ def get_rules(request):
     auth_context = auth_context_from_request(request)
     if not auth_context.is_owner():
         raise UnauthorizedError('Restricted to Owners')
-    return [r.as_dict() for r in Rule.objects(owner_id=auth_context.owner.id)]
+    return [r.as_dict() for r in Rule.objects(org_id=auth_context.owner.id)]
 
 
 @view_config(route_name='api_v1_rules', request_method='POST', renderer='json')
@@ -244,6 +244,10 @@ def add_rule(request):
     rule_key = '%s-%s' % ('arbitrary' if arbitrary else 'resource', data_type)
     rule_cls = RULES[rule_key]
 
+    # Match with the new when field
+    if kwargs.get('frequency', ''):
+        kwargs['when'] = kwargs.pop('frequency')
+
     # Add new rule.
     rule = rule_cls.add(auth_context, **kwargs)
 
@@ -281,7 +285,7 @@ def update_rule(request):
     params = dict(params_from_request(request).copy())
     rule_id = request.matchdict.get('rule')
     try:
-        rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
+        rule = Rule.objects.get(org_id=auth_context.owner.id, id=rule_id)
         rule.ctl.set_auth_context(auth_context)
         rule.ctl.update(**params)
         Notification.objects(  # Delete related notifications.
@@ -330,7 +334,7 @@ def toggle_rule(request):
         raise BadRequestError('Action must be one of (enable, disable)')
 
     try:
-        rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
+        rule = Rule.objects.get(org_id=auth_context.owner.id, id=rule_id)
         getattr(rule.ctl, action)()
     except Rule.DoesNotExist:
         raise RuleNotFoundError()
@@ -370,7 +374,7 @@ def rename_rule(request):
         raise RequiredParameterMissingError('title')
 
     try:
-        rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
+        rule = Rule.objects.get(org_id=auth_context.owner.id, id=rule_id)
         rule.ctl.rename(title)
     except Rule.DoesNotExist:
         raise RuleNotFoundError()
@@ -399,7 +403,7 @@ def delete_rule(request):
     auth_context = auth_context_from_request(request)
     rule_id = request.matchdict.get('rule')
     try:
-        rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
+        rule = Rule.objects.get(org_id=auth_context.owner.id, id=rule_id)
         rule.ctl.set_auth_context(auth_context)
         rule.ctl.delete()
         Notification.objects(  # Delete related notifications.
@@ -534,7 +538,7 @@ def triggered(request):
         resource_type = rule.resource_model_name
         Model = get_resource_model(resource_type)
         try:
-            resource = Model.objects.get(id=resource_id, owner=rule.owner_id)
+            resource = Model.objects.get(id=resource_id, owner=rule.org)
         except Model.DoesNotExist:
             raise NotFoundError('%s %s' % (resource_type, resource_id))
         if is_resource_missing(resource):

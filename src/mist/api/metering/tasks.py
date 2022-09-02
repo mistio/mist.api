@@ -111,9 +111,9 @@ def push_metering_info(owner_id):
             log.error('Failed upon cores metering of %s: %r', machine.id, exc)
 
     # Checks
-    for rule in Rule.objects(owner_id=owner_id):
+    for rule in Rule.objects(org_id=owner_id):
         try:
-            metering[rule.owner_id]['checks'] += rule.total_check_count
+            metering[rule.org]['checks'] += rule.total_check_count
         except Exception as exc:
             log.error('Failed upon checks metering of %s: %r', rule.id, exc)
 

@@ -13,7 +13,7 @@ class ElasticSearchBackendPlugin(base.BaseBackendPlugin):
 
     def execute(self, query, rid=None):
         # Instantiate a request handler bound to an Organization context.
-        handler = CountQueryHandler(self.rule.owner_id, rid, self.rtype)
+        handler = CountQueryHandler(self.rule.org_id, rid, self.rtype)
 
         # Transform the list of a rule's conditions' filters into proper
         # term clauses that can be used by the query handler.
@@ -43,7 +43,7 @@ class ElasticSearchBackendPlugin(base.BaseBackendPlugin):
 
         # The frequency should be at least 50% of the time window.
         window_seconds = rule.window.timedelta.total_seconds()
-        frequency_seconds = rule.frequency.timedelta.total_seconds()
+        frequency_seconds = rule.when.timedelta.total_seconds()
         assert round(frequency_seconds / (1. * window_seconds), 1) >= .1, (
             "The frequency of a rule's evaluation must be at least 10% of "
             "its time window"

@@ -204,11 +204,11 @@ class MachineController(object):
                         self.machine.id, self.machine.external_id),
                     'value': not self.machine.expiration and None or {
                         'id': self.machine.expiration.id,
-                        'date': self.machine.expiration.schedule_type.entry,
-                        'action': self.machine.expiration.task_type.action,
+                        'date': self.machine.expiration.when.entry,
+                        'action': self.machine.expiration.actions[0].action,
                         'notify': self.machine.expiration.reminder and int((
-                            self.machine.expiration.schedule_type.entry -
-                            self.machine.expiration.reminder.schedule_type.
+                            self.machine.expiration.when.entry -
+                            self.machine.expiration.reminder.when.
                             entry
                         ).total_seconds()) or 0
                     }

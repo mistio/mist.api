@@ -4,6 +4,7 @@ import mongoengine as me
 from mist.api import config
 
 from mist.api.helpers import trigger_session_update
+from mist.api.methods import _update__preparse_resources
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
@@ -11,15 +12,16 @@ from mist.api.exceptions import UnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.rules.models import Window
-from mist.api.rules.models import Frequency
-from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
 
-from mist.api.rules.models import ACTIONS
-from mist.api.rules.models import NoDataAction
+from mist.api.actions.models import ACTIONS
+from mist.api.actions.models import NoDataAction
+
+from mist.api.when.models import Interval
+from mist.api.when.models import TriggerOffset
 
 from mist.api.selectors.models import FieldSelector
-from mist.api.selectors.models import TaggingSelector
+from mist.api.selectors.models import TaggingSelector # noqa
 from mist.api.selectors.models import ResourceSelector
 
 if config.HAS_RBAC:
@@ -31,15 +33,9 @@ else:
 log = logging.getLogger(__name__)
 
 
-SELECTORS = {
-    'tags': TaggingSelector,
-    'machines': ResourceSelector,  # FIXME For backwards compatibility.
-    'resources': ResourceSelector,
-}
-
 TIMEPERIOD = {
     'window': Window,
-    'frequency': Frequency,
+    'when': Interval,
     'trigger_after': TriggerOffset,
 }
 
@@ -94,14 +90,14 @@ class BaseController(object):
         This method is meant to be invoked only by the `Rule.add` classmethod.
 
         """
-        for field in ('queries', 'window', 'frequency', ):
+        for field in ('queries', 'window', 'when', ):
             if field not in kwargs:
                 raise RequiredParameterMissingError(field)
         try:
             self.update(fail_on_error=fail_on_error,
                         called_from_add=True, **kwargs)
         except (me.ValidationError, BadRequestError) as err:
-            log.error('Error adding %s: %s', self.rule.title, err)
+            log.error('Error adding %s: %s', self.rule.name, err)
             raise
 
     def update(self, fail_on_error=True, called_from_add=False, **kwargs):
@@ -110,7 +106,7 @@ class BaseController(object):
         This method is invoked by `self.add` when adding a new Rule, but it
         can also be called directly, as such:
 
-            rule = Rule.objects.get(owner=owner, title='rule15')
+            rule = Rule.objects.get(owner=owner, name='rule15')
             rule.ctl.update(**kwargs)
 
         """
@@ -118,6 +114,19 @@ class BaseController(object):
         if 'actions' in kwargs:
             self.rule.actions = []
         for action in kwargs.pop('actions', []):
+            if 'action_type' in action:
+                if action.get('action_type', '') not in ['webhook',
+                                                         'notification',
+                                                         'notify',
+                                                         'run_script',
+                                                         'resize']:
+                    action['action'] = action.pop('action_type', '')
+                    action['type'] = f'{self.rule.resource_model_name}_action'
+                elif action.get('action_type', '') == 'notify':
+                    action['type'] = 'notification'
+                    action.pop('action_type')
+                else:
+                    action['type'] = action.pop('action_type', '')
             if action.get('type') not in ACTIONS:
                 raise BadRequestError('Action must be in %s' %
                                       list(ACTIONS.keys()))
@@ -144,6 +153,9 @@ class BaseController(object):
                     "Multiple notifications are not supported. Users "
                     "will always be notified at the beginning of the "
                     "actions' cycle.")
+
+        if 'description' in kwargs:
+            self.rule.description = kwargs.pop('description')
 
         # Update query condition.
         if 'queries' in kwargs:
@@ -180,13 +192,13 @@ class BaseController(object):
                 self.check_auth_context()
                 self.rule.save()
             except me.ValidationError as err:
-                log.error('Error updating %s: %s', self.rule.title, err)
+                log.error('Error updating %s: %s', self.rule.name, err)
                 raise BadRequestError({'msg': str(err),
                                        'errors': err.to_dict()})
             except me.NotUniqueError as err:
-                log.error('Error updating %s: %s', self.rule.title, err)
+                log.error('Error updating %s: %s', self.rule.name, err)
                 raise BadRequestError(
-                    'Rule "%s" already exists' % self.rule.title)
+                    'Rule "%s" already exists' % self.rule.name)
 
         # Validate the rule against the plugin in use.
         try:
@@ -202,35 +214,35 @@ class BaseController(object):
             self.check_auth_context()
             self.rule.save()
         except me.ValidationError as err:
-            log.error('Error updating %s: %s', self.rule.title, err)
+            log.error('Error updating %s: %s', self.rule.name, err)
             if called_from_add:
                 self.rule.delete()
             raise BadRequestError({'msg': str(err),
                                    'errors': err.to_dict()})
         except me.NotUniqueError as err:
-            log.error('Error updating %s: %s', self.rule.title, err)
-            raise BadRequestError('Rule "%s" already exists' % self.rule.title)
+            log.error('Error updating %s: %s', self.rule.name, err)
+            raise BadRequestError('Rule "%s" already exists' % self.rule.name)
 
         # Trigger a UI session update.
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
-    def rename(self, title):
+    def rename(self, name):
         """Rename an existing Rule."""
-        self.rule.title = title
+        self.rule.name = name
         self.rule.save()
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
     def enable(self):
         """Enable a Rule that has been previously disabled."""
         self.rule.disabled = False
         self.rule.save()
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
     def disable(self):
         """Disable a Rule's evaluation."""
         self.rule.disabled = True
         self.rule.save()
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
     def delete(self):
         """Delete an existing Rule.
@@ -242,7 +254,7 @@ class BaseController(object):
         """
         self.check_auth_context()
         self.rule.delete()
-        trigger_session_update(self.rule.owner, ['monitoring'])
+        trigger_session_update(self.rule.org, ['monitoring'])
 
     def evaluate(self, update_state=False, trigger_actions=False):
         """Evaluate a Rule.
@@ -308,15 +320,15 @@ class ResourceRuleController(BaseController):
         super(ResourceRuleController, self).add(fail_on_error, **kwargs)
 
     def update(self, fail_on_error=True, **kwargs):
-        if 'selectors' in kwargs:
-            self.rule.selectors = []
-        for selector in kwargs.pop('selectors', []):
-            if selector.get('type') not in SELECTORS:
-                raise BadRequestError('Selector not in %s' %
-                                      list(SELECTORS.keys()))
-            sel_cls = SELECTORS[selector.pop('type')]()
-            sel_cls.update(**selector)
-            self.rule.selectors.append(sel_cls)
+        sel_acts_kwargs = kwargs.copy()
+        for key in kwargs.keys():
+            if key not in ('selectors', 'actions'):
+                sel_acts_kwargs.pop(key)
+
+        kwargs.pop('selectors')
+        if 'selectors' in sel_acts_kwargs and 'actions' in sel_acts_kwargs:
+            _update__preparse_resources(self.rule, self.auth_context,
+                                        sel_acts_kwargs)
         super(ResourceRuleController, self).update(fail_on_error, **kwargs)
 
     def maybe_remove(self, resource):
@@ -371,7 +383,7 @@ class ResourceRuleController(BaseController):
             for mid in selector.ids:
                 try:
                     Model = self.rule.selector_resource_cls
-                    m = Model.objects.get(id=mid, owner=self.rule.owner_id)
+                    m = Model.objects.get(id=mid, owner=self.rule.org)
                 except Model.DoesNotExist:
                     raise NotFoundError('%s %s' % (Model, mid))
                 read_perm = (
@@ -396,15 +408,15 @@ class NoDataRuleController(ResourceRuleController):
     def delete(self):
         raise BadRequestError('NoData rules may not be deleted')
 
-    def rename(self, title):
+    def rename(self, name):
         raise BadRequestError('NoData rules may not be renamed')
 
     def auto_setup(self, backend='graphite'):
         """Idempotently setup a NoDataRule."""
         assert backend in ('graphite', 'influxdb', 'tsfdb', 'victoriametrics')
 
-        # The rule's title. There should be a single NoDataRule per Org.
-        self.rule.title = 'NoData'
+        # The rule's name. There should be a single NoDataRule per Org.
+        self.rule.name = 'NoData'
 
         # The list of query conditions to evaluate. If at least one of
         # the following metrics returns non-None datapoints, the rule
@@ -428,8 +440,8 @@ class NoDataRuleController(ResourceRuleController):
         # raising an alert.
         if not self.rule.window:
             self.rule.window = Window(start=2, period='minutes')
-        if not self.rule.frequency:
-            self.rule.frequency = Frequency(every=2, period='minutes')
+        if not self.rule.when:
+            self.rule.when = Interval(every=2, period='minutes')
 
         # The rule's single action.
         self.rule.actions = [NoDataAction()]

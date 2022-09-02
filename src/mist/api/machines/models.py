@@ -117,7 +117,7 @@ class Monitoring(me.EmbeddedDocument):
         from mist.api.rules.models import MachineMetricRule
         m = self._instance
         return {rule.id: rule.as_dict() for
-                rule in MachineMetricRule.objects(owner_id=m.owner.id) if
+                rule in MachineMetricRule.objects(org_id=m.owner.id) if
                 rule.ctl.includes_only(m)}
 
     def as_dict(self):
@@ -481,12 +481,12 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
                 try:
                     ret['expiration'] = {
                         'id': self.expiration.id,
-                        'action': self.expiration.task_type.action,
+                        'action': self.expiration.actions[0].action,
                         'date':
-                            self.expiration.schedule_type.entry.isoformat(),
+                            self.expiration.when.entry.isoformat(),
                         'notify': self.expiration.reminder and int((
-                            self.expiration.schedule_type.entry -
-                            self.expiration.reminder.schedule_type.entry
+                            self.expiration.when.entry -
+                            self.expiration.reminder.when.entry
                         ).total_seconds()) or 0,
                     }
                 except Exception as exc:
@@ -502,11 +502,11 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
             if self.expiration:
                 expiration = {
                     'id': self.expiration.id,
-                    'action': self.expiration.task_type.action,
-                    'date': self.expiration.schedule_type.entry.isoformat(),
+                    'action': self.expiration.actions[0].action,
+                    'date': self.expiration.when.entry.isoformat(),
                     'notify': self.expiration.reminder and int((
-                        self.expiration.schedule_type.entry -
-                        self.expiration.reminder.schedule_type.entry
+                        self.expiration.when.entry -
+                        self.expiration.reminder.when.entry
                     ).total_seconds()) or 0,
                 }
             else:

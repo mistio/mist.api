@@ -4,7 +4,6 @@ import logging
 from uuid import uuid4
 
 import mongoengine as me
-import json
 
 from mist.api.helpers import rtype_to_classpath
 from mist.api.tag.models import Tag
@@ -15,6 +14,12 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.selectors.models import SelectorClassMixin
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.tag.mixins import TagMixin
+from mist.api.actions.models import ActionClassMixin
+from mist.api.actions.models import BaseAction
+from mist.api.actions.models import MachineAction
+from mist.api.when.models import BaseWhenType
+from mist.api.when.models import Crontab
+from mist.api.helpers import extract_selector_type
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +27,7 @@ log = logging.getLogger(__name__)
 PERIODS = ('days', 'hours', 'minutes', 'seconds', 'microseconds')
 
 
+# DEPRECATED
 class BaseScheduleType(me.EmbeddedDocument):
     """Abstract Base class used as a common interface
     for scheduler types. There are three different types
@@ -34,92 +40,7 @@ class BaseScheduleType(me.EmbeddedDocument):
         raise NotImplementedError()
 
 
-class Interval(BaseScheduleType):
-    meta = {'allow_inheritance': True}
-
-    type = 'interval'
-    every = me.IntField(min_value=0, default=0, required=True)
-    period = me.StringField(choices=PERIODS)
-
-    @property
-    def period_singular(self):
-        return self.period[:-1]
-
-    def __unicode__(self):
-        if self.every == 1:
-            return 'Interval every {0.period_singular}'.format(self)
-        return 'Interval every {0.every} {0.period}'.format(self)
-
-    def as_dict(self):
-        return {
-            'every': self.every,
-            'period': self.period
-        }
-
-
-class OneOff(Interval):
-    type = 'one_off'
-    entry = me.DateTimeField(required=True)
-
-    def __unicode__(self):
-        return 'OneOff date to run {0.entry}'.format(self)
-
-    def as_dict(self):
-        return {
-            'entry': str(self.entry)
-        }
-
-
-class Reminder(OneOff):
-    type = 'reminder'
-    message = me.StringField()
-
-    def as_dict(self):
-        return {
-            'message': self.message
-        }
-
-
-class Crontab(BaseScheduleType):
-    type = 'crontab'
-
-    minute = me.StringField(default='*', required=True)
-    hour = me.StringField(default='*', required=True)
-    day_of_week = me.StringField(default='*', required=True)
-    day_of_month = me.StringField(default='*', required=True)
-    month_of_year = me.StringField(default='*', required=True)
-
-    def __unicode__(self):
-
-        def rfield(x):
-            return str(x).replace(' ', '') or '*'
-
-        return 'Crontab {0} {1} {2} {3} {4} (m/h/dom/mon/dow)'.format(
-            rfield(self.minute), rfield(self.hour),
-            rfield(self.day_of_month), rfield(self.month_of_year),
-            rfield(self.day_of_week),
-        )
-
-    def as_dict(self):
-        return {
-            'minute': self.minute,
-            'hour': self.hour,
-            'day_of_week': self.day_of_week,
-            'day_of_month': self.day_of_month,
-            'month_of_year': self.month_of_year
-        }
-
-    def as_cron(self):
-        def rfield(x):
-            return str(x).replace(' ', '') or '*'
-
-        return '{0} {1} {2} {3} {4}'.format(
-            rfield(self.minute), rfield(self.hour),
-            rfield(self.day_of_month), rfield(self.month_of_year),
-            rfield(self.day_of_week),
-        )
-
-
+# DEPRECATED
 class BaseTaskType(me.EmbeddedDocument):
     """Abstract Base class used as a common interface
     for scheduler's tasks types. Action and Script"""
@@ -139,6 +60,7 @@ class BaseTaskType(me.EmbeddedDocument):
         raise NotImplementedError()
 
 
+# DEPRECATED
 class ActionTask(BaseTaskType):
     action = me.StringField()
 
@@ -155,7 +77,7 @@ class ActionTask(BaseTaskType):
         return 'mist.api.tasks.group_resources_actions'
 
     def __str__(self):
-        return 'Action: %s' % self.action
+        return f'Action: {self.action}'
 
     def as_dict(self):
         return {
@@ -163,6 +85,7 @@ class ActionTask(BaseTaskType):
         }
 
 
+# DEPRECATED
 class ScriptTask(BaseTaskType):
     script_id = me.StringField()
     params = me.StringField()
@@ -180,7 +103,7 @@ class ScriptTask(BaseTaskType):
         return 'mist.api.tasks.group_run_script'
 
     def __str__(self):
-        return 'Run script: %s' % self.script_id
+        return f'Run script: {self.script_id}'
 
     def as_dict(self):
         return {
@@ -189,7 +112,8 @@ class ScriptTask(BaseTaskType):
         }
 
 
-class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
+class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
+               ActionClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -201,7 +125,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
     One can perform a query directly on Schedule to fetch all cloud types, like
     this:
 
-        Schedule.objects(owner=owner).count()
+        Schedule.objects(org=org).count()
 
     """
 
@@ -210,7 +134,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
         'allow_inheritance': True,
         'indexes': [
             {
-                'fields': ['owner', 'name', 'deleted'],
+                'fields': ['org', 'name', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -228,8 +152,12 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
     description = me.StringField()
     deleted = me.DateTimeField()
 
-    owner = me.ReferenceField(Organization, required=True,
+    # Deprecated
+    owner = me.ReferenceField(Organization, required=False,
                               reverse_delete_rule=me.CASCADE)
+
+    org = me.ReferenceField(Organization, required=False,
+                            reverse_delete_rule=me.CASCADE)
 
     # celery periodic task specific fields
     queue = me.StringField()
@@ -237,8 +165,17 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
     routing_key = me.StringField()
 
     # mist specific fields
-    schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=True)
-    task_type = me.EmbeddedDocumentField(BaseTaskType, required=True)
+    schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=False)
+    task_type = me.EmbeddedDocumentField(BaseTaskType, required=False)
+
+    # Defines a list of actions to be executed whenever
+    # the schedule is triggered.
+    # Defaults to just notifying the users.
+    actions = me.EmbeddedDocumentListField(
+        BaseAction, required=False, default=lambda: [MachineAction()]
+    )
+
+    when = me.EmbeddedDocumentField(BaseWhenType, required=False)
 
     # celerybeat-mongo specific fields
     expires = me.DateTimeField()
@@ -263,16 +200,12 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
         self.ctl = mist.api.schedules.base.BaseController(self)
 
     @property
-    def org(self):
-        return self.owner
-
-    @property
-    def owner_id(self):
-        # FIXME We should consider storing the owner id as a plain
+    def org_id(self):
+        # FIXME We should consider storing the org id as a plain
         # string, instead of using a ReferenceField, to minimize
         # unintentional dereferencing. This is already happending
         # in case of mist.api.rules.models.Rule.
-        return self.owner.id
+        return self.org.id
 
     @classmethod
     def add(cls, auth_context, name, **kwargs):
@@ -284,63 +217,21 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
         You're not meant to be calling this directly, but on a schedule class
         instead like this:
 
-            schedule = Schedule.add(owner=owner, **kwargs)
+            schedule = Schedule.add(org=org, **kwargs)
         """
-        owner = auth_context.owner
+        org = auth_context.owner
 
         if not name:
             raise RequiredParameterMissingError('name')
-        if not owner or not isinstance(owner, Organization):
-            raise BadRequestError('owner')
-        # Deprecated Resource_Type
-        resource_type = kwargs.pop('resource_type', 'machine').rstrip('s')
-        if resource_type not in rtype_to_classpath:
-            raise BadRequestError('resource_type')
-        if Schedule.objects(owner=owner, name=name, deleted=None):
-            raise ScheduleNameExistsError()
-        schedule = cls(owner=owner, name=name,
-                       resource_model_name=resource_type)
-        schedule.ctl.set_auth_context(auth_context)
-        schedule.ctl.add(**kwargs)
-        schedule.assign_to(auth_context.user)
-        return schedule
-
-    @classmethod
-    def add_v2(cls, auth_context, name, **kwargs):
-        """Add schedule v2
-
-        This is a class method, meaning that it is meant to be called on the
-        class itself and not on an instance of the class.
-
-        You're not meant to be calling this directly, but on a schedule class
-        instead like this:
-
-            schedule = Schedule.add_v2(owner=owner, **kwargs)
-        """
-        owner = auth_context.owner
-
-        if not name:
-            raise RequiredParameterMissingError('name')
-        if not owner or not isinstance(owner, Organization):
-            raise BadRequestError('owner')
-        selectors = kwargs.get('selectors')
-        error_count = 0
-        selector_type = None
-        for selector in selectors:
-            if selector['type'] not in rtype_to_classpath:
-                error_count += 1
-            if selector['ids'] is not None:
-                selector_type = selector['type'].rstrip('s')
-        if error_count == len(selectors):
+        if not org or not isinstance(org, Organization):
+            raise BadRequestError('org')
+        selector_type = extract_selector_type(**kwargs)
+        if selector_type not in rtype_to_classpath:
             raise BadRequestError('selector_type')
-        schedule_type = kwargs.get('schedule_type')
-        if schedule_type == 'crontab' or schedule_type == 'interval':
-            schedule_entry = kwargs.pop('schedule_entry')
-            schedule_entry = json.loads(schedule_entry)
-            kwargs['schedule_entry'] = schedule_entry
-        if Schedule.objects(owner=owner, name=name, deleted=None):
+        kwargs['selector_type'] = selector_type
+        if Schedule.objects(org=org, name=name, deleted=None):
             raise ScheduleNameExistsError()
-        schedule = cls(owner=owner, name=name,
+        schedule = cls(org=org, name=name,
                        resource_model_name=selector_type)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
@@ -349,8 +240,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
 
     @property
     def schedule(self):
-        if self.schedule_type:
-            return self.schedule_type.schedule
+        if self.when:
+            return self.when.schedule
         else:
             raise Exception("must define interval, crontab, one_off schedule")
 
@@ -362,16 +253,16 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
                    machine.state != 'terminated']
         else:
             ids = [resource.id for resource in self.get_resources()]
-        fire_up = self.task_type.args
-        return [self.owner.id, fire_up, self.name, ids]
+        fire_up = self.actions[0].args
+        return [self.org.id, fire_up, self.name, ids]
 
     @property
     def kwargs(self):
-        return self.task_type.kwargs
+        return self.actions[0].kwargs
 
     @property
     def task(self):
-        return self.task_type.task
+        return self.actions[0].task
 
     @property
     def enabled(self):
@@ -398,8 +289,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
 
     def __unicode__(self):
         fmt = '{0.name}: {{no schedule}}'
-        if self.schedule_type:
-            fmt = 'name: {0.name} type: {0.schedule_type._cls}'
+        if self.when:
+            fmt = 'name: {0.name} type: {0.when._cls}'
         else:
             raise Exception("must define interval or crontab schedule")
         return fmt.format(self)
@@ -416,10 +307,10 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
                 [0, 15, 30, 45]
 
         """
-        if isinstance(self.schedule_type, Crontab):
+        if isinstance(self.when, Crontab):
             try:
                 from apscheduler.triggers.cron import CronTrigger
-                CronTrigger.from_crontab(self.schedule_type.as_cron())
+                CronTrigger.from_crontab(self.when.as_cron())
             except ValueError as exc:
                 raise me.ValidationError('Crontab validation failed: %s' % exc)
 
@@ -434,9 +325,9 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
             self.reminder.delete()
         super(Schedule, self).delete()
         Tag.objects(resource_id=self.id, resource_type='schedule').delete()
-        self.owner.mapper.remove(self)
+        self.org.mapper.remove(self)
         if self.owned_by:
-            self.owned_by.get_ownership_mapper(self.owner).remove(self)
+            self.owned_by.get_ownership_mapper(self.org).remove(self)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -445,14 +336,19 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
 
         selectors = [selector.as_dict() for selector in self.selectors]
 
+        if self.actions[0].__class__.__name__ == 'ScriptAction':
+            action = 'run script'
+        else:
+            action = self.actions[0].action
+
         sdict = {
             'id': self.id,
             'name': self.name,
             'description': self.description or '',
-            'schedule': str(self.schedule_type),
-            'schedule_type': self.schedule_type.type,
-            'schedule_entry': self.schedule_type.as_dict(),
-            'task_type': self.task_type.as_dict(),
+            'schedule': str(self.when),
+            'schedule_type': self.when.type,
+            'schedule_entry': self.when.as_dict(),
+            'task_type': action,
             'expires': str(self.expires or ''),
             'start_after': str(self.start_after or ''),
             'task_enabled': self.task_enabled,
@@ -481,12 +377,12 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
                                         deref, only)
 
         if 'schedule_entry' in only or not only:
-            ret['schedule_entry'] = self.schedule_type.as_dict()
+            ret['schedule_entry'] = self.when.as_dict()
 
         if 'schedule_type' in only or not only:
-            ret['schedule_type'] = self.schedule_type.type
+            ret['schedule_type'] = self.when.type
 
-        ret['action'] = self.task_type.action
+        ret['actions'] = self.actions[0].action
 
         ret['enabled'] = self.task_enabled
 
@@ -498,7 +394,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin):
             ret['tags'] = {
                 tag.key: tag.value
                 for tag in Tag.objects(
-                    owner=self.owner,
+                    owner=self.org,
                     resource_id=self.id,
                     resource_type='schedule').only('key', 'value')
             }

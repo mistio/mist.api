@@ -8,6 +8,11 @@ from mist.api.exceptions import BadRequestError
 
 from mist.api.users.models import Organization
 from mist.api.selectors.models import SelectorClassMixin
+from mist.api.actions.models import ActionClassMixin
+from mist.api.actions.models import BaseAction
+from mist.api.actions.models import NotificationAction
+from mist.api.when.models import Interval
+from mist.api.when.models import TriggerOffset
 
 from mist.api.rules.base import NoDataRuleController
 from mist.api.rules.base import ResourceRuleController
@@ -15,10 +20,7 @@ from mist.api.rules.base import ArbitraryRuleController
 from mist.api.rules.models import RuleState
 from mist.api.rules.models import Window
 from mist.api.rules.models import Frequency
-from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
-from mist.api.rules.models import BaseAlertAction
-from mist.api.rules.models import NotificationAction
 
 from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin
@@ -71,16 +73,26 @@ class Rule(me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    title = me.StringField(required=True)
-    owner_id = me.StringField(required=True)
-
+    name = me.StringField(required=True)
+    description = me.StringField(required=False)
+    org_id = me.StringField(required=True)
+    # Deprecated
+    title = me.StringField(required=False)
+    owner_id = me.StringField(required=False)
     # Specifies a list of queries to be evaluated. Results will be logically
     # ANDed together in order to decide whether an alert should be raised.
     queries = me.EmbeddedDocumentListField(QueryCondition, required=True)
 
     # Defines the time window and frequency of each search.
     window = me.EmbeddedDocumentField(Window, required=True)
-    frequency = me.EmbeddedDocumentField(Frequency, required=True)
+
+    # Defines the frequency of each search.
+    when = me.EmbeddedDocumentField(
+        Interval, required=False, default=lambda: Interval(period='minutes')
+    )
+
+    # Deprecated
+    frequency = me.EmbeddedDocumentField(Frequency, required=False)
 
     # Associates a reminder offset, which will cause an alert to be fired if
     # and only if the threshold is exceeded for a number of trigger_after
@@ -92,7 +104,7 @@ class Rule(me.Document):
     # Defines a list of actions to be executed once the rule is triggered.
     # Defaults to just notifying the users.
     actions = me.EmbeddedDocumentListField(
-        BaseAlertAction, required=True, default=lambda: [NotificationAction()]
+        BaseAction, required=True, default=lambda: [NotificationAction()]
     )
 
     # Disable the rule organization-wide.
@@ -119,9 +131,9 @@ class Rule(me.Document):
         'collection': 'rules',
         'allow_inheritance': True,
         'indexes': [
-            'owner_id',
+            'org_id',
             {
-                'fields': ['owner_id', 'title'],
+                'fields': ['org_id', 'name'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -160,7 +172,7 @@ class Rule(me.Document):
         self.ctl = self._controller_cls(self)
 
     @classmethod
-    def add(cls, auth_context, title=None, **kwargs):
+    def add(cls, auth_context, name=None, **kwargs):
         """Add a new Rule.
 
         New rules should be added by invoking this class method on a Rule
@@ -168,38 +180,31 @@ class Rule(me.Document):
 
         Arguments:
 
-            owner:  instance of mist.api.users.models.Organization
-            title:  the name of the rule. This must be unique per Organization
+            org_id:  instance of mist.api.users.models.Organization
+            name:  the name of the rule. This must be unique per Organization
             kwargs: additional keyword arguments that will be passed to the
                     corresponding controller in order to setup the self
 
         """
         try:
-            cls.objects.get(owner_id=auth_context.owner.id, title=title)
+            cls.objects.get(org_id=auth_context.owner.id, name=name)
         except cls.DoesNotExist:
-            rule = cls(owner_id=auth_context.owner.id, title=title)
+            rule = cls(org_id=auth_context.owner.id, name=name)
             rule.ctl.set_auth_context(auth_context)
             rule.ctl.add(**kwargs)
         else:
-            raise BadRequestError('Title "%s" is already in use' % title)
+            raise BadRequestError('name "%s" is already in use' % name)
         return rule
-
-    @property
-    def owner(self):
-        """Return the Organization (instance) owning self.
-
-        We refrain from storing the owner as a me.ReferenceField in order to
-        avoid automatic/unwanted dereferencing.
-
-        """
-        return Organization.objects.get(id=self.owner_id)
 
     @property
     def org(self):
         """Return the Organization (instance) owning self.
 
+        We refrain from storing the org as a me.ReferenceField in order to
+        avoid automatic/unwanted dereferencing.
+
         """
-        return self.owner
+        return Organization.objects.get(id=self.org_id)
 
     @property
     def plugin(self):
@@ -213,11 +218,11 @@ class Rule(me.Document):
     # NOTE The following properties are required by the scheduler.
 
     @property
-    def name(self):
+    def full_name(self):
         """Return the name of the task.
 
         """
-        return 'Org(%s):Rule(%s)' % (self.owner_id, self.id)
+        return f'Org({self.org.name}):Rule({self.name})'
 
     @property
     def task(self):
@@ -269,16 +274,16 @@ class Rule(me.Document):
         # FIXME This is needed in order to ensure rule name convention remains
         # backwards compatible with the old monitoring stack. However, it will
         # have to change in the future due to uniqueness constrains.
-        if not self.title:
-            self.title = 'rule%d' % self.owner.rule_counter
+        if not self.name:
+            self.name = 'rule%d' % self.org.rule_counter
 
     def as_dict(self):
         return {
             'id': self.id,
-            'title': self.title,
+            'name': self.name,
             'queries': [query.as_dict() for query in self.queries],
             'window': self.window.as_dict(),
-            'frequency': self.frequency.as_dict(),
+            'frequency': self.when.as_dict(),
             'trigger_after': self.trigger_after.as_dict(),
             'actions': [action.as_dict() for action in self.actions],
             'disabled': self.disabled,
@@ -287,7 +292,7 @@ class Rule(me.Document):
 
     def __str__(self):
         return '%s %s of %s' % (self.__class__.__name__,
-                                self.title, self.owner)
+                                self.name, self.org)
 
 
 class ArbitraryRule(Rule):
@@ -306,7 +311,7 @@ class ArbitraryRule(Rule):
     _controller_cls = ArbitraryRuleController
 
 
-class ResourceRule(Rule, SelectorClassMixin):
+class ResourceRule(Rule, SelectorClassMixin, ActionClassMixin):
     """A rule bound to a specific resource type.
 
     Resource-bound rules are less elastic than arbitrary rules, but allow
@@ -366,14 +371,16 @@ class ResourceRule(Rule, SelectorClassMixin):
 
     @property
     def reminder_offset(self):
-        return self.frequency.timedelta.total_seconds() - 60
+        return self.when.timedelta.total_seconds() - 60
 
     @property
     def action(self):
         for action in reversed(self.actions):
             if action.atype == 'command':
                 return 'command'
-            if action.atype == 'machine_action':
+            if action.atype == 'script':
+                return 'script'
+            if action.atype == f'{self.resource_model_name}_action':
                 return action.action
             if action.atype == 'notification':
                 return 'alert'
