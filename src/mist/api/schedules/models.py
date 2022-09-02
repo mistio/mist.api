@@ -77,7 +77,7 @@ class ActionTask(BaseTaskType):
         return 'mist.api.tasks.group_resources_actions'
 
     def __str__(self):
-        return 'Action: %s' % self.action
+        return f'Action: {self.action}'
 
     def as_dict(self):
         return {
@@ -103,7 +103,7 @@ class ScriptTask(BaseTaskType):
         return 'mist.api.tasks.group_run_script'
 
     def __str__(self):
-        return 'Run script: %s' % self.script_id
+        return f'Run script: {self.script_id}'
 
     def as_dict(self):
         return {
