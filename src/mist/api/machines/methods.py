@@ -596,7 +596,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 cloud.ctl.compute.list_machines()
             except Exception as e:
                 if i > 8:
-                    raise(e)
+                    raise (e)
                 else:
                     continue
 
@@ -2615,7 +2615,54 @@ def find_best_ssh_params(machine, auth_context=None):
     raise MachineUnauthorizedError
 
 
+def prepare_ssh_dict(auth_context, machine,
+                     command):
+    key_association_id, hostname, user, port = find_best_ssh_params(
+        machine, auth_context=auth_context)
+    association = KeyMachineAssociation.objects.get(id=key_association_id)
+    key = association.key
+    key_path = key.private.secret.name
+    expiry = int(datetime.now().timestamp()) + 100
+    org = machine.owner
+    vault_token = org.vault_token if org.vault_token is not None else \
+        config.VAULT_TOKEN
+    vault_secret_engine_path = machine.owner.vault_secret_engine_path
+    vault_addr = org.vault_address if org.vault_address is not None else \
+        config.VAULT_ADDR
+    msg_to_encrypt = '%s,%s,%s,%s' % (
+        vault_token,
+        vault_addr,
+        vault_secret_engine_path,
+        key_path)
+    from mist.api.helpers import encrypt
+    # ENCRYPTION KEY AND HMAC KEY SHOULD BE DIFFERENT!
+    encrypted_msg = encrypt(msg_to_encrypt, segment_size=128)
+    command_encoded = base64.urlsafe_b64encode(
+        command.encode()).decode()
+    msg = '%s,%s,%s,%s,%s,%s' % (
+        user,
+        hostname,
+        port,
+        expiry,
+        command_encoded,
+        encrypted_msg)
+    mac = hmac.new(
+        config.SIGN_KEY.encode(),
+        msg=msg.encode(),
+        digestmod=hashlib.sha256).hexdigest()
+    ssh_dict = {
+        "user": user,
+        "hostname": hostname,
+        "port": port,
+        "expiry": expiry,
+        "command_encoded": command_encoded,
+        "encrypted_msg": encrypted_msg,
+        "mac": mac,
+    }
+    return ssh_dict, key.name
 # SEC
+
+
 def prepare_ssh_uri(auth_context, machine,
                     command=config.DEFAULT_EXEC_TERMINAL,
                     job_id=None):

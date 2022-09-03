@@ -5,6 +5,7 @@ import datetime
 import urllib.request
 import urllib.parse
 import urllib.error
+from mist.api.machines.methods import prepare_ssh_dict
 
 import mongoengine as me
 
@@ -268,11 +269,21 @@ class BaseScriptController(object):
             f'  return "$retval";'
             '} && fetchrun'
         )
-        ssh_user, key_name, ws_uri = prepare_ssh_uri(
-            auth_context=auth_context, machine=machine, job_id=job_id,
+        ssh_dict, key_name = prepare_ssh_dict(
+            auth_context=auth_context, machine=machine,
             command=command)
-        exit_code, stdout = websocket_for_scripts(
-            ws_uri).wait_command_to_finish()
+        sendScriptURI = '%s/sshJob/sendScript/%s/' % (
+            config.PORTAL_URI,
+            job_id
+        )
+        resp = requests.post(sendScriptURI, json=ssh_dict)
+        if resp.status_code == 200:
+            ws_uri = '%s/ssh/runScript/%s/' % (
+                config.PORTAL_URI.replace('http', 'ws'),
+                job_id
+            )
+            exit_code, stdout = websocket_for_scripts(
+                ws_uri).wait_command_to_finish()
 
         return {
             'command': command,
@@ -280,7 +291,7 @@ class BaseScriptController(object):
             'stdout': re.sub(r"(\n)\1+", r"\1", stdout.replace(
                 '\r\n', '\n').replace('\r', '\n')),
             'key_name': key_name,
-            'ssh_user': ssh_user
+            'ssh_user': ssh_dict["user"],
         }
 
     def _preparse_file(self):
