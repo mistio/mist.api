@@ -5,7 +5,6 @@ import datetime
 import urllib.request
 import urllib.parse
 import urllib.error
-from mist.api.machines.methods import prepare_ssh_dict
 
 import mongoengine as me
 
@@ -233,7 +232,7 @@ class BaseScriptController(object):
             password=None, su=False, key_id=None, params=None, job_id=None,
             env='', owner=None):
         from mist.api.users.models import Organization
-        from mist.api.machines.methods import prepare_ssh_uri
+        from mist.api.machines.methods import prepare_ssh_dict
         import re
         if auth_context:
             owner = auth_context.owner
