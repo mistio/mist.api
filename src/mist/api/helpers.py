@@ -11,6 +11,51 @@ could easily use in some other unrelated project.
 
 """
 
+from functools import reduce
+from mist.api import config
+from mist.api.exceptions import WorkflowExecutionError, BadRequestError
+from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import MistError, NotFoundError
+from mist.api.auth.models import ApiToken, datetime_to_str
+import mist.api.users.models
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.container.providers import get_driver as get_container_driver
+from libcloud.container.drivers.docker import DockerException
+from libcloud.container.base import ContainerImage
+from elasticsearch_tornado import EsClient
+from elasticsearch import Elasticsearch
+from distutils.version import LooseVersion
+from amqp.exceptions import NotFound as AmqpNotFound
+import kombu.pools
+import kombu
+from Crypto.Random import get_random_bytes
+from Crypto.Hash.HMAC import HMAC
+from Crypto.Hash.SHA256 import SHA256Hash
+from Crypto.Hash import SHA256
+from Crypto.Cipher import AES
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+import requests
+import netaddr
+import iso8601
+from pyramid.httpexceptions import HTTPError
+from pyramid.view import view_config as pyramid_view_config
+from mongoengine import DoesNotExist, NotRegistered
+from email.utils import formatdate, make_msgid
+from contextlib import contextmanager
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from base64 import urlsafe_b64encode
+import dateparser
+from datetime import timedelta
+from time import time, strftime, sleep
+import subprocess
+import jsonpickle
+import traceback
+import tempfile
+import datetime
+import urllib.parse
 import os
 import re
 import sys
@@ -31,69 +76,6 @@ import _thread
 from future.utils import string_types
 from future.standard_library import install_aliases
 install_aliases()
-
-import urllib.parse
-
-import datetime
-import tempfile
-import traceback
-import jsonpickle
-import subprocess
-
-from time import time, strftime, sleep
-from datetime import timedelta
-import dateparser
-
-from base64 import urlsafe_b64encode
-
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-
-from contextlib import contextmanager
-from email.utils import formatdate, make_msgid
-from mongoengine import DoesNotExist, NotRegistered
-
-from pyramid.view import view_config as pyramid_view_config
-from pyramid.httpexceptions import HTTPError
-
-import iso8601
-import netaddr
-import requests
-
-from requests.packages.urllib3.util.retry import Retry
-from requests.adapters import HTTPAdapter
-
-from Crypto.Cipher import AES
-from Crypto.Hash import SHA256
-from Crypto.Hash.SHA256 import SHA256Hash
-from Crypto.Hash.HMAC import HMAC
-from Crypto.Random import get_random_bytes
-
-import kombu
-import kombu.pools
-from amqp.exceptions import NotFound as AmqpNotFound
-
-from distutils.version import LooseVersion
-
-from elasticsearch import Elasticsearch
-from elasticsearch_tornado import EsClient
-
-from libcloud.container.base import ContainerImage
-from libcloud.container.drivers.docker import DockerException
-from libcloud.container.providers import get_driver as get_container_driver
-from libcloud.container.types import Provider as Container_Provider
-
-import mist.api.users.models
-from mist.api.auth.models import ApiToken, datetime_to_str
-
-from mist.api.exceptions import MistError, NotFoundError
-from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
-from mist.api.exceptions import WorkflowExecutionError, BadRequestError
-
-from mist.api import config
-
-from functools import reduce
 
 
 if config.HAS_RBAC:
@@ -2027,10 +2009,7 @@ def create_helm_command(repo_url, release_name, chart_name, host, port, token,
     return helm_install_command
 
 
-class WebSocketApp(object):
-    """
-    WebSocketWrapper class that wraps websocket.WebSocketApp
-    """
+class websocket_for_scripts(object):
 
     def __init__(self, uri):
         self.uri = uri
@@ -2046,7 +2025,8 @@ class WebSocketApp(object):
         message = message.decode('utf-8')
         if message.startswith('retval:'):
             self.retval = message.replace('retval:', '', 1)
-        self.buffer = self.buffer + message
+        else:
+            self.buffer = self.buffer + message
 
     def on_close(self):
         self.ws.close()
@@ -2060,13 +2040,7 @@ class WebSocketApp(object):
             self.ws.send(bytearray(self.cmd, encoding='utf-8'), opcode=2)
         _thread.start_new_thread(run, ())
 
-    def _wrap_command(self, cmd):
-        if cmd[-1] is not "\n":
-            cmd = cmd + "\n"
-        return cmd
-
-    def command(self, cmd):
-        self.cmd = self._wrap_command(cmd)
+    def wait_command_to_finish(self):
         self.ws.run_forever(ping_interval=9, ping_timeout=8)
         self.retval = 0
         output = self.buffer.split("\n")[0:-1]
