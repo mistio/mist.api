@@ -277,6 +277,7 @@ class BaseScriptController(object):
             job_id
         )
         resp = requests.post(sendScriptURI, json=ssh_dict)
+        exit_code = 1
         if resp.status_code == 200:
             ws_uri = '%s/ssh/runScript/%s/' % (
                 config.PORTAL_URI.replace('http', 'ws'),
