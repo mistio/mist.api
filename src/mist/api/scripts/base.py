@@ -271,14 +271,14 @@ class BaseScriptController(object):
         ssh_dict, key_name = prepare_ssh_dict(
             auth_context=auth_context, machine=machine,
             command=command)
-        sendScriptURI = '%s/sshJob/sendScript/%s/' % (
+        sendScriptURI = '%s/sshJob/sendScript/%s' % (
             config.PORTAL_URI,
             job_id
         )
         resp = requests.post(sendScriptURI, json=ssh_dict)
         exit_code, stdout = 1, ""
         if resp.status_code == 200:
-            ws_uri = '%s/ssh/runScript/%s/' % (
+            ws_uri = '%s/ssh/runScript/%s' % (
                 config.PORTAL_URI.replace('http', 'ws'),
                 job_id
             )
