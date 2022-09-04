@@ -2021,7 +2021,6 @@ class websocket_for_scripts(object):
                                     on_error=self.on_error,
                                     on_close=self.on_close)
         self.ws = ws
-        self.ws.on_open = self.on_open
         self.buffer = ""
 
     def on_message(self, message):
