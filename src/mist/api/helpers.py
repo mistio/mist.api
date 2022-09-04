@@ -70,7 +70,6 @@ import codecs
 import secrets
 import operator
 import websocket
-import _thread
 
 # Python 2 and 3 support
 from future.utils import string_types
