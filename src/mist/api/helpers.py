@@ -70,7 +70,6 @@ import codecs
 import secrets
 import operator
 import websocket
-import _thread
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -2018,7 +2017,6 @@ class websocket_for_scripts(object):
                                     on_error=self.on_error,
                                     on_close=self.on_close)
         self.ws = ws
-        self.ws.on_open = self.on_open
         self.buffer = ""
 
     def on_message(self, message):
@@ -2034,11 +2032,6 @@ class websocket_for_scripts(object):
     def on_error(self, error):
         self.ws.close()
         log.error("Got Websocket error: %s" % error)
-
-    def on_open(self):
-        def run(*args):
-            self.ws.send(bytearray(self.cmd, encoding='utf-8'), opcode=2)
-        _thread.start_new_thread(run, ())
 
     def wait_command_to_finish(self):
         self.ws.run_forever(ping_interval=9, ping_timeout=8)
