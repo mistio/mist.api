@@ -1891,17 +1891,17 @@ def select_plan(valid_plans, optimize, auth_context):
     if optimize == 'cost':
         return min(valid_plans, key=operator.itemgetter('cost'))
 
-    if optimize == 'performance':
+    if optimize.startswith('performance'):
         from mist.api.tag.models import Tag
         for plan in valid_plans:
             tag = Tag.objects(resource_id=plan['cloud']['id'],
                               resource_type='cloud',
                               owner=auth_context.owner,
-                              key='performance',
+                              key=optimize,
                               ).first()
             if tag and tag.value:
                 try:
-                    plan['performance'] = float(tag.value)
+                    plan[optimize] = float(tag.value)
                 except ValueError:
                     # custom metric case
                     from mist.api.auth.models import SessionToken
@@ -1927,23 +1927,23 @@ def select_plan(valid_plans, optimize, auth_context):
                             ('Failed to fetch system load for cloud: %s '
                              'with exception: %s'),
                             plan['cloud']['id'], repr(exc))
-                        plan['performance'] = float('inf')
+                        plan[optimize] = float('inf')
                         continue
 
                     body = response.json()
                     try:
-                        plan['performance'] = float(
+                        plan[optimize] = float(
                             body['data']['data']['result'][0]['values'][-1][1])
                     except (KeyError, IndexError):
                         log.error(
                             'Failed to parse system load metric for cloud: %s',
                             plan['cloud']['id'])
-                        plan['performance'] = float('inf')
+                        plan[optimize] = float('inf')
             else:
-                plan['performance'] = float('inf')
+                plan[optimize] = float('inf')
 
-        plan = min(valid_plans, key=operator.itemgetter('performance'))
-        plan.pop('performance')
+        plan = min(valid_plans, key=operator.itemgetter(optimize))
+        plan.pop(optimize)
         return plan
 
 
