@@ -182,6 +182,7 @@ class BaseMainController(object):
         self.cloud.dns_enabled = kwargs.pop('dns', False) or \
             kwargs.pop('dns_enabled', False) is True
         self.cloud.object_storage_enabled = kwargs.pop(
+            'objectstorage', False) or kwargs.pop(
             'objects_storage', False) or kwargs.pop(
             'object_storage_enabled', False) is True
         self.cloud.container_enabled = kwargs.pop('container', False) or \

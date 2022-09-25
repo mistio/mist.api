@@ -708,6 +708,8 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 v = bool(distutils.util.strtobool(v))
             except ValueError:
                 v = bool(v)
+        if type(v) == str and v.lower() in ['none', 'null', '\"\"', '\'\'']:
+            v = None
 
         if k == 'provider' and 'cloud' in resource_type:
             try:
