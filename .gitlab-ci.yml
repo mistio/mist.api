@@ -62,15 +62,14 @@ build_mist_image:
   variables:
     GIT_SUBMODULE_STRATEGY: recursive
   script:
-    - docker pull mist/python3
-    - docker build --rm -t gcr.io/mist-ops/mist:$CI_COMMIT_SHA --build-arg API_VERSION_SHA=$CI_COMMIT_SHA --build-arg API_VERSION_NAME=$CI_COMMIT_REF_NAME --build-arg CI_API_V4_URL=$CI_API_V4_URL .
-    - docker tag gcr.io/mist-ops/mist:$CI_COMMIT_SHA gcr.io/mist-ops/mist:$CI_COMMIT_REF_SLUG
-    - docker tag gcr.io/mist-ops/mist:$CI_COMMIT_SHA mist/mist:$CI_COMMIT_SHA
-    - docker tag gcr.io/mist-ops/mist:$CI_COMMIT_REF_SLUG mist/mist:$CI_COMMIT_REF_SLUG
-    - docker push gcr.io/mist-ops/mist:$CI_COMMIT_SHA
-    - docker push gcr.io/mist-ops/mist:$CI_COMMIT_REF_SLUG
-    - docker push mist/mist:$CI_COMMIT_SHA
-    - docker push mist/mist:$CI_COMMIT_REF_SLUG
+    - docker build --rm -t registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_SHA --build-arg API_VERSION_SHA=$CI_COMMIT_SHA --build-arg API_VERSION_NAME=$CI_COMMIT_REF_NAME --build-arg CI_API_V4_URL=$CI_API_V4_URL .
+    - docker tag registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_SHA registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_REF_SLUG
+    - docker tag registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_SHA mist/api:$CI_COMMIT_SHA
+    - docker tag registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_SHA mist/api:$CI_COMMIT_REF_SLUG
+    - docker push registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_SHA
+    - docker push registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_REF_SLUG
+    - docker push mist/api:$CI_COMMIT_SHA
+    - docker push mist/api:$CI_COMMIT_REF_SLUG
   tags:
     - builder
   dependencies: []
@@ -79,7 +78,7 @@ build_mist_image:
 #################### GENERATE_API_SPEC STAGE ####################
 generate_api_spec:
   stage: generate_api_spec
-  image: gcr.io/mist-ops/mist:$CI_COMMIT_SHA
+  image: registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_SHA
   before_script:
     - cd /mist.api
   script:
@@ -90,7 +89,7 @@ generate_api_spec:
 #################### TEST STAGE ####################
 flake8:
   stage: test
-  image: gcr.io/mist-ops/mist:$CI_COMMIT_SHA
+  image: registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_SHA
   variables:
     GIT_STRATEGY: none
   before_script:
@@ -100,7 +99,7 @@ flake8:
 
 uniq:
   stage: test
-  image: gcr.io/mist-ops/mist:$CI_COMMIT_SHA
+  image: registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_SHA
   variables:
     GIT_STRATEGY: none
   before_script:
@@ -110,7 +109,7 @@ uniq:
 
 unit_tests:
   stage: test
-  image: gcr.io/mist-ops/mist:$CI_COMMIT_SHA
+  image: registry.ops.mist.io/mistio/mist.api:$CI_COMMIT_SHA
   variables:
     GIT_STRATEGY: none
   before_script:

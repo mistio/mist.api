@@ -3,7 +3,7 @@ FROM python:3.7-slim-buster
 # Install libvirt which requires system dependencies.
 RUN apt update && \
     apt install -y git build-essential g++ gcc cargo gnupg ca-certificates \
-    libssl-dev libffi-dev libvirt-dev libxml2-dev libxslt-dev zlib1g-dev \
+    libssl-dev libffi-dev libvirt-dev libxml2-dev libxslt-dev zlib1g-dev vim \
     mongo-tools libmemcached-dev procps netcat wget curl jq inetutils-ping && \
     rm -rf /var/lib/apt/lists/*
 
@@ -20,7 +20,7 @@ RUN wget -O promql_middleware.so  `curl "${CI_API_V4_URL}/projects/126/releases"
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --upgrade setuptools && \
-    pip install libvirt-python==7.2.0 uwsgi==2.0.19.1 && \
+    pip install libvirt-python==7.10.0 uwsgi==2.0.20 && \
     pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
 
 # Remove `-frozen` to build without strictly pinned dependencies.
