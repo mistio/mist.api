@@ -433,6 +433,11 @@ class BaseComputeController(BaseController):
             machine.cost.hourly = cph
             machine.cost.monthly = cpm
 
+            # Update children count
+            machine.children = Machine.objects(
+                cloud=machine.cloud, owner=machine.owner,
+                missing_since=None, parent=machine).count()
+
             # Save machine
             machine.save()
             machines.append(machine)

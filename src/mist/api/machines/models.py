@@ -318,6 +318,9 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
     cores = me.FloatField()
 
+    # Number of machines contained in this machine
+    children = me.IntField(default=0)
+
     meta = {
         'collection': 'machines',
         'indexes': [
@@ -409,9 +412,9 @@ class Machine(OwnershipMixin, me.Document, TagMixin):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
         standard_fields = [
-            'id', 'name', 'hostname', 'state', 'public_ips', 'private_ips',
-            'created', 'last_seen', 'missing_since', 'unreachable_since',
-            'os_type', 'cores', 'extra']
+            'id', 'name', 'hostname', 'state', 'children', 'public_ips',
+            'private_ips', 'created', 'last_seen', 'missing_since',
+            'unreachable_since', 'os_type', 'cores', 'extra']
         deref_map = {
             'cloud': 'name',
             'parent': 'name',
