@@ -87,8 +87,7 @@ def machine_name_validator(provider, name):
         raise MachineNameValidationError("machine name cannot be empty")
     if provider is Container_Provider.DOCKER:
         pass
-    elif provider in {Provider.RACKSPACE_FIRST_GEN.value,
-                      Provider.RACKSPACE.value}:
+    elif provider in {Provider.RACKSPACE.value}:
         pass
     elif provider in {Provider.OPENSTACK.value}:
         pass
@@ -451,8 +450,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                    ephemeral=ephemeral,
                                    size_cpu=size_cpu, size_ram=size_ram,
                                    volumes=volumes, networks=networks)
-    elif cloud.ctl.provider in [Provider.RACKSPACE_FIRST_GEN.value,
-                                Provider.RACKSPACE.value]:
+    elif cloud.ctl.provider in [Provider.RACKSPACE.value]:
         node = _create_machine_rackspace(conn, machine_name, image,
                                          size, user_data=cloud_init)
     elif cloud.ctl.provider in [Provider.OPENSTACK.value, 'vexxhost']:
@@ -675,19 +673,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 post_script_params=post_script_params,
                 networks=networks, schedule=schedule,
             )
-    elif cloud.ctl.provider == Provider.RACKSPACE_FIRST_GEN.value:
-        # for Rackspace First Gen, cannot specify ssh keys. When node is
-        # created we have the generated password, so deploy the ssh key
-        # when this is ok and call post_deploy for script/monitoring
-        mist.api.tasks.rackspace_first_gen_post_create_steps.send(
-            auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
-            node.extra.get('password'), public_key, script=script,
-            script_id=script_id, script_params=script_params,
-            job_id=job_id, job=job, hostname=hostname, plugins=plugins,
-            post_script_id=post_script_id,
-            post_script_params=post_script_params, schedule=schedule,
-        )
-
     else:
         mist.api.tasks.post_deploy_steps.send(
             auth_context.serialize(), cloud_id, node.id, monitoring,

@@ -1461,10 +1461,7 @@ class LinodeComputeController(BaseComputeController):
 class RackSpaceComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        if self.cloud.region in ('us', 'uk'):
-            driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
-        else:
-            driver = get_driver(Provider.RACKSPACE)
+        driver = get_driver(Provider.RACKSPACE)
         return driver(self.cloud.username, self.cloud.apikey.value,
                       region=self.cloud.region)
 

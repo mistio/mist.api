@@ -185,15 +185,11 @@ class RackSpaceDNSController(BaseDNSController):
     """
 
     def _connect(self):
-        if self.cloud.region in ('us', 'uk'):
-            driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
-            region = self.cloud.region
-        else:
-            if self.cloud.region in ('dfw', 'ord', 'iad'):
-                region = 'us'
-            elif self.cloud.region == 'lon':
-                region = 'uk'
-            driver = get_driver(Provider.RACKSPACE)
+        if self.cloud.region in ('dfw', 'ord', 'iad'):
+            region = 'us'
+        elif self.cloud.region == 'lon':
+            region = 'uk'
+        driver = get_driver(Provider.RACKSPACE)
         return driver(self.cloud.username, self.cloud.apikey.value,
                       region=region)
 
