@@ -58,3 +58,4 @@ troposphere
 #tornado_profile
 uwsgidecorators
 websocket-client
+rstream

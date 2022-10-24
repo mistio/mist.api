@@ -271,20 +271,17 @@ class BaseScriptController(object):
         ssh_dict, key_name = prepare_ssh_dict(
             auth_context=auth_context, machine=machine,
             command=command)
-        sendScriptURI = '%s/sshJob/sendScript/%s' % (
+        sendScriptURI = '%s/ssh/jobs/%s' % (
             config.PORTAL_URI,
             job_id
         )
         resp = requests.post(sendScriptURI, json=ssh_dict)
         exit_code, stdout = 1, ""
         if resp.status_code == 200:
-            ws_uri = '%s/ssh/runScript/%s' % (
-                config.PORTAL_URI.replace('http', 'ws'),
-                job_id
-            )
-            exit_code, stdout = websocket_for_scripts(
-                ws_uri).wait_command_to_finish()
-
+            # start reading from rabbitmq-stream
+            # exit_code, stdout = websocket_for_scripts(
+            #   ws_uri).wait_command_to_finish()
+            log.info("reading logs from rabbitmq-stream of job_id:%s", job_id)
         return {
             'command': command,
             'exit_code': exit_code,
