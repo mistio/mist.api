@@ -10,11 +10,12 @@ import mongoengine as me
 
 
 from mist.api.exceptions import BadRequestError
-from mist.api.helpers import trigger_session_update, mac_sign
-from mist.api.helpers import websocket_for_scripts
+from mist.api.helpers import trigger_session_update, mac_sign, RabbitMQStreamConsumer
 from mist.api.exceptions import ScriptNameExistsError
+import asyncio
 
 from mist.api import config
+
 
 log = logging.getLogger(__name__)
 
@@ -282,6 +283,9 @@ class BaseScriptController(object):
             # exit_code, stdout = websocket_for_scripts(
             #   ws_uri).wait_command_to_finish()
             log.info("reading logs from rabbitmq-stream of job_id:%s", job_id)
+            c = RabbitMQStreamConsumer(job_id)
+            exit_code, stdout = asyncio.run(c.consume())
+
         return {
             'command': command,
             'exit_code': exit_code,

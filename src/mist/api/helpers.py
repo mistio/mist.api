@@ -11,6 +11,9 @@ could easily use in some other unrelated project.
 
 """
 
+import asyncio
+import signal
+from rstream import Consumer, amqp_decoder, AMQPMessage
 from functools import reduce
 from mist.api import config
 from mist.api.exceptions import WorkflowExecutionError, BadRequestError
@@ -2064,3 +2067,36 @@ def extract_selector_type(**kwargs):
     if error_count == len(kwargs.get('selectors', [])):
         raise BadRequestError('selector_type')
     return selector_type
+
+
+class RabbitMQStreamConsumer:
+    def __init__(self, job_id):
+        self.stream_name = job_id
+        self.buffer = ""
+        self.exit_code = 1
+
+    def on_message(self, msg: AMQPMessage):
+        message = msg.Body()
+        if message.startswith('retval:'):
+            self.exit_code = message.replace('retval:', '', 1)
+        else:
+            self.buffer = self.buffer + message
+
+    async def consume(self):
+        consumer = Consumer(
+            host=os.getenv("RABBITMQ_HOST"),
+            port=5552,
+            vhost='/',
+            username=os.getenv("RABBITMQ_USERNAME"),
+            password=os.getenv("RABBITMQ_PASSWORD"),
+        )
+
+        loop = asyncio.get_event_loop()
+        loop.add_signal_handler(
+            signal.SIGINT, lambda: asyncio.create_task(consumer.close()))
+
+        await consumer.start()
+        await consumer.subscribe(self.stream_name, self.on_message,
+                                 decoder=amqp_decoder)
+        await consumer.run()
+        return self.exit_code, self.buffer
