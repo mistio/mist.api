@@ -1,4 +1,4 @@
-FROM python:3.7-slim-buster
+FROM python:3.9-slim-buster
 
 # Install libvirt which requires system dependencies.
 RUN apt update && \
@@ -63,4 +63,4 @@ ENV JS_BUILD=1 \
 
 
 RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" \
-        > /mist-version.json
+    > /mist-version.json
