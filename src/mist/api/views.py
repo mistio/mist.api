@@ -184,6 +184,10 @@ def home(request):
                 uri_prefix = config.BLOG_CDN_URI or \
                     request.application_url + "/static/blog/dist"
                 if params.get('page', None):
+                    try:
+                        page_no = int(params.get('page'))
+                    except ValueError:
+                        raise BadRequestError('Invalid page number')
                     page = 'page%s' % params.get('page')
             else:
                 uri_prefix = config.LANDING_CDN_URI or \
