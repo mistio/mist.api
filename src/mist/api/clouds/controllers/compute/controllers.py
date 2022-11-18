@@ -4951,9 +4951,13 @@ class LibvirtComputeController(BaseComputeController):
         return driver
 
     def list_machines_single_host(self, host):
-        driver = self._get_host_driver(host)
-        return driver.list_nodes(
-            parse_arp_table=config.LIBVIRT_PARSE_ARP_TABLES)
+        try:
+            driver = self._get_host_driver(host)
+            return driver.list_nodes(
+                parse_arp_table=config.LIBVIRT_PARSE_ARP_TABLES)
+        except Exception as e:
+            log.error('Failed to get machines from host: %s', host)
+            return []
 
     async def list_machines_all_hosts(self, hosts, loop):
         vms = [
