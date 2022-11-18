@@ -3565,11 +3565,12 @@ class VSphereComputeController(BaseComputeController):
                     "Clone Machine: Exception when "
                     "looking for folder: {}".format(exc))
         datastore = node.extra.get('datastore', None)
-        return self.connection.create_node(name=name, image=node,
+        node = self.connection.create_node(name=name, image=node,
                                            size=node.size,
                                            location=node_location,
                                            ex_folder=folder,
                                            ex_datastore=datastore)
+        return node_to_dict(node)
 
     def _get_libcloud_node(self, machine):
         vm = self.connection.find_by_uuid(machine.machine_id)
