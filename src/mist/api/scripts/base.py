@@ -10,7 +10,8 @@ import mongoengine as me
 
 
 from mist.api.exceptions import BadRequestError
-from mist.api.helpers import trigger_session_update, mac_sign, RabbitMQStreamConsumer
+from mist.api.helpers import trigger_session_update, mac_sign
+from mist.api.helpers import RabbitMQStreamConsumer
 from mist.api.exceptions import ScriptNameExistsError
 import asyncio
 

@@ -367,8 +367,9 @@ def restore_backup(backup, portal=None, until=False, databases=[
                 )
                 result = subprocess.check_output(cmd, shell=True)
                 available_backups = [
-                    int(l.strip().split('/victoria/')[1].rstrip('/'))
-                    for l in result.decode().split('\n') if '/victoria/' in l]
+                    int(line.strip().split('/victoria/')[1].rstrip('/'))
+                    for line in result.decode().split('\n')
+                    if '/victoria/' in line]
                 available_backups.sort(reverse=True)
                 for b in available_backups:
                     if b < int(backup) and b >= int(until or 0):

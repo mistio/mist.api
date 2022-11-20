@@ -1466,8 +1466,8 @@ class BaseComputeController(BaseController):
         task_key = 'cloud:list_locations:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_locations = {'%s' % l.id: l.as_dict()
-                                for l in self.list_cached_locations()}
+            cached_locations = {'%s' % loc.id: loc.as_dict()
+                                for loc in self.list_cached_locations()}
 
             locations = self._list_locations()
 
@@ -1475,9 +1475,10 @@ class BaseComputeController(BaseController):
                                 if location.id not in cached_locations.keys()]
 
         if amqp_owner_listening(self.cloud.owner.id):
-            locations_dict = [l.as_dict() for l in locations]
+            locations_dict = [loc.as_dict() for loc in locations]
             if cached_locations and locations_dict:
-                new_locations = {'%s' % l['id']: l for l in locations_dict}
+                new_locations = {
+                    '%s' % loc['id']: loc for loc in locations_dict}
                 # Pop extra to prevent weird patches
                 for loc in cached_locations:
                     cached_locations[loc].pop('extra')
@@ -1606,19 +1607,19 @@ class BaseComputeController(BaseController):
         # update missing_since for locations not returned by libcloud
         CloudLocation.objects(cloud=self.cloud,
                               missing_since=None,
-                              external_id__nin=[l.external_id
-                                                for l in locations]).update(
+                              external_id__nin=[loc.external_id
+                                                for loc in locations]).update(
                                                     missing_since=now)
         # update locations for locations seen for the first time
         CloudLocation.objects(cloud=self.cloud,
                               first_seen=None,
-                              external_id__in=[l.external_id
-                                               for l in locations]).update(
+                              external_id__in=[loc.external_id
+                                               for loc in locations]).update(
                                                    first_seen=now)
         # update last_seen, unset missing_since for locations we just saw
         CloudLocation.objects(cloud=self.cloud,
-                              external_id__in=[l.external_id
-                                               for l in locations]).update(
+                              external_id__in=[loc.external_id
+                                               for loc in locations]).update(
                                                    last_seen=now,
                                                    missing_since=None)
         return locations

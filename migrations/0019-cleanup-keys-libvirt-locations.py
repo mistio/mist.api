@@ -21,7 +21,7 @@ def cleanup_libvirt_cloud_locations():
     """
     from mist.api.models import Machine
     from mist.api.clouds.models import CloudLocation, LibvirtCloud
-    libvirt_cloud_ids = [l.id for l in LibvirtCloud.objects(
+    libvirt_cloud_ids = [loc.id for loc in LibvirtCloud.objects(
         deleted=None).only('id')]
 
     for loc in CloudLocation.objects(cloud__in=libvirt_cloud_ids):

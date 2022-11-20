@@ -443,7 +443,7 @@ class Team(me.EmbeddedDocument):
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map,
                                         self, deref, only)
-        if(ret.get('policy')):
+        if ret.get('policy'):
             ret['policy'] = ret['policy'].__str__()
         ret['members_count'] = len(ret.get('members', []))
         return ret

@@ -2040,6 +2040,8 @@ class websocket_for_scripts(object):
         log.error("Got Websocket error: %s" % error)
 
     def on_open(self):
+        import _thread
+
         def run(*args):
             self.ws.wait_command_to_finish()
         _thread.start_new_thread(run, ())
