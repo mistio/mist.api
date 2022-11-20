@@ -5818,6 +5818,9 @@ class _KubernetesBaseComputeController(BaseComputeController):
             cpu = 1
         return cpu
 
+    def _list_sizes__fetch_sizes(self):
+        return []
+
 
 class KubernetesComputeController(_KubernetesBaseComputeController):
     def _connect(self, **kwargs):

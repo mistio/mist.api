@@ -2056,6 +2056,31 @@ PROVIDERS = {
             'storage': False,
         }
     },
+    'kubernetes': {
+        'name': 'Kubernetes',
+        'aliases': [],
+        'driver': 'kubernetes',
+        'category': 'container host',
+        'features': {
+            'compute': True,
+            'console': False,
+            'container': {
+                'container-service': True,
+            },
+            'provision': {
+                'location': True,
+                'custom_size': True,
+                'key': False,
+                'custom_image': True,
+                'restrictions': {
+                    'size-image-restriction': False,
+                    'location-size-restriction': False,
+                    'location-image-restriction': False,
+                },
+            },
+            'storage': True,
+        }
+    },
     'kubevirt': {
         'name': 'KubeVirt',
         'aliases': [],
