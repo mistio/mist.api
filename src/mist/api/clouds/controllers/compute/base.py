@@ -1474,7 +1474,12 @@ class BaseComputeController(BaseController):
         new_location_objects = [location for location in locations
                                 if location.id not in cached_locations.keys()]
 
-        if amqp_owner_listening(self.cloud.owner.id):
+        try:
+            owner_listening = amqp_owner_listening(self.cloud.owner.id)
+        except Exception as e:
+            log.error('Exception raised during amqp owner lookup', repr(e))
+            owner_listening = False
+        if owner_listening:
             locations_dict = [loc.as_dict() for loc in locations]
             if cached_locations and locations_dict:
                 new_locations = {
