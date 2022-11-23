@@ -538,8 +538,8 @@ def main(args=None, workers=None, client=EchoHubClient, worker_kwargs=None):
         hub.stop()
         log.info("Sig handler completed.")
 
-    gevent.signal(signal.SIGTERM, sig_handler)
-    gevent.signal(signal.SIGINT, sig_handler)  # KeyboardInterrupt also
+    gevent.signal.signal(signal.SIGTERM, sig_handler)
+    gevent.signal.signal(signal.SIGINT, sig_handler)  # KeyboardInterrupt also
 
     hub.start()
     gevent.wait()

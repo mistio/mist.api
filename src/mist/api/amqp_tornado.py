@@ -9,8 +9,7 @@ code originally taken from:
 import logging
 
 import pika
-from pika import adapters
-
+import pika.adapters.tornado_connection
 
 log = logging.getLogger(__name__)
 
@@ -61,8 +60,8 @@ class Consumer(object):
 
         """
         log.info('Connecting to %s', self.amqp_url)
-        return adapters.TornadoConnection(pika.URLParameters(self.amqp_url),
-                                          self.on_connection_open)
+        return pika.adapters.tornado_connection.TornadoConnection(
+            pika.URLParameters(self.amqp_url), self.on_connection_open)
 
     def close_connection(self):
         """This method closes the connection to RabbitMQ."""
@@ -77,7 +76,7 @@ class Consumer(object):
         log.debug('Adding connection close callback')
         self._connection.add_on_close_callback(self.on_connection_closed)
 
-    def on_connection_closed(self, connection, reply_code, reply_text):
+    def on_connection_closed(self, connection, reply_code, reply_text=''):
         """This method is invoked by pika when the connection to RabbitMQ is
         closed unexpectedly. Since it is unexpected, we will reconnect to
         RabbitMQ if it disconnects.
@@ -125,7 +124,7 @@ class Consumer(object):
         log.debug('Adding channel close callback')
         self._channel.add_on_close_callback(self.on_channel_closed)
 
-    def on_channel_closed(self, channel, reply_code, reply_text):
+    def on_channel_closed(self, channel, reply_code, reply_text=''):
         """Invoked by pika when RabbitMQ unexpectedly closes the channel.
         Channels are usually closed if you attempt to do something that
         violates the protocol, such as re-declare an exchange or queue with
@@ -164,10 +163,10 @@ class Consumer(object):
 
         """
         log.debug('Declaring exchange %s', exchange_name)
-        self._channel.exchange_declare(self.on_exchange_declareok,
-                                       exchange_name,
+        self._channel.exchange_declare(exchange_name,
                                        self.exchange_type,
-                                       **self.exchange_kwargs)
+                                       callback=self.on_exchange_declareok,
+                                       arguments=self.exchange_kwargs)
 
     def on_exchange_declareok(self, unused_frame):
         """Invoked by pika when RabbitMQ has finished the Exchange.Declare RPC
@@ -189,8 +188,9 @@ class Consumer(object):
 
         """
         log.debug('Declaring queue %s', queue_name)
-        self._channel.queue_declare(self.on_queue_declareok, queue_name,
-                                    **self.queue_kwargs)
+        self._channel.queue_declare(queue_name,
+                                    callback=self.on_queue_declareok,
+                                    arguments=self.queue_kwargs)
 
     def on_queue_declareok(self, method_frame):
         """Method invoked by pika when the Queue.Declare RPC call made in
@@ -204,8 +204,8 @@ class Consumer(object):
         """
         log.debug('Binding %s to %s with %s',
                   self.exchange, self.queue, self.routing_key)
-        self._channel.queue_bind(self.on_bindok, self.queue,
-                                 self.exchange, self.routing_key)
+        self._channel.queue_bind(self.queue, self.exchange, self.routing_key,
+                                 callback=self.on_bindok)
 
     def add_on_cancel_callback(self):
         """Add a callback that will be invoked if RabbitMQ cancels the consumer
@@ -276,7 +276,8 @@ class Consumer(object):
         """
         if self._channel:
             log.info('Sending a Basic.Cancel RPC command to RabbitMQ')
-            self._channel.basic_cancel(self.on_cancelok, self._consumer_tag)
+            self._channel.basic_cancel(
+                consumer_tag=self._consumer_tag, callback=self.on_cancelok)
 
     def start_consuming(self):
         """This method sets up the consumer by first calling
@@ -290,9 +291,9 @@ class Consumer(object):
         """
         log.debug('Issuing consumer related RPC commands')
         self.add_on_cancel_callback()
-        self._consumer_tag = self._channel.basic_consume(self.on_message,
-                                                         self.queue,
-                                                         no_ack=not self.ack)
+        self._consumer_tag = self._channel.basic_consume(self.queue,
+                                                         self.on_message,
+                                                         auto_ack=not self.ack)
 
     def on_bindok(self, unused_frame):
         """Invoked by pika when the Queue.Bind method has completed. At this

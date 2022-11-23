@@ -11,6 +11,52 @@ could easily use in some other unrelated project.
 
 """
 
+import asyncio
+import signal
+from functools import reduce
+from mist.api import config
+from mist.api.exceptions import WorkflowExecutionError, BadRequestError
+from mist.api.exceptions import PolicyUnauthorizedError, ForbiddenError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import MistError, NotFoundError
+from mist.api.auth.models import ApiToken, datetime_to_str
+import mist.api.users.models
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.container.providers import get_driver as get_container_driver
+from libcloud.container.drivers.docker import DockerException
+from libcloud.container.base import ContainerImage
+from elasticsearch import Elasticsearch
+from distutils.version import LooseVersion
+from amqp.exceptions import NotFound as AmqpNotFound
+import kombu.pools
+import kombu
+from Crypto.Random import get_random_bytes
+from Crypto.Hash.HMAC import HMAC
+from Crypto.Hash.SHA256 import SHA256Hash
+from Crypto.Hash import SHA256
+from Crypto.Cipher import AES
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+import requests
+import netaddr
+import iso8601
+from pyramid.httpexceptions import HTTPError
+from pyramid.view import view_config as pyramid_view_config
+from mongoengine import DoesNotExist, NotRegistered
+from email.utils import formatdate, make_msgid
+from contextlib import contextmanager
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from base64 import urlsafe_b64encode
+import dateparser
+from datetime import timedelta
+from time import time, strftime, sleep
+import subprocess
+import jsonpickle
+import traceback
+import tempfile
+import datetime
+import urllib.parse
 import os
 import re
 import sys
@@ -74,7 +120,6 @@ from amqp.exceptions import NotFound as AmqpNotFound
 from distutils.version import LooseVersion
 
 from elasticsearch import Elasticsearch
-from elasticsearch_tornado import EsClient
 
 from libcloud.container.base import ContainerImage
 from libcloud.container.drivers.docker import DockerException
@@ -1209,24 +1254,6 @@ def view_config(*args, **kwargs):
                                **kwargs)
 
 
-class AsyncElasticsearch(EsClient):
-    """Tornado-compatible Elasticsearch client."""
-
-    def mk_req(self, url, **kwargs):
-        """Update kwargs with authentication credentials."""
-        kwargs.update({
-            'auth_username': config.ELASTICSEARCH['elastic_username'],
-            'auth_password': config.ELASTICSEARCH['elastic_password'],
-            'validate_cert': config.ELASTICSEARCH['elastic_verify_certs'],
-            'ca_certs': None,
-
-        })
-        for param in ('connect_timeout', 'request_timeout'):
-            if param not in kwargs:
-                kwargs[param] = 30.0  # Increase default timeout by 10 sec.
-        return super(AsyncElasticsearch, self).mk_req(url, **kwargs)
-
-
 def es_client(asynchronous=False):
     """Returns an initialized Elasticsearch client."""
     if not asynchronous:
@@ -1240,6 +1267,7 @@ def es_client(asynchronous=False):
         )
     else:
         method = 'https' if config.ELASTICSEARCH['elastic_use_ssl'] else 'http'
+        from elasticsearch import AsyncElasticsearch
         return AsyncElasticsearch(
             config.ELASTICSEARCH['elastic_host'],
             port=config.ELASTICSEARCH['elastic_port'], method=method,

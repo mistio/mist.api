@@ -20,6 +20,7 @@ import tornado.gen
 import tornado.httpclient
 
 from sockjs.tornado import SockJSConnection, SockJSRouter
+from mist.api.helpers import es_client
 from mist.api.sockjs_mux import MultiplexConnection
 
 from mist.api.logs.methods import log_event
@@ -128,6 +129,7 @@ class MistConnection(SockJSConnection):
             'session_id': self.session_id,
         }
 
+    @tornado.gen.coroutine
     def internal_request(self, path, params=None, callback=None):
         if path.startswith('/'):
             path = path[1:]
@@ -150,14 +152,14 @@ class MistConnection(SockJSConnection):
 
         headers = {'Authorization': 'internal %s %s' % (
             Portal.get_singleton().internal_api_key, self.cookie_session_id)}
-
-        tornado.httpclient.AsyncHTTPClient(
-            force_instance=True, max_clients=100).fetch(
+        client = tornado.httpclient.AsyncHTTPClient(
+            force_instance=True, max_clients=100)
+        response = yield client.fetch(
             '%s/%s' % (config.INTERNAL_API_URL, path),
             headers=headers,
-            callback=response_callback,
             connect_timeout=600, request_timeout=600,
         )
+        response_callback(response)
 
     def __repr__(self):
         conn_dict = self.get_dict()
@@ -670,6 +672,7 @@ class LogsConnection(MistConnection):
         self.enabled = True
         self.consumer = None
         self.enforce_logs_for = self.auth_context.org.id
+        self.es_client = es_client(asynchronous=True)
 
     def on_ready(self):
         """Initiate the RabbitMQ Consumer."""
@@ -699,6 +702,7 @@ class LogsConnection(MistConnection):
             self.send('event', self.parse_log(event))
         self.patch_stories(event)
 
+    @tornado.gen.coroutine
     def send_stories(self, stype):
         """Send stories of the specified type."""
 
@@ -723,10 +727,11 @@ class LogsConnection(MistConnection):
         }
         if self.enforce_logs_for is not None:
             kwargs['owner_id'] = self.enforce_logs_for
-        get_stories(tornado_async=True,
-                    tornado_callback=callback,
-                    limit=100,
-                    **kwargs)
+
+        yield get_stories(es_async=self.es_client,
+                          callback=callback,
+                          limit=100,
+                          **kwargs)
 
     def patch_stories(self, event):
         """Send a stories patch.
@@ -771,8 +776,10 @@ class LogsConnection(MistConnection):
             return filter_log_event(self.auth_context, event)
         return event
 
+    @tornado.gen.coroutine
     def on_close(self, stale=False):
         """Stop the Consumer and close the WebSocket."""
+        yield self.es_client.close()
         if self.consumer is not None:
             try:
                 self.consumer.stop()
