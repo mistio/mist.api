@@ -1257,8 +1257,8 @@ DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 GRAPHITE_URI = "http://graphite"
 
 VICTORIAMETRICS_URI = "http://vmselect:8481/select/<org_id>/prometheus"
-VICTORIAMETRICS_WRITE_URI = (f"http://vminsert:8480/insert/<org_id>/"
-                             f"prometheus")
+VICTORIAMETRICS_WRITE_URI = ("http://vminsert:8480/insert/<org_id>/"
+                             "prometheus")
 
 GRAPHITE_TO_VICTORIAMETRICS_METRICS_MAP = {}
 

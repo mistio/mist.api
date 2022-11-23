@@ -687,7 +687,7 @@ class Organization(Owner):
                 elif team.name == 'Owners':
                     raise me.ValidationError(
                         'RBAC Mappings are not intended for Team Owners')
-                elif len(mappings) is not 2:
+                elif len(mappings) != 2:
                     raise me.ValidationError(
                         'RBAC Mappings have not been properly initialized for '
                         'Team %s' % team)

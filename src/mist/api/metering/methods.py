@@ -109,7 +109,7 @@ def _parse_checks_or_datapoints_series(results, field, owner_id=''):
     for start_iso, result in results:
         for series in result:
             values = series.get('values', [])
-            assert len(values) is 1, 'Expected a single value. Got %s' % values
+            assert len(values) == 1, 'Expected a single value. Got %s' % values
             value = values[0][-1]
             value = int(round(value)) if value else None
             owner = series.get('tags', {}).get('owner', owner_id)

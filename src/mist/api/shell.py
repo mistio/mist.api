@@ -398,7 +398,7 @@ class WebSocketWrapper(object):
             pass
 
     def _wrap_command(self, cmd):
-        if cmd[-1] is not "\n":
+        if cmd[-1] != "\n":
             cmd = cmd + "\n"
         return cmd
 
@@ -612,7 +612,7 @@ class LXDWebSocket(WebSocketWrapper):
         self._control = control
 
     def _wrap_command(self, cmd):
-        if cmd[-1] is not "\r":
+        if cmd[-1] != "\r":
             cmd = cmd + "\r"
         return cmd
 
@@ -742,7 +742,7 @@ class KubernetesWebSocket(object):
             pass
 
     def _wrap_command(self, cmd):
-        if cmd[-1] is not "\n":
+        if cmd[-1] != "\n":
             cmd = cmd + "\n"
         return cmd
 

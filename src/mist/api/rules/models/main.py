@@ -343,22 +343,22 @@ class ResourceRule(Rule, SelectorClassMixin):
 
     @property
     def metric(self):
-        assert len(self.queries) is 1
+        assert len(self.queries) == 1
         return self.queries[0].target
 
     @property
     def operator(self):
-        assert len(self.queries) is 1
+        assert len(self.queries) == 1
         return self.queries[0].operator
 
     @property
     def value(self):
-        assert len(self.queries) is 1
+        assert len(self.queries) == 1
         return self.queries[0].threshold
 
     @property
     def aggregate(self):
-        assert len(self.queries) is 1
+        assert len(self.queries) == 1
         return self.queries[0].aggregation
 
     @property

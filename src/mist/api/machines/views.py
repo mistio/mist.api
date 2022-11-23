@@ -417,7 +417,7 @@ def create_machine(request):
         if not isinstance(mtags, dict):
             if not isinstance(mtags, list):
                 raise ValueError()
-            if not all((isinstance(t, dict) and len(t) is 1 for t in mtags)):
+            if not all((isinstance(t, dict) and len(t) == 1 for t in mtags)):
                 raise ValueError()
             mtags = {key: val for item in mtags for key,
                      val in list(item.items())}

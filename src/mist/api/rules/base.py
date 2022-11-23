@@ -342,7 +342,7 @@ class ResourceRuleController(BaseController):
             return False
 
         # The rule contains multiple selectors.
-        if len(self.rule.selectors) is not 1:
+        if len(self.rule.selectors) != 1:
             return False
 
         # The rule does not refer to resources by their UUID.
@@ -350,7 +350,7 @@ class ResourceRuleController(BaseController):
             return False
 
         # The rule refers to multiple resources.
-        if len(self.rule.selectors[0].ids) is not 1:
+        if len(self.rule.selectors[0].ids) != 1:
             return False
 
         # The rule's single resource does not match `resource`.
