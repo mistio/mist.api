@@ -26,7 +26,6 @@ from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.drivers.docker import DockerException
 from libcloud.container.base import ContainerImage
-from elasticsearch_tornado import EsClient
 from elasticsearch import Elasticsearch
 from distutils.version import LooseVersion
 from amqp.exceptions import NotFound as AmqpNotFound
@@ -1205,24 +1204,6 @@ def view_config(*args, **kwargs):
                                **kwargs)
 
 
-class AsyncElasticsearch(EsClient):
-    """Tornado-compatible Elasticsearch client."""
-
-    def mk_req(self, url, **kwargs):
-        """Update kwargs with authentication credentials."""
-        kwargs.update({
-            'auth_username': config.ELASTICSEARCH['elastic_username'],
-            'auth_password': config.ELASTICSEARCH['elastic_password'],
-            'validate_cert': config.ELASTICSEARCH['elastic_verify_certs'],
-            'ca_certs': None,
-
-        })
-        for param in ('connect_timeout', 'request_timeout'):
-            if param not in kwargs:
-                kwargs[param] = 30.0  # Increase default timeout by 10 sec.
-        return super(AsyncElasticsearch, self).mk_req(url, **kwargs)
-
-
 def es_client(asynchronous=False):
     """Returns an initialized Elasticsearch client."""
     if not asynchronous:
@@ -1236,6 +1217,7 @@ def es_client(asynchronous=False):
         )
     else:
         method = 'https' if config.ELASTICSEARCH['elastic_use_ssl'] else 'http'
+        from elasticsearch import AsyncElasticsearch
         return AsyncElasticsearch(
             config.ELASTICSEARCH['elastic_host'],
             port=config.ELASTICSEARCH['elastic_port'], method=method,

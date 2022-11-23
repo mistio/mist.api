@@ -6,7 +6,7 @@
 ## ensures that the build won't break because of a new release of some
 ## dependency.
 
-amqp<3.0
+amqp
 apscheduler
 beautifulsoup4
 boto3
@@ -14,7 +14,6 @@ dnspython
 dateparser
 dramatiq
 elasticsearch
-elasticsearch_tornado
 flake8
 future
 gevent
