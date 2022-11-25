@@ -1493,69 +1493,107 @@ class BaseComputeController(BaseController):
                  len(fetched_locations), self.cloud)
 
         locations = []
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
+        locations = loop.run_until_complete(
+            self._list_locations_populate_all_locations(
+                fetched_locations, loop
+            )
+        )
 
-        for loc in fetched_locations:
-            try:
-                _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                      external_id=loc.id)
-            except CloudLocation.DoesNotExist:
-                _location = CloudLocation(cloud=self.cloud,
-                                          owner=self.cloud.owner,
-                                          external_id=loc.id)
-            try:
-                _location.country = loc.country
-            except AttributeError:
-                _location.country = None
-            _location.name = loc.name
-            _location.extra = copy.deepcopy(loc.extra)
-            _location.missing_since = None
-            _location.parent = self._list_locations__get_parent(_location, loc)
-            _location.location_type = self._list_locations__get_type(
-                _location, loc)
-            _location.images_location = self._list_locations__get_images_location(loc)  # noqa: E501
-            try:
-                capabilities = self._list_locations__get_capabilities(loc)
-            except Exception as exc:
-                log.error(
-                    "Failed to get location capabilities for cloud: %s",
-                    self.cloud.id)
-            else:
-                _location.capabilities = capabilities
-
-            try:
-                available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
-            except Exception as exc:
-                log.error('Error adding location-size constraint: %s'
-                          % repr(exc))
-            else:
-                if available_sizes:
-                    _location.available_sizes = available_sizes
-
-            try:
-                available_images = self._list_locations__get_available_images(loc)  # noqa
-            except Exception as exc:
-                log.error('Error adding location-image constraint: %s'
-                          % repr(exc))
-            else:
-                if available_images:
-                    _location.available_images = available_images
-
-            try:
-                _location.save()
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", loc.name, exc.to_dict())
-                raise BadRequestError({"msg": str(exc),
-                                       "errors": exc.to_dict()})
-            locations.append(_location)
-
+        now = datetime.datetime.utcnow()
         # update missing_since for locations not returned by libcloud
         CloudLocation.objects(cloud=self.cloud,
                               missing_since=None,
-                              external_id__nin=[l.external_id
-                                                for l in locations]).update(
-                                                    missing_since=datetime.
-                                                    datetime.utcnow())
+                              external_id__nin=[loc.external_id
+                                                for loc in locations]).update(
+                                                    missing_since=now)
         return locations
+
+    async def _list_locations_populate_all_locations(self, locations, loop):
+        result = [
+            loop.run_in_executor(
+                None,
+                self._list_locations__populate_location, libcloud_location
+            ) for libcloud_location in locations
+        ]
+        return await asyncio.gather(*result)
+
+    def _list_locations__populate_location(self, libcloud_location):
+        from mist.api.clouds.models import CloudLocation
+        try:
+            _location = CloudLocation.objects.get(
+                cloud=self.cloud, external_id=libcloud_location.id)
+        except CloudLocation.DoesNotExist:
+            _location = CloudLocation(
+                cloud=self.cloud, owner=self.cloud.owner,
+                external_id=libcloud_location.id)
+        try:
+            _location.country = libcloud_location.country
+        except AttributeError:
+            _location.country = None
+        _location.name = libcloud_location.name
+        _location.extra = copy.deepcopy(libcloud_location.extra)
+        _location.missing_since = None
+        _location.parent = self._list_locations__get_parent(
+            _location, libcloud_location)
+        _location.location_type = self._list_locations__get_type(
+            _location, libcloud_location)
+        _location.images_location = self._list_locations__get_images_location(
+            libcloud_location)
+        try:
+            created = self._list_locations__location_creation_date(
+                libcloud_location)
+            if created:
+                created = get_datetime(created)
+                if _location.created != created:
+                    _location.created = created
+        except Exception as exc:
+            log.exception("Error finding creation date for %s in %s.\n%r",
+                          self.cloud, _location, exc)
+        try:
+            capabilities = self._list_locations__get_capabilities(
+                libcloud_location)
+        except Exception as exc:
+            log.error(
+                "Failed to get location capabilities for cloud: %s",
+                self.cloud.id)
+        else:
+            _location.capabilities = capabilities
+
+        try:
+            available_sizes = self._list_locations__get_available_sizes(
+                libcloud_location)
+        except Exception as exc:
+            log.error('Error adding location-size constraint: %s'
+                      % repr(exc))
+        else:
+            if available_sizes:
+                _location.available_sizes = available_sizes
+
+        try:
+            available_images = self._list_locations__get_available_images(
+                libcloud_location)
+        except Exception as exc:
+            log.error('Error adding location-image constraint: %s'
+                      % repr(exc))
+        else:
+            if available_images:
+                _location.available_images = available_images
+
+        try:
+            _location.save()
+        except me.ValidationError as exc:
+            log.error(
+                "Error adding %s: %s", libcloud_location.name, exc.to_dict())
+            raise BadRequestError({"msg": str(exc),
+                                   "errors": exc.to_dict()})
+        return _location
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
