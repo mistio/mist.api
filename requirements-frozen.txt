@@ -5,6 +5,7 @@
 
 amqp==5.1.1
 apscheduler==3.9.1
+asgiref==3.5.2
 asn1crypto==1.5.1
 atomicwrites==1.4.1
 attrs==22.1.0

@@ -8,6 +8,7 @@
 
 amqp
 apscheduler
+asgiref
 beautifulsoup4
 boto3
 dnspython
@@ -46,6 +47,7 @@ pytest
 python3-openid
 pyvmomi
 requests
+rstream
 s3cmd
 scp
 sendgrid-python
@@ -57,4 +59,3 @@ troposphere
 #tornado_profile
 uwsgidecorators
 websocket-client
-rstream

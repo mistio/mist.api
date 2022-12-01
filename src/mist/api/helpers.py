@@ -12,8 +12,9 @@ could easily use in some other unrelated project.
 """
 
 import asyncio
-import signal
+from asgiref.sync import async_to_sync
 from rstream import Consumer, amqp_decoder, AMQPMessage
+from rstream.exceptions import StreamDoesNotExist
 from functools import reduce
 from mist.api import config
 from mist.api.exceptions import WorkflowExecutionError, BadRequestError
@@ -71,7 +72,6 @@ import logging
 import codecs
 import secrets
 import operator
-import websocket
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -1996,45 +1996,6 @@ def create_helm_command(repo_url, release_name, chart_name, host, port, token,
     return helm_install_command
 
 
-class websocket_for_scripts(object):
-
-    def __init__(self, uri):
-        self.uri = uri
-        ws = websocket.WebSocketApp(self.uri,
-                                    on_message=self.on_message,
-                                    on_error=self.on_error,
-                                    on_close=self.on_close)
-        self.ws = ws
-        self.buffer = ""
-
-    def on_message(self, message):
-        message = message.decode('utf-8')
-        if message.startswith('retval:'):
-            self.retval = message.replace('retval:', '', 1)
-        else:
-            self.buffer = self.buffer + message
-
-    def on_close(self):
-        self.ws.close()
-
-    def on_error(self, error):
-        self.ws.close()
-        log.error("Got Websocket error: %s" % error)
-
-    def on_open(self):
-        import _thread
-
-        def run(*args):
-            self.ws.wait_command_to_finish()
-        _thread.start_new_thread(run, ())
-
-    def wait_command_to_finish(self):
-        self.ws.run_forever(ping_interval=9, ping_timeout=8)
-        self.retval = 0
-        output = self.buffer.split("\n")[0:-1]
-        return self.retval, "\n".join(output)
-
-
 def extract_selector_type(**kwargs):
     error_count = 0
     for selector in kwargs.get('selectors', []):
@@ -2060,27 +2021,38 @@ class RabbitMQStreamConsumer:
         self.exit_code = 1
 
     def on_message(self, msg: AMQPMessage):
-        message = msg.Body()
+        message = next(msg.data).decode('utf-8')
         if message.startswith('retval:'):
-            self.exit_code = message.replace('retval:', '', 1)
+            self.exit_code = int(message.replace('retval:', '', 1))
+            import asyncio
+            asyncio.create_task(self.consumer.close())
         else:
             self.buffer = self.buffer + message
 
+    @async_to_sync
     async def consume(self):
-        consumer = Consumer(
-            host=os.getenv("RABBITMQ_HOST"),
+        self.consumer = Consumer(
+            host=os.getenv("RABBITMQ_HOST", 'rabbitmq'),
             port=5552,
             vhost='/',
-            username=os.getenv("RABBITMQ_USERNAME"),
-            password=os.getenv("RABBITMQ_PASSWORD"),
+            username=os.getenv("RABBITMQ_USERNAME", 'guest'),
+            password=os.getenv("RABBITMQ_PASSWORD", 'guest'),
         )
 
         loop = asyncio.get_event_loop()
-        loop.add_signal_handler(
-            signal.SIGINT, lambda: asyncio.create_task(consumer.close()))
+        await self.consumer.start()
+        sleep_time = 0
+        SLEEP_TIMEOUT = 30
+        SLEEP_INTERVAL = 3
+        while sleep_time < SLEEP_TIMEOUT:
 
-        await consumer.start()
-        await consumer.subscribe(self.stream_name, self.on_message,
-                                 decoder=amqp_decoder)
-        await consumer.run()
+            try:
+                await self.consumer.subscribe(
+                    self.stream_name, self.on_message, decoder=amqp_decoder)
+                break
+            except StreamDoesNotExist:
+                sleep(SLEEP_INTERVAL)
+                sleep_time += SLEEP_INTERVAL
+
+        await self.consumer.run()
         return self.exit_code, self.buffer

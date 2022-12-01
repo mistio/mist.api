@@ -402,6 +402,7 @@ def run_script(request):
     su = params.get('su', False)
     env = params.get('env')
     job_id = params.get('job', params.get('job_id', None))
+    run_async = params.get('async', True)
     if not job_id:
         job = 'run_script'
         job_id = uuid.uuid4().hex
@@ -453,17 +454,24 @@ def run_script(request):
     except me.DoesNotExist:
         raise NotFoundError('Script id not found')
     job_id = job_id or uuid.uuid4().hex
-    tasks.run_script.send_with_options(
-        args=(auth_context.serialize(), script.id, machine.id),
-        kwargs={
-            "params": script_params,
-            "env": env,
-            "su": su,
-            "job_id": job_id,
-            "job": job
-        },
-        delay=1_000
-    )
+    if run_async:
+        tasks.run_script.send_with_options(
+            args=(auth_context.serialize(), script.id, machine.id),
+            kwargs={
+                "params": script_params,
+                "env": env,
+                "su": su,
+                "job_id": job_id,
+                "job": job
+            },
+            delay=1_000
+        )
+    else:
+        return tasks.run_script(
+            auth_context.serialize(),
+            script.id, machine.id,
+            params=script_params, env=env,
+            su=su, job=job, job_id=job_id)
     return {'job_id': job_id, 'job': job}
 
 
