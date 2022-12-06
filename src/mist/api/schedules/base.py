@@ -6,7 +6,6 @@ Cloud specific controllers are in `mist.api.schedules.controllers`.
 """
 import logging
 import datetime
-import ast
 import mongoengine as me
 
 from mist.api.scripts.models import Script
@@ -142,7 +141,6 @@ class BaseController(object):
                 script_type = kwargs.get('actions')[0].get('script_type')
                 if script_type == 'existing':
                     script = kwargs.get('actions')[0].get('script')
-                    script = ast.literal_eval(script)
                     script_id = script['script']
                     if script_id:
                         try:
@@ -238,9 +236,8 @@ class BaseController(object):
                 # TODO Make possible to have notification actions on schedules
                 raise NotImplementedError()
             elif action == 'run_script':
-                script = ast.literal_eval(actions[0]['script'])
-                script_id = script['script']
-                params = script['params']
+                script_id = actions[0]['script']
+                params = actions[0]['params']
                 if script_id:
                     self.schedule.actions[0] = acts.ScriptAction(
                         script=script_id, params=params)

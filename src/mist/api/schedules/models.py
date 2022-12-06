@@ -336,10 +336,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
 
         selectors = [selector.as_dict() for selector in self.selectors]
 
-        if self.actions[0].__class__.__name__ == 'ScriptAction':
-            action = 'run script'
-        else:
-            action = self.actions[0].action
+        action = self.actions[0]
 
         sdict = {
             'id': self.id,
@@ -348,7 +345,6 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
             'schedule': str(self.when),
             'schedule_type': self.when.type,
             'schedule_entry': self.when.as_dict(),
-            'task_type': action,
             'expires': str(self.expires or ''),
             'start_after': str(self.start_after or ''),
             'task_enabled': self.task_enabled,
@@ -361,6 +357,14 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }
+        task_type = {}
+        if action.__class__.__name__ == 'ScriptAction':
+            task_type['action'] = 'run script'
+            task_type['script_id'] = action.script
+            task_type['params'] = action.params
+        else:
+            task_type['action'] = self.actions[0].atype
+        sdict['task_type'] = task_type
 
         return sdict
 

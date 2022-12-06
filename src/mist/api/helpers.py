@@ -644,7 +644,7 @@ def random_string(length=5, punc=False):
     When punc=True, the string will also contain punctuation apart
     from letters and digits
     """
-    _chars = string.letters + string.digits
+    _chars = string.ascii_letters + string.digits
     _chars += string.punctuation if punc else ''
     return ''.join(random.choice(_chars) for _ in range(length))
 

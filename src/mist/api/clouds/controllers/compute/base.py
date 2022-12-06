@@ -3339,36 +3339,6 @@ class BaseComputeController(BaseController):
         """Parse & validate machine's schedules list from the create machine
         request.
 
-        Schedule attributes:
-            `schedule_type`: 'one_off', 'interval', 'crontab'
-            `action`: 'start' 'stop', 'reboot', 'destroy'
-            `script`: dictionary containing:
-                    `script`: id or name of the script to run
-                    `params`: optional script parameters
-
-            one_off schedule_type parameters:
-                `datetime`: when schedule should run,
-                            e.g '2020-12-15T22:00:00Z'
-            crontab schedule_type parameters:
-                `minute`: e.g '*/10',
-                `hour`
-                `day_of_month`
-                `month_of_year`
-                `day_of_week`
-
-            interval schedule_type parameters:
-                    `every`: int ,
-                    `period`: minutes,hours,days
-
-            `expires`: date when schedule should expire,
-            e.g '2020-12-15T22:00:00Z'
-
-            `start_after`: date when schedule should start running,
-            e.g '2020-12-15T22:00:00Z'
-
-            `max_run_count`: max number of times to run
-            description:
-
         Parameters:
             auth_context(AuthContext): The AuthContext object of the user
                                        making the request.
@@ -3381,48 +3351,57 @@ class BaseComputeController(BaseController):
             return None
         ret_schedules = []
         for schedule in schedules:
-            schedule_type = schedule.get('schedule_type')
+            when = schedule.get('when')
+            schedule_type = when.get('schedule_type')
             if schedule_type not in ['crontab', 'interval', 'one_off']:
                 raise BadRequestError('schedule type must be one of '
                                       'these (crontab, interval, one_off)]')
 
             ret_schedule = {
-                'schedule_type': schedule_type,
                 'description': schedule.get('description', ''),
-                'task_enabled': True,
+                'when': when,
+                'task_enabled': schedule.get('task_enabled', True),
+                'actions': []
             }
-            action = schedule.get('action')
-            script = schedule.get('script')
-            if action is None and script is None:
-                raise BadRequestError('Schedule action or script not defined')
-            if action and script:
-                raise BadRequestError(
-                    'One of action or script should be defined')
-            if action:
-                if action not in ['reboot', 'destroy', 'start', 'stop']:
+            actions = schedule.get('actions', [])
+            for action in actions:
+                action_type = action.get('action_type')
+                if action_type is None:
+                    raise BadRequestError('Schedule action not defined')
+                if action_type not in [
+                    'reboot', 'destroy', 'start', 'stop', 'delete', 'webhook',
+                        'notify', 'undefine', 'resize', 'run_script']:
                     raise BadRequestError('Action is not correct')
-                ret_schedule['action'] = action
-            else:
-                from mist.api.methods import list_resources
-                script_search = script.get('script')
-                if not script_search:
-                    raise BadRequestError('script parameter is required')
-                try:
-                    [script_obj], _ = list_resources(auth_context, 'script',
-                                                     search=script_search,
-                                                     limit=1)
-                except ValueError:
-                    raise NotFoundError('Schedule script does not exist')
-                auth_context.check_perm('script', 'run', script_obj.id)
-                ret_schedule['script_id'] = script_obj.id
-                ret_schedule['script_name'] = script_obj.name
-                ret_schedule['params'] = script.get('params')
+                ret_action = {
+                    'action_type': action_type
+                }
+                if action_type == 'run_script':
+                    script_type = action.get('script_type')
+                    if script_type == 'existing':
+                        from mist.api.methods import list_resources
+                        script_search = action.get('script')
+                        if not script_search:
+                            raise BadRequestError(
+                                'script parameter is required')
+                        try:
+                            [script_obj], _ = list_resources(
+                                auth_context, 'script', search=script_search,
+                                limit=1)
+                        except ValueError:
+                            raise NotFoundError(
+                                'Schedule script does not exist')
+                        auth_context.check_perm('script', 'run', script_obj.id)
+                    ret_action['script'] = script_obj.id
+                    ret_action['script_name'] = script_obj.name
+                    ret_action['params'] = action.get('params')
+                ret_schedule['actions'].append(ret_action)
+
             if schedule_type == 'one_off':
                 # convert schedule_entry from ISO format
                 # to '%Y-%m-%d %H:%M:%S'
                 try:
-                    ret_schedule['schedule_entry'] = datetime.datetime.strptime(  # noqa
-                        schedule['datetime'], '%Y-%m-%dT%H:%M:%SZ'
+                    ret_schedule['when']['datetime'] = datetime.datetime.strptime(  # noqa
+                        when['datetime'], '%Y-%m-%dT%H:%M:%SZ'
                     ).strftime("%Y-%m-%d %H:%M:%S")
                 except KeyError:
                     raise BadRequestError(
@@ -3433,21 +3412,24 @@ class BaseComputeController(BaseController):
                         ' format %Y-%m-%dT%H:%M:%SZ')
             elif schedule_type == 'interval':
                 try:
-                    ret_schedule['schedule_entry'] = {
-                        'every': schedule['every'],
-                        'period': schedule['period']
+                    ret_schedule['when'] = {
+                        'schedule_type': 'interval',
+                        'every': when['every'],
+                        'period': when['period'],
+                        'max_run_count': when.get('max_run_count')
                     }
                 except KeyError:
                     raise BadRequestError(
                         'interval schedule parameter missing')
             elif schedule_type == 'crontab':
                 try:
-                    ret_schedule['schedule_entry'] = {
-                        'minute': schedule['minute'],
-                        'hour': schedule['hour'],
-                        'day_of_month': schedule['day_of_month'],
-                        'month_of_year': schedule['month_of_year'],
-                        'day_of_week': schedule['day_of_week']
+                    ret_schedule['when'] = {
+                        'schedule_type': 'crontab',
+                        'minute': when['minute'],
+                        'hour': when['hour'],
+                        'day_of_month': when['day_of_month'],
+                        'month_of_year': when['month_of_year'],
+                        'day_of_week': when['day_of_week']
                     }
                 except KeyError:
                     raise BadRequestError(
@@ -3466,6 +3448,7 @@ class BaseComputeController(BaseController):
                                               'not match format '
                                               '%Y-%m-%dT%H:%M:%SZ'
                                               )
+
                 if schedule.get('expires'):
                     # convert `expires` from ISO format
                     # to '%Y-%m-%d %H:%M:%S'
