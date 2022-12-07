@@ -443,7 +443,7 @@ class Team(me.EmbeddedDocument):
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map,
                                         self, deref, only)
-        if(ret.get('policy')):
+        if ret.get('policy'):
             ret['policy'] = ret['policy'].__str__()
         ret['members_count'] = len(ret.get('members', []))
         return ret
@@ -714,7 +714,7 @@ class Organization(Owner):
                 elif team.name == 'Owners':
                     raise me.ValidationError(
                         'RBAC Mappings are not intended for Team Owners')
-                elif len(mappings) is not 2:
+                elif len(mappings) != 2:
                     raise me.ValidationError(
                         'RBAC Mappings have not been properly initialized for '
                         'Team %s' % team)

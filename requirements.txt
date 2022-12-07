@@ -6,15 +6,15 @@
 ## ensures that the build won't break because of a new release of some
 ## dependency.
 
-amqp<3.0
+amqp
 apscheduler
+asgiref
 beautifulsoup4
 boto3
 dnspython
 dateparser
 dramatiq
 elasticsearch
-elasticsearch_tornado
 flake8
 future
 gevent
@@ -47,6 +47,7 @@ pytest
 python3-openid
 pyvmomi
 requests
+rstream
 s3cmd
 scp
 sendgrid-python

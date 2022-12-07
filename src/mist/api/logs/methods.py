@@ -16,7 +16,6 @@ from mist.api.exceptions import ServiceUnavailableError
 from mist.api.users.models import User
 
 from mist.api.logs.helpers import _filtered_query
-from mist.api.logs.helpers import _on_response_callback
 
 from mist.api.logs.constants import FIELDS, JOBS
 from mist.api.logs.constants import EXCLUDED_BUCKETS, TYPES
@@ -398,7 +397,7 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
 
 def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
                 error=None, range=None, pending=None, expand=False,
-                tornado_callback=None, tornado_async=False, **kwargs):
+                callback=None, es_async=False, **kwargs):
     """Fetch stories.
 
     Query Elasticsearch for story documents based on the provided arguments.
@@ -431,7 +430,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
             includes += list(FIELDS) + ["action", "extra"]
     else:
         includes = []
-        assert not tornado_async
+        assert not es_async
     if story_type:
         assert story_type in TYPES
 
@@ -513,28 +512,28 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
 
     # Process returned stories.
     def _on_stories_callback(response):
-        result = _on_response_callback(response, tornado_async)
         return process_stories(
-            buckets=result["aggregations"]["stories"]["buckets"],
-            callback=tornado_callback, type=story_type
+            buckets=response["aggregations"]["stories"]["buckets"],
+            callback=callback, type=story_type
         )
 
     # Fetch stories. Invoke callback to process and return results.
     def _on_request_callback(query):
-        if not tornado_async:
+        if es_async is False:
             result = es().search(index=index, doc_type=TYPES.get(story_type),
                                  body=query)
             return _on_stories_callback(result)
         else:
-            es(tornado_async).search(index=index,
-                                     body=json.dumps(query),
-                                     doc_type=TYPES.get(story_type),
-                                     callback=_on_stories_callback)
+            async def search_async(query):
+                result = await es_async.search(index=index,
+                                               body=json.dumps(query),
+                                               doc_type=TYPES.get(story_type))
+                return _on_stories_callback(result)
+            return search_async(query)
 
     # Process aggregation results in order to be applied as filters.
     def _on_filters_callback(response):
-        results = _on_response_callback(response, tornado_async)
-        filters = results["aggregations"]["main_bucket"]["buckets"]
+        filters = response["aggregations"]["main_bucket"]["buckets"]
         process_filters(query, filters, pending, error)
         return _on_request_callback(query)
 
@@ -546,7 +545,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
         return _filtered_query(owner_id, close=pending, error=error,
                                range=range, type=story_type,
                                callback=_on_filters_callback,
-                               tornado_async=tornado_async, **kwargs)
+                               es_async=es_async, **kwargs)
     else:
         return _on_request_callback(query)
 

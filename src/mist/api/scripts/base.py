@@ -8,13 +8,15 @@ import urllib.error
 
 import mongoengine as me
 
+from time import time
 
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import trigger_session_update, mac_sign
-from mist.api.helpers import websocket_for_scripts
+from mist.api.helpers import RabbitMQStreamConsumer
 from mist.api.exceptions import ScriptNameExistsError
 
 from mist.api import config
+
 
 log = logging.getLogger(__name__)
 
@@ -230,9 +232,9 @@ class BaseScriptController(object):
 
     def run(self, auth_context, machine, host=None, port=None, username=None,
             password=None, su=False, key_id=None, params=None, job_id=None,
-            env='', owner=None):
+            env='', owner=None, ret=None, action_prefix=None):
         from mist.api.users.models import Organization
-        from mist.api.machines.methods import prepare_ssh_uri
+        from mist.api.machines.methods import prepare_ssh_dict
         import re
         if auth_context:
             owner = auth_context.owner
@@ -268,19 +270,40 @@ class BaseScriptController(object):
             f'  return "$retval";'
             '} && fetchrun'
         )
-        ssh_user, key_name, ws_uri = prepare_ssh_uri(
-            auth_context=auth_context, machine=machine, job_id=job_id,
+        log.info('Preparing ssh dict')
+        ssh_dict, key_name = prepare_ssh_dict(
+            auth_context=auth_context, machine=machine,
             command=command)
-        exit_code, stdout = websocket_for_scripts(
-            ws_uri).wait_command_to_finish()
-
+        sendScriptURI = '%s/ssh/jobs/%s' % (
+            config.PORTAL_URI,
+            job_id
+        )
+        log.info('Sending request to sheller:: %s' % sendScriptURI)
+        log.info(ssh_dict)
+        start = time()
+        resp = requests.post(sendScriptURI, json=ssh_dict)
+        log.info('Sheller returned %s in %d' % (
+            resp.status_code, time() - start))
+        exit_code, stdout = 1, ""
+        if resp.status_code == 200:
+            from mist.api.logs.methods import log_event
+            log_event(
+                event_type='job',
+                action=action_prefix + 'script_started',
+                **ret
+            )
+            log.info('Script started: %s' % ret)
+            # start reading from rabbitmq-stream
+            c = RabbitMQStreamConsumer(job_id)
+            log.info("reading logs from rabbitmq-stream of job_id:%s" % job_id)
+            exit_code, stdout = c.consume()
         return {
             'command': command,
             'exit_code': exit_code,
             'stdout': re.sub(r"(\n)\1+", r"\1", stdout.replace(
                 '\r\n', '\n').replace('\r', '\n')),
             'key_name': key_name,
-            'ssh_user': ssh_user
+            'ssh_user': ssh_dict["user"],
         }
 
     def _preparse_file(self):

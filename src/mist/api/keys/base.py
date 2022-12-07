@@ -65,7 +65,8 @@ class BaseKeyController(object):
                 if secret:
                     data = secret.data
                     if _key not in data.keys():
-                        raise BadRequestError('The key specified (%s) does not exist in \
+                        raise BadRequestError(
+                            'The key specified (%s) does not exist in \
                             secret `%s`' % (_key, secret.name))
 
                     secret_value = SecretValue(secret=secret,
@@ -82,10 +83,11 @@ class BaseKeyController(object):
                         if user:
                             secret.assign_to(user)
                     except me.NotUniqueError:
-                        raise KeyExistsError("The path `%s%s` exists on Vault. \
-                            Try changing the name of the key" %
-                                             (config.VAULT_KEYS_PATH,
-                                              self.key.name))
+                        raise KeyExistsError(
+                            "The path `%s%s` exists on Vault. \
+                            Try changing the name of the key" % (
+                                config.VAULT_KEYS_PATH,
+                                self.key.name))
                     try:
                         secret.create_or_update({key: value})
                     except Exception as exc:

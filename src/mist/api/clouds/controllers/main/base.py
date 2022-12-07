@@ -309,7 +309,8 @@ class BaseMainController(object):
                 if secret:  # value will be obtained from vault
                     data = secret.data
                     if _key not in data.keys():
-                        raise BadRequestError('The key specified (%s) does not exist in \
+                        raise BadRequestError(
+                            'The key specified (%s) does not exist in \
                             secret `%s`' % (_key, secret.name))
 
                     if key in self.cloud._private_fields:

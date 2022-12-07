@@ -98,10 +98,10 @@ class _HubTornadoConsumer(mist.api.amqp_tornado.Consumer):
             log.debug("%s: Will start listening for routing_key 'from_%s.#'.",
                       self.lbl, self.worker_id)
             self._channel.queue_bind(
-                self.ready_callback,
                 self.queue,
                 self.exchange,
                 'from_%s.#' % self.worker_id,
+                callback=self.ready_callback,
             )
             return
 

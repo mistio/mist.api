@@ -1,4 +1,4 @@
-FROM python:3.7-slim-bullseye
+FROM python:3.11-slim-bullseye
 
 # Install libvirt which requires system dependencies.
 RUN apt update && \
@@ -20,7 +20,7 @@ RUN ln -s /influxdb-1.8.4-1/influxd /usr/local/bin/influxd && \
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --upgrade setuptools && \
-    pip install libvirt-python==8.8.0 uwsgi==2.0.20 && \
+    pip install libvirt-python==8.8.0 uwsgi==2.0.21 && \
     pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
 
 # Remove `-frozen` to build without strictly pinned dependencies.
@@ -63,4 +63,4 @@ ENV JS_BUILD=1 \
 
 
 RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" \
-        > /mist-version.json
+    > /mist-version.json

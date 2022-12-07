@@ -6,6 +6,7 @@ import contextlib
 
 import mongoengine as me
 
+from mist.api.exceptions import MistError
 
 log = logging.getLogger(__name__)
 
@@ -18,8 +19,9 @@ class PeriodicTaskTooRecentLastRun(Exception):
     pass
 
 
-class PeriodicTaskLockTakenError(Exception):
-    pass
+class PeriodicTaskLockTakenError(MistError):
+    msg = "Periodic task lock taken"
+    http_code = 423
 
 
 class PeriodicTaskInfo(me.Document):

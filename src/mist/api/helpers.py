@@ -11,6 +11,10 @@ could easily use in some other unrelated project.
 
 """
 
+import asyncio
+from asgiref.sync import async_to_sync
+from rstream import Consumer, amqp_decoder, AMQPMessage
+from rstream.exceptions import StreamDoesNotExist
 from functools import reduce
 from mist.api import config
 from mist.api.exceptions import WorkflowExecutionError, BadRequestError
@@ -23,7 +27,6 @@ from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.container.drivers.docker import DockerException
 from libcloud.container.base import ContainerImage
-from elasticsearch_tornado import EsClient
 from elasticsearch import Elasticsearch
 from distutils.version import LooseVersion
 from amqp.exceptions import NotFound as AmqpNotFound
@@ -69,8 +72,6 @@ import logging
 import codecs
 import secrets
 import operator
-import websocket
-import _thread
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -643,7 +644,7 @@ def random_string(length=5, punc=False):
     When punc=True, the string will also contain punctuation apart
     from letters and digits
     """
-    _chars = string.letters + string.digits
+    _chars = string.ascii_letters + string.digits
     _chars += string.punctuation if punc else ''
     return ''.join(random.choice(_chars) for _ in range(length))
 
@@ -1203,24 +1204,6 @@ def view_config(*args, **kwargs):
                                **kwargs)
 
 
-class AsyncElasticsearch(EsClient):
-    """Tornado-compatible Elasticsearch client."""
-
-    def mk_req(self, url, **kwargs):
-        """Update kwargs with authentication credentials."""
-        kwargs.update({
-            'auth_username': config.ELASTICSEARCH['elastic_username'],
-            'auth_password': config.ELASTICSEARCH['elastic_password'],
-            'validate_cert': config.ELASTICSEARCH['elastic_verify_certs'],
-            'ca_certs': None,
-
-        })
-        for param in ('connect_timeout', 'request_timeout'):
-            if param not in kwargs:
-                kwargs[param] = 30.0  # Increase default timeout by 10 sec.
-        return super(AsyncElasticsearch, self).mk_req(url, **kwargs)
-
-
 def es_client(asynchronous=False):
     """Returns an initialized Elasticsearch client."""
     if not asynchronous:
@@ -1234,6 +1217,7 @@ def es_client(asynchronous=False):
         )
     else:
         method = 'https' if config.ELASTICSEARCH['elastic_use_ssl'] else 'http'
+        from elasticsearch import AsyncElasticsearch
         return AsyncElasticsearch(
             config.ELASTICSEARCH['elastic_host'],
             port=config.ELASTICSEARCH['elastic_port'], method=method,
@@ -2012,44 +1996,6 @@ def create_helm_command(repo_url, release_name, chart_name, host, port, token,
     return helm_install_command
 
 
-class websocket_for_scripts(object):
-
-    def __init__(self, uri):
-        self.uri = uri
-        ws = websocket.WebSocketApp(self.uri,
-                                    on_message=self.on_message,
-                                    on_error=self.on_error,
-                                    on_close=self.on_close)
-        self.ws = ws
-        self.ws.on_open = self.on_open
-        self.buffer = ""
-
-    def on_message(self, message):
-        message = message.decode('utf-8')
-        if message.startswith('retval:'):
-            self.retval = message.replace('retval:', '', 1)
-        else:
-            self.buffer = self.buffer + message
-
-    def on_close(self):
-        self.ws.close()
-
-    def on_error(self, error):
-        self.ws.close()
-        log.error("Got Websocket error: %s" % error)
-
-    def on_open(self):
-        def run(*args):
-            self.ws.wait_command_to_finish()
-        _thread.start_new_thread(run, ())
-
-    def wait_command_to_finish(self):
-        self.ws.run_forever(ping_interval=9, ping_timeout=8)
-        self.retval = 0
-        output = self.buffer.split("\n")[0:-1]
-        return self.retval, "\n".join(output)
-
-
 def extract_selector_type(**kwargs):
     error_count = 0
     for selector in kwargs.get('selectors', []):
@@ -2066,3 +2012,47 @@ def extract_selector_type(**kwargs):
     if error_count == len(kwargs.get('selectors', [])):
         raise BadRequestError('selector_type')
     return selector_type
+
+
+class RabbitMQStreamConsumer:
+    def __init__(self, job_id):
+        self.stream_name = job_id
+        self.buffer = ""
+        self.exit_code = 1
+
+    def on_message(self, msg: AMQPMessage):
+        message = next(msg.data).decode('utf-8')
+        if message.startswith('retval:'):
+            self.exit_code = int(message.replace('retval:', '', 1))
+            import asyncio
+            asyncio.create_task(self.consumer.close())
+        else:
+            self.buffer = self.buffer + message
+
+    @async_to_sync
+    async def consume(self):
+        self.consumer = Consumer(
+            host=os.getenv("RABBITMQ_HOST", 'rabbitmq'),
+            port=5552,
+            vhost='/',
+            username=os.getenv("RABBITMQ_USERNAME", 'guest'),
+            password=os.getenv("RABBITMQ_PASSWORD", 'guest'),
+        )
+
+        loop = asyncio.get_event_loop()
+        await self.consumer.start()
+        sleep_time = 0
+        SLEEP_TIMEOUT = 30
+        SLEEP_INTERVAL = 3
+        while sleep_time < SLEEP_TIMEOUT:
+
+            try:
+                await self.consumer.subscribe(
+                    self.stream_name, self.on_message, decoder=amqp_decoder)
+                break
+            except StreamDoesNotExist:
+                sleep(SLEEP_INTERVAL)
+                sleep_time += SLEEP_INTERVAL
+
+        await self.consumer.run()
+        return self.exit_code, self.buffer

@@ -298,7 +298,7 @@ class AmazonComputeController(BaseComputeController):
                     if 'UnauthorizedOperation' in str(e.message):
                         images = []
                     else:
-                        raise()
+                        raise
             for image in images:
                 if image.id in default_images:
                     image.name = default_images[image.id]
@@ -308,7 +308,7 @@ class AmazonComputeController(BaseComputeController):
                 if 'UnauthorizedOperation' in str(e.message):
                     pass
                 else:
-                    raise()
+                    raise
         else:
             # search on EC2.
             search = search.lstrip()
@@ -335,7 +335,7 @@ class AmazonComputeController(BaseComputeController):
                     if 'UnauthorizedOperation' in str(e.message):
                         break
                     else:
-                        raise()
+                        raise
                 else:
                     if images:
                         break
@@ -5565,14 +5565,14 @@ class OnAppComputeController(BaseComputeController):
         if locations:
             hypervisors = self.connection.connection.request(
                 "/settings/hypervisor_zones.json")
-            for l in locations:
+            for loc in locations:
                 for hypervisor in hypervisors.object:
                     h = hypervisor.get("hypervisor_group")
-                    if str(h.get("location_group_id")) == l.id:
+                    if str(h.get("location_group_id")) == loc.id:
                         # get max_memory/max_cpu
-                        l.extra["max_memory"] = h.get("max_host_free_memory")
-                        l.extra["max_cpu"] = h.get("max_host_cpu")
-                        l.extra["hypervisor_group_id"] = h.get("id")
+                        loc.extra["max_memory"] = h.get("max_host_free_memory")
+                        loc.extra["max_cpu"] = h.get("max_host_cpu")
+                        loc.extra["hypervisor_group_id"] = h.get("id")
                         break
 
             try:
@@ -5583,13 +5583,13 @@ class OnAppComputeController(BaseComputeController):
             except:
                 pass
 
-            for l in locations:
+            for loc in locations:
                 # get data store zones, and match with locations
                 # through location_group_id
                 # then calculate max_disk_size per data store,
                 # by matching data store zones and data stores
                 try:
-                    store_zones = [dsg for dsg in data_store_zones if l.id is
+                    store_zones = [dsg for dsg in data_store_zones if loc.id is
                                    str(dsg['data_store_group']
                                        ['location_group_id'])]
                     for store_zone in store_zones:
@@ -5597,7 +5597,7 @@ class OnAppComputeController(BaseComputeController):
                                   store['data_store']['data_store_group_id'] is
                                   store_zone['data_store_group']['id']]
                         for store in stores:
-                            l.extra['max_disk_size'] = store['data_store']
+                            loc.extra['max_disk_size'] = store['data_store']
                             ['data_store_size'] - store['data_store']['usage']
                 except:
                     pass
@@ -5608,16 +5608,16 @@ class OnAppComputeController(BaseComputeController):
             except:
                 pass
 
-            for l in locations:
+            for loc in locations:
                 # match locations with network ids (through location_group_id)
-                l.extra['networks'] = []
+                loc.extra['networks'] = []
 
                 try:
                     for network in networks:
                         net = network["network_group"]
-                        if str(net["location_group_id"]) == l.id:
-                            l.extra['networks'].append({'name': net['label'],
-                                                        'id': net['id']})
+                        if str(net["location_group_id"]) == loc.id:
+                            loc.extra['networks'].append({'name': net['label'],
+                                                          'id': net['id']})
                 except:
                     pass
 

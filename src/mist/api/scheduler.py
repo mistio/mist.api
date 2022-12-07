@@ -27,6 +27,7 @@ RELOAD_INTERVAL = 5
 
 
 def schedule_to_actor(schedule):
+    task_path = None
     if isinstance(schedule, PollingSchedule) or isinstance(schedule, Rule):
         task_path = schedule.task.split('.')
     else:
@@ -75,7 +76,7 @@ def add_job(scheduler, schedule, actor, first_run=False):
             if schedule_action._cls == 'ScriptAction':
                 job['args'] = (
                     None,
-                    schedule_action.script,
+                    schedule_action.script.id,
                     schedule.name,
                     [r.id for r in schedule.get_resources()],
                     schedule_action.params,
@@ -157,7 +158,7 @@ def update_job(scheduler, schedule, actor, existing):
             if schedule_action._cls == 'ScriptAction':
                 new_args = (
                     None,
-                    schedule_action.script,
+                    schedule_action.script.id,
                     schedule.name,
                     [r.id for r in schedule.get_resources()],
                     schedule_action.params,
