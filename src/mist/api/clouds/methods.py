@@ -30,7 +30,7 @@ def validate_cloud_name(name):
     return name
 
 
-def add_cloud_v_2(owner, name, provider, user, params):
+def add_cloud(owner, name, provider, user, params):
     """Add cloud to owner"""
     # FIXME: Some of these should be explicit arguments, others shouldn't exist
     fail_on_error = params.pop('fail_on_error',
@@ -57,11 +57,6 @@ def add_cloud_v_2(owner, name, provider, user, params):
     }
 
     log.info("Cloud with id '%s' added successfully.", cloud.id)
-
-    c_count = Cloud.objects(owner=owner, deleted=None).count()
-    if owner.clouds_count != c_count:
-        owner.clouds_count = c_count
-        owner.save()
 
     return ret
 
@@ -100,10 +95,6 @@ def remove_cloud(owner, cloud_id, delete_from_vault=False):
         private_field.secret.delete(delete_from_engine=True)
 
     trigger_session_update(owner, ['clouds'])
-    c_count = Cloud.objects(owner=owner, deleted=None).count()
-    if owner.clouds_count != c_count:
-        owner.clouds_count = c_count
-        owner.save()
 
 
 def purge_cloud(cloud_id):

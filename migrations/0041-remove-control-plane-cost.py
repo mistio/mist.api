@@ -23,7 +23,7 @@ def remove_control_plane_costs():
         '$unset': {"cost.control_plane_monthly": 1}
     })
     print(f'{res.modified_count} machines were modified.')
-    print(f'Removing control_plane_monthly from clusters ...')
+    print('Removing control_plane_monthly from clusters ...')
     res = db_clusters.update_many({}, {
         '$unset': {"cost.control_plane_monthly": 1}
     })

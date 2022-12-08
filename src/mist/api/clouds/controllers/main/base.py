@@ -182,6 +182,7 @@ class BaseMainController(object):
         self.cloud.dns_enabled = kwargs.pop('dns', False) or \
             kwargs.pop('dns_enabled', False) is True
         self.cloud.object_storage_enabled = kwargs.pop(
+            'objectstorage', False) or kwargs.pop(
             'objects_storage', False) or kwargs.pop(
             'object_storage_enabled', False) is True
         self.cloud.container_enabled = kwargs.pop('container', False) or \
@@ -308,7 +309,8 @@ class BaseMainController(object):
                 if secret:  # value will be obtained from vault
                     data = secret.data
                     if _key not in data.keys():
-                        raise BadRequestError('The key specified (%s) does not exist in \
+                        raise BadRequestError(
+                            'The key specified (%s) does not exist in \
                             secret `%s`' % (_key, secret.name))
 
                     if key in self.cloud._private_fields:

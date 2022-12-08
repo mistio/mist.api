@@ -3,11 +3,6 @@ import logging
 
 from mist.api.helpers import es_client as es
 
-from mist.api.exceptions import NotFoundError
-from mist.api.exceptions import RateLimitError
-from mist.api.exceptions import BadRequestError
-from mist.api.exceptions import ServiceUnavailableError
-
 from mist.api.logs.constants import TYPES
 
 
@@ -16,7 +11,7 @@ log = logging.getLogger(__name__)
 
 
 def _filtered_query(owner_id, close=None, error=None, range=None, type=None,
-                    callback=None, tornado_async=False, **kwargs):
+                    callback=None, es_async=False, **kwargs):
     """Filter Elasticsearch documents.
 
     Executes a filtering aggregation on Elasticsearch documents in order to
@@ -94,37 +89,11 @@ def _filtered_query(owner_id, close=None, error=None, range=None, type=None,
             {"term": {key: value}}
         )
     # Perform Elasticsearch request.
-    if not tornado_async:
+    if not es_async:
         result = es().search(index=index, doc_type=TYPES.get(type), body=query)
         if callback:
             return callback(result)
         return result
     else:
-        es(tornado_async).search(index=index, doc_type=TYPES.get(type),
-                                 body=json.dumps(query), callback=callback)
-
-
-def _on_response_callback(response, tornado_async=False):
-    """HTTP Response-handling callback.
-
-    This method is meant to return HTTP Response objects generated either in a
-    Tornado or synchronous execution context.
-
-    Arguments:
-        - response: HTTP Response object.
-        - tornado_async: Denotes if a Tornado-safe HTTP request was issued.
-
-    """
-    if tornado_async:
-        if response.code != 200:
-            log.error('Error on Elasticsearch query in tornado_async mode. '
-                      'Got %d status code: %s', response.code, response.body)
-            if response.code == 400:
-                raise BadRequestError()
-            if response.code == 404:
-                raise NotFoundError()
-            if response.code == 429:
-                raise RateLimitError()
-            raise ServiceUnavailableError()
-        response = json.loads(response.body)
-    return response
+        es(es_async).search(index=index, doc_type=TYPES.get(type),
+                            body=json.dumps(query), callback=callback)

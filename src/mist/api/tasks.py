@@ -1148,6 +1148,7 @@ def group_run_script(auth_context_serialized, script_id, name, machine_ids,
 @dramatiq.actor(queue_name='dramatiq_schedules',
                 time_limit=3_600_000,
                 store_results=True,
+                max_retries=0,
                 throws=(me.DoesNotExist,))
 def run_script(auth_context_serialized, script_id, machine_id, params='',
                host='', key_id='', username='', password='', port=22,
@@ -1184,12 +1185,9 @@ def run_script(auth_context_serialized, script_id, machine_id, params='',
         'port': port,
         'command': '',
         'stdout': '',
-        'exit_code': '',
-        'wrapper_stdout': '',
-        'extra_output': '',
+        'exit_code': -255,
         'error': False,
     }
-    started_at = time()
     machine_name = ''
     cloud_id = ''
 
@@ -1212,18 +1210,19 @@ def run_script(auth_context_serialized, script_id, machine_id, params='',
 
         if not host:
             raise MistError("No host provided and none could be discovered.")
-
+        started_at = time()
         result = script.ctl.run(
             auth_context, machine, host=host, port=port, username=username,
             password=password, su=su, key_id=key_id, params=params,
-            job_id=job_id, env=env, owner=owner
+            job_id=job_id, env=env, owner=owner, ret=ret,
+            action_prefix=action_prefix
         )
 
         ret.update(result)
-    except Exception as exc:
+        log.info("Script result: %s" % result)
+    except TypeError as exc:
         ret['error'] = str(exc)
-    log_event(event_type='job', action=action_prefix + 'script_started', **ret)
-    log.info('Script started: %s', ret)
+        log.error("Script error: %s" % exc)
     if not ret['error']:
         if ret['exit_code'] > 0:
             ret['error'] = 'Script exited with code %s' % ret['exit_code']

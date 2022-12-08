@@ -213,7 +213,7 @@ class BaseStatsHandler(object):
         if len(fields) > 1:
             for tag in fields[:-1]:
                 tag = tag.split('=')
-                if len(tag) is not 2:
+                if len(tag) != 2:
                     log.error('%s got unexpected tag: %s',
                               self.__class__.__name__, tag)
                     continue

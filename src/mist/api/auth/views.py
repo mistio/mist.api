@@ -52,7 +52,7 @@ def list_tokens(request):
     # If user is owner also include all active tokens in the current org
     # context
     if auth_context.is_owner():
-        org_tokens = ApiToken.objects(org=auth_context.org, revoked=False)
+        org_tokens = ApiToken.objects(orgs=auth_context.org, revoked=False)
         for token in org_tokens:
             if token.is_valid():
                 token_view = token.get_public_view()
@@ -167,7 +167,7 @@ def create_token(request):
     if tokens_num < config.ACTIVE_APITOKEN_NUM:
         new_api_token = ApiToken()
         new_api_token.name = api_token_name
-        new_api_token.org = org
+        new_api_token.orgs = [org]
         new_api_token.ttl = ttl
         new_api_token.set_user(user)
         new_api_token.ip_address = ip_from_request(request)
@@ -219,7 +219,7 @@ def list_sessions(request):
 
     # If user is owner include all active sessions in the org context
     if auth_context.is_owner():
-        org_tokens = SessionToken.objects(org=auth_context.org, revoked=False)
+        org_tokens = SessionToken.objects(orgs=auth_context.org, revoked=False)
         for token in org_tokens:
             if token.is_valid():
                 public_view = token.get_public_view()
@@ -271,7 +271,7 @@ def revoke_session(request):
 
     try:
         if auth_context.is_owner():
-            auth_token = AuthToken.objects.get(org=auth_context.org,
+            auth_token = AuthToken.objects.get(orgs=auth_context.org,
                                                id=auth_token_id)
         else:
             auth_token = AuthToken.objects.get(

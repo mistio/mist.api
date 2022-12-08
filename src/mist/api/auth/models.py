@@ -37,8 +37,10 @@ class AuthToken(me.Document):
 
     user_id = me.StringField()
     su = me.StringField()
-    org = me.ReferenceField(Organization, required=False, null=True,
-                            reverse_delete_rule=me.CASCADE)
+    orgs = me.ListField(
+        me.ReferenceField(
+            Organization, required=False, null=True,
+            reverse_delete_rule=me.CASCADE))
 
     created = me.DateTimeField(default=datetime.utcnow)
     ttl = me.IntField(min_value=0, default=0)
@@ -64,6 +66,10 @@ class AuthToken(me.Document):
             },
         ],
     }
+
+    @property
+    def org(self):
+        return self.orgs[0]
 
     def expires(self):
         if self.ttl:

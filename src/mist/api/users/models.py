@@ -285,7 +285,7 @@ class User(Owner):
 
     meta = {
         'indexes': [
-            'email', 'first_name', 'last_name', 'username', 'last_login']
+            'first_name', 'last_name', 'last_login', 'username', 'email']
     }
 
     def __str__(self):
@@ -443,7 +443,7 @@ class Team(me.EmbeddedDocument):
         }
         ret = prepare_dereferenced_dict(standard_fields, deref_map,
                                         self, deref, only)
-        if(ret.get('policy')):
+        if ret.get('policy'):
             ret['policy'] = ret['policy'].__str__()
         ret['members_count'] = len(ret.get('members', []))
         return ret
@@ -462,10 +462,10 @@ class Organization(Owner):
     name = me.StringField(required=True)
     members = me.ListField(
         me.ReferenceField(User, reverse_delete_rule=me.PULL), required=True)
-    members_count = me.IntField(default=0)
+    members_count = me.IntField(default=0)  # Deprecated
     teams = me.EmbeddedDocumentListField(Team, default=_get_default_org_teams)
-    teams_count = me.IntField(default=0)
-    clouds_count = me.IntField(default=0)
+    teams_count = me.IntField(default=0)  # Deprecated
+    clouds_count = me.IntField(default=0)  # Deprecated
     # These are assigned only to organization from now on
     promo_codes = me.ListField()
     selected_plan = me.StringField()
@@ -650,8 +650,7 @@ class Organization(Owner):
     def as_dict_v2(self, deref='auto', only=''):
         from mist.api.helpers import prepare_dereferenced_dict
 
-        standard_fields = ['id', 'name', 'clouds_count', 'members_count',
-                           'teams_count', 'created', 'total_machine_count',
+        standard_fields = ['id', 'name', 'created', 'total_machine_count',
                            'enterprise_plan', 'selected_plan', 'enable_r12ns',
                            'default_monitoring_method', 'insights_enabled',
                            'ownership_enabled', 'last_active']
@@ -660,14 +659,16 @@ class Organization(Owner):
             ret['created'] = ret['created'].isoformat()
         if ret.get('last_active'):
             ret['last_active'] = ret['last_active'].isoformat()
-        org_teams = [team.as_dict_v2() for team in self.teams]
-        org_members = [member.as_dict_v2() for member in self.members]
-        for invitation in MemberInvitation.objects(org=self):
-            pending_member = invitation.user.as_dict_v2()
-            pending_member['pending'] = True
-            org_members.append(pending_member)
-        ret['teams'] = org_teams
-        ret['members'] = org_members
+        if not only or 'teams' in only:
+            org_teams = [team.as_dict_v2() for team in self.teams]
+            ret['teams'] = org_teams
+        if not only or 'members' in only:
+            org_members = [member.as_dict_v2() for member in self.members]
+            for invitation in MemberInvitation.objects(org=self):
+                pending_member = invitation.user.as_dict_v2()
+                pending_member['pending'] = True
+                org_members.append(pending_member)
+            ret['members'] = org_members
         return ret
 
     def clean(self):
@@ -713,7 +714,7 @@ class Organization(Owner):
                 elif team.name == 'Owners':
                     raise me.ValidationError(
                         'RBAC Mappings are not intended for Team Owners')
-                elif len(mappings) is not 2:
+                elif len(mappings) != 2:
                     raise me.ValidationError(
                         'RBAC Mappings have not been properly initialized for '
                         'Team %s' % team)
@@ -725,9 +726,6 @@ class Organization(Owner):
                                         id__ne=self.id):
             raise me.ValidationError("Organization with name '%s' "
                                      "already exists." % self.name)
-
-        self.members_count = len(self.members)
-        self.teams_count = len(self.teams)
 
         # If the org has a name but not a secret engine path we need to create
         # one in Vault

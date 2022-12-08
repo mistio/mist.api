@@ -43,14 +43,15 @@ def should_task_exist_for_cloud(task, cloud):
     """
     Return whether a given cloud should have the specified scheduled task.
     """
-    if ((task == "list_zones" and cloud.dns_enabled is False) or
-        (task == "list_buckets" and cloud.object_storage_enabled is False) or
-                (task == "list_clusters" and cloud.container_enabled is False) or  # noqa: E501
-            (task == "list_networks" and getattr(cloud.ctl, "network", None) is None) or  # noqa: E501
-            (task == "list_volumes" and getattr(cloud.ctl, "storage", None) is None) or  # noqa: E501
-        (task == "list_sizes" and cloud._cls == "Cloud.LibvirtCloud") or
-        (task != "list machines" and cloud._cls == "Cloud.OtherCloud")
-        ):
+    if (task == "list_zones" and cloud.dns_enabled is False) or \
+       (task == "list_buckets" and cloud.object_storage_enabled is False) or \
+       (task == "list_clusters" and cloud.container_enabled is False) or \
+       (task == "list_networks" and getattr(
+        cloud.ctl, "network", None) is None) or \
+       (task == "list_volumes" and getattr(
+        cloud.ctl, "storage", None) is None) or  \
+       (task == "list_sizes" and cloud._cls == "Cloud.LibvirtCloud") or \
+       (task != "list machines" and cloud._cls == "Cloud.OtherCloud"):
         return False
     return True
 

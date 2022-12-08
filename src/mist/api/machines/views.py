@@ -417,7 +417,7 @@ def create_machine(request):
         if not isinstance(mtags, dict):
             if not isinstance(mtags, list):
                 raise ValueError()
-            if not all((isinstance(t, dict) and len(t) is 1 for t in mtags)):
+            if not all((isinstance(t, dict) and len(t) == 1 for t in mtags)):
                 raise ValueError()
             mtags = {key: val for item in mtags for key,
                      val in list(item.items())}
@@ -1159,7 +1159,9 @@ def machine_ssh(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    if machine.machine_type == 'container' and \
+    if KeyMachineAssociation.objects(machine=machine).count():
+        exec_uri = methods.prepare_ssh_uri(auth_context, machine)
+    elif machine.machine_type == 'container' and \
             machine.cloud.provider == 'lxd':
         exec_uri = methods.prepare_lxd_uri(auth_context, machine)
     elif machine.machine_type == 'container' and \

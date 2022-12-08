@@ -186,8 +186,8 @@ class TriggerOffset(BasePeriodType):
         return {'offset': self.offset, 'period': self.period}
 
     def __str__(self):
-        if self.offset is 0:
+        if self.offset == 0:
             return 'Trigger offset is 0'
-        if self.offset is 1:
+        if self.offset == 1:
             return 'Trigger offset of 1 %s' % self.period_singular
         return 'Trigger offset %s %s' % (self.offset, self.period)

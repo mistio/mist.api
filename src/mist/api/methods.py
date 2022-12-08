@@ -372,8 +372,10 @@ def find_public_ips(ips):
 def notify_admin(title, message="", team="all"):
     """ This will only work on a multi-user setup configured to send emails """
     from mist.api.helpers import send_email
-    send_email(title, message,
-               config.NOTIFICATION_EMAIL.get(team, config.NOTIFICATION_EMAIL))
+    email = config.NOTIFICATION_EMAIL.get(team, config.NOTIFICATION_EMAIL)
+    if email:
+        send_email(title, message,
+                   email)
 
 
 def notify_user(owner, title, message="", email_notify=True, **kwargs):
@@ -593,6 +595,8 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         query = Q(org=auth_context.org)
     elif hasattr(resource_model, 'owner'):
         query = Q(owner=auth_context.org)
+    elif hasattr(resource_model, 'org'):
+        query = Q(owner=auth_context.org)
     else:
         query = Q()
 
@@ -613,13 +617,14 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
         else:
             query &= Q(missing_since=None)
 
-    if cloud and hasattr(resource_model, "zone"):
-        zones, _ = list_resources(auth_context, 'zone', cloud=cloud, only='id')
-        query &= Q(zone__in=zones)
-    elif cloud:
-        clouds, _ = list_resources(
-            auth_context, 'cloud', search=cloud, only='id')
-        query &= Q(cloud__in=clouds)
+        if cloud and hasattr(resource_model, "zone"):
+            zones, _ = list_resources(
+                auth_context, 'zone', cloud=cloud, only='id')
+            query &= Q(zone__in=zones)
+        else:
+            clouds, _ = list_resources(
+                auth_context, 'cloud', search=cloud, only='id')
+            query &= Q(cloud__in=clouds)
 
     # filter organizations
     # if user is not an admin
@@ -705,6 +710,8 @@ def list_resources(auth_context, resource_type, search='', cloud='', tags='',
                 v = bool(distutils.util.strtobool(v))
             except ValueError:
                 v = bool(v)
+        if type(v) == str and v.lower() in ['none', 'null', '\"\"', '\'\'']:
+            v = None
 
         if k == 'provider' and 'cloud' in resource_type:
             try:

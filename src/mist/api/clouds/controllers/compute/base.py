@@ -433,6 +433,11 @@ class BaseComputeController(BaseController):
             machine.cost.hourly = cph
             machine.cost.monthly = cpm
 
+            # Update children count
+            machine.children = Machine.objects(
+                cloud=machine.cloud, owner=machine.owner,
+                missing_since=None, parent=machine).count()
+
             # Save machine
             machine.save()
             machines.append(machine)
@@ -1461,18 +1466,24 @@ class BaseComputeController(BaseController):
         task_key = 'cloud:list_locations:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_locations = {'%s' % l.id: l.as_dict()
-                                for l in self.list_cached_locations()}
+            cached_locations = {'%s' % loc.id: loc.as_dict()
+                                for loc in self.list_cached_locations()}
 
             locations = self._list_locations()
 
         new_location_objects = [location for location in locations
                                 if location.id not in cached_locations.keys()]
 
-        if amqp_owner_listening(self.cloud.owner.id):
-            locations_dict = [l.as_dict() for l in locations]
+        try:
+            owner_listening = amqp_owner_listening(self.cloud.owner.id)
+        except Exception as e:
+            log.error('Exception raised during amqp owner lookup', repr(e))
+            owner_listening = False
+        if owner_listening:
+            locations_dict = [loc.as_dict() for loc in locations]
             if cached_locations and locations_dict:
-                new_locations = {'%s' % l['id']: l for l in locations_dict}
+                new_locations = {
+                    '%s' % loc['id']: loc for loc in locations_dict}
                 # Pop extra to prevent weird patches
                 for loc in cached_locations:
                     cached_locations[loc].pop('extra')
@@ -1534,89 +1545,119 @@ class BaseComputeController(BaseController):
                  len(fetched_locations), self.cloud)
 
         locations = []
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError('loop is closed')
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
+        locations = loop.run_until_complete(
+            self._list_locations_populate_all_locations(
+                fetched_locations, loop
+            )
+        )
 
-        for loc in fetched_locations:
-            try:
-                _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                      external_id=loc.id)
-            except CloudLocation.DoesNotExist:
-                _location = CloudLocation(cloud=self.cloud,
-                                          owner=self.cloud.owner,
-                                          external_id=loc.id)
-            try:
-                _location.country = loc.country
-            except AttributeError:
-                _location.country = None
-            _location.name = loc.name
-            _location.extra = copy.deepcopy(loc.extra)
-            _location.missing_since = None
-            _location.parent = self._list_locations__get_parent(_location, loc)
-            _location.location_type = self._list_locations__get_type(
-                _location, loc)
-            _location.images_location = self._list_locations__get_images_location(loc)  # noqa: E501
-            try:
-                created = self._list_locations__location_creation_date(loc)
-                if created:
-                    created = get_datetime(created)
-                    if _location.created != created:
-                        _location.created = created
-            except Exception as exc:
-                log.exception("Error finding creation date for %s in %s.\n%r",
-                              self.cloud, _location, exc)
-            try:
-                capabilities = self._list_locations__get_capabilities(loc)
-            except Exception as exc:
-                log.error(
-                    "Failed to get location capabilities for cloud: %s",
-                    self.cloud.id)
-            else:
-                _location.capabilities = capabilities
-
-            try:
-                available_sizes = self._list_locations__get_available_sizes(loc)  # noqa
-            except Exception as exc:
-                log.error('Error adding location-size constraint: %s'
-                          % repr(exc))
-            else:
-                if available_sizes:
-                    _location.available_sizes = available_sizes
-
-            try:
-                available_images = self._list_locations__get_available_images(loc)  # noqa
-            except Exception as exc:
-                log.error('Error adding location-image constraint: %s'
-                          % repr(exc))
-            else:
-                if available_images:
-                    _location.available_images = available_images
-
-            try:
-                _location.save()
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", loc.name, exc.to_dict())
-                raise BadRequestError({"msg": str(exc),
-                                       "errors": exc.to_dict()})
-            locations.append(_location)
         now = datetime.datetime.utcnow()
         # update missing_since for locations not returned by libcloud
         CloudLocation.objects(cloud=self.cloud,
                               missing_since=None,
-                              external_id__nin=[l.external_id
-                                                for l in locations]).update(
+                              external_id__nin=[loc.external_id
+                                                for loc in locations]).update(
                                                     missing_since=now)
         # update locations for locations seen for the first time
         CloudLocation.objects(cloud=self.cloud,
                               first_seen=None,
-                              external_id__in=[l.external_id
-                                               for l in locations]).update(
+                              external_id__in=[loc.external_id
+                                               for loc in locations]).update(
                                                    first_seen=now)
         # update last_seen, unset missing_since for locations we just saw
         CloudLocation.objects(cloud=self.cloud,
-                              external_id__in=[l.external_id
-                                               for l in locations]).update(
+                              external_id__in=[loc.external_id
+                                               for loc in locations]).update(
                                                    last_seen=now,
                                                    missing_since=None)
         return locations
+
+    async def _list_locations_populate_all_locations(self, locations, loop):
+        result = [
+            loop.run_in_executor(
+                None,
+                self._list_locations__populate_location, libcloud_location
+            ) for libcloud_location in locations
+        ]
+        return await asyncio.gather(*result)
+
+    def _list_locations__populate_location(self, libcloud_location):
+        from mist.api.clouds.models import CloudLocation
+        try:
+            _location = CloudLocation.objects.get(
+                cloud=self.cloud, external_id=libcloud_location.id)
+        except CloudLocation.DoesNotExist:
+            _location = CloudLocation(
+                cloud=self.cloud, owner=self.cloud.owner,
+                external_id=libcloud_location.id)
+        try:
+            _location.country = libcloud_location.country
+        except AttributeError:
+            _location.country = None
+        _location.name = libcloud_location.name
+        _location.extra = copy.deepcopy(libcloud_location.extra)
+        _location.missing_since = None
+        _location.parent = self._list_locations__get_parent(
+            _location, libcloud_location)
+        _location.location_type = self._list_locations__get_type(
+            _location, libcloud_location)
+        _location.images_location = self._list_locations__get_images_location(
+            libcloud_location)
+        try:
+            created = self._list_locations__location_creation_date(
+                libcloud_location)
+            if created:
+                created = get_datetime(created)
+                if _location.created != created:
+                    _location.created = created
+        except Exception as exc:
+            log.exception("Error finding creation date for %s in %s.\n%r",
+                          self.cloud, _location, exc)
+        try:
+            capabilities = self._list_locations__get_capabilities(
+                libcloud_location)
+        except Exception as exc:
+            log.error(
+                "Failed to get location capabilities for cloud: %s",
+                self.cloud.id)
+        else:
+            _location.capabilities = capabilities
+
+        try:
+            available_sizes = self._list_locations__get_available_sizes(
+                libcloud_location)
+        except Exception as exc:
+            log.error('Error adding location-size constraint: %s'
+                      % repr(exc))
+        else:
+            if available_sizes:
+                _location.available_sizes = available_sizes
+
+        try:
+            available_images = self._list_locations__get_available_images(
+                libcloud_location)
+        except Exception as exc:
+            log.error('Error adding location-image constraint: %s'
+                      % repr(exc))
+        else:
+            if available_images:
+                _location.available_images = available_images
+
+        try:
+            _location.save()
+        except me.ValidationError as exc:
+            log.error(
+                "Error adding %s: %s", libcloud_location.name, exc.to_dict())
+            raise BadRequestError({"msg": str(exc),
+                                   "errors": exc.to_dict()})
+        return _location
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
@@ -3298,36 +3339,6 @@ class BaseComputeController(BaseController):
         """Parse & validate machine's schedules list from the create machine
         request.
 
-        Schedule attributes:
-            `schedule_type`: 'one_off', 'interval', 'crontab'
-            `action`: 'start' 'stop', 'reboot', 'destroy'
-            `script`: dictionary containing:
-                    `script`: id or name of the script to run
-                    `params`: optional script parameters
-
-            one_off schedule_type parameters:
-                `datetime`: when schedule should run,
-                            e.g '2020-12-15T22:00:00Z'
-            crontab schedule_type parameters:
-                `minute`: e.g '*/10',
-                `hour`
-                `day_of_month`
-                `month_of_year`
-                `day_of_week`
-
-            interval schedule_type parameters:
-                    `every`: int ,
-                    `period`: minutes,hours,days
-
-            `expires`: date when schedule should expire,
-            e.g '2020-12-15T22:00:00Z'
-
-            `start_after`: date when schedule should start running,
-            e.g '2020-12-15T22:00:00Z'
-
-            `max_run_count`: max number of times to run
-            description:
-
         Parameters:
             auth_context(AuthContext): The AuthContext object of the user
                                        making the request.
@@ -3340,48 +3351,57 @@ class BaseComputeController(BaseController):
             return None
         ret_schedules = []
         for schedule in schedules:
-            schedule_type = schedule.get('when')
+            when = schedule.get('when')
+            schedule_type = when.get('schedule_type')
             if schedule_type not in ['crontab', 'interval', 'one_off']:
                 raise BadRequestError('schedule type must be one of '
                                       'these (crontab, interval, one_off)]')
 
             ret_schedule = {
-                'schedule_type': schedule_type,
                 'description': schedule.get('description', ''),
-                'task_enabled': True,
+                'when': when,
+                'task_enabled': schedule.get('task_enabled', True),
+                'actions': []
             }
-            action = schedule.get('action')
-            script = schedule.get('script')
-            if action is None and script is None:
-                raise BadRequestError('Schedule action or script not defined')
-            if action and script:
-                raise BadRequestError(
-                    'One of action or script should be defined')
-            if action:
-                if action not in ['reboot', 'destroy', 'start', 'stop']:
+            actions = schedule.get('actions', [])
+            for action in actions:
+                action_type = action.get('action_type')
+                if action_type is None:
+                    raise BadRequestError('Schedule action not defined')
+                if action_type not in [
+                    'reboot', 'destroy', 'start', 'stop', 'delete', 'webhook',
+                        'notify', 'undefine', 'resize', 'run_script']:
                     raise BadRequestError('Action is not correct')
-                ret_schedule['action'] = action
-            else:
-                from mist.api.methods import list_resources
-                script_search = script.get('script')
-                if not script_search:
-                    raise BadRequestError('script parameter is required')
-                try:
-                    [script_obj], _ = list_resources(auth_context, 'script',
-                                                     search=script_search,
-                                                     limit=1)
-                except ValueError:
-                    raise NotFoundError('Schedule script does not exist')
-                auth_context.check_perm('script', 'run', script_obj.id)
-                ret_schedule['script_id'] = script_obj.id
-                ret_schedule['script_name'] = script_obj.name
-                ret_schedule['params'] = script.get('params')
+                ret_action = {
+                    'action_type': action_type
+                }
+                if action_type == 'run_script':
+                    script_type = action.get('script_type')
+                    if script_type == 'existing':
+                        from mist.api.methods import list_resources
+                        script_search = action.get('script')
+                        if not script_search:
+                            raise BadRequestError(
+                                'script parameter is required')
+                        try:
+                            [script_obj], _ = list_resources(
+                                auth_context, 'script', search=script_search,
+                                limit=1)
+                        except ValueError:
+                            raise NotFoundError(
+                                'Schedule script does not exist')
+                        auth_context.check_perm('script', 'run', script_obj.id)
+                    ret_action['script'] = script_obj.id
+                    ret_action['script_name'] = script_obj.name
+                    ret_action['params'] = action.get('params')
+                ret_schedule['actions'].append(ret_action)
+
             if schedule_type == 'one_off':
                 # convert schedule_entry from ISO format
                 # to '%Y-%m-%d %H:%M:%S'
                 try:
-                    ret_schedule['schedule_entry'] = datetime.datetime.strptime(  # noqa
-                        schedule['datetime'], '%Y-%m-%dT%H:%M:%SZ'
+                    ret_schedule['when']['datetime'] = datetime.datetime.strptime(  # noqa
+                        when['datetime'], '%Y-%m-%dT%H:%M:%SZ'
                     ).strftime("%Y-%m-%d %H:%M:%S")
                 except KeyError:
                     raise BadRequestError(
@@ -3392,21 +3412,24 @@ class BaseComputeController(BaseController):
                         ' format %Y-%m-%dT%H:%M:%SZ')
             elif schedule_type == 'interval':
                 try:
-                    ret_schedule['schedule_entry'] = {
-                        'every': schedule['every'],
-                        'period': schedule['period']
+                    ret_schedule['when'] = {
+                        'schedule_type': 'interval',
+                        'every': when['every'],
+                        'period': when['period'],
+                        'max_run_count': when.get('max_run_count')
                     }
                 except KeyError:
                     raise BadRequestError(
                         'interval schedule parameter missing')
             elif schedule_type == 'crontab':
                 try:
-                    ret_schedule['schedule_entry'] = {
-                        'minute': schedule['minute'],
-                        'hour': schedule['hour'],
-                        'day_of_month': schedule['day_of_month'],
-                        'month_of_year': schedule['month_of_year'],
-                        'day_of_week': schedule['day_of_week']
+                    ret_schedule['when'] = {
+                        'schedule_type': 'crontab',
+                        'minute': when['minute'],
+                        'hour': when['hour'],
+                        'day_of_month': when['day_of_month'],
+                        'month_of_year': when['month_of_year'],
+                        'day_of_week': when['day_of_week']
                     }
                 except KeyError:
                     raise BadRequestError(
@@ -3425,6 +3448,7 @@ class BaseComputeController(BaseController):
                                               'not match format '
                                               '%Y-%m-%dT%H:%M:%SZ'
                                               )
+
                 if schedule.get('expires'):
                     # convert `expires` from ISO format
                     # to '%Y-%m-%d %H:%M:%S'
