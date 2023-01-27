@@ -69,7 +69,7 @@ class AuthToken(me.Document):
 
     @property
     def org(self):
-        return self.orgs[0]
+        return self.orgs and self.orgs[0]
 
     def expires(self):
         if self.ttl:
