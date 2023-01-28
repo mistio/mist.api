@@ -152,10 +152,6 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
     description = me.StringField()
     deleted = me.DateTimeField()
 
-    # Deprecated
-    owner = me.ReferenceField(Organization, required=False,
-                              reverse_delete_rule=me.CASCADE)
-
     org = me.ReferenceField(Organization, required=False,
                             reverse_delete_rule=me.CASCADE)
 
@@ -198,6 +194,11 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
         import mist.api.schedules.base
         super(Schedule, self).__init__(*args, **kwargs)
         self.ctl = mist.api.schedules.base.BaseController(self)
+
+    @property
+    def owner(self):
+        # For backwards compatibility
+        return self.org
 
     @property
     def org_id(self):
