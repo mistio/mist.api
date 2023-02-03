@@ -426,7 +426,7 @@ def set_schedule_tags(request):
     # SEC require EDIT_TAGS permission on schedule
     auth_context.check_perm("schedule", "edit_tags", schedule_id)
 
-    schedule = Schedule.objects.get(org=auth_context.owner,
+    schedule = Schedule.objects.get(owner=auth_context.owner,
                                     id=schedule_id, deleted=None)
 
     tags = params.get("tags")
