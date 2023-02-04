@@ -654,7 +654,8 @@ class MainConnection(MistConnection):
             kwargs = {}
             if stale:
                 kwargs['stale'] = True
-            kwargs.update(self.log_kwargs)
+            if self.log_kwargs:
+                kwargs.update(self.log_kwargs)
             log_event(action='disconnect', **kwargs)
         if self.consumer is not None:
             try:

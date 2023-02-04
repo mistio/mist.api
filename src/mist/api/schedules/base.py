@@ -159,7 +159,8 @@ class BaseController(object):
                 script_id = kwargs.pop('script_id', '')
                 if script_id:
                     try:
-                        Script.objects.get(owner=org, id=script_id, deleted=None)
+                        Script.objects.get(
+                            owner=org, id=script_id, deleted=None)
                     except me.DoesNotExist:
                         raise ScriptNotFoundError('Script with id %s does not '
                                                   'exist' % script_id)
