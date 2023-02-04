@@ -125,7 +125,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
     One can perform a query directly on Schedule to fetch all cloud types, like
     this:
 
-        Schedule.objects(org=org).count()
+        Schedule.objects(owner=org).count()
 
     """
 
@@ -134,7 +134,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
         'allow_inheritance': True,
         'indexes': [
             {
-                'fields': ['org', 'name', 'deleted'],
+                'fields': ['owner', 'name', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -152,8 +152,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
     description = me.StringField()
     deleted = me.DateTimeField()
 
-    org = me.ReferenceField(Organization, required=False,
-                            reverse_delete_rule=me.CASCADE)
+    owner = me.ReferenceField(Organization, required=False,
+                              reverse_delete_rule=me.CASCADE)
 
     # celery periodic task specific fields
     queue = me.StringField()
@@ -196,9 +196,8 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
         self.ctl = mist.api.schedules.base.BaseController(self)
 
     @property
-    def owner(self):
-        # For backwards compatibility
-        return self.org
+    def org(self):
+        return self.owner
 
     @property
     def org_id(self):
@@ -218,7 +217,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
         You're not meant to be calling this directly, but on a schedule class
         instead like this:
 
-            schedule = Schedule.add(org=org, **kwargs)
+            schedule = Schedule.add(owner=org, **kwargs)
         """
         org = auth_context.owner
 
@@ -230,9 +229,9 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin, TagMixin,
         if selector_type not in rtype_to_classpath:
             raise BadRequestError('selector_type')
         kwargs['selector_type'] = selector_type
-        if Schedule.objects(org=org, name=name, deleted=None):
+        if Schedule.objects(owner=org, name=name, deleted=None):
             raise ScheduleNameExistsError()
-        schedule = cls(org=org, name=name,
+        schedule = cls(owner=org, name=name,
                        resource_model_name=selector_type)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)

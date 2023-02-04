@@ -3,7 +3,7 @@ from mist.api.tag.methods import get_tags_for_resource
 
 
 def list_schedules(owner):
-    schedules = Schedule.objects(org=owner, deleted=None).order_by('-_id')
+    schedules = Schedule.objects(owner=owner, deleted=None).order_by('-_id')
     schedule_objects = []
     for schedule in schedules:
         schedule_object = schedule.as_dict()

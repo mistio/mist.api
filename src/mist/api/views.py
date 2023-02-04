@@ -2337,6 +2337,15 @@ def delete_member_from_team(request):
             portal_name=config.PORTAL_NAME
         )
         auth_context.org.remove_member_from_members(user)
+        for token in SessionToken.objects(
+                user_id=user.id, orgs=auth_context.org):
+            token.revoked = True
+            token.save()
+        if not Organization.objects(
+                members=user, name__ne=auth_context.org.name).count():
+            # For backwards compatibility
+            from mist.api.users.methods import create_org_for_user
+            create_org_for_user(user, '')
     else:
         body = config.NOTIFY_REMOVED_FROM_TEAM.format(
             fname=user.first_name, team=team.name,

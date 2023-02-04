@@ -800,7 +800,7 @@ def group_resources_actions(owner_id, action, name, resources_ids):
     :return: log_dict
     """
 
-    schedule = Schedule.objects.get(org=owner_id, name=name, deleted=None)
+    schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
     resource_type = schedule.resource_model_name
     resource_cls = schedule.selector_resource_cls
     resources_match_key = f'{resource_type}s_match'
@@ -888,7 +888,7 @@ def run_resource_action(owner_id, action, name, resource_id):
     :return:
     """
 
-    schedule = Schedule.objects.get(org=owner_id, name=name, deleted=None)
+    schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
     resource_type = schedule.resource_model_name
     resource_cls = schedule.selector_resource_cls
     resource_id_key = f'{resource_type}_id'
@@ -1092,7 +1092,7 @@ def group_run_script(auth_context_serialized, script_id, name, machine_ids,
         auth_context = None
 
     job_id = uuid.uuid4().hex
-    schedule = Schedule.objects.get(org=owner.id, name=name, deleted=None)
+    schedule = Schedule.objects.get(owner=owner.id, name=name, deleted=None)
 
     log_dict = {
         'schedule_id': schedule.id,
