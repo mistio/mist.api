@@ -62,7 +62,7 @@ class ClusterAWSTemplate(BaseAWSTemplate):
         self,
         cluster_name: str,
         availability_zones: List[str],
-        cluster_version: str = "1.21",
+        cluster_version: str = "1.25",
     ) -> None:
         """A CloudFormation Template to provision an EKS Cluster
         and all required resources.
