@@ -114,6 +114,7 @@ def create_token(request):
     email = params.get('email', '').lower()
     api_token_name = params.get('name', '')
     org_id = params.get('org_id', '')
+    password = params.get('password', '')
     ttl = params.get('ttl', 60 * 60)
     if isinstance(ttl, string_types) and not ttl.isdigit():
         raise BadRequestError('Ttl must be a number greater than 0')
@@ -145,6 +146,11 @@ def create_token(request):
             user = User.objects.get(email=email)
         except User.DoesNotExist:
             raise UserUnauthorizedError()
+        if not user.password:
+            raise BadRequestError(
+                'Please use the GUI to set a password and retry')
+        if not user.check_password(password):
+            raise UserUnauthorizedError('Wrong password')
         # Remove org is not None when we enforce org context on tokens.
         if org is not None and user not in org.members:
             raise ForbiddenError()
