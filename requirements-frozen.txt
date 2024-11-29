@@ -13,7 +13,7 @@ bcrypt==3.2.2
 billiard==3.6.4.0
 beautifulsoup4==4.11.1
 boto3==1.24.91
-certifi==2022.9.24
+certifi==2022.12.7
 cffi==1.15.1
 Chameleon==3.10.1
 chardet==3.0.4
