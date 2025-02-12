@@ -320,6 +320,10 @@ def login(request):
     return_to = params.get('return_to')
     if return_to:
         return_to = urllib.parse.unquote(return_to)
+        # (Open Redirect) Security Fix: Prevent open redirect vulnerability by ensuring 
+        # `return_to` is a safe relative URL
+        if not return_to.startswith('/') or return_to.startswith('//'):
+            raise BadRequestError("Invalid or unsafe redirect URL.")
     else:
         return_to = '/'
     token_from_params = params.get('token')
