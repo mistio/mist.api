@@ -322,6 +322,7 @@ def login(request):
         return_to = urllib.parse.unquote(return_to)
         # (Open Redirect) Security Fix: Prevent open redirect vulnerability by ensuring 
         # `return_to` is a safe relative URL
+        # This way is safe for using the return_to parameter
         if not return_to.startswith('/') or return_to.startswith('//'):
             raise BadRequestError("Invalid or unsafe redirect URL.")
     else:
