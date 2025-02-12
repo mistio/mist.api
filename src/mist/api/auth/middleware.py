@@ -41,6 +41,7 @@ class AuthMiddleware(object):
                     not getattr(session, 'internal', False) and \
                     not session.last_accessed_at:
                 # (CSRF) Security Fix: Added SameSite=Strict flag to prevent CSRF attack
+                # In case of having a cookie issue, consider removing and addressing the CSRF issue in another way
                 # in admin's "su" operation
                 cookie = 'session.id=%s; Path=/; SameSite=Strict;' % session.token
                 headers.append(('Set-Cookie', cookie))
