@@ -40,7 +40,9 @@ class AuthMiddleware(object):
             if isinstance(session, SessionToken) and \
                     not getattr(session, 'internal', False) and \
                     not session.last_accessed_at:
-                cookie = 'session.id=%s; Path=/;' % session.token
+                # (CSRF) Security Fix: Added SameSite=Strict flag to prevent CSRF attack
+                # in admin's "su" operation
+                cookie = 'session.id=%s; Path=/; SameSite=Strict;' % session.token
                 headers.append(('Set-Cookie', cookie))
 
             # ApiTokens with 'dummy' in name are handed out by session from

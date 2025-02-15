@@ -1,6 +1,7 @@
 import jsonpatch
 import mongoengine as me
 from pyramid.response import Response
+from html import escape
 
 from mist.api import config
 
@@ -96,7 +97,9 @@ def tag_resources(request):
 
         # split the tags into two lists: those that will be added and those
         # that will be removed
-        tags_to_add = [(tag['key'], tag['value']) for tag in [
+        # (XSS) Security Fix: added html.escape to sanitize user-controlled input in tags  
+        # Prevents injection of malicious scripts by escaping key-value pairs
+        tags_to_add = [(escape(tag['key']), escape(tag['value'])) for tag in [
             tag for tag in resource_tags if tag.get('op', '+') == '+']]
         # also extract the keys from all the tags to be deleted
         tags_to_remove = [(tag['key'], tag['value']) for tag in [
