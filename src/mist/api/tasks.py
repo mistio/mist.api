@@ -1195,7 +1195,8 @@ def run_script(auth_context_serialized, script_id, machine_uuid, params='',
             script = Script.objects.get(
                 owner=owner, id=script_id, deleted=None)
         except Script.DoesNotExist:
-            log.warn('Ignoring execution job of missing script:', script_id, owner, job_id)
+            log.warning('Ignoring execution job of missing script: %s %s %s',
+                        script_id, owner, job_id)
             return
         from mist.api.machines.methods import find_best_ssh_params
         from mist.api.machines.models import KeyMachineAssociation

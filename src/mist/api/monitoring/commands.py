@@ -3,7 +3,7 @@
 from mist.api import config
 
 
-REPO = "https://gitlab.ops.mist.io/mistio/mist-telegraf/raw/master/scripts"
+REPO = "https://github.com/mistio/mist-telegraf/raw/master/scripts"
 
 
 def check_sudo(cmd):
