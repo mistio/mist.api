@@ -112,6 +112,8 @@ def create_token(request):
     """
     params = params_from_request(request)
     email = params.get('email', '').lower()
+    # (Account Takeover) Security Fix 1/2
+    password = params.get('password', '')
     api_token_name = params.get('name', '')
     org_id = params.get('org_id', '')
     ttl = params.get('ttl', 60 * 60)
@@ -143,8 +145,12 @@ def create_token(request):
                     pass
         try:
             user = User.objects.get(email=email)
+            # (Account Takeover) Security Fix 2/2: Prevent unauthorized API token creation  
+            # Ensure the authenticated user owns the account before issuing a token 
+            if not user.check_password(password):  
+                raise UserUnauthorizedError("Invalid credentials")
         except User.DoesNotExist:
-            raise UserUnauthorizedError()
+            raise UserUnauthorizedError("Invalid credentials")
         # Remove org is not None when we enforce org context on tokens.
         if org is not None and user not in org.members:
             raise ForbiddenError()
